@@ -174,33 +174,37 @@ export const cranberry = icon((ctx) => {
   DOT(ctx, -0.06, -0.17);
 });
 
-/** One ear of wheat: stem and chevron kernels, angled from (x0, y0) to (x1, y1). */
-function ear(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, n: number): void {
-  M(ctx, x0, y0);
-  L(ctx, x1, y1);
-  const dx = x1 - x0;
-  const dy = y1 - y0;
+/** Ear of wheat on a slanted stalk: paired kernels up both sides, long awns off the top, a leaf. */
+const WHEAT_KERNELS = 5;
+export const wheat = icon((ctx) => {
+  const x0 = -0.26;
+  const y0 = 0.5;
+  const dx = 0.48;
+  const dy = -0.9;
   const len = Math.hypot(dx, dy);
   const ux = dx / len;
   const uy = dy / len;
-  const w = 0.09;
-  for (let i = 0; i < n; i++) {
-    const f = 0.42 + (i / n) * 0.55;
+  M(ctx, x0, y0);
+  L(ctx, x0 + dx, y0 + dy);
+  const w = 0.12;
+  for (let i = 0; i < WHEAT_KERNELS; i++) {
+    const f = 0.32 + (i / WHEAT_KERNELS) * 0.6;
     const px = x0 + dx * f;
     const py = y0 + dy * f;
-    M(ctx, px - uy * w - ux * w, py + ux * w - uy * w);
+    M(ctx, px - uy * w + ux * w * 0.9, py + ux * w + uy * w * 0.9);
     L(ctx, px, py);
-    L(ctx, px + uy * w - ux * w, py - ux * w - uy * w);
+    L(ctx, px + uy * w + ux * w * 0.9, py - ux * w + uy * w * 0.9);
   }
-}
-
-/** Sheaf of three wheat stalks tied at the middle. */
-export const wheat = icon((ctx) => {
-  ear(ctx, 0, 0.48, 0, -0.5, 4);
-  ear(ctx, -0.08, 0.48, -0.36, -0.36, 3);
-  ear(ctx, 0.08, 0.48, 0.36, -0.36, 3);
-  M(ctx, -0.13, 0.22);
-  L(ctx, 0.13, 0.22);
+  // Awns
+  const tx = x0 + dx * 0.9;
+  const ty = y0 + dy * 0.9;
+  M(ctx, tx - uy * 0.07, ty + ux * 0.07);
+  L(ctx, tx - uy * 0.07 + ux * 0.2 - 0.05, ty + ux * 0.07 + uy * 0.2);
+  M(ctx, tx + uy * 0.07, ty - ux * 0.07);
+  L(ctx, tx + uy * 0.07 + ux * 0.2 + 0.06, ty - ux * 0.07 + uy * 0.2);
+  // Leaf curling off the stalk
+  M(ctx, x0 + dx * 0.16, y0 + dy * 0.16);
+  Q(ctx, 0.08, 0.3, 0.26, 0.4);
 });
 
 /** Pilgrim hat: tall crown, wide brim, band and buckle. */
