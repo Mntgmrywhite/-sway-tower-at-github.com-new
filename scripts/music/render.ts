@@ -1,6 +1,7 @@
 // Render songs to seamless AAC loops for the game.
 //   npm run music -- <song> [<song> ...]      (song = file name in scripts/music/songs/)
-// Writes src/audio/music/<song>.mp4 + updates src/audio/music/manifest.json, and a two-loop
+// Writes src/audio/music/<song>.mp4 + updates src/audio/music/manifest.json (loop points, and
+// the song's cues: moments the game syncs visuals to, in seconds from the loop start), and a two-loop
 // WAV in preview/music/<song>.wav for listening (afplay preview/music/<song>.wav).
 //
 // Loop layout (so the game can loop sample-accurately despite AAC encoder delay):
@@ -11,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { master, RATE, renderLoop, type Song } from "./song";
+import { loopCues, master, RATE, renderLoop, type Song } from "./song";
 import { writeWav } from "./wav";
 
 const PAD = 12000;
@@ -27,6 +28,8 @@ export interface LoopInfo {
   priming: number;
   bpm: number;
   bars: number;
+  /** Song.cues: named moments, seconds from the loop start as written (only songs that have them). */
+  cues?: Record<string, number>;
 }
 
 async function main(): Promise<void> {
@@ -70,7 +73,8 @@ async function main(): Promise<void> {
     };
     writeWav(join(PREVIEW, `${name}.wav`), { rate: RATE, left: twice(loop.left), right: twice(loop.right) });
 
-    rendered[name] = { sr: RATE, L, PAD, priming: PRIMING, bpm: song.bpm, bars: song.bars };
+    const cues = loopCues(song);
+    rendered[name] = { sr: RATE, L, PAD, priming: PRIMING, bpm: song.bpm, bars: song.bars, ...(cues ? { cues } : {}) };
     const kb = Math.round(readFileSync(mp4).length / 1024);
     console.log(`${name}: ${(L / RATE).toFixed(1)}s loop, ${kb} KB -> ${mp4} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
   }

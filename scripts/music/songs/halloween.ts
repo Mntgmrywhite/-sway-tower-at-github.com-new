@@ -6,7 +6,10 @@
 // Around them are a comic staccato bassoon, xylophone "bones", a woodblock clock, tubular bells
 // tolling the phrase starts and timpani on the dominant.
 //
-// 32 bars (42.7 s), the theme twice; each B section is sung two octaves down by a low soloist.
+// The arrangement is 32 bars (42.7 s), the theme twice; each B section is sung two octaves down
+// by a low soloist. The loop plays it twice (64 bars, 85.3 s), with a haunted fun house of sound
+// effects over it, different each time round: wolves, doors, owls, snakes, wind, chains, a laugh,
+// a cackle and thunder (see the end of the file; bars 33–64 are bars 1–32 again).
 // Pass 1 tiptoes through town. A haunted-parlor piano booms low octaves and creeps down
 // chromatically in the tune's held notes (bars 1–4, again in 13–16); a sly low tenor sax answers
 // "trick-or-TREAT" (two staccato syllables and a held note, bars 6–8); the bassoon grumbles a
@@ -34,15 +37,20 @@
 // Mix: the harpsichord leads the A sections (within about 5 dB of the mix), the bassoon and the
 // euphonium their B sections; piano, sax, horn and low brass each sit within about 10 dB of the
 // mix where they play, and the drums grow from about -16 dB (the distant hoofbeats of bar 21) to
-// -6 in the tutti (scripts/music/mix.ts, and per bar).
+// -6 in the tutti (scripts/music/mix.ts, and per bar). The effects sit about 14-25 dB under the
+// mix in the bars where they sound (the werewolf about 7 under, the one moment the tune shares),
+// and each stays under the part it plays over in that part's own octave bands. None adds more
+// than about 2 dB to its bar, and above 6 kHz none is brighter than the tutti's cymbals.
 //
 // Tuning: the sampler tunes every note to the pitch heard, at its length (instruments.ts). Only the
 // drums are tuned here: the toms per layer and the timpani to the chord. Measured as rendered
 // (scripts/music/tuning.ts), every note of the piano, sax, horn, euphonium, harpsichord and bassoon
-// is within 5 cents of pitch as heard.
+// is within 5 cents of pitch as heard. The wolves hold their notes within 5 cents too, vibrato and
+// all (synth.test.ts); the recorded effects play at their own pitch.
 
 import { midi } from "../sampler";
-import { euphonium, transpose, type Note, type Song } from "../song";
+import { at, euphonium, transpose, type Note, type Song, type Track } from "../song";
+import { SYNTHS, type HowlPatch, type WindPatch } from "../synth";
 import { CHORDS, EIGHTHS_PER_BAR, melody, minorize, THEME_BARS, THEME_BPM } from "../theme";
 
 const BAR = EIGHTHS_PER_BAR;
@@ -457,55 +465,126 @@ for (let b = 21; b <= 32; b++) {
 // The roll: a mid-level roll through bar 28 and a louder one over its second half (a crescendo).
 roll.push({ t: bar(28), d: 6, n: "D2", v: 0.5 }, { t: bar(28) + 3, d: 3, n: "D2", v: 0.72 });
 
+/** The arrangement: the theme twice, the town and then the hollow (32 bars). */
+const music: Track[] = [
+  // The quill attack is the brightest thing in the mix (nearly all of it above 4 kHz): a
+  // low-pass takes its edge off and leaves the pluck. The tune is damped at the next note, or
+  // after 0.5 s (with the release, a dotted quarter) where a rest or the other pass follows.
+  { inst: "harpsichord", notes: tiptoe, gain: 0.9, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, choke: true, ring: 0.5 },
+  { inst: "harpsichord", notes: lead, gain: 1.12, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, choke: true, ring: 0.5 },
+  { inst: "harpsichord", notes: rolls, gain: 1.12, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, ring: 0.6 },
+  { inst: "harpsichord", notes: continuo, gain: 0.2, pan: -0.15, reverb: 0.36, lowpass: 5000, ring: 0.2 },
+  { inst: "harpsichord", notes: continuoRide, gain: 0.45, pan: -0.15, reverb: 0.36, lowpass: 5000, ring: 0.2 },
+  { inst: "xylophone", notes: bones, gain: 1.3, pan: 0.3, reverb: 0.32 },
+  { inst: "xylophone", notes: bonesTutti, gain: 0.28, pan: 0.3, reverb: 0.32 },
+  { inst: "piano", notes: piano, gain: 0.3, pan: -0.15, reverb: 0.3 },
+  { inst: "saxShort", notes: saxTrick, gain: 1.3, pan: 0.2, reverb: 0.25, lowpass: 4500 },
+  { inst: "sax", notes: saxTreat, gain: 1.6, pan: 0.2, reverb: 0.25, lowpass: 4500 },
+  { inst: "bassoonShort", notes: bassoon, gain: 0.65, pan: 0.05, reverb: 0.25 },
+  { inst: "bassoonShort", notes: bassoonTune, gain: 1.1, pan: 0.05, reverb: 0.25 },
+  { inst: "horn", notes: hornFar, gain: 1.2, pan: -0.45, reverb: 0.55, humanize: 0.15 },
+  { inst: "horn", notes: hornCalls, gain: 1.2, pan: -0.25, reverb: 0.4, humanize: 0.15 },
+  { inst: "horn", notes: hornRide, gain: 1.35, pan: -0.25, reverb: 0.4, humanize: 0.15 },
+  { inst: "horn", notes: hornTune, gain: 1.6, pan: -0.2, reverb: 0.3, humanize: 0.15 },
+  ...euphonium(euphLine, { gain: 3.5, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
+  ...euphonium(euphTune, { gain: 7.5, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
+  ...euphonium(euphTutti, { gain: 4, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
+  // The low pizz is stopped at its next note (the bass's low strings ring for seconds), so a
+  // root never smears into the next chord: E–F, F–E and G#–A are semitones in the lowest octave.
+  { inst: "bassPizz", notes: bass, gain: 0.62, pan: 0.1, reverb: 0.12, choke: true },
+  { inst: "cellosPizz", notes: cellos, gain: 0.4, pan: 0.3, reverb: 0.2, choke: true },
+  { inst: "violasPizz", notes: violas, gain: 0.3, pan: 0.2, reverb: 0.3, humanize: 0.4 },
+  { inst: "violinsPizz", notes: violins, gain: 0.6, pan: -0.35, reverb: 0.3, humanize: 0.4 },
+  { inst: "tubularBells", notes: bells, gain: 0.16, pan: -0.25, reverb: 0.45 },
+  { inst: "tubularBells", notes: softBells, gain: 0.75, pan: -0.25, reverb: 0.45 },
+  { inst: "timpani", notes: timpani, gain: 0.62, pan: -0.05, reverb: 0.25 },
+  { inst: "woodblock", notes: woodblock, gain: 0.55, pan: 0.25, reverb: 0.18 },
+  { inst: "tomLow", notes: tomLowFar, gain: 3.2, pan: -0.15, reverb: 0.45, humanize: 0.2 },
+  { inst: "tomHigh", notes: tomHighFar, gain: 2.8, pan: 0.2, reverb: 0.45, humanize: 0.2 },
+  { inst: "tomLow", notes: tomLow, gain: 1.25, pan: -0.15, reverb: 0.2, humanize: 0.2 },
+  { inst: "tomHigh", notes: tomHigh, gain: 1.12, pan: 0.2, reverb: 0.2, humanize: 0.2 },
+  { inst: "kick", notes: kick, gain: 0.55, pan: 0, reverb: 0.1, humanize: 0.2 },
+  { inst: "snareRoll", notes: roll, gain: 0.5, pan: 0.05, reverb: 0.2 },
+  { inst: "snareOn", notes: snare, gain: 1.1, pan: 0.05, reverb: 0.2, humanize: 0.2 },
+  { inst: "cymbals", notes: cymbals, gain: 0.6, pan: -0.1, reverb: 0.35 },
+  { inst: "crash", notes: crash, gain: 0.6, pan: 0.3, reverb: 0.3 },
+];
+
+// ------------------------------------------------------------------ the haunted fun house
+
+// The loop plays the arrangement twice (64 bars, 85.3 s), haunted differently each time, so
+// the sound effects don't come round every 43 s. Each one sits in the music's gaps: the tune's
+// held notes and phrase ends, the low end where only the bass plays, or above it all (the
+// snakes and chains). The bassoon's and euphonium's solos are left alone but for an owl and a
+// door in the bassoon's last bar (the door and the cackle that answer "TREAT" die away over its
+// pickup). They are panned around the valley, wet with the song's reverb (the far ones wetter),
+// and none comes round the same way twice in a loop.
+//
+// Night I. The loop opens on the werewolf: as the bell tolls A4 he scoops up a fifth into the
+// same A ("a-WOOOO", the bell's note, a tone of Am, F and Dm alike), holds it through bar 2
+// and falls away through bar 3, where a second wolf answers from far off on E (bars 3-5, the
+// dominant). Trick-or-treaters' door creaks open after the sax's "TREAT" (bar 8); an owl hoots
+// at the end of the bassoon's solo and calls "hu-hu-hooo" over the held note of bar 16. In the
+// hollow a rattlesnake rattles in the leaves and hisses twice (bars 17-20), and the wind rises
+// as the Horseman's hoofbeats come (bars 21-24). After the tutti's last hit he laughs, and
+// thunder breaks over the quiet town (bar 33).
+// Night II. The thunder rolls on under the tiptoe; a slow door creaks open on the held E of
+// bar 36, a witch cackles after "TREAT" (bar 40), a heavy door groans as the bassoon ends its
+// solo (bar 44), and owls call across the valley (bars 46 and 49). In the hollow a ghost
+// shakes its chains (bars 50 and 52), and the wind blows the other way (bars 53-56). The loop
+// ends on the tutti and opens on the werewolf again.
+const LOOP_BARS = BARS * 2;
+/** The arrangement, played twice. */
+const twice = (track: Track): Track => ({ ...track, notes: [...track.notes, ...at(BARS * BAR, track.notes)] });
+/** A one-shot effect at bar b, eighth e (the recordings play at their own pitch on C4). */
+const shot = (b: number, e: number, v: number): Note[] => [{ t: bar(b) + e, d: 1, n: "C4", v }];
+
+// The werewolf (near, right) and the wolf that answers (far off, left: smaller, smoother, no growl).
+const howl = SYNTHS.howl as HowlPatch;
+const farWolf: HowlPatch = { ...howl, scoop: 5, rise: 0.6, fall: 12, release: 1.4, vibrato: [4.6, 14], growl: 0, tilt: 1.2, breath: 2 };
+// Wind blowing across from the right (night I) and from the left (night II, peaking later).
+const wind = SYNTHS.wind as WindPatch;
+const windEast: WindPatch = { ...wind, sweep: [0.6, -0.6] };
+const windWest: WindPatch = { ...wind, sweep: [-0.6, 0.6], peak: 0.6 };
+
+// Round robins: a sampled effect with several recordings plays them in turn, by file name, in
+// the order its notes are rendered (track by track). The creak's three are the heavy door
+// (0306), the trick-or-treat door (3205) and the slow door (3207); the owl's are the tawny owls
+// calling across the valley (0429), then the single owl (1763); the thunder plays only its
+// first, the shorter roll (3114), let go where it dips at 4.5 s. Tracks of one effect share a
+// label, so reports render them together, in the same turn. The wind's whistle peaks on a
+// chord tone (D5 over G, C5 over F); the second hiss is a touch higher.
+// Levels, against what plays at the same moment (per eighth, and per octave band): the thunder
+// is high-passed at 150 Hz so its roll stays under the piano's creeping octaves (bars 34-35);
+// the chains are high-passed at 700 Hz, so their heavy links clank above the horn's hunting
+// calls they share bars 50 and 52 with; the wind's gust peaks about level with the euphonium's
+// fifths, never over the horn; the snakes are low-passed at 7 kHz and stay darker than the
+// tutti's cymbals; the cackle is let go after its second burst, as the bassoon's solo begins.
+const effects: Track[] = [
+  { inst: "howl", notes: [{ t: bar(1) + 1, d: 10, n: "A4", v: 0.8 }], gain: 0.8, pan: 0.4, reverb: 0.45, humanize: 0 },
+  { inst: "howl", patch: farWolf, label: "far wolf", notes: [{ t: bar(3) + 2, d: 8, n: "E4", v: 0.65 }], gain: 0.6, pan: -0.75, reverb: 0.75, humanize: 0 },
+  { inst: "creak", label: "creak", notes: shot(44, 3, 0.7), gain: 0.18, pan: 0.55, reverb: 0.5, ring: 3, highpass: 250, lowpass: 5000, humanize: 0 },
+  { inst: "creak", label: "creak", notes: shot(8, 2.5, 0.7), gain: 0.45, pan: 0.65, reverb: 0.4, ring: 1.5, humanize: 0 },
+  { inst: "creak", label: "creak", notes: shot(35, 1, 0.7), gain: 0.22, pan: 0.6, reverb: 0.45, ring: 3.6, humanize: 0 },
+  { inst: "owl", label: "owl", notes: shot(45, 4.5, 0.7), gain: 0.32, pan: -0.7, reverb: 0.6, ring: 6, humanize: 0 },
+  { inst: "owl", label: "owl", notes: shot(12, 0, 0.7), gain: 0.07, pan: -0.55, reverb: 0.5, ring: 6.6, humanize: 0 },
+  { inst: "rattle", notes: [{ t: bar(17) + 3, d: 5, n: "C4", v: 0.7 }], gain: 0.36, pan: -0.55, reverb: 0.35, lowpass: 7000, humanize: 0 },
+  { inst: "hiss", notes: [{ t: bar(18) + 3.5, d: 3.5, n: "C4", v: 0.7 }, { t: bar(20) + 3, d: 2.5, n: "D4", v: 0.6 }], gain: 0.38, pan: -0.45, reverb: 0.35, lowpass: 7000, humanize: 0 },
+  { inst: "wind", patch: windEast, label: "wind", notes: [{ t: bar(21), d: 16, n: "D5", v: 0.6 }], gain: 0.28, reverb: 0.5, humanize: 0 },
+  { inst: "wind", patch: windWest, label: "wind", notes: [{ t: bar(53), d: 16, n: "C5", v: 0.6 }], gain: 0.28, reverb: 0.5, humanize: 0 },
+  { inst: "madLaugh", notes: shot(32, 3, 0.7), gain: 0.15, pan: -0.3, reverb: 0.45, ring: 2.6, humanize: 0 },
+  { inst: "thunder", notes: shot(33, 0, 0.8), gain: 0.15, pan: 0, reverb: 0.5, ring: 4.5, highpass: 150, humanize: 0 },
+  { inst: "cackle", notes: shot(40, 2.5, 0.7), gain: 0.25, pan: -0.55, reverb: 0.4, ring: 1.05, lowpass: 5000, humanize: 0 },
+  { inst: "chains", notes: [{ t: bar(50) + 3, d: 3, n: "C4", v: 0.6 }, { t: bar(52), d: 2.5, n: "C4", v: 0.55 }], gain: 0.45, pan: 0.55, reverb: 0.45, highpass: 700, humanize: 0 },
+];
+
 const song: Song = {
   name: "halloween",
   bpm: THEME_BPM,
   beatsPerBar: BAR,
-  bars: BARS,
+  bars: LOOP_BARS,
   reverb: { room: 0.8, damp: 0.6, width: 1, level: 0.95 },
-  tracks: [
-    // The quill attack is the brightest thing in the mix (nearly all of it above 4 kHz): a
-    // low-pass takes its edge off and leaves the pluck. The tune is damped at the next note, or
-    // after 0.5 s (with the release, a dotted quarter) where a rest or the other pass follows.
-    { inst: "harpsichord", notes: tiptoe, gain: 0.9, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, choke: true, ring: 0.5 },
-    { inst: "harpsichord", notes: lead, gain: 1.12, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, choke: true, ring: 0.5 },
-    { inst: "harpsichord", notes: rolls, gain: 1.12, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, ring: 0.6 },
-    { inst: "harpsichord", notes: continuo, gain: 0.2, pan: -0.15, reverb: 0.36, lowpass: 5000, ring: 0.2 },
-    { inst: "harpsichord", notes: continuoRide, gain: 0.45, pan: -0.15, reverb: 0.36, lowpass: 5000, ring: 0.2 },
-    { inst: "xylophone", notes: bones, gain: 1.3, pan: 0.3, reverb: 0.32 },
-    { inst: "xylophone", notes: bonesTutti, gain: 0.28, pan: 0.3, reverb: 0.32 },
-    { inst: "piano", notes: piano, gain: 0.3, pan: -0.15, reverb: 0.3 },
-    { inst: "saxShort", notes: saxTrick, gain: 1.3, pan: 0.2, reverb: 0.25, lowpass: 4500 },
-    { inst: "sax", notes: saxTreat, gain: 1.6, pan: 0.2, reverb: 0.25, lowpass: 4500 },
-    { inst: "bassoonShort", notes: bassoon, gain: 0.65, pan: 0.05, reverb: 0.25 },
-    { inst: "bassoonShort", notes: bassoonTune, gain: 1.1, pan: 0.05, reverb: 0.25 },
-    { inst: "horn", notes: hornFar, gain: 1.2, pan: -0.45, reverb: 0.55, humanize: 0.15 },
-    { inst: "horn", notes: hornCalls, gain: 1.2, pan: -0.25, reverb: 0.4, humanize: 0.15 },
-    { inst: "horn", notes: hornRide, gain: 1.35, pan: -0.25, reverb: 0.4, humanize: 0.15 },
-    { inst: "horn", notes: hornTune, gain: 1.6, pan: -0.2, reverb: 0.3, humanize: 0.15 },
-    ...euphonium(euphLine, { gain: 3.5, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
-    ...euphonium(euphTune, { gain: 7.5, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
-    ...euphonium(euphTutti, { gain: 4, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
-    // The low pizz is stopped at its next note (the bass's low strings ring for seconds), so a
-    // root never smears into the next chord: E–F, F–E and G#–A are semitones in the lowest octave.
-    { inst: "bassPizz", notes: bass, gain: 0.62, pan: 0.1, reverb: 0.12, choke: true },
-    { inst: "cellosPizz", notes: cellos, gain: 0.4, pan: 0.3, reverb: 0.2, choke: true },
-    { inst: "violasPizz", notes: violas, gain: 0.3, pan: 0.2, reverb: 0.3, humanize: 0.4 },
-    { inst: "violinsPizz", notes: violins, gain: 0.6, pan: -0.35, reverb: 0.3, humanize: 0.4 },
-    { inst: "tubularBells", notes: bells, gain: 0.16, pan: -0.25, reverb: 0.45 },
-    { inst: "tubularBells", notes: softBells, gain: 0.75, pan: -0.25, reverb: 0.45 },
-    { inst: "timpani", notes: timpani, gain: 0.62, pan: -0.05, reverb: 0.25 },
-    { inst: "woodblock", notes: woodblock, gain: 0.55, pan: 0.25, reverb: 0.18 },
-    { inst: "tomLow", notes: tomLowFar, gain: 3.2, pan: -0.15, reverb: 0.45, humanize: 0.2 },
-    { inst: "tomHigh", notes: tomHighFar, gain: 2.8, pan: 0.2, reverb: 0.45, humanize: 0.2 },
-    { inst: "tomLow", notes: tomLow, gain: 1.25, pan: -0.15, reverb: 0.2, humanize: 0.2 },
-    { inst: "tomHigh", notes: tomHigh, gain: 1.12, pan: 0.2, reverb: 0.2, humanize: 0.2 },
-    { inst: "kick", notes: kick, gain: 0.55, pan: 0, reverb: 0.1, humanize: 0.2 },
-    { inst: "snareRoll", notes: roll, gain: 0.5, pan: 0.05, reverb: 0.2 },
-    { inst: "snareOn", notes: snare, gain: 1.1, pan: 0.05, reverb: 0.2, humanize: 0.2 },
-    { inst: "cymbals", notes: cymbals, gain: 0.6, pan: -0.1, reverb: 0.35 },
-    { inst: "crash", notes: crash, gain: 0.6, pan: 0.3, reverb: 0.3 },
-  ],
+  tracks: [...music.map(twice), ...effects],
 };
 
 export default song;

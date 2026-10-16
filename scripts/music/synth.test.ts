@@ -2,8 +2,9 @@
 // sets are checked), level conventions (means over start frames), the presets' character (a
 // bright stack, an acid squelch, a pluck's snap, electro grit, a punchy kick), finite and
 // bounded output, clean note starts and ends, loop wrap (mono lines across the seam too),
-// determinism and per-patch noise, the drums' spectra, band-limited oscillators, and the
-// loop-seamless pump and delay.
+// determinism and per-patch noise, the drums' spectra, band-limited oscillators, the
+// loop-seamless pump and delay, and the sound effects (a howl that holds its note, wind that
+// whistles up into its gust, snakes and chains where they belong in the spectrum).
 
 import { describe, expect, it } from "vitest";
 import { INSTRUMENTS } from "./instruments";
@@ -13,22 +14,27 @@ import {
   beatHz,
   beats,
   duck,
+  isEffect,
   isSynth,
   loopDelay,
   pumpEnvelope,
   renderSynth,
   SYNTHS,
+  type HowlPatch,
   type Patch,
   type SynthName,
   type VoicePatch,
   type Wave,
+  type WindPatch,
 } from "./synth";
 
 const RATE = 48000;
 const NAMES = Object.keys(SYNTHS) as SynthName[];
 const voice = (n: SynthName) => SYNTHS[n] as Patch as VoicePatch;
 const VOICES = NAMES.filter((n) => SYNTHS[n].kind === "voice");
-const DRUMS = NAMES.filter((n) => SYNTHS[n].kind !== "voice");
+/** Sound effects (howl, wind, snakes, chains): held for the note's length, checked in their own block. */
+const EFFECTS = NAMES.filter((n) => isEffect(SYNTHS[n]));
+const DRUMS = NAMES.filter((n) => SYNTHS[n].kind !== "voice" && !EFFECTS.includes(n));
 /** Risers and downlifters sweep their pitch or are noise: no pitch to hold. */
 const PITCHED = VOICES.filter((n) => !voice(n).ramp);
 /** Patches with a detuned unison stack. */
@@ -45,6 +51,36 @@ function render(patch: Patch | SynthName, events: NoteEvent[], seconds: number):
   const R = new Float32Array(n);
   renderSynth(patch, events, L, R, RATE, 1, 0);
   return [L, R];
+}
+
+/** Start frames for the effects' levels (their noise is seeded per note). */
+const STARTS_FX = [0, 0.0137, 0.0274, 0.0411, 0.0548, 0.0685];
+
+/** Fundamental (Hz) of a near-sinusoidal tone around `at` seconds: normalized autocorrelation, lo..hi Hz. */
+function fundamentalNear(x: Float32Array, at: number, lo: number, hi: number): number {
+  const a = Math.round(at * RATE);
+  const n = 2048;
+  let best = -1;
+  let bestLag = 0;
+  for (let lag = Math.floor(RATE / hi); lag <= Math.ceil(RATE / lo); lag++) {
+    let s = 0;
+    let e1 = 0;
+    let e2 = 0;
+    for (let i = 0; i < n; i++) {
+      const u = x[a + i]!;
+      const v = x[a + i + lag]!;
+      s += u * v;
+      e1 += u * u;
+      e2 += v * v;
+    }
+    const c = s / Math.sqrt(e1 * e2 + 1e-20);
+    // The first strong peak, not a later octave-down one.
+    if (c > best + 1e-9) {
+      best = c;
+      bestLag = lag;
+    } else if (best > 0.8 && c < best - 0.2) break;
+  }
+  return RATE / bestLag;
 }
 
 const peakOf = (...xs: Float32Array[]) => xs.reduce((m, x) => x.reduce((a, v) => Math.max(a, Math.abs(v)), m), 0);
@@ -565,5 +601,175 @@ describe("delay", () => {
     }
     expect(peakOf(wl.subarray(0, Math.round(0.5 * RATE)), wr.subarray(0, Math.round(0.5 * RATE)))).toBeGreaterThan(0.01);
     expect(worst).toBeLessThan(1e-4);
+  });
+});
+
+describe("effects", () => {
+  /** The note each effect is leveled at (the unpitched ones ignore it). */
+  const HOME: Record<string, string> = { howl: "A4", wind: "E5" };
+  const home = (name: SynthName) => midi(HOME[name] ?? "C4");
+
+  it.each(EFFECTS)("%s plays a 2 s note at about -28 dB RMS (mean over start frames)", (name) => {
+    let power = 0;
+    const starts = STARTS_FX;
+    for (const t of starts) {
+      const [L, R] = render(name, [{ time: t, dur: 2, note: home(name), vel: 0.7 }], 4.5);
+      const a = Math.round(t * RATE);
+      const b = a + 2 * RATE;
+      let s = 0;
+      for (let i = a; i < b; i++) s += L[i]! ** 2 + R[i]! ** 2;
+      power += s / (2 * (b - a)) / starts.length;
+    }
+    expect(Math.abs(10 * Math.log10(power) + 28)).toBeLessThan(0.75);
+  });
+
+  it.each(EFFECTS)("%s starts from silence and ends in silence", (name) => {
+    for (const dur of [0.3, 2]) {
+      const [L, R] = render(name, [{ time: 0, dur, note: home(name), vel: 1 }], 6);
+      const peak = peakOf(L, R);
+      let last = 0;
+      for (let i = 0; i < L.length; i++) if (L[i] !== 0 || R[i] !== 0) last = i;
+      expect(Math.max(Math.abs(L[0]!), Math.abs(R[0]!), Math.abs(L[1]!), Math.abs(R[1]!)) / peak).toBeLessThan(0.05);
+      expect(Math.max(Math.abs(L[last]!), Math.abs(R[last]!)) / peak).toBeLessThan(1e-3);
+      expect(last).toBeLessThan(L.length - 1);
+    }
+  });
+
+  it.each(EFFECTS)("%s: a note crossing the loop end continues at its start", (name) => {
+    const events: NoteEvent[] = [{ time: 0.6, dur: 0.7, note: home(name), vel: 0.9 }];
+    const [L, R] = render(name, events, 1);
+    const [LL, LR] = render(name, events, 6);
+    let worst = 0;
+    for (let i = 0; i < RATE; i++) {
+      let l = 0;
+      let r = 0;
+      for (let k = i; k < LL.length; k += RATE) {
+        l += LL[k]!;
+        r += LR[k]!;
+      }
+      worst = Math.max(worst, Math.abs(L[i]! - l), Math.abs(R[i]! - r));
+    }
+    expect(peakOf(L.subarray(0, Math.round(0.2 * RATE)))).toBeGreaterThan(0);
+    expect(worst).toBeLessThan(1e-6);
+  });
+
+  /** Cents of `x` from `note` over a stretch, read on its first harmonic in consecutive frames. */
+  const heldCents = (x: Float32Array, note: number, from: number, to: number) => {
+    const reads: number[] = [];
+    for (let t = from; t + 0.75 <= to; t += 0.25) reads.push(centsHeard(x.subarray(Math.round(t * RATE)), RATE, note, 1));
+    return reads.reduce((a, b) => a + b, 0) / reads.length;
+  };
+
+  it("the howl scoops up into its note, holds it in tune and falls away after", () => {
+    for (const n of ["E4", "A4", "C5"]) {
+      const note = midi(n);
+      for (const t0 of [0, 0.37]) {
+        const x = mono(...render("howl", [{ time: t0, dur: 3, note, vel: 0.7 }], 7)).subarray(Math.round(t0 * RATE));
+        // Held, past the scoop: in tune as heard, vibrato and wander included.
+        const held = heldCents(x, note, 1, 3);
+        expect(Math.abs(held), `${n} held ${held.toFixed(1)} cents`).toBeLessThanOrEqual(5);
+        // From below: well under the note at first; most of an octave down near the end of the fall.
+        const lo = (440 * 2 ** ((note - 69) / 12)) / 2.2;
+        const early = fundamentalNear(x, 0.08, lo, 1.2 * hz(note));
+        expect(1200 * Math.log2(early / hz(note))).toBeLessThan(-250);
+        const late = fundamentalNear(x, 3 + 1, lo, 1.2 * hz(note));
+        expect(1200 * Math.log2(late / hz(note))).toBeLessThan(-300);
+      }
+    }
+    // Without its wander, jitter and vibrato it holds the note within 2 cents.
+    const still: HowlPatch = { ...(SYNTHS.howl as HowlPatch), wander: 0, jitter: 0, vibrato: [5, 0] };
+    const x = mono(...render(still, [{ time: 0, dur: 3, note: midi("A4"), vel: 0.7 }], 7));
+    expect(Math.abs(heldCents(x, midi("A4"), 1.2, 3))).toBeLessThanOrEqual(2);
+  });
+
+  it("the howl opens bright on the scoop (\"a-\") and closes into a round \"-WOOO\"", () => {
+    const note = midi("A4");
+    const x = mono(...render("howl", [{ time: 0, dur: 3, note, vel: 0.7 }], 7));
+    // Share of energy above 1.6 times the pitch (the 2nd harmonic and up).
+    const upper = (from: number, len: number) => {
+      const seg = x.subarray(Math.round(from * RATE), Math.round((from + len) * RATE));
+      return bandShare(seg, 1.6 * hz(note) * (from < 0.5 ? 0.75 : 1), 24000);
+    };
+    expect(upper(0.12, 0.2)).toBeGreaterThan(upper(1.5, 1) * 2);
+    // Mostly where a howl lives: 300 Hz to 2.5 kHz for an A4.
+    expect(bandShare(x.subarray(0, 3 * RATE), 300, 2500)).toBeGreaterThan(0.9);
+  });
+
+  it("the wind whistles up toward its note as the gust swells, and blows across", () => {
+    const p = SYNTHS.wind as WindPatch;
+    const note = midi("E5");
+    const [L, R] = render("wind", [{ time: 0, dur: 4, note, vel: 0.7 }], 7);
+    const x = mono(L, R);
+    const rms = (from: number, len: number) => {
+      let s = 0;
+      for (let i = Math.round(from * RATE); i < Math.round((from + len) * RATE); i++) s += x[i]! ** 2;
+      return Math.sqrt(s / (len * RATE));
+    };
+    // Loudest around its peak, quiet at the start.
+    expect(rms(4 * p.peak - 0.25, 0.5)).toBeGreaterThan(rms(0.05, 0.3) * 4);
+    // The whistle: a clear spectral peak near the note at the gust's peak, lower early on.
+    const peakHz = (from: number) => {
+      const n = 8192;
+      const pw = power(x, n, Math.round(from * RATE));
+      let best = 1;
+      for (let k = Math.ceil((200 * n) / RATE); k < (2000 * n) / RATE; k++) if (pw[k]! > pw[best]!) best = k;
+      return (best * RATE) / n;
+    };
+    const atPeak = 1200 * Math.log2(peakHz(4 * p.peak - 0.08) / hz(note));
+    const early = 1200 * Math.log2(peakHz(0.35) / hz(note));
+    expect(Math.abs(atPeak)).toBeLessThan(250);
+    expect(early).toBeLessThan(atPeak - 150);
+    // Blowing across: louder on the left early, on the right late (sweep -0.6 to 0.6).
+    const side = (from: number) => {
+      let l = 0;
+      let r = 0;
+      for (let i = Math.round(from * RATE); i < Math.round((from + 0.4) * RATE); i++) {
+        l += L[i]! ** 2;
+        r += R[i]! ** 2;
+      }
+      return 10 * Math.log10(r / l);
+    };
+    expect(side(0.6)).toBeLessThan(-2);
+    expect(side(3.6)).toBeGreaterThan(2);
+  });
+
+  it("the snakes hiss and rattle high (2.5-12 kHz), the rattle at about its click rate", () => {
+    for (const name of ["hiss", "rattle"] as SynthName[]) {
+      const x = mono(...render(name, [{ time: 0, dur: 1.5, note: 60, vel: 0.7 }], 2));
+      expect(bandShare(x, 2500, 12000), name).toBeGreaterThan(0.85);
+    }
+    // The rattle's level envelope repeats at its rate (58 clicks a second, give or take).
+    const x = mono(...render("rattle", [{ time: 0, dur: 2, note: 60, vel: 0.7 }], 2.5));
+    const hop = 48;
+    const env: number[] = [];
+    for (let a = Math.round(0.1 * RATE); a + hop < 1.9 * RATE; a += hop) {
+      let s = 0;
+      for (let i = a; i < a + hop; i++) s += x[i]! ** 2;
+      env.push(Math.sqrt(s / hop));
+    }
+    const mean = env.reduce((a, b) => a + b, 0) / env.length;
+    const ac = (lag: number) => env.slice(lag).reduce((s, v, i) => s + (v - mean) * (env[i]! - mean), 0);
+    const minLag = Math.round(RATE / hop / 90);
+    let best = minLag;
+    for (let lag = minLag; lag <= Math.round(RATE / hop / 35); lag++) if (ac(lag) > ac(best)) best = lag;
+    const rate = RATE / hop / best;
+    expect(rate).toBeGreaterThan(45);
+    expect(rate).toBeLessThan(72);
+  });
+
+  it("the chains clink: many separate strikes, mostly above 1 kHz", () => {
+    const x = mono(...render("chains", [{ time: 0, dur: 1.5, note: 60, vel: 0.7 }], 2));
+    expect(bandShare(x, 1000, 12000)).toBeGreaterThan(0.55);
+    // Count the strikes: 2 ms frames whose level jumps 6 dB over the previous frame's.
+    const hop = 96;
+    let strikes = 0;
+    let prev = 0;
+    for (let a = 0; a + hop < 1.5 * RATE; a += hop) {
+      let s = 0;
+      for (let i = a; i < a + hop; i++) s += x[i]! ** 2;
+      if (s > prev * 4 && s > 1e-7) strikes++;
+      prev = s;
+    }
+    expect(strikes).toBeGreaterThan(10);
   });
 });

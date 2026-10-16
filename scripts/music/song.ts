@@ -111,6 +111,27 @@ export interface Song {
   pump?: Pump;
   /** The delay bus, for tracks with a `delay` send. */
   delay?: Delay;
+  /**
+   * Named moments the game syncs visuals to, in seconds from the loop start as written (before
+   * Hard mode's tempo stretch), e.g. New Year's `countdownStart`. render.ts writes them into
+   * src/audio/music/manifest.json next to the loop points.
+   */
+  cues?: Record<string, number>;
+}
+
+/**
+ * The song's cues, checked (each a finite time inside the loop) and rounded to the microsecond so
+ * float noise from beat arithmetic stays out of the manifest. Undefined when the song has none.
+ */
+export function loopCues(song: Song): Record<string, number> | undefined {
+  if (!song.cues) return undefined;
+  const length = loopFrames(song) / RATE;
+  const out: Record<string, number> = {};
+  for (const [name, s] of Object.entries(song.cues)) {
+    if (!Number.isFinite(s) || s < 0 || s >= length) throw new Error(`${song.name}: cue ${name} at ${s} s is outside the ${length} s loop`);
+    out[name] = Math.round(s * 1e6) / 1e6;
+  }
+  return out;
 }
 
 /** Deterministic pseudo-random for humanizing (same song renders identically every time). */

@@ -1,6 +1,7 @@
 // A subtractive synthesizer and drum machine for offline rendering: the Neon skins' French
 // electro house (bright detuned saws, plucky arps, a deep sub, four-on-the-floor drums that
-// pump). Only Neon uses synths; every other song plays real recordings through sampler.ts.
+// pump). Only Neon plays synths as instruments; every other song plays real recordings through
+// sampler.ts, and may add the sound effects no recording covers (Halloween's haunted fun house).
 // Our own synthesis, so there is nothing to license.
 //
 // Patches are plain data (SYNTHS below, or a copy with a few fields changed). renderSynth()
@@ -17,6 +18,9 @@
 // note's held length (risers). Drums: a membrane model (kick, snare, toms: a sine body with a
 // pitch drop, a filtered noise skin and a beater click), a clap (noise bursts and a tail) and a
 // metal model (hats, ride, crash: six square partials, as in the analog machines, plus noise).
+// Effects, each held for its note's length: a howl (additive harmonics through morphing vowel
+// formants, a scoop, vibrato and a fall, with breath), wind (a whoosh and a rising resonant
+// whistle that blows across), a snake's hiss, a rattlesnake's click train, and clinking chains.
 //
 // Helpers for the genre: pumpEnvelope() + duck() for sidechain pumping and loopDelay() for a
 // tempo-synced stereo or ping-pong delay, both loop-seamless; beats() and beatHz() for tempo.
@@ -238,7 +242,142 @@ export type DrumPatch = (MembranePatch | ClapPatch | MetalPatch) & {
   keyed?: boolean;
 };
 
-export type Patch = VoicePatch | DrumPatch;
+// ---- Sound effects (Halloween's haunted fun house): sounds no recording covers, each rendered
+// whole per note like a drum hit, but held for the note's length (or its `ring`). Unpitched
+// ones ignore the note unless they say otherwise; all are deterministic from the note's start.
+
+/** A vowel formant: center Hz, bandwidth in octaves, level. */
+export type Formant = [number, number, number];
+
+/**
+ * A howl (a wolf's, a werewolf's): a voice-like tone, additive harmonics shaped by vowel
+ * formants, that scoops up into the note, holds it with a slow wander and a vibrato that grows,
+ * and falls away over its release as the mouth closes again, with breath noise through the same
+ * formants. The note is the pitch it holds; the held length is the howl before the fall.
+ */
+export interface HowlPatch {
+  kind: "howl";
+  /**
+   * Semitones below the note it starts from, and seconds to rise most of the way; the last
+   * `climb` share of the scoop (0..1, default 0.15) comes twice as slowly, a howl's last creep
+   * up into its note.
+   */
+  scoop: number;
+  rise: number;
+  climb?: number;
+  /** Semitones it falls by the end of its release, and the release in seconds. */
+  fall: number;
+  release: number;
+  /** Seconds to swell in. */
+  attack: number;
+  /** Vibrato rate (Hz) and depth (cents), growing in from `vibratoDelay` over 0.8 s. */
+  vibrato: [number, number];
+  vibratoDelay?: number;
+  /** Slow pitch wander, cents (three slow, seeded sines). */
+  wander?: number;
+  /** Cycle-to-cycle roughness: pitch jitter in cents and level shimmer 0..1. */
+  jitter?: number;
+  /** Vowel formants with the mouth closed ("oo") and open ("aw"); the same number of each. */
+  closed: Formant[];
+  open: Formant[];
+  /**
+   * How open the mouth is (0..1) while it holds the note: it starts a little open, opens wide
+   * early in the scoop ("a-"), closes to this into the held "-WOOO" and shuts through the fall.
+   */
+  hold?: number;
+  /** Harmonic roll-off: harmonic k's level is k^-tilt before the formants. */
+  tilt: number;
+  /** Breath noise through the first two formants, against the voice; louder at the onset and in the fall. */
+  breath: number;
+  /** A rough growl at the onset: level modulation depth 0..1 at about 30 Hz, gone in half a second. */
+  growl?: number;
+}
+
+/** Wind: a whoosh of band-limited noise and a resonant whistle that rises as the gust swells. */
+export interface WindPatch {
+  kind: "wind";
+  /** The whistle: resonance Q and level against the whoosh; a second resonance [ratio, level]. */
+  q: number;
+  whistle: number;
+  overtone?: [number, number];
+  /** Semitones the whistle sits under the note at the gust's start and end (it reaches the note at the peak). */
+  rise: number;
+  /** The whoosh's band: [high-pass Hz, low-pass Hz]. */
+  band: [number, number];
+  /** Where in the held length the gust peaks, 0..1. */
+  peak: number;
+  /** Slow gusting of level and pitch inside the swell, 0..1. */
+  flutter: number;
+  /** The gust blows across: pan at its start and at its end (-1..1). */
+  sweep?: [number, number];
+  release: number;
+}
+
+/** A snake's hiss: high-passed noise with a peak, a quick onset, a breathy flutter, fading as the breath runs out. */
+export interface HissPatch {
+  kind: "hiss";
+  /** Peak Hz and Q, the high-pass under it (24 dB), the low-pass over it (12 dB), and the peak's share (0..1) against the broad noise. */
+  tone: number;
+  q: number;
+  hp: number;
+  lp: number;
+  peak: number;
+  attack: number;
+  release: number;
+  /** Level at the end of the held length against its start. */
+  fade?: number;
+  /** Random level flutter, 0..1. */
+  flutter?: number;
+  /** Semitones the peak rises over the held length. */
+  bend?: number;
+  /** 0..1: how differently the two channels hiss. */
+  width?: number;
+}
+
+/** A rattlesnake's rattle: a fast, irregular train of dry clicks through a bright band. */
+export interface RattlePatch {
+  kind: "rattle";
+  /** Clicks per second, each interval's random variation (0..1) and the rate's slow drift (0..1). */
+  rate: number;
+  jitter: number;
+  drift?: number;
+  /** Each click's decay (seconds to fall 60 dB). */
+  click: number;
+  /** Band-pass Hz and Q, between a high-pass (24 dB) and a low-pass (12 dB). */
+  tone: number;
+  q: number;
+  hp: number;
+  lp: number;
+  attack: number;
+  release: number;
+  width?: number;
+}
+
+/** Chains: a shake of metal links clinking, small inharmonic rings at random pitches and times. */
+export interface ChainsPatch {
+  kind: "chains";
+  /** Clinks per second over the held length; `cluster` (0..1) bunches them into rattles. */
+  density: number;
+  cluster: number;
+  /** Each clink's lowest ring, between these Hz, its partials (ratios, levels) and decay (seconds to -60 dB). */
+  pitch: [number, number];
+  partials: [number, number][];
+  decay: number;
+  /** Share of heavy links (clanks two octaves down, ringing longer). */
+  heavy?: number;
+  /** Stereo spread of the links, 0..1. */
+  width?: number;
+}
+
+export type EffectPatch = (HowlPatch | WindPatch | HissPatch | RattlePatch | ChainsPatch) & { gain?: number };
+
+export type Patch = VoicePatch | DrumPatch | EffectPatch;
+
+const EFFECT_KINDS = new Set<string>(["howl", "wind", "hiss", "rattle", "chains"]);
+/** True for a sound-effect patch (rendered per note, held for the note's length). */
+export function isEffect(p: Patch): p is EffectPatch {
+  return EFFECT_KINDS.has(p.kind);
+}
 
 const env = (attack: number, decay: number, sustain: number, release: number): Adsr => ({ attack, decay, sustain, release });
 
@@ -476,6 +615,93 @@ export const SYNTHS = {
     kind: "membrane", freq: 105, sweep: 1.6, sweepTime: 0.05, decay: 0.6, mode2: [1.5, 0.2],
     noise: 0.12, noiseDecay: 0.05, noiseBand: [300, 4000], click: 0.12, gain: 0.268,
   },
+
+  // ---- Sound effects (the haunted fun house). Levels (gain 1, velocity 0.7): about -28 dB RMS
+  // over a 2 s note (the howl over its held part), like the voices.
+  /**
+   * The werewolf: "hoo-AWOOOO-oo". A breathy, growling onset scooping up a fifth into the note,
+   * the mouth opening from "oo" to "aw" as it climbs (the 2nd harmonic comes up), a vibrato that
+   * grows while it holds, then a long fall of most of an octave as the mouth closes. Write the
+   * note it holds and the length it holds it; the fall rings on for `release` after.
+   */
+  howl: {
+    kind: "howl",
+    scoop: 7,
+    rise: 0.45,
+    climb: 0.12,
+    fall: 10,
+    release: 1.6,
+    attack: 0.16,
+    vibrato: [5.3, 22],
+    vibratoDelay: 0.5,
+    wander: 8,
+    jitter: 3,
+    closed: [[350, 0.7, 1], [850, 0.6, 0.6], [2500, 0.6, 0.18]],
+    open: [[680, 0.6, 1], [1100, 0.5, 0.7], [2600, 0.5, 0.2]],
+    hold: 0.25,
+    tilt: 0.9,
+    breath: 3,
+    growl: 0.35,
+    gain: 0.0835,
+  },
+  /** A gust of wind: a whoosh and a whistle that rises to the note at the gust's peak, blowing across. */
+  wind: {
+    kind: "wind",
+    q: 22,
+    whistle: 1.6,
+    overtone: [1.51, 0.3],
+    rise: 7,
+    band: [150, 900],
+    peak: 0.5,
+    flutter: 0.6,
+    sweep: [-0.6, 0.6],
+    release: 1,
+    gain: 0.378,
+  },
+  /** A snake's hiss: "sssss" around 5.5 kHz, fading as its breath runs out. */
+  hiss: {
+    kind: "hiss",
+    tone: 5500,
+    q: 1.8,
+    hp: 2800,
+    lp: 8000,
+    peak: 0.5,
+    attack: 0.05,
+    release: 0.25,
+    fade: 0.6,
+    flutter: 0.25,
+    bend: 1.5,
+    width: 0.25,
+    gain: 0.318,
+  },
+  /** A rattlesnake's rattle: about 58 dry clicks a second, never quite even. */
+  rattle: {
+    kind: "rattle",
+    rate: 58,
+    jitter: 0.35,
+    drift: 0.3,
+    click: 0.012,
+    tone: 6000,
+    q: 1.5,
+    hp: 3000,
+    lp: 9000,
+    attack: 0.04,
+    release: 0.15,
+    width: 0.3,
+    gain: 1.51,
+  },
+  /** Chains shaken in the dark: small iron links clinking, now and then a heavy one. */
+  chains: {
+    kind: "chains",
+    density: 18,
+    cluster: 0.6,
+    pitch: [1800, 3600],
+    partials: [[1, 1], [2.76, 0.55], [5.4, 0.3], [8.93, 0.15]],
+    decay: 0.09,
+    heavy: 0.12,
+    width: 0.6,
+    gain: 0.163,
+  },
 } satisfies Record<string, Patch>;
 
 export type SynthName = keyof typeof SYNTHS;
@@ -709,6 +935,8 @@ export function renderSynth(
   const salt = saltOf(p);
   if (p.kind === "voice") {
     for (const ph of phrases(p, events, outL.length / rate)) renderPhrase(p, ph, outL, outR, rate, gain * pl, gain * pr, salt);
+  } else if (isEffect(p)) {
+    for (const ev of events) renderEffect(p, ev, outL, outR, rate, gain * pl, gain * pr, salt);
   } else {
     for (const ev of events) renderHit(p, ev, outL, outR, rate, gain * pl, gain * pr, salt);
   }
@@ -1169,6 +1397,363 @@ function metal(p: MetalPatch, rate: number, seed: number, key: number): [Float32
       else L[i] = y;
     }
     e *= down;
+  }
+  return [L, R];
+}
+
+// ---------------------------------------------------------------- sound effects
+
+/** Render one effect note with wrap and velocity; gl/gr include gain and pan. Held for the note's length (or its ring). */
+function renderEffect(p: EffectPatch, ev: NoteEvent, outL: Float32Array, outR: Float32Array, rate: number, gl: number, gr: number, salt: number): void {
+  const len = outL.length;
+  const startAbs = Math.round(ev.time * rate);
+  let o = ((startAbs % len) + len) % len;
+  const seed = hash(startAbs, Math.round(ev.note * 1000), 0xef, salt);
+  const held = Math.max(0.02, heldOf(ev));
+  const [hl, hr] =
+    p.kind === "howl" ? howl(p, ev.note, held, rate, seed)
+    : p.kind === "wind" ? wind(p, ev.note, held, rate, seed)
+    : p.kind === "hiss" ? hiss(p, ev.note, held, rate, seed)
+    : p.kind === "rattle" ? rattle(p, held, rate, seed)
+    : chains(p, held, rate, seed);
+  const amp = (p.gain ?? 1) * (0.35 + 0.65 * ev.vel);
+  for (let i = 0; i < hl.length; i++) {
+    outL[o] = outL[o]! + hl[i]! * amp * gl;
+    outR[o] = outR[o]! + hr[i]! * amp * gr;
+    if (++o === len) o = 0;
+  }
+}
+
+/** 0 -> 1 with zero slope at both ends. */
+const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+/** A smooth swell in over `attack` and a fade over the last `release` seconds of `total` (exactly 0 at the ends). */
+function fadeInOut(t: number, attack: number, total: number, release: number): number {
+  const a = attack > 0 ? smooth(t / attack) : 1;
+  const r = release > 0 ? smooth((total - t) / release) : 1;
+  return a * r;
+}
+/** Slow seeded wobble in about -1..1: three sines at rates around `rate` Hz. */
+function wobbler(rnd: Noise, rate: number): (t: number) => number {
+  const rates = [0.53, 1, 1.87].map((r) => r * rate * (0.8 + 0.4 * rnd.unit()));
+  const phases = rates.map(() => rnd.unit());
+  return (t) => (Math.sin(TAU * (rates[0]! * t + phases[0]!)) + Math.sin(TAU * (rates[1]! * t + phases[1]!)) * 0.7 + Math.sin(TAU * (rates[2]! * t + phases[2]!)) * 0.45) / 1.6;
+}
+
+/** Control rate of the effects' slow curves (pitch, formants, levels): every 16 frames. */
+const FX_BLOCK = 16;
+
+function howl(p: HowlPatch, note: number, held: number, rate: number, seed: number): [Float32Array, Float32Array] {
+  const total = held + p.release;
+  const n = Math.ceil(total * rate) + 1;
+  const out = new Float32Array(n);
+  const rnd = new Noise(seed);
+  const wander = wobbler(rnd, 0.45);
+  const f0 = hz(note);
+  const nf = Math.min(p.closed.length, p.open.length);
+  const vibDelay = p.vibratoDelay ?? 0.35;
+  const [vibRate, vibDepth] = p.vibrato;
+  const vibWobble = wobbler(rnd, 0.3);
+  // The wander drifts around the note, never off it: centered on its mean over the held part
+  // after the scoop, so the note held is the note written.
+  let wanderMean = 0;
+  {
+    const from = Math.min(held, p.rise * 2);
+    const steps = Math.max(1, Math.round((held - from) / 0.01));
+    for (let s = 0; s < steps; s++) wanderMean += wander(from + ((s + 0.5) * (held - from)) / steps) / steps;
+  }
+  // Harmonic levels and the formants now (updated at the control rate).
+  const maxK = 48;
+  const amps = new Float64Array(maxK);
+  const breathA = new Svf();
+  const breathB = new Svf();
+  const breathHp = new Svf();
+  breathHp.setHz(180, Math.SQRT1_2, rate);
+  let phase = 0;
+  let vib = 0;
+  let jit = 0;
+  let shim = 0;
+  let f = f0;
+  let level = 0;
+  let breathLevel = 0;
+  let growl = 0;
+  let growlPhase = 0;
+  let k = 1;
+  const tilt = p.tilt;
+  for (let i = 0; i < n; i++) {
+    if (i % FX_BLOCK === 0) {
+      const t = i / rate;
+      // Pitch: scoop up from below (exponential, 95% by `rise`), a slow climb while held, a fall
+      // that speeds up through the release; vibrato grows in, the wander and jitter keep it alive.
+      const climb = p.climb ?? 0.15;
+      let semis = -p.scoop * ((1 - climb) * Math.exp((-3 * t) / p.rise) + climb * Math.exp((-1.5 * t) / p.rise));
+      const u = t > held ? (t - held) / p.release : 0;
+      semis -= p.fall * u ** 1.7;
+      const vibOn = smooth((t - vibDelay) / 0.8);
+      vib += (vibRate * (1 + 0.08 * vibWobble(t)) * FX_BLOCK) / rate;
+      jit = 0.85 * jit + 0.15 * rnd.next();
+      shim = 0.85 * shim + 0.15 * rnd.next();
+      const cents = vibDepth * vibOn * Math.sin(TAU * vib) + (p.wander ?? 0) * (wander(t) - wanderMean) + (p.jitter ?? 0) * jit * 2.5;
+      f = f0 * 2 ** (semis / 12 + cents / 1200);
+      // The mouth: a little open at the breath, wide early in the scoop ("a-"), closing into the
+      // held "-WOOO" (moving a little with the wander), and shut through the fall.
+      const hold = p.hold ?? 0.3;
+      const wide = p.rise * 0.35;
+      const settle = p.rise * 1.6;
+      let o = t < wide ? 0.35 + 0.65 * smooth(t / wide) : 1 - (1 - hold) * smooth((t - wide) / (settle - wide));
+      o = Math.min(1, Math.max(0, o + 0.08 * wander(t * 0.7 + 3)));
+      if (t > held) o *= 1 - smooth(u * 1.3);
+      // Formants, interpolated in log frequency; harmonic k (1-based) sits at k * f.
+      const formants: Formant[] = [];
+      for (let j = 0; j < nf; j++) {
+        const [c1, b1, l1] = p.closed[j]!;
+        const [c2, b2, l2] = p.open[j]!;
+        formants.push([c1 * (c2 / c1) ** o, b1 + (b2 - b1) * o, l1 + (l2 - l1) * o]);
+      }
+      const F1 = formants[0]![0];
+      const F2 = (formants[1] ?? formants[0]!)[0];
+      k = Math.max(1, Math.min(maxK, Math.floor(Math.min(9000, rate * 0.45) / f)));
+      for (let h = 1; h <= maxK; h++) {
+        if (h > k) {
+          amps[h - 1] = 0;
+          continue;
+        }
+        const fh = h * f;
+        let resp = 0.03;
+        for (const [fc, bw, lv] of formants) {
+          const x = Math.log2(fh / fc) / (bw / 2);
+          resp += lv / (1 + x * x);
+        }
+        amps[h - 1] = h ** -tilt * resp;
+      }
+      // Level: swell in, louder as the mouth opens, a smooth fade through the fall.
+      const env = fadeInOut(t, p.attack, total, p.release * 0.9) * (1 - 0.7 * smooth(u));
+      level = env * (0.8 + 0.2 * o) * (1 + (p.jitter ?? 0) * 0.02 * shim);
+      // Breath: in before the voice ("hhoo"), under it while held, a little more through the fall.
+      breathLevel = p.breath * fadeInOut(t, 0.03, total, p.release * 0.9) * (1 - 0.7 * smooth(u)) * ((0.25 + 0.75 * Math.exp(-t / 0.15)) * (0.5 + 0.5 * (1 - o)) + 0.2 * smooth(u));
+      growl = (p.growl ?? 0) * Math.exp(-t / 0.22);
+      breathA.setHz(F1, 3, rate);
+      breathB.setHz(F2, 4, rate);
+    }
+    // The harmonics from one phase (Chebyshev recurrence: sin((h+1)x) = 2 cos x sin(hx) - sin((h-1)x)).
+    phase += f / rate;
+    if (phase >= 1) phase -= 1;
+    const x = TAU * phase;
+    const c2 = 2 * Math.cos(x);
+    let sPrev = 0;
+    let s = Math.sin(x);
+    let y = 0;
+    for (let h = 0; h < k; h++) {
+      y += amps[h]! * s;
+      const sNext = c2 * s - sPrev;
+      sPrev = s;
+      s = sNext;
+    }
+    if (growl > 1e-4) {
+      growlPhase += (31 * (1 + 0.2 * jit)) / rate;
+      if (growlPhase >= 1) growlPhase -= 1;
+      y *= 1 - growl * (0.5 + 0.5 * Math.sin(TAU * growlPhase));
+    }
+    const w = breathHp.run(rnd.next(), HIGH);
+    const b = breathA.run(w, BAND) + 0.6 * breathB.run(w, BAND);
+    out[i] = y * level + b * breathLevel;
+  }
+  return [out, out];
+}
+
+/** A one-pole low-passed noise source (a slow random level), seeded. */
+function flutterer(rnd: Noise, hzCut: number, rate: number): () => number {
+  const a = Math.exp((-TAU * hzCut * FX_BLOCK) / rate);
+  let v = 0;
+  // Normalized so its spread is about ±1.
+  const norm = Math.sqrt((1 + a) / (1 - a)) / 1.7;
+  return () => {
+    v = a * v + (1 - a) * rnd.next();
+    return v * norm;
+  };
+}
+
+function wind(p: WindPatch, note: number, held: number, rate: number, seed: number): [Float32Array, Float32Array] {
+  const total = held + p.release;
+  const n = Math.ceil(total * rate) + 1;
+  const L = new Float32Array(n);
+  const R = new Float32Array(n);
+  const rnd = new Noise(seed);
+  const gusting = wobbler(rnd, 0.6);
+  const fwob = wobbler(rnd, 0.25);
+  const f0 = hz(note);
+  const [ratio, over] = p.overtone ?? [1, 0];
+  const noise = [new Noise(hash(seed, 1)), new Noise(hash(seed, 2))];
+  const chans = [0, 1].map(() => ({ whistle: new Svf(), over: new Svf(), hp: new Svf(), lp: new Svf() }));
+  for (const c of chans) {
+    c.hp.setHz(p.band[0], Math.SQRT1_2, rate);
+    c.lp.setHz(p.band[1], Math.SQRT1_2, rate);
+  }
+  // White noise through a band-pass of Q keeps about bandwidth / (rate / 2) of its power:
+  // normalize the whistle and the whoosh so the patch's levels don't depend on the note.
+  const whooshNorm = Math.sqrt(rate / 2 / Math.max(50, p.band[1] - p.band[0]));
+  let gust = 0;
+  let wl = 1;
+  let wr = 1;
+  let wn = 1;
+  const [from, to] = p.sweep ?? [0, 0];
+  for (let i = 0; i < n; i++) {
+    if (i % FX_BLOCK === 0) {
+      const t = i / rate;
+      // The gust: a smooth swell to its peak and away again over the held length, gusting inside.
+      const x = Math.min(1, t / held);
+      const shape = x < p.peak ? smooth(x / p.peak) : 1 - smooth((x - p.peak) / (1 - p.peak)) * 0.85;
+      const tailFade = t > held ? 1 - smooth((t - held) / p.release) : 1;
+      gust = Math.max(0, shape * tailFade * (1 + p.flutter * 0.45 * gusting(t)));
+      const fc = f0 * 2 ** ((-p.rise * (1 - Math.min(1, gust)) + 0.6 * p.flutter * fwob(t)) / 12);
+      chans[0]!.whistle.setHz(fc * 0.994, p.q, rate);
+      chans[1]!.whistle.setHz(fc * 1.006, p.q, rate);
+      for (const c of chans) c.over.setHz(fc * ratio, p.q * 1.2, rate);
+      wn = Math.sqrt(rate / 2 / (fc / p.q));
+      const pan = from + (to - from) * smooth(t / total);
+      [wl, wr] = panGains(pan);
+    }
+    for (let c = 0; c < 2; c++) {
+      const ch = chans[c]!;
+      const w = noise[c]!.next();
+      const whistle = (ch.whistle.run(w, BAND) + over * ch.over.run(w, BAND)) * wn * 0.15;
+      const whoosh = ch.lp.run(ch.hp.run(w, HIGH), LOW) * whooshNorm * 0.15;
+      const y = (whistle * p.whistle * gust * Math.sqrt(gust) + whoosh * gust) * (c ? wr : wl);
+      if (c) R[i] = y;
+      else L[i] = y;
+    }
+  }
+  return [L, R];
+}
+
+function hiss(p: HissPatch, note: number, held: number, rate: number, seed: number): [Float32Array, Float32Array] {
+  const total = held + p.release;
+  const n = Math.ceil(total * rate) + 1;
+  const L = new Float32Array(n);
+  const R = new Float32Array(n);
+  const rnd = new Noise(seed);
+  const flutter = flutterer(rnd, 9, rate);
+  const width = p.width ?? 0.3;
+  const noise = [new Noise(hash(seed, 1)), new Noise(hash(seed, 2))];
+  const chans = [0, 1].map(() => ({ h1: new Svf(), h2: new Svf(), bp: new Svf(), lp: new Svf() }));
+  for (const c of chans) {
+    c.h1.setHz(p.hp, Q24A, rate);
+    c.h2.setHz(p.hp, Q24B[0]!, rate);
+    c.lp.setHz(p.lp, Math.SQRT1_2, rate);
+  }
+  const key = 2 ** ((note - 60) / 12);
+  const bandNorm = Math.sqrt(p.q * 0.6);
+  let level = 0;
+  for (let i = 0; i < n; i++) {
+    if (i % FX_BLOCK === 0) {
+      const t = i / rate;
+      const x = Math.min(1, t / held);
+      const fc = p.tone * key * 2 ** (((p.bend ?? 0) * x) / 12);
+      for (const c of chans) c.bp.setHz(fc, p.q, rate);
+      level = fadeInOut(t, p.attack, total, p.release) * (1 - (1 - (p.fade ?? 1)) * x) * Math.max(0, 1 + (p.flutter ?? 0) * flutter());
+    }
+    const a = noise[0]!.next();
+    const b = a * (1 - width) + noise[1]!.next() * width;
+    for (let c = 0; c < 2; c++) {
+      const ch = chans[c]!;
+      const hp = ch.lp.run(ch.h2.run(ch.h1.run(c ? b : a, HIGH), HIGH), LOW);
+      const y = (hp * (1 - p.peak) + ch.bp.run(hp, BAND) * p.peak * bandNorm) * level;
+      if (c) R[i] = y;
+      else L[i] = y;
+    }
+  }
+  return [L, R];
+}
+
+function rattle(p: RattlePatch, held: number, rate: number, seed: number): [Float32Array, Float32Array] {
+  const total = held + p.release;
+  const n = Math.ceil(total * rate) + 1;
+  const L = new Float32Array(n);
+  const R = new Float32Array(n);
+  const rnd = new Noise(seed);
+  const drift = wobbler(rnd, 1.2);
+  const width = p.width ?? 0.3;
+  const noise = [new Noise(hash(seed, 1)), new Noise(hash(seed, 2))];
+  const chans = [0, 1].map(() => ({ bp: new Svf(), h1: new Svf(), h2: new Svf(), lp: new Svf() }));
+  for (const c of chans) {
+    c.bp.setHz(p.tone, p.q, rate);
+    c.h1.setHz(p.hp, Q24A, rate);
+    c.h2.setHz(p.hp, Q24B[0]!, rate);
+    c.lp.setHz(p.lp, Math.SQRT1_2, rate);
+  }
+  const clickK = t60(p.click, rate);
+  let next = 0;
+  let burst = 0;
+  let level = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / rate;
+    if (i % FX_BLOCK === 0) level = fadeInOut(t, p.attack, total, p.release);
+    // The next click: the rate drifts slowly; each interval varies at random.
+    if (t >= next && t < held) {
+      burst = 0.55 + 0.45 * rnd.unit();
+      const r = p.rate * (1 + (p.drift ?? 0) * 0.5 * drift(t));
+      next += (1 + p.jitter * (rnd.unit() - 0.5)) / r;
+    }
+    const a = noise[0]!.next();
+    const b = a * (1 - width) + noise[1]!.next() * width;
+    for (let c = 0; c < 2; c++) {
+      const ch = chans[c]!;
+      const x = (c ? b : a) * burst;
+      const y = ch.lp.run(ch.h2.run(ch.h1.run(ch.bp.run(x, BAND), HIGH), HIGH), LOW) * level;
+      if (c) R[i] = y;
+      else L[i] = y;
+    }
+    burst *= clickK;
+  }
+  return [L, R];
+}
+
+function chains(p: ChainsPatch, held: number, rate: number, seed: number): [Float32Array, Float32Array] {
+  const rnd = new Noise(seed);
+  const heavyDecay = p.decay * 2.5;
+  const n = Math.ceil((held + tail(heavyDecay) + 0.01) * rate);
+  const L = new Float32Array(n);
+  const R = new Float32Array(n);
+  const width = p.width ?? 0.5;
+  const click = new Svf();
+  click.setHz(4000, Math.SQRT1_2, rate);
+  // When the links strike: bunched into short rattles (`cluster`), the rest spread out.
+  const times: number[] = [];
+  for (let t = 0.004 + rnd.unit() * 0.02; t < held; ) {
+    times.push(t);
+    t += rnd.unit() < p.cluster ? 0.012 + rnd.unit() * 0.04 : (-Math.log(1 - rnd.unit() * 0.98) / p.density) * (1 - p.cluster * 0.6);
+  }
+  const [lo, hi] = p.pitch;
+  for (const t0 of times) {
+    const heavy = rnd.unit() < (p.heavy ?? 0);
+    const base = lo * (hi / lo) ** rnd.unit() * (heavy ? 0.25 : 1);
+    const decay = heavy ? heavyDecay : p.decay * (0.7 + 0.6 * rnd.unit());
+    const v = (0.45 + 0.55 * rnd.unit()) * (heavy ? 1.3 : 1);
+    const [gl, gr] = panGains((rnd.unit() * 2 - 1) * width);
+    const start = Math.round(t0 * rate);
+    const parts = p.partials.map(([ratio, lv], j) => ({
+      dt: (base * ratio * (1 + (rnd.unit() - 0.5) * 0.02)) / rate,
+      lv: lv * v,
+      k: t60(decay / (1 + j * 0.6), rate),
+      ph: rnd.unit(),
+    })).filter((q) => q.dt < 0.45);
+    const len = Math.min(n - start, Math.ceil(tail(decay) * rate));
+    // The strike: a few ms of bright noise, then the rings.
+    let clk = 0.6 * v;
+    const clkK = t60(0.004, rate);
+    const attack = Math.round(0.0004 * rate);
+    for (let i = 0; i < len; i++) {
+      let y = click.run(rnd.next(), HIGH) * clk;
+      clk *= clkK;
+      for (const q of parts) {
+        y += Math.sin(TAU * q.ph) * q.lv;
+        q.ph += q.dt;
+        if (q.ph >= 1) q.ph -= 1;
+        q.lv *= q.k;
+      }
+      if (i < attack) y *= i / attack;
+      L[start + i] = L[start + i]! + y * gl;
+      R[start + i] = R[start + i]! + y * gr;
+    }
   }
   return [L, R];
 }

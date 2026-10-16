@@ -9,35 +9,39 @@
   },
   "christmas": {
     "sr": 48000,
-    "L": 2048000,
+    "L": 4352000,
     "PAD": 12000,
     "priming": 2112,
     "bpm": 270,
-    "bars": 32
+    "bars": 68
   },
   "thanksgiving": {
     "sr": 48000,
-    "L": 1728000,
-    "PAD": 12000,
-    "priming": 2112,
-    "bpm": 320,
-    "bars": 32
-  },
-  "newyear": {
-    "sr": 48000,
-    "L": 2560000,
-    "PAD": 12000,
-    "priming": 2112,
-    "bpm": 216,
-    "bars": 64
-  },
-  "halloween": {
-    "sr": 48000,
-    "L": 2048000,
+    "L": 3072000,
     "PAD": 12000,
     "priming": 2112,
     "bpm": 270,
-    "bars": 32
+    "bars": 48
+  },
+  "newyear": {
+    "sr": 48000,
+    "L": 3936000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 240,
+    "bars": 82,
+    "cues": {
+      "countdownStart": 52,
+      "midnight": 62
+    }
+  },
+  "halloween": {
+    "sr": 48000,
+    "L": 4096000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 270,
+    "bars": 64
   },
   "neon": {
     "sr": 48000,
@@ -46,5 +50,13 @@
     "priming": 2112,
     "bpm": 125,
     "bars": 48
+  },
+  "stpatricks": {
+    "sr": 48000,
+    "L": 3840000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 360,
+    "bars": 80
   }
 }

@@ -1,99 +1,293 @@
-// Christmas: a sleigh-ride waltz in F major, bright and cozy, that a Victorian street band joins
-// in the second pass. 32 bars = the theme twice.
+// Christmas: a Christmas festival for the Victorian London skin (A Christmas Carol). A symphonic
+// pops medley of public-domain carols on the spine of our theme, in the spirit of the concert
+// hall's Christmas pops: the full orchestra, carols passed from section to section, festive
+// modulations and a grand finale. The carols are traditional tunes in our own arrangement and our
+// own order, joined by our own links; no two carols are ever combined against each other.
 //
-// Pass 1: the flute sings the tune over harp arpeggios, a soft violin pad and a pizzicato bass,
-// with sleigh bells on every eighth; the glockenspiel twinkles on the pulse notes in A' and A''.
-// In the B section the bass turns legato (cellos), a horn sings a countermelody and a parlor
-// piano (an upright) takes over from the harp with soft rolled chords.
-// Pass 2: the glockenspiel takes the first phrase alone over soft vibraphone bell dyads (a celesta
-// stand-in), like a music box, and hands the tune on bar 20's pickup to the parlor piano, which
-// plays A' an octave below the flute over its own arpeggiated left hand while the band rests.
-// The flute takes the tune back on bar 24's pickup and a street brass band arrives, the kind that
-// played with the carolers: in B a hymn-like chorale under the tune (the horn's countermelody on
-// top, the euphonium mostly a sixth below it, the tuba on the roots) over a soft bass drum on the
-// pulse. A snare roll swells into the last phrase, a clash of cymbals marks it, and the euphonium
-// sings the tune two octaves under the flute (the glockenspiel an octave above it), the horn in
-// thirds and sixths below it, with the harp and strings back in and the snare keeping the lilt.
-// A harp sweep up the dominant seventh and a triangle "tk-tk-ting" lead each pass back into the
-// top.
+// 68 bars of the theme's 6/8 (90.7 s); each carol keeps its own metre and tempo on that grid:
+//   bars  1–8   the theme's A A' (F major, 6/8): the flute and the violins sing it over the harp,
+//               horns, a pizzicato bass and sleigh bells; handbells ring in the top.
+//         9–15  Deck the Halls (B flat, 4/4, quarter = 154): the clarinet and the flute over
+//               pizzicato strings, the xylophone on the fa-la-las; the trumpets and horns answer
+//               with the last fa-la-la.
+//           16  a clarinet and flute run tumbles down over a timpani roll on D into
+//        17–24  God Rest Ye Merry, Gentlemen (G minor), the carol at Scrooge's keyhole: a minor
+//               march, the clarinet with the cellos and a horn an octave under it, over staccato
+//               tuba, viola pizzicato, snare and timpani; "O tidings of comfort and joy" goes to the
+//               violins and the flute over the brass, and its last chord turns to G major (a
+//               Picardy third) as the sleigh bells shake in.
+//        25–32  Jingle Bells (G major, cut time, half = 90): the parlor piano in octaves over a
+//               sleigh, the band joining for its second line: flute, violins, glockenspiel, horns,
+//               trumpet stabs.
+//        33–37  Good King Wenceslas (G major, quarter = 154): a street brass band, the euphonium
+//               on the tune, a horn a third above, trombone after-beats, tuba, snare and bass drum.
+//               Its held last note becomes the ninth of an F chord, and a harp sweep turns to
+//        37–49  Silent Night (B flat, 6/8, dotted quarter = 60): the French horn sings the first
+//               phrase over the harp (Scrooge's niece plays the harp at Fred's party), the violins
+//               and the flute the last, the horn below them; it eases into its last bar.
+//        50–60  O Come, All Ye Faithful (E flat, quarter about 104): after a swell on the
+//               dominant, a brass choir (horns, euphonium, tuba) sings "O come, let us adore Him";
+//               the whole orchestra the next line, broadening into "Christ the Lord".
+//        61–68  the theme's B A'' (F major) as the grand finale: the horn countermelody and the
+//               euphonium's hymn under the flute and violins, a clarinet run, then the euphonium on
+//               the tune two octaves under them, handbells, clash cymbals, and a harp sweep up
+//               the dominant seventh back to bar 1.
 //
-// Register plan, so no two harmony parts fight in the same octave:
-//   tuba G1–F2 · bass pizz G1–F2 · cellos (B) G2–D3 · piano left hand C2–Bb3
-//   euphonium (B) C3–F3, (A'') the tune F3–F4 · horn (B) F3–D4, (A'') Bb2–C4 under the euphonium
-//   harp Bb3–D5 · piano chords (B) F4–E5, tune E4–A5 · violins E4–D5 (A), G4–F5 (B, last A'')
-//   vibraphone G4–F5 · flute C5–A6 (glockenspiel solo A5–F6) · glockenspiel twinkles C6–G7
-// All parts sit inside their instruments' recorded ranges. The horn stays at or below D4: above
-// C4 it has only a soft D5 and F5, so its higher notes would be stretched recordings. The
-// euphonium (trombone + tuba) has recordings up to F4, which is why it, not the horn, sings the
-// tune in the last phrase.
+// Register plan (each section keeps its parts in separate octaves):
+//   bass pizz G1–G2 · tuba G1–G2, staccato tuba D2–C3 · cellos D2–G3 (bass), F3–D4 (God Rest's
+//   tune) · piano left hand D2–G4 · euphonium F2–F3 (hymn, chorale, harmony), D3–A3
+//   (Wenceslas), F3–F4 (the finale's tune) · horns Bb2–D4 (D4 at most: the recorded horn has
+//   nothing between C4 and D5) · trombone after-beats F#3–C4 · harp F2–Bb5 · clarinet D4–Bb5 ·
+//   violins C4–D6 (tunes), Bb3–Eb5 (Silent Night), D5–Bb5 (pads) · trumpets F4–G5 · flute D4–A6
+//   · glockenspiel and xylophone Bb5–G7.
 //
-// Tuning is the sampler's: it tunes every note as heard, at its pitch and length (instruments.ts).
-// This file only has the harp damp strings that would rub against the next chord (damped).
+// Mix (scripts/music/mix.ts, dB against the mix per 4-bar phrase): each section's lead sits
+// within about 6 dB (the flute and violins, the clarinet, the horn, the piano, the euphonium);
+// the horns, euphonium and drums that support it within about 10 to 15. Measured as heard
+// (scripts/music/tuning.ts), every note of the piano, horns, trombone, tuba and euphonium is
+// within 5 cents. The bells are hand chimes (handbells, as the Victorian ringers carried round at
+// Christmas), tuned as heard like every pitched set: the tubular bells' loudest partials sit 25-40
+// cents off true (their fifth partial is flat on every take, the octave above often sharp).
+//
+// Tuning is the sampler's (every note tuned as heard at its length, instruments.ts), except the
+// timpani: the recorded drums sit at odd pitches and the sampler rotates through them, so this
+// file works out which drum each stroke lands on and plays it at the note the harmony wants
+// (timpani()).
 
 import { instrument, type InstrumentName } from "../instruments";
 import { midi } from "../sampler";
 import { euphonium, type Note, type SampledTrack, type Song, type Track } from "../song";
-import { chordNotes, EIGHTHS_PER_BAR, harmony, melody, THEME_BARS, THEME_BPM, type Quality } from "../theme";
+import { CHORDS as THEME_CHORDS, EIGHTHS_PER_BAR, melody, THEME_BPM, type Quality } from "../theme";
 
-const KEY = 5; // C major -> F major
 const BAR = EIGHTHS_PER_BAR;
-const PASS = THEME_BARS * BAR;
-const BARS = THEME_BARS * 2;
-/** Start of `bar` (1-based, counted over the whole loop) plus `eighth` eighths. */
-const at = (bar: number, eighth = 0) => (bar - 1) * BAR + eighth;
+/** The loop, in eighths at the theme's tempo: 68 bars of 6/8. */
+const LOOP = 68 * BAR;
+const num = (n: string | number): number => (typeof n === "number" ? n : midi(n));
 
-type Section = "A" | "A'" | "B" | "A''";
-/** Section of a bar (0-based, counted over the whole loop). */
-const sectionOf = (bar: number): Section => (["A", "A'", "B", "A''"] as const)[Math.floor((bar % THEME_BARS) / 4)]!;
+// ---------------------------------------------------------------- time
 
-// ---------------------------------------------------------------- harmony helpers
+/**
+ * A section of the medley, written in its own beats (a quarter, a half or an eighth) and placed on
+ * the loop's eighths: beat b falls at start + b * per. With `rit` it slows from beat `from`, until
+ * a beat from `to` on lasts `factor` times as long (a ritardando).
+ */
+class Sec {
+  constructor(
+    readonly start: number,
+    readonly per: number,
+    readonly rit?: { from: number; to: number; factor: number },
+  ) {}
 
-interface Chord {
-  root: number;
-  quality: Quality;
-  /** Pitch classes: root, 3rd, 5th (, 7th). */
-  pcs: number[];
+  at(b: number): number {
+    const { start, per, rit } = this;
+    if (!rit || b <= rit.from) return start + b * per;
+    const span = rit.to - rit.from;
+    const x = Math.min(b, rit.to) - rit.from;
+    const eased = start + rit.from * per + per * (x + ((rit.factor - 1) * x * x) / (2 * span));
+    return eased + Math.max(0, b - rit.to) * per * rit.factor;
+  }
+
+  /** A note at beat b lasting d beats. */
+  n(b: number, d: number, n: string | number, v: number): Note {
+    const t = this.at(b);
+    return { t, d: this.at(b + d) - t, n: num(n), v };
+  }
 }
-const CHORDS: Chord[] = harmony().map((c) => {
-  const notes = chordNotes(c.root, c.quality, 4).map((n) => n + KEY);
-  return { root: notes[0]! % 12, quality: c.quality, pcs: notes.map((n) => n % 12) };
-});
-const chordAt = (t: number): Chord => CHORDS[Math.floor((t % PASS) / 3)]!;
 
-/** Chord tones from `lo` to `hi` (inclusive), ascending. */
-function tonesIn(c: Chord, lo: string, hi: string): number[] {
-  const out: number[] = [];
-  for (let m = midi(lo); m <= midi(hi); m++) if (c.pcs.includes(m % 12)) out.push(m);
+const OPEN = new Sec(0, 1); // the theme's A A', in eighths
+const DECK = new Sec(48, 1.75); // Deck the Halls, in quarters
+const LINK = new Sec(90, 1.75); // one bar on D, into G minor
+const GREST = new Sec(97, 1.75); // God Rest Ye Merry, Gentlemen
+const JINGLE = new Sec(144.25, 3); // Jingle Bells, in halves
+const WENC = new Sec(192.25, 1.75); // Good King Wenceslas
+const SILENT = new Sec(220.25, 1.5, { from: 42, to: 48, factor: 1.5 }); // Silent Night, in eighths
+const FINALE = new Sec(360, 1); // the theme's B A''
+/** O Come, All Ye Faithful fills the rest: from beat -2 (the swell into E flat) to the end of its last chord (beat 22). */
+const ADESTE = (() => {
+  const rit = { from: 16, to: 22, factor: 1.45 };
+  const from = SILENT.at(48);
+  const unit = new Sec(0, 1, rit);
+  const per = (FINALE.start - from) / (unit.at(22) - unit.at(-2));
+  return new Sec(from + 2 * per, per, rit);
+})();
+
+/** A tune written as "F5:1.5 Eb5:.5 D5 C5 | ...": note[:beats] (a missing length repeats the last), "r" rests, "|" bar lines (checked against `bar` beats, but for a pickup and the last bar). */
+interface Tone {
+  t: number;
+  d: number;
+  n: number;
+}
+function line(src: string, from = 0, bar = 0): Tone[] {
+  const out: Tone[] = [];
+  let t = from;
+  let d = 1;
+  let barStart = from;
+  let first = true;
+  for (const tok of src.trim().split(/\s+/)) {
+    if (tok === "|") {
+      if (bar && !first && Math.abs(t - barStart - bar) > 1e-9) throw new Error(`a bar of ${t - barStart} beats in "${src}"`);
+      first = false;
+      barStart = t;
+      continue;
+    }
+    const [name, len] = tok.split(":");
+    if (len !== undefined) d = Number(len);
+    if (name !== "r") out.push({ t, d, n: midi(name!) });
+    t += d;
+  }
   return out;
 }
 
-/** The lowest note at or above `lo` (a name or MIDI number) with pitch class `pc`. */
-function above(pc: number, lo: string | number): number {
-  const m = typeof lo === "number" ? lo : midi(lo);
+// ---------------------------------------------------------------- harmony
+
+interface Chord {
+  root: number;
+  /** Pitch class in the bass (the root, or a slash chord's bass). */
+  bass: number;
+  /** Pitch classes: root, 3rd, 5th, 7th, 9th as the chord has them. */
+  pcs: number[];
+  third?: number;
+  seventh?: number;
+}
+const QUALITY: Record<string, number[]> = { "": [0, 4, 7], m: [0, 3, 7], "7": [0, 4, 7, 10], m7: [0, 3, 7, 10], "9": [0, 4, 7, 10, 2], dim: [0, 3, 6] };
+const pcOf = (name: string) => midi(`${name}0`) % 12;
+
+function chord(sym: string): Chord {
+  const m = /^([A-G][b#]?)(m7|m|7|9|dim)?(?:\/([A-G][b#]?))?$/.exec(sym);
+  if (!m) throw new Error(`bad chord ${sym}`);
+  const root = pcOf(m[1]!);
+  const ints = QUALITY[m[2] ?? ""]!;
+  const pcs = ints.map((i) => (root + i) % 12);
+  return { root, bass: m[3] ? pcOf(m[3]) : root, pcs, third: pcs[1], seventh: ints.includes(10) ? (root + 10) % 12 : undefined };
+}
+
+/** The chord of every stretch of the loop, in eighths. */
+const HARMONY: { t: number; d: number; c: Chord }[] = [];
+/**
+ * Chords written like a tune ("Bb:3 F | Gm F Bb Bb"), from beat `from` of a section, bar lines
+ * checked against `bar` beats; `beats` is the section's whole length, checked too.
+ */
+function harmonize(sec: Sec, src: string, beats: number, from = 0, bar = 0): void {
+  let b = from;
+  let d = 1;
+  let barStart = from;
+  let first = true;
+  for (const tok of src.trim().split(/\s+/)) {
+    if (tok === "|") {
+      if (bar && !first && Math.abs(b - barStart - bar) > 1e-9) throw new Error(`a bar of ${b - barStart} beats in "${src}"`);
+      first = false;
+      barStart = b;
+      continue;
+    }
+    const [sym, len] = tok.split(":");
+    if (len !== undefined) d = Number(len);
+    const t = sec.at(b);
+    HARMONY.push({ t, d: sec.at(b + d) - t, c: chord(sym!) });
+    b += d;
+  }
+  if (Math.abs(b - from - beats) > 1e-9) throw new Error(`${b - from} beats of chords, not ${beats}, in "${src}"`);
+}
+const FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const SUFFIX: Record<Quality, string> = { maj: "", min: "m", dom7: "7", min7: "m7", dim: "dim" };
+/** The theme's chord for half bar i, in F major. */
+const themeChord = (i: number) => {
+  const [root, q] = THEME_CHORDS[i]!;
+  return `${FLAT[(pcOf(root) + 5) % 12]}${SUFFIX[q]}:3`;
+};
+harmonize(OPEN, Array.from({ length: 16 }, (_, i) => themeChord(i)).join(" "), 48);
+harmonize(DECK, "Bb:3 F:1 | Gm F Bb Bb | F:2 Bb:1 Gm | Bb/F:1 F Bb:2 | Eb:2 Bb:2 | Bb/F:1 F7 Bb:2", 24, 0, 4);
+harmonize(LINK, "D7:4", 4);
+harmonize(GREST, "Gm:2 D:2 | Gm:1 Dm Eb Bb | Gm F Eb F7/C | Bb:2 Gm:1 F:1 | Bb Eb/G F Eb | Bb F7/C Gm/D D7 | Gm:2 G:1", 27, 0, 4);
+harmonize(JINGLE, "G:8 | C:2 G:2 | D7:2 G:2", 16);
+harmonize(WENC, "G G Em D7 | G:2 D7:2 | C:1 G C D7 | G:2 F9:2", 16, 0, 4);
+harmonize(SILENT, "Bb:6 | Bb:6 | F7:6 | Bb:6 | F7:6 | Bb:6 | Bb/F:3 F7:3 | Bb:6", 48, 0, 6);
+harmonize(ADESTE, "Bb7:1 Eb:1 | Eb Bb/D Cm Ab | Eb/Bb:2 Bb7:1 Eb | Fm Eb/G Bb Cm | Bb Bb7/Ab Eb/G Ab | Eb/Bb:2 Bb7:1.5 Eb:.5 | Eb:2", 24, -2, 4);
+harmonize(FINALE, Array.from({ length: 16 }, (_, i) => themeChord(i + 16)).join(" "), 48);
+
+HARMONY.sort((a, b) => a.t - b.t).reduce((end, h) => {
+  if (Math.abs(h.t - end) > 1e-6) throw new Error(`the chords jump from eighth ${end} to ${h.t}`);
+  return h.t + h.d;
+}, 0);
+if (Math.abs(HARMONY.at(-1)!.t + HARMONY.at(-1)!.d - LOOP) > 1e-6) throw new Error("the chords don't fill the loop");
+
+function chordAt(t: number): Chord {
+  const u = ((t % LOOP) + LOOP) % LOOP;
+  const span = HARMONY.find((h) => u >= h.t - 1e-9 && u < h.t + h.d - 1e-9);
+  if (!span) throw new Error(`no chord at eighth ${u}`);
+  return span.c;
+}
+
+/** Chord tones from `lo` to `hi` (inclusive), ascending. */
+function tonesIn(c: Chord, lo: string | number, hi: string | number): number[] {
+  const out: number[] = [];
+  for (let m = num(lo); m <= num(hi); m++) if (c.pcs.includes(m % 12)) out.push(m);
+  return out;
+}
+
+/** The lowest note at or above `lo` with pitch class `pc`. */
+function low(pc: number, lo: string | number): number {
+  const m = num(lo);
   return m + ((((pc - m) % 12) + 12) % 12);
 }
 
-/** True when two pitches rub: a semitone apart, give or take octaves (a minor 2nd, major 7th or minor 9th). */
+/** True when two pitches rub: a semitone apart, give or take octaves. */
 const rubs = (a: number, b: number) => [1, 11].includes((((a - b) % 12) + 12) % 12);
 
 /**
- * A three-voice voicing of `c` within [lo, hi] that moves as little as possible from `prev`
- * (so common tones hold, the way a string section or a pianist would voice it).
+ * An n-voice voicing of `c` within [lo, hi] that moves as little as possible from `prev` (common
+ * tones hold, the way a section voices it): different notes, always the 3rd, and the 7th of a
+ * seventh chord.
  */
-function voicing(c: Chord, lo: string, hi: string, prev: number[] | null): number[] {
+function voicing(c: Chord, lo: string | number, hi: string | number, prev: number[] | null, n = 3): number[] {
   const tones = tonesIn(c, lo, hi);
   const options: number[][] = [];
-  for (let i = 0; i < tones.length; i++)
-    for (let j = i + 1; j < tones.length; j++)
-      for (let k = j + 1; k < tones.length; k++) {
-        const v = [tones[i]!, tones[j]!, tones[k]!];
-        const pcs = new Set(v.map((n) => n % 12));
-        // Always the 3rd (and the 7th on a dominant seventh); three different notes.
-        if (pcs.size === 3 && pcs.has(c.pcs[1]!) && (c.pcs.length < 4 || pcs.has(c.pcs[3]!))) options.push(v);
+  const pick = (start: number, acc: number[]) => {
+    if (acc.length === n) {
+      options.push([...acc]);
+      return;
+    }
+    for (let i = start; i < tones.length; i++) pick(i + 1, [...acc, tones[i]!]);
+  };
+  pick(0, []);
+  const fits = (v: number[], strict: boolean) => {
+    const pcs = new Set(v.map((x) => x % 12));
+    if (pcs.size < Math.min(n, c.pcs.length)) return false;
+    if (c.third !== undefined && !pcs.has(c.third)) return false;
+    return !strict || c.seventh === undefined || n < 3 || pcs.has(c.seventh);
+  };
+  let fit = options.filter((v) => fits(v, true));
+  if (!fit.length) fit = options.filter((v) => fits(v, false));
+  // Too narrow a range for this chord: widen it a semitone each way.
+  if (!fit.length) return voicing(c, num(lo) - 1, num(hi) + 1, prev, n);
+  const centre = (num(lo) + num(hi)) / 2;
+  const cost = (v: number[]) => (prev && prev.length === n ? v.reduce((s, x, i) => s + Math.abs(x - prev[i]!), 0) : Math.abs(v.reduce((a, b) => a + b, 0) / n - centre));
+  return fit.reduce((a, b) => (cost(b) < cost(a) ? b : a));
+}
+
+/**
+ * Sustained chords for a part: one voicing per chord of the harmony from eighth `from` to `to`,
+ * a voice holding while its note stays the same.
+ */
+function pads(from: number, to: number, lo: string, hi: string, n: number, v: number | ((t: number) => number)): Note[] {
+  const spans = HARMONY.filter((h) => h.t >= from - 1e-9 && h.t < to - 1e-9).sort((a, b) => a.t - b.t);
+  const out: Note[] = [];
+  let prev: number[] | null = null;
+  const held: (Note | null)[] = Array.from({ length: n }, () => null);
+  for (const s of spans) {
+    const vc = voicing(s.c, lo, hi, prev, n);
+    const end = Math.min(to, s.t + s.d);
+    vc.forEach((m, i) => {
+      const h = held[i];
+      if (h && h.n === m && Math.abs(h.t + h.d - s.t) < 1e-6) h.d = end - h.t;
+      else {
+        const note: Note = { t: s.t, d: end - s.t, n: m, v: typeof v === "number" ? v : v(s.t) };
+        out.push(note);
+        held[i] = note;
       }
-  const centre = (midi(lo) + midi(hi)) / 2;
-  const cost = (v: number[]) => (prev ? v.reduce((s, n, i) => s + Math.abs(n - prev[i]!), 0) : Math.abs(v[1]! - centre));
-  return options.reduce((a, b) => (cost(b) < cost(a) ? b : a));
+    });
+    prev = vc;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- level helpers
@@ -104,11 +298,7 @@ function trim(v: number, db: number, lo = 0.05, hi = 1): number {
   return Math.min(hi, Math.max(lo, (amp - 0.35) / 0.65));
 }
 
-/**
- * Measured sustain level (dB) of the recording a note will play, choosing the zone the way the
- * sampler does (nearest, preferring to shift up). Used to even out sets whose recordings differ
- * in loudness from note to note.
- */
+/** Measured sustain level (dB) of the recording a note plays, choosing the zone the way the sampler does. */
 function zoneLevel(zones: [string, number][], note: number): number {
   let best = zones[0]!;
   let bestCost = Infinity;
@@ -123,16 +313,14 @@ function zoneLevel(zones: [string, number][], note: number): number {
   return best[1];
 }
 
-// Sustain levels (dB) of each set's recordings, measured over 0.25–1 s.
+/** The flute's sustain levels (dB) per recording: its high recordings are much louder than its low ones. */
 const FLUTE_LEVELS: [string, number][] = [["A4", -29], ["C5", -30], ["E5", -23], ["A5", -23], ["C6", -22], ["E6", -16], ["A6", -16], ["C7", -10]];
-const VIOLIN_LEVELS: [string, number][] = [["F#4", -30], ["A4", -30], ["C5", -23.5], ["E5", -29.5], ["G5", -27]];
-const HORN_LEVELS: [string, number][] = [["F3", -24], ["A3", -20], ["C4", -24.5]];
-const VIBES_LEVELS: [string, number][] = [["E4", -21], ["G4", -22.5], ["B4", -22], ["D5", -18.5], ["F5", -18.5]];
+/** A flute velocity that evens most of that out, `db` louder or softer. */
+const fluteV = (n: number, v: number, db = 0) => trim(v, db - (zoneLevel(FLUTE_LEVELS, n) + 22) * 0.75);
 
 /**
- * Level (dB RMS over its first 0.05–0.6 s, after the sampler's `even` scaling) of the recording
- * the sampler plays for `note` at velocity `v`. Measured from the recording itself, so parts
- * evened with it stay even if instruments.ts changes.
+ * Level (dB RMS over its first 0.05–0.6 s, after the sampler's `even` scaling) of the recording the
+ * sampler plays for `note` at velocity `v`.
  */
 function recordingDb(name: InstrumentName, note: number, v: number): number {
   const z = instrument(name).zoneFor(note, v);
@@ -144,429 +332,632 @@ function recordingDb(name: InstrumentName, note: number, v: number): number {
   return 10 * Math.log10(sum / (2 * Math.max(1, b - a))) + 20 * Math.log10(z.level ?? 1);
 }
 
-const num = (n: Note) => (typeof n.n === "number" ? n.n : midi(n.n));
-
 /**
  * A part split into one track per recording it plays, each with the gain that brings that
  * recording to `db` (as recordingDb() measures it): for sets whose recordings differ in loudness
  * by more than a velocity layer's range can even out.
  */
 function evenTracks(track: SampledTrack, db: number): Track[] {
-  const byZone = new Map<number, Note[]>();
+  const byZone = new Map<string, Note[]>();
   for (const n of track.notes) {
-    const z = instrument(track.inst).zoneFor(num(n), n.v ?? 0.7).note;
-    byZone.set(z, [...(byZone.get(z) ?? []), n]);
+    const z = instrument(track.inst).zoneFor(num(n.n), n.v ?? 0.7);
+    const key = `${z.note}/${z.layer}`;
+    byZone.set(key, [...(byZone.get(key) ?? []), n]);
   }
   return [...byZone.values()].map((notes) => {
-    const level = recordingDb(track.inst, num(notes[0]!), notes[0]!.v ?? 0.7);
+    const level = recordingDb(track.inst, num(notes[0]!.n), notes[0]!.v ?? 0.7);
     return { ...track, notes, gain: (track.gain ?? 1) * 10 ** ((db - level) / 20) };
   });
 }
 
-/** How far ahead (in eighths) damped() looks for a chord a ringing harp string would rub against. */
-const DAMP_SPAN = 24;
-
 /**
  * The harp's strings ring for ten seconds. A harpist damps a string when the harmony moves to a
- * chord it would rub against (a semitone from one of that chord's notes, like the A of F under B
- * flat, or the E of C under F), and stops all its strings on the bar line where the harp hands
- * over and rests (bars 9 and 21). Each note rings until the first of those; the rest ring out.
- * One track per ring time (a track's `ring` is the same for all its notes).
+ * chord it would rub against (a semitone from one of its notes). Each note rings until the first
+ * such chord within two bars, else at most 3 s; one track per ring time.
  */
-function damped(track: Track): Track[] {
-  const loop = BARS * BAR;
+function damped(track: SampledTrack): Track[] {
   const byRing = new Map<number, Note[]>();
+  const seconds = 60 / THEME_BPM;
   for (const n of track.notes) {
-    let ring = Infinity;
-    for (let c = Math.floor(n.t / 3) + 1; c * 3 - n.t <= DAMP_SPAN; c++) {
-      if (chordAt(c * 3).pcs.some((pc) => rubs(num(n), pc))) {
-        ring = c * 3 - n.t;
-        break;
-      }
+    let ring = 3 / seconds;
+    for (const h of HARMONY) {
+      const ahead = (((h.t - n.t) % LOOP) + LOOP) % LOOP;
+      if (ahead < 0.01 || ahead > 2 * BAR) continue;
+      if (h.c.pcs.some((pc) => rubs(num(n.n), pc))) ring = Math.min(ring, ahead);
     }
-    for (let line = (Math.floor(n.t / BAR) + 1) * BAR; line - n.t <= DAMP_SPAN; line += BAR) {
-      const rests = !track.notes.some((o) => (((o.t - line) % loop) + loop) % loop < BAR);
-      if (rests) {
-        ring = Math.min(ring, line - n.t);
-        break;
-      }
-    }
-    byRing.set(ring, [...(byRing.get(ring) ?? []), n]);
+    const key = Math.round(ring * seconds * 100) / 100;
+    byRing.set(key, [...(byRing.get(key) ?? []), n]);
   }
-  const eighth = 60 / THEME_BPM;
-  return [...byRing].map(([ring, notes]) => ({ ...track, notes, ...(Number.isFinite(ring) ? { ring: ring * eighth } : {}) }));
+  return [...byRing].map(([ring, notes]) => ({ ...track, notes, ring }));
 }
-
-// ---------------------------------------------------------------- the tune
-
-const tune = melody().map((n) => ({ ...n, n: midi(String(n.n)) + KEY, v: n.v ?? 0.7 }));
-
-/** recordingDb() of the upright's recordings the parlor piano's tune is evened to (their median). */
-const PIANO_TUNE_DB = -15;
-
-/** Phrase shape per bar of a pass, in dB: rise to the A' peak, ease into B, climb to its top, settle. */
-const ARC = [0, 0, 0.5, 0, 0.5, 1.5, 1, 0, -1, -0.5, 0.5, 1.5, 1, 0.5, 0, -0.5];
-
-const flute: Note[] = [];
-const glockSolo: Note[] = [];
-const twinkle: Note[] = [];
-const pianoTune: Note[] = [];
-const euphTune: Note[] = [];
-for (let pass = 0; pass < 2; pass++) {
-  for (const n of tune) {
-    const bar = Math.floor(n.t / BAR);
-    const sec = sectionOf(bar);
-    const t = n.t + pass * PASS;
-    const pulse = n.t % 3 === 0;
-    const up = n.n + 12;
-    // Pass 2 hands the tune around: the music box (the glockenspiel, at the flute's pitch, the
-    // bottom of its range and its warmest) up to bar 20's pickup, the parlor piano from there to
-    // bar 24's pickup, then the flute again.
-    const musicBox = pass === 1 && n.t < 3 * BAR + 3;
-    const parlor = pass === 1 && !musicBox && n.t < 7 * BAR + 3;
-    // Held notes close the phrases (all but the final cadence): clip them so the player breathes.
-    const d = n.d >= 3 && bar < THEME_BARS - 1 ? n.d - 0.35 : n.d;
-    // The flute's high recordings are much louder than its low ones: even most of that out. Over
-    // the brass hymn, and in the last phrase where it shares the tune with the euphonium and the
-    // glockenspiel, a little softer.
-    const share = pass === 1 && sec === "B" ? -1 : pass === 1 && sec === "A''" ? -1.5 : 0;
-    if (!musicBox && !parlor) flute.push({ t, d, n: n.n, v: trim(n.v * 0.85, ARC[bar]! + share - (zoneLevel(FLUTE_LEVELS, n.n) + 22) * 0.75) });
-    // Soft strokes (layer 1, v < 1/3 even after humanizing) throughout: hard ones are mostly
-    // 5 kHz+ ping.
-    if (musicBox) glockSolo.push({ t, d: n.d, n: n.n, v: pulse ? 0.3 : 0.2 });
-    // The piano sings it an octave below the flute, legato, in its louder layer (v >= 0.5), evened
-    // out by velocity: its F#5 recording (which plays F5 and G5, the phrase's peak) is about 4 dB
-    // softer than its neighbours.
-    else if (parlor) {
-      const v = 0.53 + (n.v - 0.55) * 0.4 + ARC[bar]! * 0.01;
-      pianoTune.push({ t, d: n.d, n: n.n - 12, v: trim(v, PIANO_TUNE_DB - recordingDb("piano", n.n - 12, v), 0.52, 1) });
-    }
-    // Elsewhere the glockenspiel twinkles an octave up, softly: the pulse notes in pass 1's A' and
-    // A'', the whole tune in the last phrase.
-    else if (pass === 1 && sec === "A''") twinkle.push({ t, d: n.d, n: up, v: pulse ? 0.3 : 0.18 });
-    else if (pass === 0 && (sec === "A'" || sec === "A''") && pulse) twinkle.push({ t, d: n.d, n: up, v: 0.26 });
-    // The street band's euphonium sings the last phrase two octaves under the flute, in its soft
-    // layer (v < 1/3: the round, unforced recordings, and the tuba's that reach D4).
-    if (pass === 1 && sec === "A''") euphTune.push({ t, d, n: n.n - 24, v: 0.25 + (n.v - 0.55) * 0.25 });
-  }
-}
-
-// ---------------------------------------------------------------- accompaniment
-
-const harp: Note[] = [];
-const bass: Note[] = [];
-const tuba: Note[] = [];
-const cellos: Note[] = [];
-const pianoChords: Note[] = [];
-const pianoLeft: Note[] = [];
-let pianoVoicing: number[] | null = null;
-for (let bar = 0; bar < BARS; bar++) {
-  const t0 = bar * BAR;
-  const sec = sectionOf(bar);
-  const pass = bar < THEME_BARS ? 0 : 1;
-  const first = chordAt(t0);
-  const second = chordAt(t0 + 3);
-  const lastBar = bar % THEME_BARS === THEME_BARS - 1;
-  // Pass 2's A' is the parlor piano's alone; its B is the brass band's.
-  const parlor = pass === 1 && sec === "A'";
-  const hymn = pass === 1 && sec === "B";
-
-  // Harp. A sections: a broken chord up and back down (Bb3–D5), each half on its own chord.
-  // Last bar of each pass: a sweep up the dominant seventh into the top of the tune. It rests in
-  // the B sections (the piano, then the brass) and under the parlor piano, and in bar 20 it stops
-  // at the half bar to let the piano's pickup through. Under the euphonium's tune it leaves out a
-  // string that would rub a semitone against the note the euphonium starts with it.
-  if (sec !== "B" && !parlor) {
-    const up = tonesIn(first, "Bb3", "D5");
-    const down = tonesIn(second, "Bb3", "D5");
-    const handoff = pass === 1 && sec === "A" && bar % 4 === 3;
-    const pattern = lastBar || handoff ? [up[0], up[1], up[2]] : [up[0], up[1], up[2], down[3], down[2], down[1]];
-    const vels = [0.6, 0.44, 0.48, 0.56, 0.46, 0.42];
-    pattern.forEach((n, i) => {
-      const sung = euphTune.find((e) => e.t === t0 + i)?.n as number | undefined;
-      if (sung !== undefined && rubs(n!, sung) && Math.abs(n! - sung) <= 13) return;
-      harp.push({ t: t0 + i, d: 1, n: n!, v: vels[i]! });
-    });
-    if (lastBar) {
-      // Starts above the arpeggio's top note, so no string is plucked twice in a row.
-      tonesIn(second, "G4", "B5")
-        .filter((n) => n > up[2]!)
-        .forEach((n, i) => harp.push({ t: t0 + 3 + i * 0.5, d: 1, n, v: 0.44 + i * 0.03 }));
-    }
-  }
-
-  // Parlor piano in pass 1's B: a soft rolled chord on each pulse (F4–E5, voiced with held
-  // common tones), and its top note again on the pulse's last eighth, so it lilts like a waltz.
-  if (pass === 0 && sec === "B") {
-    for (const half of [0, 3]) {
-      pianoVoicing = voicing(chordAt(t0 + half), "F4", "E5", pianoVoicing);
-      const v = half ? 0.36 : 0.42;
-      pianoVoicing.forEach((n, i) => pianoChords.push({ t: t0 + half + i * 0.06, d: 3 - i * 0.06, n, v }));
-      pianoChords.push({ t: t0 + half + 2, d: 1, n: pianoVoicing[2]!, v: 0.3 });
-    }
-  }
-
-  // Parlor piano's left hand in pass 2's A': root, fifth (or the 7th of a dominant seventh) and
-  // tenth broken across each pulse and held as if pedalled, C2–Bb3.
-  if (parlor) {
-    for (const half of [0, 3]) {
-      const c = chordAt(t0 + half);
-      const root = above(c.root, "C2");
-      const mid = c.quality === "dom7" ? above(c.pcs[3]!, root) : above(c.pcs[2]!, root);
-      const tenth = above(c.pcs[1]!, root + 12);
-      [root, mid, tenth].forEach((n, i) => pianoLeft.push({ t: t0 + half + i, d: 3 - i, n, v: [0.42, 0.3, 0.34][i]! - (half ? 0.04 : 0) }));
-    }
-  }
-
-  // Bass. A sections: pizzicato on the pulse, root then fifth (or the next root when the chord
-  // changes mid-bar, or the 3rd of a dominant seventh, walking up into the tonic).
-  // B: the cellos hold the roots legato and the pizz only marks the root.
-  const root = above(first.root, "G1");
-  let pulse2: number | null;
-  if (second.root !== first.root) pulse2 = above(second.root, "G1");
-  else if (sec === "B") pulse2 = null;
-  else if (second.quality === "dom7") pulse2 = above(second.pcs[1]!, "G1");
-  else pulse2 = root - 5 >= midi("G1") ? root - 5 : root + 7;
-  // The pizz rests under the parlor piano (it plays its own bass) and the brass hymn (the tuba
-  // has the bass); in the last phrase the tuba doubles it, legato.
-  if (!parlor && !hymn) {
-    bass.push({ t: t0, d: 2, n: root, v: 0.82 });
-    if (pulse2 !== null) bass.push({ t: t0 + 3, d: 2, n: pulse2, v: 0.64 });
-  }
-  if (pass === 1 && sec === "A''") {
-    tuba.push({ t: t0, d: 3, n: root, v: 0.5 });
-    if (pulse2 !== null) tuba.push({ t: t0 + 3, d: 3, n: pulse2, v: 0.44 });
-  }
-  // In the hymn the tuba holds the roots: a bar, or a half bar when the chord changes.
-  if (hymn) {
-    if (second.root === first.root) tuba.push({ t: t0, d: 6, n: root, v: 0.5 });
-    else {
-      tuba.push({ t: t0, d: 3, n: root, v: 0.5 });
-      tuba.push({ t: t0 + 3, d: 3, n: above(second.root, "G1"), v: 0.48 });
-    }
-  }
-
-  if (pass === 0 && sec === "B") {
-    const swell = 0.6 + (bar % 4) * 0.03;
-    if (first.root === second.root) cellos.push({ t: t0, d: 6, n: above(first.root, "G2"), v: swell });
-    else {
-      cellos.push({ t: t0, d: 3, n: above(first.root, "G2"), v: swell });
-      cellos.push({ t: t0 + 3, d: 3, n: above(second.root, "G2"), v: swell });
-    }
-  }
-}
-
-// Violins: a sustained pad, one voicing per half bar with held common tones. Below the tune in
-// the A sections (E4–D5), a little higher in B and the last phrase (G4–F5) to leave the horn and
-// the euphonium room; hushed under the music box and the parlor piano, a little softer under the
-// brass hymn.
-const violins: Note[] = [];
-{
-  const halves = CHORDS.length * 2;
-  const voicings: number[][] = [];
-  let last: number[] | null = null;
-  for (let h = 0; h < halves; h++) {
-    const bar = Math.floor(h / 2);
-    const high = sectionOf(bar) === "B" || (bar >= THEME_BARS && sectionOf(bar) === "A''");
-    const [lo, hi] = high ? ["G4", "F5"] : ["E4", "D5"];
-    last = voicing(chordAt(h * 3), lo, hi, last);
-    voicings.push(last);
-  }
-  // Hold a voice while its note stays the same; restart it when the note moves.
-  for (let voice = 0; voice < 3; voice++) {
-    let cur: Note | null = null;
-    for (let h = 0; h < halves; h++) {
-      const n = voicings[h]![voice]!;
-      if (cur && n === cur.n) {
-        cur.d += 3;
-        continue;
-      }
-      if (cur) violins.push(cur);
-      const bar = Math.floor(h / 2);
-      const pass = Math.floor(bar / THEME_BARS);
-      const sec = sectionOf(bar);
-      const dyn = (pass === 1 ? 1 : 0) + ARC[bar % THEME_BARS]! * 0.7 - (pass === 1 && sec === "B" ? 2 : 0);
-      // Layer 2 (v >= 0.5) speaks quickly enough for chord changes; the C5 recordings are ~6 dB
-      // louder than their neighbours, so they get the bottom of that layer. Under the music box
-      // and the parlor piano, layer 1: a pianissimo that swells in slowly.
-      const hushed = pass === 1 && (sec === "A" || sec === "A'");
-      const v: number = hushed ? 0.4 : trim(0.86, dyn - (zoneLevel(VIOLIN_LEVELS, n) + 29.5) * 0.6, 0.52, 0.98);
-      cur = { t: h * 3, d: 3, n, v };
-    }
-    if (cur) violins.push(cur);
-  }
-}
-
-// Vibraphone (celesta stand-in): soft bell dyads on the bar under pass 2's music box. These
-// recordings can't be damped: a note is still only ~4 dB down a bar later and ~9 dB down two bars
-// later. So it strikes only the chord tones that won't rub against any chord of the next two bars
-// (no A of F or Dm ringing into B flat, no F into C, no E or B flat of C7 into the F at the top),
-// as a vibraphonist without a pedal would choose them.
-const vibes: Note[] = [];
-for (let bar = THEME_BARS; bar < THEME_BARS + 4; bar++) {
-  const t = bar * BAR;
-  const later = [3, 6, 9, 12].map((d) => chordAt(t + d));
-  const safe = tonesIn(chordAt(t), "G4", "F5").filter((n) => later.every((c) => c.pcs.every((pc) => !rubs(n, pc))));
-  for (const n of safe.slice(-2)) vibes.push({ t: t + 0.04, d: 3, n, v: trim(0.6, -(zoneLevel(VIBES_LEVELS, n) + 22) * 0.7, 0.52, 0.7) });
-}
-
-// ---------------------------------------------------------------- horn and street band
 
 /**
- * The brass recordings take 30–110 ms to speak (most about 50), against the drum's and the
- * piano's instant attacks: start brass notes this many eighths early, as players do.
+ * The brass recordings take 30–110 ms to speak (most about 50), against the drums' and the
+ * pizzicato's instant attacks: start sustained brass this many eighths early, as players do.
  */
 const SPEAK = 0.15;
-const early = (notes: Note[]): Note[] => notes.map((n) => ({ ...n, t: n.t - SPEAK }));
+const early = (notes: Note[]): Note[] => notes.map((n) => ({ ...n, t: Math.max(0, n.t - SPEAK) }));
 
-// Horn countermelody in each B section: it climbs while the tune falls, holding its D over the
-// change to C (a 9-8 suspension, resolving down to C), falls while the tune climbs, and holds the
-// 7th of C7 (B flat) resolving to A as the tune comes home. In pass 2 it is the top of the brass
-// hymn, and it resolves into its harmony line under the euphonium (below). It peaks on D4: this
-// layer's top recording is C4, and further above a recording a horn sounds stretched.
-const HORN_LINE: [number, number, string][] = [
-  [0, 3, "Bb3"], [3, 6, "D4"],
-  [9, 2, "C4"], [11, 1, "Bb3"],
-  [12, 3, "A3"], [15, 2, "F3"], [17, 1, "A3"],
-  [18, 6, "Bb3"],
-  [24, 4, "A3"],
-];
-const HORN_SWELL = [0.62, 0.68, 0.66, 0.6, 0.62, 0.6, 0.58, 0.64, 0.56];
-const horn: Note[] = [];
-for (let pass = 0; pass < 2; pass++) {
-  HORN_LINE.forEach(([t, d, n], i) => {
-    if (pass === 1 && i === HORN_LINE.length - 1) return;
-    const m = midi(n);
-    // Layer 3 only (0.5 <= v < 0.75): layer 4 has just two recordings.
-    const v = trim(HORN_SWELL[i]! + pass * 0.03, -(zoneLevel(HORN_LEVELS, m) + 23) * 0.6, 0.52, 0.72);
-    horn.push({ t: pass * PASS + 8 * BAR + t, d, n: m, v });
-  });
-}
+// ---------------------------------------------------------------- the parts
 
-// The euphonium in the hymn: the horn's line mostly a sixth below (thirds where the horn dips to
-// F3, the tritone of C7 at the end), so the two sing as a pair over the tuba. From B flat to C
-// (bar 26) it falls to C3 instead, under the horn's suspended D: rising F3 to G3 there with the
-// tuba's B flat to C would be parallel fifths, the whole band moving up as one block.
-// Its middle layer (1/3 <= v < 2/3).
-const EUPH_LINE: [number, number, string][] = [
-  [0, 3, "D3"], [3, 3, "F3"],
-  [6, 3, "C3"], [9, 3, "E3"],
-  [12, 3, "C3"], [15, 2, "D3"], [17, 1, "F3"],
-  [18, 3, "D3"], [21, 3, "E3"],
-];
-const euphHymn: Note[] = EUPH_LINE.map(([t, d, n], i) => ({ t: at(25) + t, d, n, v: [0.44, 0.47, 0.5, 0.46, 0.44, 0.46, 0.42, 0.47, 0.5][i]! }));
-
-// The horn under the euphonium's tune in the last phrase: thirds and sixths below it (Bb2–C4),
-// starting from the A its countermelody resolves to, ending on the 3rd of C7. Its second layer
-// (1/4 <= v < 1/2), softer than the countermelody's.
-const HORN_HARMONY: [number, number, string][] = [
-  [0, 5, "A3"], [5, 1, "C4"],
-  [6, 2, "F3"], [8, 1, "A3"], [9, 2, "F3"], [11, 1, "D3"],
-  [12, 2, "G3"], [14, 1, "F3"], [15, 2, "Bb2"], [17, 1, "D3"],
-  [18, 6, "E3"],
-];
-const hornLow: Note[] = HORN_HARMONY.map(([t, d, n]) => ({ t: at(29) + t, d, n, v: t % 3 === 0 ? 0.44 : 0.38 }));
-/**
- * recordingDb() the horn's harmony is evened to, one track per recording (evenTracks): that
- * layer's recordings differ by 14 dB (its A3 hot, its B flat 2 and D3 weak), which left the line
- * fading out under the tune.
- */
-const HORN_LOW_DB = -30.5;
-
-// ---------------------------------------------------------------- percussion
-
-// Sleigh bells on every eighth, accented on the two pulses; lighter in B, in the music box and
-// under the parlor piano, lightest under the brass hymn.
+const flute: Note[] = [];
+const fluteSoft: Note[] = []; // Silent Night
+const clarinet: Note[] = [];
+const violins: Note[] = []; // the tunes
+const violinsSoft: Note[] = []; // Silent Night's tune
+const violinsPad: Note[] = [];
+const cellos: Note[] = [];
+const cellosTune: Note[] = [];
+const vlnPizz: Note[] = [];
+const vlaPizz: Note[] = [];
+const bassPizz: Note[] = [];
+const hornPad: Note[] = [];
+const hornTune: Note[] = []; // God Rest's line, O Come's chorale melody
+const hornSilent: Note[] = []; // Silent Night: the solo, then the line under the violins
+const hornLine: Note[] = []; // the finale's countermelody and harmony, Wenceslas's harmony
+const hornShort: Note[] = [];
+const trumpets: Note[] = [];
+const tromboneShort: Note[] = [];
+const euphTune: Note[] = []; // Wenceslas
+const euphLow: Note[] = []; // God Rest's refrain, O Come's tenor
+const euphHymn: Note[] = []; // the finale's hymn under the horn's countermelody
+const euphFinale: Note[] = []; // the finale's tune
+const tuba: Note[] = [];
+const tubaShort: Note[] = [];
+const piano: Note[] = [];
+const pianoLeft: Note[] = [];
+const harp: Note[] = [];
+const harpSilent: Note[] = []; // Silent Night's accompaniment
+const glock: Note[] = [];
+const xylo: Note[] = [];
 const bells: Note[] = [];
-for (let t = 0; t < BARS * BAR; t++) {
-  const bar = Math.floor(t / BAR);
-  const inBar = t % BAR;
-  const base = inBar === 0 ? 0.92 : inBar === 3 ? 0.78 : inBar % 3 === 1 ? 0.36 : 0.28;
-  const sec = sectionOf(bar);
-  const pass2 = bar >= THEME_BARS;
-  const db = sec === "B" ? (pass2 ? -3 : -1.5) : pass2 && sec === "A" ? -1 : pass2 && sec === "A'" ? -2 : 0;
-  bells.push({ t, d: 1, n: "C4", v: trim(base, db) });
+interface Hit {
+  t: number;
+  d: number;
+  /** The pitch it should sound. */
+  n: string;
+  v: number;
 }
-
-// Triangle: open strokes ("ting") on section tops, fully muted ones ("tk") at phrase ends and
-// the "tk-tk" into the top of each pass. Layer 2 (v >= 0.5) for the loud ones.
-const triangle: Note[] = [
-  { t: at(1), d: 1, n: "C4", v: 0.74 }, // top of the loop
-  { t: at(17), d: 1, n: "C4", v: 0.66 }, // top of pass 2
-  { t: at(13), d: 1, n: "C4", v: 0.66 }, // pass 1's A''
-  { t: at(5), d: 1, n: "C4", v: 0.4 }, // soft: A', B
-  { t: at(9), d: 1, n: "C4", v: 0.4 },
-  { t: at(21), d: 1, n: "C4", v: 0.4 },
-  { t: at(25), d: 1, n: "C4", v: 0.4 },
-];
-const triangleTicks: Note[] = [
-  { t: at(16, 4), d: 1, n: "C4", v: 0.66 }, // "tk-tk" into bar 17
-  { t: at(16, 5), d: 1, n: "C4", v: 0.66 },
-  { t: at(32, 4), d: 1, n: "C4", v: 0.66 }, // "tk-tk" into bar 1
-  { t: at(32, 5), d: 1, n: "C4", v: 0.66 },
-  { t: at(4, 3), d: 1, n: "C4", v: 0.4 }, // soft ticks at phrase ends
-  { t: at(12, 3), d: 1, n: "C4", v: 0.4 },
-  { t: at(20, 3), d: 1, n: "C4", v: 0.4 },
-];
-
-// The street band's drummer: a soft bass drum on the pulse while the band plays (the second
-// pulse lighter), a snare roll swelling over the last half of bar 28 into a stroke on bar 29,
-// where the cymbals clash once and the bass drum hits harder, then light snare strokes (below).
+const timpHits: Hit[] = [];
+const timpRolls: Hit[] = [];
+const snare: Note[] = [];
+const roll: Note[] = [];
 const kick: Note[] = [];
-for (let bar = 25; bar <= 32; bar++) {
-  // Its second layer (1/4 <= v < 1/2) throughout: the louder hits are peaky enough to drive the
-  // master's limiter.
-  const hymn = bar < 29;
-  kick.push({ t: at(bar), d: 1, n: "C2", v: bar === 29 ? 0.48 : hymn ? 0.34 : 0.38 });
-  kick.push({ t: at(bar, 3), d: 1, n: "C2", v: hymn ? 0.27 : 0.29 });
+const cymbals: Note[] = [];
+const crash: Note[] = [];
+const triangle: Note[] = [];
+const triangleTicks: Note[] = [];
+const sleigh: Note[] = [];
+
+/**
+ * A timpani roll: strokes `rate` per eighth from `from` to `to` (eighths), swelling from v0 to v1,
+ * the two sticks a little uneven (the second a touch late and lighter) so it doesn't machine-gun.
+ */
+function timpRoll(from: number, to: number, n: string, v0: number, v1: number, rate = 4): void {
+  const count = Math.max(2, Math.round((to - from) * rate));
+  const step = (to - from) / count;
+  for (let i = 0; i < count; i++) {
+    const left = i % 2 === 0;
+    const t = from + step * (i + (left ? 0 : 0.12));
+    timpRolls.push({ t, d: 1, n, v: v0 + ((v1 - v0) * i) / (count - 1) - (left ? 0 : 0.03) });
+  }
 }
-// The roll rises in three steps on its two louder recordings (each restarts with a small accent,
-// like a drummer's crescendo); the softest recording is 13 dB down and would only rustle.
-const roll: Note[] = [
-  { t: at(28, 3), d: 1, n: "D2", v: 0.36 },
-  { t: at(28, 4), d: 1, n: "D2", v: 0.6 },
-  { t: at(28, 5), d: 1, n: "D2", v: 0.85 },
+
+/** A snare roll held from eighth `from` to `to`, swelling in steps (each restart a small accent). */
+function snareRoll(from: number, to: number, v0: number, v1: number, steps = 3): void {
+  for (let i = 0; i < steps; i++) {
+    const a = from + ((to - from) * i) / steps;
+    roll.push({ t: a, d: (to - from) / steps, n: "D2", v: v0 + ((v1 - v0) * i) / Math.max(1, steps - 1) });
+  }
+}
+
+// ---------------------------------------------------------------- the theme (bars 1–8 and 61–68)
+
+/** The theme in F major, in eighths over its 16 bars; bars 1–8 open the loop, 9–16 close it. */
+const THEME = melody().map((n) => ({ t: n.t, d: n.d, n: num(n.n) + 5, v: n.v ?? 0.7 }));
+const themeAt = (t: number) => (t < 8 * BAR ? t : FINALE.start + t - 8 * BAR);
+/** Phrase shape per theme bar, in dB: rise to the A' peak, ease into B, climb to its top, settle. */
+const ARC = [0, 0, 0.5, 0, 0.5, 1.5, 1, 0, -1, -0.5, 0.5, 1.5, 1, 0.5, 0, -0.5];
+
+for (const n of THEME) {
+  const bar = Math.floor(n.t / BAR);
+  const t = themeAt(n.t);
+  const pulse = n.t % 3 === 0;
+  // Held notes close the phrases: clip them so the players breathe (not into the loop's top).
+  const d = n.d >= 3 && bar !== 15 ? n.d - 0.35 : n.d;
+  const finale = bar >= 8;
+  flute.push({ t, d, n: n.n, v: fluteV(n.n, n.v * 0.85, ARC[bar]! + (finale ? 0.5 : 0)) });
+  violins.push({ t, d, n: n.n - 12, v: 0.6 + (n.v - 0.55) * 0.5 + ARC[bar]! * 0.01 + (finale ? 0.04 : 0) });
+  // The glockenspiel twinkles an octave up on the pulse notes; the whole tune in the reprise.
+  if (pulse || bar >= 12) glock.push({ t, d: n.d, n: n.n + 12, v: pulse ? 0.28 : 0.2 });
+  // The reprise: the euphonium two octaves under the flute, in its soft layer.
+  if (bar >= 12) euphFinale.push({ t, d, n: n.n - 24, v: 0.25 + (n.v - 0.55) * 0.25 });
+}
+
+for (const [from, to, sweepAt] of [
+  [0, 8, 7],
+  [12, 16, 15],
+]) {
+  for (let bar = from!; bar < to!; bar++) {
+    const t0 = themeAt(bar * BAR);
+    const first = chordAt(t0);
+    const second = chordAt(t0 + 3);
+    // Harp: a broken chord up and back down (Bb3–D5), each half on its own chord; a sweep up the
+    // chord to close the phrase (bar 8 into Deck the Halls, bar 68 into the top).
+    const up = tonesIn(first, "Bb3", "D5");
+    const down = tonesIn(second, "Bb3", "D5");
+    const sweep = bar === sweepAt;
+    const pattern = sweep ? [up[0], up[1], up[2]] : [up[0], up[1], up[2], down[3], down[2], down[1]];
+    const vels = [0.56, 0.44, 0.48, 0.54, 0.46, 0.42];
+    pattern.forEach((n, i) => harp.push({ t: t0 + i, d: 1, n: n!, v: vels[i]! }));
+    if (sweep) tonesIn(second, "G4", "B5").filter((n) => n > up[2]!).forEach((n, i) => harp.push({ t: t0 + 3 + i * 0.5, d: 1, n, v: 0.44 + i * 0.02 }));
+    // Bass: pizzicato on the pulse, root then fifth (or the next root, or the 3rd of a dominant
+    // seventh, walking up into the tonic).
+    const root = low(first.root, "G1");
+    const pulse2 = second.root !== first.root ? low(second.root, "G1") : second.seventh !== undefined ? low(second.third!, "G1") : root - 5 >= midi("G1") ? root - 5 : root + 7;
+    bassPizz.push({ t: t0, d: 2, n: root, v: 0.8 }, { t: t0 + 3, d: 2, n: pulse2, v: 0.64 });
+  }
+}
+// Bass in the finale's B: the tuba holds the roots (below), the pizz rests.
+
+// Horns in the opening: two horns hold the harmony (D3–C4), whole or half bars.
+hornPad.push(...pads(OPEN.at(0), OPEN.at(48), "D3", "C4", 2, 0.4));
+
+// Sleigh bells on every eighth of the theme, accented on the two pulses.
+for (const [from, to, db] of [
+  [0, 48, 0],
+  [FINALE.start, FINALE.start + 24, -2],
+  [FINALE.start + 24, LOOP, 0],
+] as const) {
+  for (let t = from; t < to; t++) {
+    const inBar = (t - from) % BAR;
+    const base = inBar === 0 ? 0.92 : inBar === 3 ? 0.78 : inBar % 3 === 1 ? 0.36 : 0.28;
+    sleigh.push({ t, d: 1, n: "C4", v: trim(base, db) });
+  }
+}
+// Handbells ring the tonic at the top of the loop and the dominant at the second phrase, each a
+// pair an octave apart.
+bells.push({ t: 0, d: 6, n: "F4", v: 0.8 }, { t: 0, d: 6, n: "F5", v: 0.8 }, { t: 24, d: 6, n: "C5", v: 0.75 }, { t: 24, d: 6, n: "C6", v: 0.75 });
+timpHits.push({ t: 0, d: 3, n: "F2", v: 0.5 }, { t: 21, d: 3, n: "C3", v: 0.42 }, { t: 42, d: 3, n: "F2", v: 0.45 });
+crash.push({ t: 0, d: 1, n: "C#3", v: 0.6 });
+triangle.push({ t: 0, d: 1, n: "C4", v: 0.7 }, { t: 24, d: 1, n: "C4", v: 0.42 });
+
+// ---------------------------------------------------------------- Deck the Halls (bars 9–15)
+
+const DECK_TUNE = line("F5:1.5 Eb5:.5 D5:1 C5 | Bb4 C5 D5 Bb4 | C5:.5 D5 Eb5 C5 D5:1.5 C5:.5 | Bb4:1 A4 Bb4:2 | G5:.5 G5 G5 G5 F5:1.5 Eb5:.5 | D5:1 C5 Bb4:2", 0, 4);
+for (const x of DECK_TUNE) {
+  const accent = x.t % 2 === 0 ? 0.06 : 0;
+  if (x.t < 16) {
+    clarinet.push(DECK.n(x.t, x.d, x.n, 0.5 + accent));
+    flute.push(DECK.n(x.t, x.d, x.n + 12, fluteV(x.n + 12, 0.55 + accent, -6)));
+    // The xylophone on the fa-la-las.
+    if (x.t >= 8 && x.t < 11) xylo.push(DECK.n(x.t, x.d, x.n + 12, 0.42));
+  } else {
+    // The last fa-la-la: trumpets, and the horns two octaves down.
+    trumpets.push(DECK.n(x.t, Math.min(x.d, 1), x.n, 0.5 + accent));
+    hornShort.push(DECK.n(x.t, x.d, x.n - 24, 0.45 + accent));
+    if (x.t < 18) glock.push(DECK.n(x.t, x.d, x.n + 12, 0.26));
+  }
+}
+// Pizzicato: the bass and the cellos on beats 1 and 3, the violins' chords on 2 and 4.
+{
+  let prev: number[] | null = null;
+  for (let b = 0; b < 24; b++) {
+    const c = chordAt(DECK.at(b));
+    if (b % 2 === 0) {
+      bassPizz.push(DECK.n(b, 1, low(c.bass, "G1"), 0.72));
+      vlaPizz.push(DECK.n(b, 1, low(c.bass, "Bb2"), 0.55));
+    } else {
+      prev = voicing(c, "Bb3", "Bb4", prev, 3);
+      for (const n of prev) vlnPizz.push(DECK.n(b, 1, n, 0.52));
+    }
+    sleigh.push(DECK.n(b, 1, "C4", b % 4 === 0 ? 0.55 : 0.4));
+    if (b % 2 === 1) snare.push(DECK.n(b, 1, "D2", b >= 16 ? 0.42 : 0.3));
+    if (b >= 16 && b % 2 === 0) kick.push(DECK.n(b, 1, "C2", 0.32));
+  }
+}
+hornPad.push(...pads(DECK.at(0), DECK.at(16), "D3", "C4", 2, 0.34));
+timpHits.push({ t: DECK.at(14), d: 2, n: "Bb2", v: 0.45 }, { t: DECK.at(22), d: 2, n: "Bb2", v: 0.6 });
+cymbals.push(DECK.n(22, 1, "C#3", 0.55));
+triangle.push(DECK.n(0, 1, "C4", 0.6));
+
+// ---------------------------------------------------------------- the link: a run down into G minor
+
+for (const [i, x] of line("Bb5:.25 A5 G5 F#5 Eb5 D5 C5 Bb4 A4 G4 F#4 D4").entries()) {
+  clarinet.push(LINK.n(x.t, 0.3, x.n, 0.55 - i * 0.01));
+  flute.push(LINK.n(x.t, 0.3, x.n, fluteV(x.n, 0.5, -3)));
+}
+cellos.push(LINK.n(0, 3.9, "D3", 0.55), LINK.n(0, 3.9, "D2", 0.55));
+hornPad.push(LINK.n(0, 3.6, "D3", 0.42), LINK.n(0, 3.6, "A3", 0.42));
+bassPizz.push(LINK.n(0, 1, "D2", 0.7));
+timpRoll(LINK.at(0.5), LINK.at(3), "D3", 0.3, 0.62);
+snareRoll(LINK.at(1.5), LINK.at(3), 0.36, 0.6, 2);
+
+// ---------------------------------------------------------------- God Rest Ye Merry, Gentlemen (bars 16–24)
+
+const GR_TUNE = line("G4 | G4 D5 D5 C5 | Bb4 A4 G4 F4 | G4 A4 Bb4 C5 | D5:2 Bb4:1 C5 | D5 Eb5 F5 G5 | D5 C5 Bb4 A4 | G4:3", -1, 4);
+for (const x of GR_TUNE) {
+  const strong = ((x.t % 2) + 2) % 2 === 0;
+  if (x.t < 14) {
+    // The march: detached, the cellos and a horn an octave under the clarinet.
+    const d = x.d * 0.9;
+    clarinet.push(GREST.n(x.t, d, x.n, strong ? 0.6 : 0.52));
+    cellosTune.push(GREST.n(x.t, d, x.n - 12, strong ? 0.62 : 0.56));
+    hornTune.push(GREST.n(x.t, d, x.n - 12, strong ? 0.44 : 0.4));
+  } else {
+    violins.push(GREST.n(x.t, x.d, x.n, strong ? 0.72 : 0.64));
+    flute.push(GREST.n(x.t, x.d, x.n + 12, fluteV(x.n + 12, strong ? 0.6 : 0.52, -1)));
+  }
+}
+{
+  let prev: number[] | null = null;
+  for (let b = 0; b < 27; b++) {
+    const c = chordAt(GREST.at(b));
+    const refrain = b >= 14;
+    if (b % 2 === 0) {
+      bassPizz.push(GREST.n(b, 1, low(c.bass, "G1"), 0.72));
+      if (!refrain) tubaShort.push(GREST.n(b, 1, low(c.bass, "D2"), 0.6));
+      kick.push(GREST.n(b, 1, "C2", refrain ? 0.38 : 0.3));
+    } else if (!refrain) {
+      prev = voicing(c, "F3", "E4", prev, 3);
+      for (const n of prev) vlaPizz.push(GREST.n(b, 1, n, 0.55));
+    }
+    if (b % 2 === 1 && b < 26) snare.push(GREST.n(b, 1, "D2", refrain ? 0.5 : 0.42));
+    if (b % 4 === 3 && b < 23) snare.push(GREST.n(b + 0.5, 0.5, "D2", 0.26));
+  }
+}
+// The refrain: the horns and the euphonium hold the harmony, the tuba and the cellos the bass;
+// trumpet stabs on its downbeats.
+hornPad.push(...pads(GREST.at(14), GREST.at(27), "D3", "C4", 2, 0.44));
+for (const h of HARMONY.filter((s) => s.t >= GREST.at(14) - 1e-9 && s.t < GREST.at(27) - 1e-9)) {
+  euphLow.push({ t: h.t, d: h.d, n: low(h.c.bass, "G2"), v: 0.42 });
+  tuba.push({ t: h.t, d: h.d, n: low(h.c.bass, "G1"), v: 0.45 });
+  cellos.push({ t: h.t, d: h.d, n: low(h.c.bass, "G2"), v: 0.6 });
+}
+{
+  let prev: number[] | null = null;
+  for (const b of [16, 20, 24, 26]) {
+    prev = voicing(chordAt(GREST.at(b)), "F4", "D5", prev, 3);
+    for (const n of prev) trumpets.push(GREST.n(b, b === 26 ? 1 : 0.5, n, b === 26 ? 0.62 : 0.56));
+  }
+}
+cymbals.push(GREST.n(16, 1, "C#3", 0.6));
+snareRoll(GREST.at(12), GREST.at(14), 0.4, 0.62);
+for (const [b, n, v] of [
+  [0, "G2", 0.5], [2, "D3", 0.42], [4, "G2", 0.45], [8, "G2", 0.45], [12, "D3", 0.5],
+  [16, "Bb2", 0.6], [20, "Bb2", 0.55], [23, "D3", 0.55],
+] as const) timpHits.push({ t: GREST.at(b), d: 2, n, v });
+timpRoll(GREST.at(24), GREST.at(26), "G2", 0.4, 0.62);
+// The Picardy third: G major, and the sleigh shakes in.
+for (const [i, b] of [26, 26.25, 26.5, 26.75].entries()) sleigh.push(GREST.n(b, 0.25, "C4", 0.4 + i * 0.1));
+triangle.push(GREST.n(26, 1, "C4", 0.6));
+timpHits.push({ t: GREST.at(26), d: 1, n: "G2", v: 0.62 });
+
+// ---------------------------------------------------------------- Jingle Bells (bars 25–32)
+
+const JB_TUNE = line("B4:.5 B4 B4:1 B4:.5 B4 B4:1 | B4:.5 D5 G4:.75 A4:.25 B4:2 | C5:.5 C5 C5:.75 C5:.25 C5:.5 B4 B4 B4:.25 B4 | D5:.5 D5 C5 A4 G4:2", 0, 4);
+for (const x of JB_TUNE) {
+  const on = x.t % 1 === 0 ? 0.62 : 0.56;
+  piano.push(JINGLE.n(x.t, x.d, x.n, on), JINGLE.n(x.t, x.d, x.n + 12, on - 0.04));
+  if (x.t >= 8) {
+    flute.push(JINGLE.n(x.t, x.d, x.n + 12, fluteV(x.n + 12, 0.55, -2)));
+    violins.push(JINGLE.n(x.t, x.d, x.n + 12, 0.66));
+    if (x.t % 1 === 0) glock.push(JINGLE.n(x.t, 1, x.n + 24, 0.2));
+  }
+}
+{
+  let prevL: number[] | null = null;
+  let prevP: number[] | null = null;
+  let prevH: number[] | null = null;
+  for (let h = 0; h < 16; h++) {
+    const c = chordAt(JINGLE.at(h));
+    const root = low(c.root, "G2");
+    // The piano's left hand: root and fifth on the halves, a chord on the off-beat quarters.
+    const bassNote = h % 2 === 0 || h >= 14 ? root : low(c.pcs[2]!, "D2");
+    pianoLeft.push(JINGLE.n(h, 0.5, bassNote, 0.45));
+    if (h < 15) {
+      prevL = voicing(chordAt(JINGLE.at(h + 0.5)), "B3", "A4", prevL, 3);
+      for (const n of prevL) pianoLeft.push(JINGLE.n(h + 0.5, 0.4, n, 0.4));
+    }
+    bassPizz.push(JINGLE.n(h, 0.5, h % 2 === 1 && h < 14 ? low(c.pcs[2]!, "G1") : low(c.root, "G1"), 0.7));
+    sleigh.push(JINGLE.n(h, 0.5, "C4", h % 4 === 0 ? 0.85 : 0.7), JINGLE.n(h + 0.5, 0.5, "C4", 0.45));
+    if (h >= 8) {
+      sleigh.push(JINGLE.n(h + 0.25, 0.25, "C4", 0.18), JINGLE.n(h + 0.75, 0.25, "C4", 0.18));
+      if (h < 15) {
+        prevP = voicing(chordAt(JINGLE.at(h + 0.5)), "D4", "B4", prevP, 3);
+        for (const n of prevP) vlnPizz.push(JINGLE.n(h + 0.5, 0.5, n, 0.45));
+        prevH = voicing(chordAt(JINGLE.at(h + 0.5)), "D3", "C4", prevH, 2);
+        for (const n of prevH) hornShort.push(JINGLE.n(h + 0.5, 0.4, n, 0.42));
+        snare.push(JINGLE.n(h + 0.5, 0.5, "D2", 0.3));
+      }
+      kick.push(JINGLE.n(h, 0.5, "C2", 0.3));
+    }
+  }
+}
+for (const [h, d] of [
+  [6, 0.6],
+  [14, 1],
+] as const) {
+  for (const n of voicing(chordAt(JINGLE.at(h)), "G4", "G5", null, 3)) trumpets.push(JINGLE.n(h, d, n, 0.58));
+}
+triangle.push(JINGLE.n(0, 1, "C4", 0.62), JINGLE.n(8, 1, "C4", 0.62));
+crash.push(JINGLE.n(8, 1, "C#3", 0.4));
+for (const [h, n, v] of [
+  [0, "G2", 0.45], [6, "G2", 0.5], [8, "C3", 0.5], [12, "D3", 0.5], [14, "G2", 0.55],
+] as const) timpHits.push({ t: JINGLE.at(h), d: 2, n, v });
+snareRoll(JINGLE.at(15), JINGLE.at(16), 0.4, 0.58, 2);
+
+// ---------------------------------------------------------------- Good King Wenceslas (bars 33–37)
+
+const WK_TUNE = line("G3 G3 G3 A3 | G3 G3 D3:2 | E3:1 D3 E3 F#3 | G3:2 G3:2", 0, 4);
+const WK_HORN = line("B3 B3 B3 C4 | B3 B3 F#3:2 | G3:1 B3 G3 A3 | B3:2 A3:2", 0, 4);
+for (const x of WK_TUNE) euphTune.push(WENC.n(x.t, x.d < 2 ? x.d * 0.9 : x.d, x.n, x.t % 2 === 0 ? 0.3 : 0.27));
+for (const x of WK_HORN) hornLine.push(WENC.n(x.t, x.d < 2 ? x.d * 0.9 : x.d, x.n, 0.36));
+{
+  let prev: number[] | null = null;
+  for (let b = 0; b < 14; b++) {
+    const c = chordAt(WENC.at(b));
+    if (b % 2 === 0) {
+      tubaShort.push(WENC.n(b, 1, low(c.bass, "D2"), 0.6));
+      kick.push(WENC.n(b, 1, "C2", b === 12 ? 0.45 : 0.36));
+    } else {
+      prev = voicing(c, "E3", "D4", prev, 2);
+      for (const n of prev) tromboneShort.push(WENC.n(b, 0.5, n, 0.45));
+    }
+    // A street drummer: eighths, accented on the beats.
+    if (b < 12) snare.push(WENC.n(b, 0.5, "D2", b % 2 === 1 ? 0.5 : 0.36), WENC.n(b + 0.5, 0.5, "D2", 0.22));
+  }
+}
+snare.push(WENC.n(12, 1, "D2", 0.5));
+cymbals.push(WENC.n(0, 1, "C#3", 0.42), WENC.n(8, 1, "C#3", 0.42), WENC.n(12, 1, "C#3", 0.45));
+tubaShort.push(WENC.n(12, 1, "G2", 0.6));
+// The pivot: the euphonium's G held over an F ninth, a harp sweep up it into Silent Night.
+for (const [i, n] of ["F2", "A2", "C3", "Eb3", "G3", "A3", "C4", "Eb4"].entries()) harp.push(WENC.n(14 + i * 0.25, 1, n, 0.42 + i * 0.015));
+cellos.push(WENC.n(14, 2, "F2", 0.42));
+violinsPad.push(WENC.n(14, 2, "Eb5", 0.4), WENC.n(14, 2, "A5", 0.4));
+
+// ---------------------------------------------------------------- Silent Night (bars 37–49)
+
+const SN_SOLO = line("F3:1.5 G3:.5 F3:1 D3:3 | F3:1.5 G3:.5 F3:1 D3:3 | C4:2 C4:1 A3:3 | Bb3:2 Bb3:1 F3:3", 0, 6);
+const SN_TUNE = line("C5:2 C5:1 Eb5:1.5 C5:.5 A4:1 | Bb4:3 D5:2 r:1 | Bb4:1 F4:1 D4:1 F4:1.5 Eb4:.5 C4:1 | Bb3:5", 24, 6);
+const SN_HORN = line("A3:2 A3:1 C4:1.5 A3:.5 F3:1 | F3:3 Bb3:2 r:1 | D3:3 Eb3:3 | D3:5", 24, 6);
+for (const x of SN_SOLO) hornSilent.push(SILENT.n(x.t, x.d >= 3 ? x.d - 0.3 : x.d, x.n, x.t % 3 === 0 ? 0.46 : 0.42));
+for (const x of SN_HORN) hornSilent.push(SILENT.n(x.t, x.d, x.n, 0.34));
+for (const x of SN_TUNE) {
+  violinsSoft.push(SILENT.n(x.t, x.d, x.n, x.d <= 1 ? 0.45 : x.t % 3 === 0 ? 0.6 : 0.55));
+  fluteSoft.push(SILENT.n(x.t, x.d, x.n + 12, fluteV(x.n + 12, 0.5, -1)));
+}
+for (let g = 0; g < 16; g++) {
+  const b = g * 3;
+  const c = chordAt(SILENT.at(b));
+  if (g >= 14) continue;
+  const root = low(c.bass, "F2");
+  const upper = c.seventh !== undefined ? [low(c.seventh, "D4"), low(c.third!, "D4")].sort((p, q) => p - q) : tonesIn(c, "D4", "A4").slice(0, 2);
+  harpSilent.push(SILENT.n(b, 1, root, 0.5), SILENT.n(b + 1, 1, upper[0]!, 0.42), SILENT.n(b + 2, 1, upper[1]!, 0.44));
+}
+// Its last bar: one rolled chord.
+for (const [i, n] of ["Bb2", "F3", "D4", "F4", "Bb4"].entries()) harpSilent.push(SILENT.n(42 + i * 0.25, 4, n, 0.46));
+for (let bar = 0; bar < 8; bar++) {
+  const c = chordAt(SILENT.at(bar * 6));
+  cellos.push(SILENT.n(bar * 6, 6, low(c.bass, "F2"), 0.5));
+}
+violinsPad.push(...pads(SILENT.at(0), SILENT.at(24), "D5", "Bb5", 2, 0.4));
+for (const x of SN_TUNE.filter((n) => n.t % 6 === 0)) glock.push(SILENT.n(x.t, 3, x.n + 24, 0.18));
+
+// ---------------------------------------------------------------- O Come, All Ye Faithful (bars 49–60)
+
+// A swell on the dominant seventh into E flat.
+hornPad.push(...[ADESTE.n(-2, 1, "D3", 0.44), ADESTE.n(-2, 1, "Ab3", 0.44)]);
+cellos.push(ADESTE.n(-2, 1, "Bb2", 0.55));
+timpRoll(ADESTE.at(-2), ADESTE.at(-1.1), "Bb2", 0.3, 0.55, 3);
+
+// The chorale (written two octaves under the violins): soprano, alto (the brass choir's line only), tenor, bass.
+const OC_MEL = line("G4:1 | G4 F4 G4 Ab4 | G4:2 F4:1 G4 | Ab4 G4 F4 Eb4 | D4:2 Eb4:1 Ab4 | G4:2 F4:1.5 Eb4:.5 | Eb4:2", -1, 4);
+const OC_ALTO = line("Eb3:1 | Eb3 D3 Eb3 Eb3 | Eb3:2 D3:1 Eb3", -1, 4);
+const OC_TENOR = line("Bb2:1 | Bb2 Bb2 G2 C3 | Bb2:2 Ab2:1 Bb2 | C3 Bb2 Bb2 G2 | F2 F2 Bb2 C3 | Eb3:2 D3:1.5 Eb3:.5 | Bb2:2", -1, 4);
+const OC_BASS = line("Eb2:1 | Eb2 D2 C2 Ab1 | Bb1:2 Bb1:1 Eb2 | F2 G2 Bb1 C2 | Bb1 Ab1 G1 Ab1 | Bb1:2 Bb1:1.5 Eb2:.5 | Eb2:2", -1, 4);
+for (const x of OC_MEL) {
+  const tutti = x.t >= 8;
+  hornTune.push(ADESTE.n(x.t, x.d, x.n - 12, tutti ? 0.46 : 0.42));
+  if (tutti) {
+    violins.push(ADESTE.n(x.t, x.d, x.n + 12, 0.74));
+    flute.push(ADESTE.n(x.t, x.d, x.n + 12, fluteV(x.n + 12, 0.6, 0)));
+    if (x.t % 1 === 0) glock.push(ADESTE.n(x.t, x.d, x.n + 24, 0.26));
+  }
+}
+for (const x of OC_ALTO) hornLine.push(ADESTE.n(x.t, x.d, x.n, 0.38));
+for (const x of OC_TENOR) euphLow.push(ADESTE.n(x.t, x.d, x.n, x.t >= 8 ? 0.46 : 0.42));
+for (const x of OC_BASS) {
+  tuba.push(ADESTE.n(x.t, x.d, x.n, x.t >= 8 ? 0.48 : 0.42));
+  if (x.t >= 8) {
+    cellos.push(ADESTE.n(x.t, x.d, x.n + 12, 0.6));
+    bassPizz.push(ADESTE.n(x.t, 1, x.n < midi("G1") ? x.n + 12 : x.n, 0.45));
+  }
+}
+// Line 3: the clarinets fill the middle; trumpets on "Christ the Lord"; timpani, cymbals, a roll
+// and a harp sweep up into the finale.
+clarinet.push(...pads(ADESTE.at(8), ADESTE.at(22), "Eb4", "C5", 2, 0.3));
+for (const [b, d, v] of [
+  [15, 0.8, 0.62],
+  [16, 1.5, 0.6],
+  [20, 1.5, 0.66],
+] as const) {
+  for (const n of voicing(chordAt(ADESTE.at(b)), "G4", "Eb5", null, 3)) trumpets.push(ADESTE.n(b, d, n, v));
+}
+cymbals.push(ADESTE.n(15, 1, "C#3", 0.6));
+kick.push(ADESTE.n(16, 1, "C2", 0.42), ADESTE.n(20, 1, "C2", 0.4));
+for (const [b, n, v] of [
+  [0, "Eb2", 0.4], [4, "Bb2", 0.4], [12, "Bb2", 0.55], [15, "Eb2", 0.6], [16, "Bb2", 0.6], [18, "Bb2", 0.55],
+] as const) timpHits.push({ t: ADESTE.at(b), d: 2, n, v });
+timpRoll(ADESTE.at(20), ADESTE.at(21.8), "Eb2", 0.4, 0.72, 4);
+snareRoll(ADESTE.at(20), ADESTE.at(22), 0.36, 0.62);
+for (const [i, n] of ["Eb3", "G3", "Bb3", "Eb4", "G4", "Bb4", "Eb5", "G5"].entries()) harp.push(ADESTE.n(20 + i * 0.25, 1, n, 0.42 + i * 0.02));
+
+// ---------------------------------------------------------------- the finale (bars 61–68)
+
+const fu = (bar: number, eighth = 0) => FINALE.start + (bar - 9) * BAR + eighth; // theme bars 9–16
+
+// Horn countermelody in B: it climbs while the tune falls, holds its D over the change to C (a 9-8
+// suspension), falls while the tune climbs, and resolves into its harmony line under the
+// euphonium. It peaks on D4: further above a recording a horn sounds stretched.
+const HORN_COUNTER: [number, number, string][] = [
+  [0, 3, "Bb3"], [3, 6, "D4"], [9, 2, "C4"], [11, 1, "Bb3"], [12, 3, "A3"], [15, 2, "F3"], [17, 1, "A3"], [18, 6, "Bb3"],
 ];
-// In the last phrase the drummer keeps the lilt on the snare, a light stroke on the last eighth of
-// each pulse ("boom . chk"), and leaves the last one to the triangle's "tk-tk" into the top. The
-// bass drum is felt more than heard (almost all of it is below 150 Hz, which a phone's speaker
-// doesn't play), so on a phone these strokes are the drummer.
-const snare: Note[] = [{ t: at(29), d: 1, n: "D2", v: 0.5 }];
-for (let bar = 29; bar <= 32; bar++) for (const e of bar < 32 ? [2, 5] : [2]) snare.push({ t: at(bar, e), d: 1, n: "D2", v: 0.44 });
-// The clash in the pair's ff layer (v >= 0.5; the mf one is under 0.5).
-const cymbals: Note[] = [{ t: at(29), d: 1, n: "C#3", v: 0.6 }];
+const COUNTER_SWELL = [0.62, 0.68, 0.66, 0.6, 0.62, 0.6, 0.58, 0.64];
+HORN_COUNTER.forEach(([t, d, n], i) => hornLine.push({ t: fu(9) + t, d, n: midi(n), v: COUNTER_SWELL[i]! }));
+// The horn under the euphonium's tune in A'': thirds and sixths below it (Bb2–C4).
+const HORN_HARMONY: [number, number, string][] = [
+  [0, 5, "A3"], [5, 1, "C4"], [6, 2, "F3"], [8, 1, "A3"], [9, 2, "F3"], [11, 1, "D3"],
+  [12, 2, "G3"], [14, 1, "F3"], [15, 2, "Bb2"], [17, 1, "D3"], [18, 6, "E3"],
+];
+HORN_HARMONY.forEach(([t, d, n]) => hornLine.push({ t: fu(13) + t, d, n: midi(n), v: t % 3 === 0 ? 0.44 : 0.4 }));
+// The euphonium's hymn in B: the horn's line mostly a sixth below, so the two sing as a pair.
+const EUPH_HYMN: [number, number, string][] = [
+  [0, 3, "D3"], [3, 3, "F3"], [6, 3, "C3"], [9, 3, "E3"], [12, 3, "C3"], [15, 2, "D3"], [17, 1, "F3"], [18, 3, "D3"], [21, 3, "E3"],
+];
+EUPH_HYMN.forEach(([t, d, n], i) => euphHymn.push({ t: fu(9) + t, d, n: midi(n), v: [0.44, 0.47, 0.5, 0.46, 0.44, 0.46, 0.42, 0.47, 0.5][i]! }));
+// The tuba: roots held through B, the pulse through A''.
+for (let bar = 9; bar <= 16; bar++) {
+  const first = chordAt(fu(bar));
+  const second = chordAt(fu(bar, 3));
+  const root = low(first.root, "G1");
+  if (bar <= 12) {
+    if (second.root === first.root) tuba.push({ t: fu(bar), d: 6, n: root, v: 0.5 });
+    else tuba.push({ t: fu(bar), d: 3, n: root, v: 0.5 }, { t: fu(bar, 3), d: 3, n: low(second.root, "G1"), v: 0.48 });
+  } else {
+    const pulse2 = second.root !== first.root ? low(second.root, "G1") : second.seventh !== undefined ? low(second.third!, "G1") : root - 5 >= midi("G1") ? root - 5 : root + 7;
+    tuba.push({ t: fu(bar), d: 3, n: root, v: 0.5 }, { t: fu(bar, 3), d: 3, n: pulse2, v: 0.44 });
+  }
+  kick.push({ t: fu(bar), d: 1, n: "C2", v: bar === 13 ? 0.48 : bar < 13 ? 0.34 : 0.38 }, { t: fu(bar, 3), d: 1, n: "C2", v: bar < 13 ? 0.27 : 0.29 });
+}
+// The drummer: a roll swelling into the reprise, then a light stroke on the last eighth of each pulse.
+snareRoll(fu(12, 3), fu(13), 0.36, 0.85);
+snare.push({ t: fu(13), d: 1, n: "D2", v: 0.5 });
+for (let bar = 13; bar <= 16; bar++) for (const e of bar < 16 ? [2, 5] : [2]) snare.push({ t: fu(bar, e), d: 1, n: "D2", v: 0.44 });
+cymbals.push({ t: fu(9), d: 1, n: "C#3", v: 0.62 }, { t: fu(13), d: 1, n: "C#3", v: 0.62 });
+bells.push({ t: fu(13), d: 6, n: "F4", v: 0.85 }, { t: fu(13), d: 6, n: "F5", v: 0.85 });
+for (const [t, n, v] of [
+  [fu(9), "Bb2", 0.6], [fu(12, 3), "C3", 0.5], [fu(13), "F2", 0.66], [fu(16, 3), "C3", 0.5],
+] as const) timpHits.push({ t, d: 3, n, v });
+for (const n of voicing(chordAt(fu(13)), "F4", "F5", null, 3)) trumpets.push({ t: fu(13), d: 1.5, n, v: 0.6 });
+for (const n of voicing(chordAt(fu(9)), "F4", "F5", null, 3)) trumpets.push({ t: fu(9), d: 1.5, n, v: 0.58 });
+// A clarinet run up the dominant seventh into the reprise.
+for (const [i, n] of ["C5", "D5", "E5", "F5", "G5", "Bb5"].entries()) clarinet.push({ t: fu(12, 3 + i * 0.5), d: 0.55, n: midi(n), v: 0.48 + i * 0.02 });
+// Triangle: an open stroke at the reprise, the muted "tk-tk" into the top of the loop.
+triangle.push({ t: fu(13), d: 1, n: "C4", v: 0.66 });
+triangleTicks.push({ t: fu(16, 4), d: 1, n: "C4", v: 0.66 }, { t: fu(16, 5), d: 1, n: "C4", v: 0.66 });
+
+// ---------------------------------------------------------------- timpani
+
+/**
+ * The timpani: five drums at odd pitches (their principal tones, measured), which the sampler
+ * plays in turn, two strokes each, per velocity layer. So each stroke is given to a drum near the
+ * note it should sound (the order of a track's notes sets which drum plays which), and played
+ * that far off its recorded pitch: within about four semitones, in whichever octave is nearer.
+ */
+const DRUMS = [41.47, 46.76, 49.48, 52.43, 54.57];
+function timpani(hits: Hit[], counters: Map<number, number>): Note[] {
+  const inst = instrument("timpani");
+  const layers = [...new Set(inst.zones.map((z) => z.layer))].sort((a, b) => a - b);
+  const layerOf = (v: number) => layers[Math.min(layers.length - 1, Math.floor(v * layers.length))]!;
+  const out: Note[] = [];
+  for (const layer of layers) {
+    const mine = hits.filter((h) => layerOf(h.v) === layer);
+    if (!mine.length) continue;
+    const zones = inst.zones.filter((z) => z.layer === layer).sort((a, b) => a.rr - b.rr);
+    const pitch = (slot: number) => DRUMS[Number(/Timpani(\d)/.exec(zones[slot % zones.length]!.file)![1]) - 1]!;
+    const start = counters.get(layer) ?? 0;
+    const slots = mine.map((_, j) => pitch(start + j));
+    /** Semitones a drum of pitch p is moved to sound note n's pitch class (nearest octave). */
+    const shift = (n: number, p: number) => {
+      const s = (((n - p) % 12) + 12) % 12;
+      return s > 6 ? s - 12 : s;
+    };
+    // Assign strokes to slots: start in order, then swap any pair that lowers the total shift.
+    const order = mine.map((_, j) => j);
+    const cost = (h: number, s: number) => Math.abs(shift(num(mine[h]!.n), slots[s]!));
+    for (let pass = 0, better = true; better && pass < 50; pass++) {
+      better = false;
+      for (let a = 0; a < order.length; a++)
+        for (let b = a + 1; b < order.length; b++) {
+          const now = cost(order[a]!, a) + cost(order[b]!, b);
+          const swapped = cost(order[b]!, a) + cost(order[a]!, b);
+          if (swapped < now - 1e-9) {
+            [order[a], order[b]] = [order[b]!, order[a]!];
+            better = true;
+          }
+        }
+    }
+    order.forEach((h, s) => {
+      const hit = mine[h]!;
+      out.push({ t: hit.t, d: hit.d, n: midi("C3") + shift(num(hit.n), slots[s]!), v: hit.v });
+    });
+    counters.set(layer, start + mine.length);
+  }
+  return out;
+}
+const timpCounters = new Map<number, number>();
+const timpaniHits = timpani(timpHits, timpCounters);
+const timpaniRolls = timpani(timpRolls, timpCounters);
+
+// ---------------------------------------------------------------- the song
+
+const tracks: Track[] = [
+  // Tunes
+  { inst: "flute", notes: flute, gain: 1, pan: 0.05, reverb: 0.3, humanize: 0.25, lowpass: 6000 },
+  { inst: "flute", notes: fluteSoft, gain: 0.6, pan: 0.05, reverb: 0.4, humanize: 0.2, lowpass: 6000, label: "flute (Silent Night)" },
+  { inst: "clarinet", notes: clarinet, gain: 0.78, pan: 0.15, reverb: 0.3, humanize: 0.2, lowpass: 6000 },
+  ...evenTracks({ inst: "violins", notes: violins, gain: 0.5, pan: -0.25, reverb: 0.35, humanize: 0.15, lowpass: 8000, label: "violins (tune)" }, -20),
+  ...evenTracks({ inst: "violins", notes: violinsSoft, gain: 0.7, pan: -0.25, reverb: 0.42, humanize: 0.15, label: "violins (Silent Night)" }, -25.5),
+  { inst: "violins", notes: violinsPad, gain: 0.22, pan: -0.35, reverb: 0.45, humanize: 0.15, label: "violins (pad)" },
+  { inst: "cellos", notes: cellosTune, gain: 0.3, pan: 0.3, reverb: 0.3, humanize: 0.15, label: "cellos (tune)" },
+  { inst: "piano", notes: piano, gain: 0.22, pan: -0.05, reverb: 0.3, humanize: 0.2, lowpass: 5500, label: "piano (tune)" },
+  { inst: "piano", notes: pianoLeft, gain: 0.09, pan: -0.05, reverb: 0.3, humanize: 0.2, lowpass: 5000, label: "piano (left hand)" },
+  ...euphonium(early(euphTune), { gain: 9, pan: 0.1, reverb: 0.3, humanize: 0.15, label: "euphonium (Wenceslas)" }),
+  ...euphonium(early(euphFinale), { gain: 12, pan: 0.1, reverb: 0.32, humanize: 0.15, label: "euphonium (finale tune)" }),
+  { inst: "horn", notes: early(hornTune), gain: 2, pan: -0.15, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (tune)" },
+  // Silent Night sits 2 dB up on the rest, so the tender interlude doesn't drop out under the game.
+  { inst: "horn", notes: early(hornSilent), gain: 2.5, pan: -0.15, reverb: 0.4, humanize: 0.15, lowpass: 4500, label: "horn (Silent Night)" },
+  // Harmony and countermelodies
+  { inst: "horn", notes: early(hornLine), gain: 1.2, pan: -0.2, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (counter)" },
+  { inst: "horn", notes: early(hornPad), gain: 1, pan: -0.3, reverb: 0.38, humanize: 0.15, lowpass: 4500, label: "horns (pads)" },
+  { inst: "hornShort", notes: hornShort, gain: 0.7, pan: -0.25, reverb: 0.3, humanize: 0.15, lowpass: 5000 },
+  { inst: "trumpetShort", notes: trumpets, gain: 1.2, pan: 0.2, reverb: 0.35, humanize: 0.15, lowpass: 5000 },
+  { inst: "tromboneShort", notes: tromboneShort, gain: 1.2, pan: 0.2, reverb: 0.25, humanize: 0.15, lowpass: 4000 },
+  ...euphonium(early(euphLow), { gain: 2.4, pan: 0.15, reverb: 0.32, humanize: 0.15, label: "euphonium (low)" }),
+  ...euphonium(early(euphHymn), { gain: 4, pan: 0.15, reverb: 0.32, humanize: 0.15, label: "euphonium (hymn)" }),
+  { inst: "tuba", notes: early(tuba), gain: 1, pan: 0.05, reverb: 0.22, humanize: 0.15 },
+  { inst: "tubaShort", notes: tubaShort, gain: 0.4, pan: 0.05, reverb: 0.2, humanize: 0.15 },
+  { inst: "cellos", notes: cellos, gain: 0.2, pan: 0.3, reverb: 0.3, humanize: 0.15 },
+  ...damped({ inst: "harp", notes: harp, gain: 0.9, pan: 0.35, reverb: 0.38, humanize: 0.25, label: "harp" }),
+  ...damped({ inst: "harp", notes: harpSilent, gain: 1.13, pan: 0.35, reverb: 0.4, humanize: 0.25, label: "harp (Silent Night)" }),
+  { inst: "violinsPizz", notes: vlnPizz, gain: 0.3, pan: -0.3, reverb: 0.25, humanize: 0.2 },
+  { inst: "violasPizz", notes: vlaPizz, gain: 0.35, pan: 0.1, reverb: 0.25, humanize: 0.2 },
+  { inst: "bassPizz", notes: bassPizz, gain: 0.45, pan: 0.15, reverb: 0.12 },
+  // Bells and mallets
+  { inst: "glockenspiel", notes: glock, gain: 4.8, pan: 0.25, reverb: 0.4, lowpass: 4000, ring: 0.8 },
+  { inst: "xylophone", notes: xylo, gain: 1.25, pan: 0.2, reverb: 0.3, lowpass: 5000, ring: 0.4 },
+  { inst: "handChimes", notes: bells, gain: 0.38, pan: -0.1, reverb: 0.45, ring: 3.5, label: "handbells" },
+  // Drums
+  { inst: "timpani", notes: timpaniHits, gain: 0.6, pan: -0.05, reverb: 0.3, humanize: 0, label: "timpani" },
+  { inst: "timpani", notes: timpaniRolls, gain: 0.5, pan: -0.05, reverb: 0.3, humanize: 0, ring: 0.35, label: "timpani" },
+  { inst: "kick", notes: kick, gain: 1, pan: 0, reverb: 0.2 },
+  { inst: "snareOn", notes: snare, gain: 0.8, pan: -0.1, reverb: 0.25, lowpass: 6000 },
+  { inst: "snareRoll", notes: roll, gain: 0.5, pan: -0.1, reverb: 0.3, humanize: 0, lowpass: 6000 },
+  { inst: "cymbals", notes: cymbals, gain: 0.8, pan: 0.2, reverb: 0.4, lowpass: 5000 },
+  { inst: "crash", notes: crash, gain: 0.5, pan: -0.2, reverb: 0.4, lowpass: 5000 },
+  { inst: "sleighBells", notes: sleigh, gain: 0.5, pan: 0.25, reverb: 0.2, humanize: 0.5, lowpass: 9000 },
+  { inst: "triangle", notes: triangle, gain: 1.1, pan: -0.3, reverb: 0.45, humanize: 0 },
+  { inst: "triangleMuted", notes: triangleTicks, gain: 1.1, pan: -0.3, reverb: 0.45, humanize: 0 },
+];
 
 const song: Song = {
   name: "christmas",
   bpm: THEME_BPM,
   beatsPerBar: BAR,
-  bars: BARS,
-  reverb: { room: 0.76, damp: 0.45, width: 0.95, level: 0.95 },
-  tracks: [
-    { inst: "flute", notes: flute, gain: 1.0, pan: 0, reverb: 0.3, humanize: 0.25, lowpass: 7000 },
-    { inst: "glockenspiel", notes: glockSolo, gain: 19, pan: 0.1, reverb: 0.35 },
-    { inst: "glockenspiel", notes: twinkle, gain: 0.8, pan: 0.25, reverb: 0.4 },
-    { inst: "piano", notes: pianoTune, gain: 0.27, pan: 0.05, reverb: 0.32, humanize: 0.2, lowpass: 5000, label: "piano (tune)" },
-    { inst: "piano", notes: pianoLeft, gain: 0.09, pan: 0.05, reverb: 0.32, humanize: 0.2, lowpass: 5000, label: "piano (left hand)" },
-    { inst: "piano", notes: pianoChords, gain: 0.13, pan: 0.15, reverb: 0.32, humanize: 0.2, lowpass: 5000, label: "piano (chords)" },
-    ...damped({ inst: "harp", notes: harp, gain: 0.9, pan: 0.35, reverb: 0.35, humanize: 0.25, label: "harp" }),
-    { inst: "violins", notes: violins, gain: 0.27, pan: -0.3, reverb: 0.4, humanize: 0.15 },
-    { inst: "vibraphone", notes: vibes, gain: 0.24, pan: -0.2, reverb: 0.4, humanize: 0.15 },
-    { inst: "horn", notes: early(horn), gain: 0.75, pan: -0.15, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (countermelody)" },
-    ...evenTracks({ inst: "horn", notes: early(hornLow), gain: 2, pan: -0.2, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (harmony)" }, HORN_LOW_DB),
-    ...euphonium(early(euphHymn), { gain: 2.9, pan: 0.15, reverb: 0.32, humanize: 0.15, label: "euphonium (hymn)" }),
-    ...euphonium(early(euphTune), { gain: 12, pan: 0.1, reverb: 0.32, humanize: 0.15, label: "euphonium (tune)" }),
-    { inst: "tuba", notes: early(tuba), gain: 1, pan: 0.05, reverb: 0.2, humanize: 0.15 },
-    { inst: "cellos", notes: cellos, gain: 0.18, pan: 0.3, reverb: 0.25, humanize: 0.15 },
-    { inst: "bassPizz", notes: bass, gain: 0.45, pan: 0.15, reverb: 0.12 },
-    { inst: "kick", notes: kick, gain: 2, pan: 0, reverb: 0.2 },
-    { inst: "snareRoll", notes: roll, gain: 0.5, pan: -0.1, reverb: 0.3, humanize: 0, lowpass: 6000 },
-    { inst: "snareOn", notes: snare, gain: 0.9, pan: -0.1, reverb: 0.3, lowpass: 6000 },
-    { inst: "cymbals", notes: cymbals, gain: 0.9, pan: 0.2, reverb: 0.4, lowpass: 5000 },
-    { inst: "sleighBells", notes: bells, gain: 0.135, pan: 0.25, reverb: 0.2, humanize: 0.5 },
-    { inst: "triangle", notes: triangle, gain: 0.8, pan: -0.3, reverb: 0.45, humanize: 0 },
-    { inst: "triangleMuted", notes: triangleTicks, gain: 0.8, pan: -0.3, reverb: 0.45, humanize: 0 },
-  ],
+  bars: LOOP / BAR,
+  reverb: { room: 0.8, damp: 0.45, width: 0.95, level: 0.95 },
+  tracks,
 };
 
 export default song;
