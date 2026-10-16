@@ -25,11 +25,17 @@ export const SWAY_FULL_LEVEL = 40;
 export const SWAY_BEND_POWER = 2;
 /** Cap on kick amplitude. */
 export const SWAY_KICK_MAX = 30;
+/** After a perfect drop the tower stays calm this long, seconds. */
+export const CALM_TIME = 2;
+/** How fast calm eases in and out, per second (smooth, so the tower never jumps). */
+export const CALM_EASE = 3;
 /** Kicks reach full effect by this level (linear), so early sloppy drops still visibly sway. */
 export const SWAY_KICK_FULL_LEVEL = 8;
 
 /** Live-tunable values, edited by the on-screen tuning panel. */
 export interface Tuning {
+  /** Visual theme only; no effect on gameplay. */
+  halloween: boolean;
   swayOn: boolean;
   /** Base sway amplitude at the top of a full-height tower, world units. */
   swayBase: number;
@@ -41,15 +47,19 @@ export interface Tuning {
   kickDecay: number;
   /** Slider speed at level 0, units/sec. */
   slideSpeed: number;
+  /** How much a perfect drop calms the sway: 0 = not at all, 1 = fully still. */
+  perfectCalm: number;
 }
 
 export const DEFAULT_TUNING: Readonly<Tuning> = {
+  halloween: true,
   swayOn: true,
   swayBase: 14,
   swayPeriod: 2.6,
   kickPerUnit: 1.2,
   kickDecay: 0.6,
   slideSpeed: 60,
+  perfectCalm: 0.6,
 };
 
 export const tuning: Tuning = { ...DEFAULT_TUNING };

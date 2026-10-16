@@ -168,6 +168,66 @@ describe("sway", () => {
   });
 });
 
+describe("perfect calm", () => {
+  /** Peak |offset| at the top over one sway cycle, starting now. */
+  function peakOver(g: GameState, seconds: number): number {
+    let peak = 0;
+    for (let t = 0; t < seconds; t += 1 / 120) {
+      step(g, 1 / 120);
+      peak = Math.max(peak, Math.abs(swayOffset(g, g.blocks.length - 1)));
+    }
+    return peak;
+  }
+
+  it("a perfect drop makes the tower sway less for a while", () => {
+    const calmGame = newGame();
+    stack(calmGame, 40); // every drop perfect
+    const plain = newGame();
+    stack(plain, 40);
+    plain.calmTimer = 0; // same tower, no calm
+    plain.calm = 0;
+    calmGame.calm = 0; // start both from the same sway, then let calm ease in
+    expect(peakOver(calmGame, 1.5)).toBeLessThan(peakOver(plain, 1.5) * 0.8);
+  });
+
+  it("calm does not make the tower jump at the moment of the drop", () => {
+    const g = newGame();
+    stack(g, 30);
+    g.calm = 0;
+    g.calmTimer = 0;
+    g.swayAngle = Math.PI / 3;
+    const before = swayOffset(g, 30);
+    aim(g, 0);
+    drop(g);
+    expect(swayOffset(g, 30)).toBe(before);
+  });
+
+  it("calm wears off", () => {
+    const g = newGame();
+    stack(g, 10);
+    for (let i = 0; i < 600; i++) step(g, 1 / 60); // 10 seconds
+    expect(g.calm).toBeLessThan(0.01);
+  });
+
+  it("sloppy drops do not calm the tower", () => {
+    const g = newGame();
+    aim(g, 8);
+    drop(g);
+    expect(g.calmTimer).toBe(0);
+  });
+
+  it("perfect calm 0 disables the effect", () => {
+    tuning.perfectCalm = 0;
+    const g = newGame();
+    stack(g, 40);
+    g.calm = 1;
+    g.swayAngle = Math.PI / 2;
+    const withCalm = swayOffset(g, 40);
+    g.calm = 0;
+    expect(swayOffset(g, 40)).toBe(withCalm);
+  });
+});
+
 describe("tuning", () => {
   it("sway off: the tower never moves and sloppy drops add no kick", () => {
     tuning.swayOn = false;

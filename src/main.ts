@@ -1,6 +1,6 @@
 import { drop, newGame, step, swayOffset, top, type GameState } from "./game";
 import { createPanel } from "./panel";
-import { addFalling, newView, render, updateView, type View } from "./render";
+import { addFalling, addFlash, newView, render, updateView, type View } from "./render";
 
 const BEST_KEY = "sway-stack:best";
 /** Ignore taps for this long after game over so a mistap doesn't instantly restart. */
@@ -61,7 +61,8 @@ function tap(): void {
   const towerX = under.x + under.w / 2 + swayOffset(state, level - 1);
   const r = drop(state);
   if (!r) return;
-  if (r.kind !== "perfect") addFalling(view, r.cut, level, towerX);
+  if (r.kind === "perfect") addFlash(view, level);
+  else addFalling(view, r.cut, level, towerX);
   if (state.score > best) {
     best = state.score;
     saveBest(best);

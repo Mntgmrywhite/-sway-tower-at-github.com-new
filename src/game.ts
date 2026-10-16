@@ -1,5 +1,7 @@
 import {
   BASE_WIDTH,
+  CALM_EASE,
+  CALM_TIME,
   LIVES,
   PERFECT_TOLERANCE,
   SLIDE_RANGE,
@@ -42,6 +44,9 @@ export interface GameState {
   /** Kick spring displacement and velocity (world units, units/sec). */
   kick: number;
   kickVel: number;
+  /** 0..1, eases toward 1 after a perfect drop and back to 0 when calmTimer runs out. */
+  calm: number;
+  calmTimer: number;
 }
 
 /** Placed is tower-local; cut is world space (it has left the tower). */
@@ -61,7 +66,8 @@ export function swayOffset(state: GameState, level: number): number {
   if (!tuning.swayOn) return 0;
   const bend = Math.min(1, level / SWAY_FULL_LEVEL) ** SWAY_BEND_POWER;
   const kickBend = Math.min(1, level / SWAY_KICK_FULL_LEVEL);
-  return Math.sin(state.swayAngle) * tuning.swayBase * bend + state.kick * kickBend;
+  const damp = 1 - tuning.perfectCalm * state.calm;
+  return (Math.sin(state.swayAngle) * tuning.swayBase * bend + state.kick * kickBend) * damp;
 }
 
 /** Sway angular frequency, radians/sec. */
@@ -130,6 +136,8 @@ export function newGame(): GameState {
     swayAngle: 0,
     kick: 0,
     kickVel: 0,
+    calm: 0,
+    calmTimer: 0,
   };
 }
 
@@ -138,6 +146,9 @@ export function step(state: GameState, dt: number): void {
   if (state.phase !== "playing") return;
   state.swayAngle = (state.swayAngle + omega() * dt) % (2 * Math.PI);
   if (tuning.swayOn) stepKick(state, dt);
+  state.calmTimer = Math.max(0, state.calmTimer - dt);
+  const calmTarget = state.calmTimer > 0 ? 1 : 0;
+  state.calm += (calmTarget - state.calm) * (1 - Math.exp(-CALM_EASE * dt));
 
   const s = state.slider;
   const [minX, maxX] = sliderBounds(top(state), s.w);
@@ -181,8 +192,9 @@ export function drop(state: GameState): DropResult | null {
   const newOffset = swayOffset(state, newLevel);
   let result: DropResult;
   if (Math.abs(s.x - underX) <= PERFECT_TOLERANCE) {
-    // Perfect: sits square on the block below; adds no sway.
+    // Perfect: sits square on the block below, adds no sway, and calms the tower.
     state.streak += 1;
+    state.calmTimer = CALM_TIME;
     result = { kind: "perfect", placed: { x: under.x, w: under.w } };
   } else {
     const cutW = s.w - overlap;

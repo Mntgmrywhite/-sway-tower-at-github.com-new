@@ -15,6 +15,7 @@ Node lives in `~/.local/node` (user install). If `node` is not on PATH: `export 
 - `npm run check` — typecheck + lint + test; run before every commit
 - `npm run build` — typecheck, then static bundle to `dist/`
 - `npm run preview` — serve the built bundle
+- `npm run build:artifact` — build, then inline everything into `dist/sway-stack.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); republish that file to keep the same link
 
 ## Stack
 
@@ -25,7 +26,8 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - `src/game.ts` — pure game logic: state, `step(state, dt)`, `drop(state)`. No DOM, no canvas, no randomness, no `Date.now()`. Everything deterministic so it can be unit-tested and driven by a bot.
 - `src/config.ts` — every tunable number lives here. Fixed values are `const`s; playtest knobs live in the mutable `tuning` object (defaults in `DEFAULT_TUNING`). Logic must read `tuning.*` at call time, never cache it. No magic numbers in logic or rendering.
 - `src/panel.ts` — on-screen tuning panel (⚙ top-right). Edits `tuning` live, persists to localStorage, pauses the game while open.
-- `src/render.ts` — draws a state to a canvas. Cosmetic-only effects (falling sliced pieces, camera easing) live here, never in logic.
+- `src/themes/` — visual themes (`classic`, `halloween`) behind a small `Theme` interface: background scene, block drawer, HUD colors. Purely cosmetic; switched by `tuning.halloween`.
+- `src/render.ts` — draws a state to a canvas via the active theme. Cosmetic-only effects (falling sliced pieces, camera easing) live here, never in logic.
 - `src/main.ts` — wiring: canvas sizing, input, RAF loop, best score.
 - Tests sit next to code as `*.test.ts`. The bot test proves the game is beatable with perfect timing.
 
@@ -43,6 +45,7 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - A sloppy drop kicks the tower toward the overhang side, proportional to the overhang; the sway calms after the chop. Kicks change velocity only, never position, so the tower never jumps.
 - Placed blocks never topple. Cut pieces fall visibly and tumble (cosmetic, renderer-only).
 - Kick damping is capped at critical (an overdamped spring settles slower, so higher "decay" past that would feel worse).
+- A perfect drop calms the tower: sway (base and kick) scales by `1 - perfectCalm * calm`, where `calm` eases to 1 for `CALM_TIME` then back to 0. Smooth, so no jumps. Shown with a seam flash and a gold tint on the block.
 - A miss does not end the game: it costs one of `LIVES` (3); game over at 0.
 
 ## Build order
