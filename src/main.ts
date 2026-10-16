@@ -3,6 +3,7 @@ import { dropSounds } from "./audio/sounds";
 import { tuning } from "./config";
 import { BASE_FONTS, loadFonts } from "./fonts";
 import { drop, leanTarget, newGame, step, swayOffset, timeScale, top, windStrength, type GameState } from "./game";
+import { buzz } from "./haptics";
 import { createOptions } from "./options";
 import { createPanel } from "./panel";
 import {
@@ -17,36 +18,19 @@ import {
   takeCues,
   TOPPLE_ANIM_MS,
   updateView,
-  type Cue,
   type View,
 } from "./render";
 import { resolveSkin } from "./skins";
 import type { Skin } from "./skins/skin";
+import { keepSaves } from "./storage";
 
 // Storage keys keep the game's original working name so saved scores survive renames.
 const BEST_KEY = "sway-stack:best";
 /** Ignore taps for this long after game over so a mistap doesn't instantly restart. */
 const RESTART_GUARD_MS = 400;
 
-/** Vibration patterns, ms. navigator.vibrate is missing on iOS web, where these are no-ops. */
-const HAPTICS: Record<Cue | "armed" | "saved" | "topple", number | number[]> = {
-  creak: 8,
-  whoa: [30, 40, 30],
-  teeter: [15, 90, 15],
-  armed: 60,
-  saved: [25, 70, 25],
-  topple: [90, 50, 180],
-};
-
-function buzz(kind: keyof typeof HAPTICS): void {
-  // Browsers refuse (and log) vibration before the first real tap.
-  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
-  try {
-    navigator.vibrate?.(HAPTICS[kind]);
-  } catch {
-    // Not allowed here (no user activation yet, or blocked); haptics are a bonus.
-  }
-}
+// In the iOS app, keep a copy of the saves where iOS won't purge them (restored if it did).
+void keepSaves();
 
 /** A fresh run with its own seed (gust timing and direction come from it). */
 function freshGame(): GameState {
