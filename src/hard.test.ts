@@ -1,10 +1,28 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { BASE_WIDTH, CALM_TIME, HARD_TEMPO_MAX, LIVES, PERFECT_TOLERANCE, resetTuning, tuning } from "./config";
+import {
+  BASE_WIDTH,
+  CALM_TIME,
+  HARD_CALM_TIME,
+  HARD_KICK_SCALE,
+  HARD_PERFECT_TOLERANCE,
+  HARD_SLIDE_SPEED_MAX,
+  HARD_SLIDE_SPEED_SCALE,
+  HARD_SWAY_KICK_MAX,
+  HARD_SWAY_SCALE,
+  HARD_TEMPO_MAX,
+  LIVES,
+  PERFECT_TOLERANCE,
+  SLIDE_SPEED_MAX,
+  resetTuning,
+  tuning,
+} from "./config";
 import {
   balanceFailure,
   drop,
+  kickAmplitude,
   musicTempo,
   newGame,
+  perfectTolerance,
   sliderSpeed,
   startLives,
   step,
@@ -14,6 +32,20 @@ import {
   type GameState,
   type Tip,
 } from "./game";
+import { VIEW_WIDTH } from "./camera";
+import {
+  FRAME,
+  humanPlayer,
+  mash,
+  mulberry32,
+  percentile,
+  perfectPlayer,
+  play,
+  randomSpam,
+  rhythmSpam,
+  scores,
+  type Player,
+} from "./testing/hard-bots";
 
 afterEach(resetTuning);
 
@@ -37,17 +69,8 @@ function referenceFailure(blocks: Block[]): Tip | null {
   return null;
 }
 
-/** Small seeded PRNG (mulberry32) so property checks replay exactly. */
-function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/** Small seeded PRNG so property checks replay exactly. */
+const rng = mulberry32;
 
 describe("balance", () => {
   it("a centered stack stands, however tall", () => {
@@ -184,17 +207,85 @@ describe("hard mode", () => {
     expect(g.blocks.every((b) => b.w === BASE_WIDTH)).toBe(true);
   });
 
-  it("a sloppy drop kicks the sway exactly as hard as the same overhang in Normal", () => {
+  it("a sloppy drop kicks the sway harder than the same overhang in Normal", () => {
     const hard = newGame("hard");
     const normal = newGame();
     for (const g of [hard, normal]) {
       aim(g, 0);
       drop(g);
-      aim(g, 13);
+      aim(g, 9);
       drop(g);
     }
-    expect(hard.kickVel).not.toBe(0);
-    expect(hard.kickVel).toBe(normal.kickVel);
+    expect(kickAmplitude(normal)).toBeGreaterThan(0);
+    expect(kickAmplitude(hard)).toBeCloseTo(kickAmplitude(normal) * HARD_KICK_SCALE, 9);
+  });
+
+  it("and the kick is capped where the swaying top bar still fits a phone's screen", () => {
+    const g = newGame("hard");
+    for (let i = 0; i < 20; i++) {
+      aim(g, 0);
+      drop(g);
+    }
+    for (let i = 0; i < 6; i++) {
+      for (const dx of [22, -22]) {
+        aim(g, dx);
+        expect(drop(g)?.kind).toBe("placed");
+        expect(kickAmplitude(g)).toBeLessThanOrEqual(HARD_SWAY_KICK_MAX + 1e-9);
+        sway(g, 0.3);
+      }
+    }
+    expect(kickAmplitude(g)).toBeGreaterThan(HARD_SWAY_KICK_MAX * 0.8);
+    // The full wave plus the most kick: a straight tower's top bar and its swing either side fit the
+    // view. (A leaning tower needs the camera's pan too, which is off while the base is on screen.)
+    expect(BASE_WIDTH + 2 * (tuning.swayBase * HARD_SWAY_SCALE + HARD_SWAY_KICK_MAX)).toBeLessThanOrEqual(VIEW_WIDTH);
+  });
+
+  it("a kicked tower swings on longer than in Normal", () => {
+    const hard = newGame("hard");
+    const normal = newGame();
+    for (const g of [hard, normal]) {
+      aim(g, 0);
+      drop(g);
+      aim(g, 9);
+      drop(g);
+    }
+    const left = (g: GameState) => {
+      const before = kickAmplitude(g);
+      sway(g, 2);
+      return kickAmplitude(g) / before;
+    };
+    expect(left(hard)).toBeGreaterThan(left(normal) * 1.5);
+  });
+
+  it("sways more than Normal: stronger, sooner and faster", () => {
+    const hard = newGame("hard");
+    const normal = newGame();
+    const reach = (g: GameState, level: number) => {
+      let most = 0;
+      const s = structuredClone(g);
+      for (let t = 0; t < 4; t += FRAME) {
+        step(s, FRAME);
+        most = Math.max(most, Math.abs(swayOffset(s, level)));
+      }
+      return most;
+    };
+    // Low down the Normal tower barely moves; Hard's already swings.
+    expect(reach(hard, 10)).toBeGreaterThan(reach(normal, 10) * 5);
+    expect(reach(hard, 40)).toBeGreaterThan(reach(normal, 40) * 1.3);
+    // A full swing takes less time: count zero crossings at the top over the same time.
+    const crossings = (g: GameState) => {
+      const s = structuredClone(g);
+      let n = 0;
+      let last = swayOffset(s, 40);
+      for (let t = 0; t < 10; t += FRAME) {
+        step(s, FRAME);
+        const now = swayOffset(s, 40);
+        if (Math.sign(now) !== Math.sign(last)) n++;
+        last = now;
+      }
+      return n;
+    };
+    expect(crossings(hard)).toBeGreaterThan(crossings(normal));
   });
 
   it("a perfect snaps centered on the bar below, calms the sway and counts the streak", () => {
@@ -202,12 +293,42 @@ describe("hard mode", () => {
     aim(g, 9);
     drop(g);
     const under = top(g);
-    aim(g, PERFECT_TOLERANCE * 0.9);
+    aim(g, HARD_PERFECT_TOLERANCE * 0.9);
     const r = drop(g);
     expect(r).toEqual({ kind: "perfect", placed: { x: under.x, w: BASE_WIDTH }, regained: 0 });
     expect(g.streak).toBe(1);
     expect(g.perfects).toBe(1);
-    expect(g.calmTimer).toBe(CALM_TIME);
+    expect(g.calmTimer).toBe(HARD_CALM_TIME);
+  });
+
+  it("the perfect window is tighter than Normal's, and its calm weaker and shorter", () => {
+    expect(perfectTolerance("hard")).toBe(HARD_PERFECT_TOLERANCE);
+    expect(perfectTolerance("normal")).toBe(PERFECT_TOLERANCE);
+    expect(HARD_PERFECT_TOLERANCE).toBeLessThan(PERFECT_TOLERANCE);
+    expect(HARD_CALM_TIME).toBeLessThan(CALM_TIME);
+    const dx = (HARD_PERFECT_TOLERANCE + PERFECT_TOLERANCE) / 2;
+    const hard = newGame("hard");
+    const normal = newGame();
+    for (const g of [hard, normal]) {
+      aim(g, dx);
+      drop(g);
+    }
+    expect(normal.perfects).toBe(1);
+    expect(hard.perfects).toBe(0);
+
+    // The same perfect on the same swinging tower leaves Hard swaying more.
+    const calmed = (mode: "hard" | "normal") => {
+      const g = newGame(mode);
+      for (let i = 0; i < 30; i++) {
+        aim(g, 0);
+        drop(g);
+      }
+      g.calm = 1;
+      g.swayAngle = Math.PI / 2;
+      const still = { ...g, calm: 0 };
+      return swayOffset(g, 30) / swayOffset(still, 30);
+    };
+    expect(calmed("hard")).toBeGreaterThan(calmed("normal"));
   });
 
   it("a drop with no overlap is a miss, and with one life the run is over", () => {
@@ -293,16 +414,23 @@ describe("hard mode", () => {
     expect(balanceFailure(g.blocks)).toBeNull();
   });
 
-  it("the slider speeds up with the score exactly as in Normal", () => {
+  it("the slider starts faster than Normal's, speeds up harder and tops out higher", () => {
     const hard = newGame("hard");
     const normal = newGame();
-    for (let i = 0; i < 30; i++) {
+    expect(sliderSpeed(hard)).toBe(tuning.slideSpeed * HARD_SLIDE_SPEED_SCALE);
+    const start = [sliderSpeed(hard), sliderSpeed(normal)] as const;
+    for (let i = 0; i < 150; i++) {
       for (const g of [hard, normal]) {
         aim(g, 0);
         drop(g);
       }
-      expect(sliderSpeed(hard)).toBe(sliderSpeed(normal));
+      expect(sliderSpeed(hard)).toBeGreaterThan(sliderSpeed(normal));
+      // A steeper ramp: more speed gained so far, until Normal closes in on its own cap.
+      if (i < 30) expect(sliderSpeed(hard) - start[0]).toBeGreaterThan((sliderSpeed(normal) - start[1]) * 2);
     }
+    expect(sliderSpeed(hard)).toBe(HARD_SLIDE_SPEED_MAX);
+    expect(sliderSpeed(normal)).toBe(SLIDE_SPEED_MAX);
+    expect(HARD_SLIDE_SPEED_MAX).toBeGreaterThan(SLIDE_SPEED_MAX);
   });
 });
 
@@ -316,7 +444,7 @@ describe("music tempo", () => {
     expect(musicTempo(g)).toBe(1);
   });
 
-  it("Hard follows the slider, from 1 at the start up to the cap", () => {
+  it("Hard keeps pace with the slider, from 1 at Hard's starting speed up to the cap", () => {
     const g = newGame("hard");
     expect(musicTempo(g)).toBe(1); // title screen
     let last = 1;
@@ -324,7 +452,8 @@ describe("music tempo", () => {
       aim(g, 0);
       drop(g);
       const rate = musicTempo(g);
-      const expected = Math.min(HARD_TEMPO_MAX, sliderSpeed(g) / tuning.slideSpeed);
+      const expected = Math.min(HARD_TEMPO_MAX, sliderSpeed(g) / (tuning.slideSpeed * HARD_SLIDE_SPEED_SCALE));
+      if (i === 0) expect(rate).toBeLessThan(1.1); // the first drop barely moves it
       expect(rate).toBeCloseTo(expected, 12);
       expect(rate).toBeGreaterThanOrEqual(last);
       last = rate;
@@ -356,16 +485,17 @@ describe("music tempo", () => {
 describe("hard bot", () => {
   const DT = 1 / 120;
 
-  it("a bot that times both slider and sway reaches 100 without ever toppling", () => {
+  it("a bot that only ever drops perfects reaches 100 without ever toppling", () => {
     const g = newGame("hard");
     let ticks = 0;
     while (g.score < 100 && g.phase === "playing" && ticks < 1e6) {
       step(g, DT);
       ticks++;
-      if (Math.abs(g.slider.x - topWorldX(g)) <= PERFECT_TOLERANCE * 0.8) drop(g);
+      if (Math.abs(g.slider.x - topWorldX(g)) <= HARD_PERFECT_TOLERANCE * 0.8) drop(g);
     }
     expect(g.phase).toBe("playing");
     expect(g.score).toBe(100);
+    expect(g.perfects).toBe(100);
     expect(g.toppled).toBeNull();
     expect(g.lives).toBe(1);
   });
@@ -376,9 +506,86 @@ describe("hard bot", () => {
     while (g.score < 100 && g.phase === "playing" && ticks < 1e6) {
       step(g, DT);
       ticks++;
-      if (Math.abs(g.slider.x - top(g).x) <= PERFECT_TOLERANCE * 0.8) drop(g);
+      if (Math.abs(g.slider.x - top(g).x) <= HARD_PERFECT_TOLERANCE * 0.8) drop(g);
     }
     expect(g.perfects).toBeLessThan(g.score * 0.6);
     expect(g.blocks.some((b, i) => i > 0 && Math.abs(b.x - g.blocks[i - 1]!.x) > 3)).toBe(true);
+  });
+});
+
+// "Spam doesn't work": seeded players, 200 runs each, frame by frame at 60 Hz the way main.ts plays.
+// Taps that never look at the screen must die within a couple of dozen bars; aiming must pay.
+describe("hard: spam doesn't work, aiming does", () => {
+  const RUNS = 200;
+  /** Blind tapping: 95% of runs under 25 bars and none past 50. */
+  function blind(s: number[]): void {
+    expect(s).toHaveLength(RUNS);
+    expect(percentile(s, 0.95)).toBeLessThan(25);
+    expect(s.at(-1)!).toBeLessThanOrEqual(50);
+  }
+
+  it("random tap intervals (40-400 ms, and up to 1.5 s) die early", () => {
+    blind(scores(RUNS, (seed) => play("hard", randomSpam(mulberry32(seed), 40, 400))));
+    blind(scores(RUNS, (seed) => play("hard", randomSpam(mulberry32(seed), 40, 1500))));
+  });
+
+  it("a fixed rhythm dies early, whatever the beat (40 ms to 2 s, any start)", () => {
+    blind(
+      scores(RUNS, (seed) => {
+        const period = 40 + ((2000 - 40) * (seed - 1)) / (RUNS - 1);
+        return play("hard", rhythmSpam(period, 2000 * mulberry32(seed)()));
+      }),
+    );
+  });
+
+  it("no fixed rhythm rides the sway: a dense scan of beats (40 ms to 3 s, 2 ms apart, 12 starts) gets nowhere", () => {
+    // Some tunings let a beat near half the sway period lock in with the kicks and climb for
+    // hundreds of bars, inside windows a few ms wide that 200 spread-out beats can miss: with the
+    // sway period at ×0.6, the 200 beats above top out at 19 while this scan hits its cap of 60.
+    // Hard as it was before "everything to 11" let a beat reach 39 here. Each run stops at 60 bars,
+    // so a lock-in costs little time.
+    let most = 0;
+    let at = "";
+    for (let period = 40; period <= 3000; period += 2) {
+      for (let k = 0; k < 12; k++) {
+        const score = play("hard", rhythmSpam(period, k * 250), 60).score;
+        if (score > most) [most, at] = [score, `every ${period} ms from ${k * 250} ms`];
+      }
+    }
+    expect(most, at).toBeLessThan(25);
+  });
+
+  it("tapping as fast as possible dies at once", () => {
+    const s = scores(RUNS, (seed) => play("hard", mash(seed * 13)));
+    blind(s);
+    expect(s.at(-1)!).toBeLessThanOrEqual(2);
+  });
+
+  it("perfect timing (the best frame as the slider passes over the swaying top) climbs past 150", () => {
+    // Each start waits for a different pass of the first slider (first taps at 0.77, 2.28, 3.82 and
+    // 5.35 s), so these are four different runs.
+    for (const start of [0, 1.13, 2.7, 4.3]) {
+      const late: Player = (g, t) => t >= start && perfectPlayer()(g, t);
+      const run = play("hard", late, 160);
+      expect(run.end, `start ${start}`).toBe("playing");
+      expect(run.score).toBe(160);
+      expect(run.perfects).toBeGreaterThan(run.score / 2);
+    }
+  });
+
+  it("a good human (aims; 40 ms timing noise, a 250 ms reaction) gets a moderate run", () => {
+    const s = scores(RUNS, (seed) => play("hard", humanPlayer(mulberry32(seed * 101))));
+    const median = percentile(s, 0.5);
+    expect(median).toBeGreaterThanOrEqual(15);
+    expect(median).toBeLessThanOrEqual(60);
+    // Far beyond blind tapping, and nobody gets near the perfect bot.
+    expect(s[0]!).toBeGreaterThan(5);
+    expect(s.at(-1)!).toBeLessThan(150);
+  });
+
+  it("the sway matters: aiming at the swaying top beats timing the slider alone", () => {
+    const sees = scores(RUNS, (seed) => play("hard", humanPlayer(mulberry32(seed * 101))));
+    const blindToSway = scores(RUNS, (seed) => play("hard", humanPlayer(mulberry32(seed * 101), { seesSway: false })));
+    expect(percentile(sees, 0.5)).toBeGreaterThan(percentile(blindToSway, 0.5));
   });
 });

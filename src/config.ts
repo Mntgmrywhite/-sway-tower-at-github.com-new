@@ -23,6 +23,42 @@ export const HARD_TEMPO_MAX = 1.35;
 /** Float slack for the balance check: a center of mass exactly on a contact edge still stands. */
 export const BALANCE_EPSILON = 1e-9;
 
+// Hard mode turns every difficulty knob up ("all settings to 11"); Normal's numbers are untouched.
+// The *_SCALE values multiply the live `tuning` (so the ⚙ panel still moves both modes); the rest
+// replace Normal's constants. Measured by the seeded bots in hard.test.ts: blind tapping (random
+// intervals, fixed rhythms, mashing) dies within a couple of dozen bars, a player aiming with human
+// timing gets a moderate run (median ~36 bars), and perfect timing still climbs for hundreds.
+/** Slider speed at level 0, × tuning.slideSpeed. */
+export const HARD_SLIDE_SPEED_SCALE = 1.5;
+export const HARD_SLIDE_SPEED_PER_LEVEL = 3.5;
+export const HARD_SLIDE_SPEED_MAX = 200;
+/**
+ * Base sway, × tuning.swayBase. With HARD_SWAY_KICK_MAX, a straight tower's top bar and its whole
+ * swing fit a phone's view (150 units); a leaning tower relies on the camera's sideways pan
+ * (camera.ts), which stays off while the base is on screen.
+ */
+export const HARD_SWAY_SCALE = 1.4;
+/** Sway period, × tuning.swayPeriod: a faster swing. */
+export const HARD_SWAY_PERIOD_SCALE = 0.75;
+/** The sway reaches full strength this low, and grows faster on the way. */
+export const HARD_SWAY_FULL_LEVEL = 20;
+export const HARD_SWAY_BEND_POWER = 1.5;
+/** Kick per unit of overhang, × tuning.kickPerUnit. */
+export const HARD_KICK_SCALE = 1.75;
+/** Kick damping, × tuning.kickDecay: a kicked tower swings on longer. */
+export const HARD_KICK_DECAY_SCALE = 0.5;
+export const HARD_SWAY_KICK_FULL_LEVEL = 4;
+export const HARD_SWAY_KICK_MAX = 25;
+/**
+ * Tighter than Normal's 1.5, but not so tight that 60 Hz frames skip over it: at Hard's top slider
+ * speed plus sway the bar moves 4–5 units a frame, and at 1.0 even a bot tapping on the best frame
+ * landed only about 55–60% perfects, so streaks (and their medals) came down to luck.
+ */
+export const HARD_PERFECT_TOLERANCE = 1.25;
+/** Perfect calm, × tuning.perfectCalm, held for HARD_CALM_TIME. */
+export const HARD_PERFECT_CALM_SCALE = 0.5;
+export const HARD_CALM_TIME = 1.2;
+
 // Sway. Displacement of the block at `level`:
 //   tuning.swayBase * sin(angle) * bend(level)  +  kick * kickBend(level)
 // where angle advances 2π per tuning.swayPeriod seconds.
