@@ -1,0 +1,116 @@
+import { describe, expect, it } from "vitest";
+import { BLOCK_HEIGHT } from "../../config";
+import type { Scene } from "../skin";
+import { drifters } from "./drift";
+import { bridge, farTrees, floorTop, portals } from "./far";
+import { fort, inkW, lollipopTree, ringTree, windUpMouse } from "./fort";
+import { BLUE, GREEN, ORANGE, PURPLE, RED, YELLOW } from "./colors";
+import { blocksTop, front } from "./front";
+import { sun } from "./sky";
+import { context, mask, overlap, SIZES, startScene } from "./test-scene";
+import { level, toneOf } from "./tone";
+
+// The start view, on a tall and a short phone, at a few animation times: each prop is drawn
+// alone, and none touches a screen edge, the HUD at the top or the letter blocks in front, none
+// stands in the tower's column above its floor line, nothing beside the base block rises above
+// its top (the slider's first pass never sweeps over it), and no two overlap.
+
+const TIMES = [0, 1.3, 2.7, 4.1, 6.6, 9.4, 13.7] as const;
+
+type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
+/**
+ * `above`: stands above the floor line (so must keep out of the tower's column). `beside`:
+ * stands beside the base block, so must stay below its top, out of the slider's first lane.
+ */
+const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean }[] = [
+  { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), floorTop(s, level(s))), above: true },
+  { name: "balloons", draw: (ctx, s) => drifters(ctx, s, toneOf(s)), above: true },
+  { name: "far trees", draw: (ctx, s) => farTrees(ctx, s, toneOf(s)), above: true },
+  { name: "bridge", draw: (ctx, s) => bridge(ctx, s, toneOf(s)), above: true },
+  { name: "tunnels", draw: (ctx, s) => portals(ctx, s, toneOf(s)), above: true },
+  // The fort's plank is the tower's floor; its turret roofs rise beside the base block.
+  { name: "fort", draw: fort, above: true, beside: true },
+  { name: "lollipop tree", draw: lollipopTree, above: true, beside: true },
+  { name: "ring tree", draw: ringTree, above: true, beside: true },
+  { name: "wind-up mouse", draw: windUpMouse, above: true, beside: true },
+];
+
+describe("toy kingdom layout", () => {
+  it.each(SIZES.flatMap(([W, H]) => TIMES.map((t) => [W, H, t] as const)))("%ix%i at t+%s: props stay clear", (W, H, t) => {
+    const s = startScene(W, H, t);
+    const masks = PROPS.map((p) => mask(W, H, (ctx) => p.draw(ctx, s)));
+    const x0 = Math.ceil(s.baseX - s.u * 0.05);
+    const x1 = Math.floor(s.baseX + s.baseW + s.u * 0.05);
+    // The floor line, less half an ink line (the plank's outline straddles it).
+    const floor = s.groundY - Math.ceil(inkW(s) / 2) - 1;
+    // The HUD (title, best, lives) at the top, and the letter blocks in front.
+    const hud = Math.round(H * 0.14 + s.u * 0.13);
+    const shelf = Math.floor(blocksTop(s)) - 2;
+    const baseTop = s.groundY - BLOCK_HEIGHT * s.scale;
+
+    PROPS.forEach((prop, i) => {
+      const m = masks[i]!;
+      let edge = 0;
+      let column = 0;
+      let top = 0;
+      let low = 0;
+      let lane = 0;
+      let drawn = 0;
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (!m[y * W + x]) continue;
+          drawn++;
+          if (x === 0 || x === W - 1 || y === 0) edge++;
+          if (prop.above && y < floor && x >= x0 && x <= x1) column++;
+          if (y < hud) top++;
+          if (y >= shelf) low++;
+          if (prop.beside && y < baseTop) lane++;
+        }
+      }
+      expect(drawn, `${prop.name} is drawn`).toBeGreaterThan(50);
+      expect(edge, `${prop.name}: pixels on a screen edge`).toBe(0);
+      expect(column, `${prop.name}: pixels in the tower's column above its floor`).toBe(0);
+      expect(top, `${prop.name}: pixels in the HUD`).toBe(0);
+      expect(low, `${prop.name}: pixels reaching the letter blocks`).toBe(0);
+      expect(lane, `${prop.name}: pixels above the base block (in the slider's first lane)`).toBe(0);
+      for (let j = i + 1; j < PROPS.length; j++) {
+        expect(overlap(m, masks[j]!), `${prop.name} overlaps ${PROPS[j]!.name}`).toBe(0);
+      }
+    });
+  });
+});
+
+/** The letter blocks' face and shade colors, as [r, g, b]. */
+const BLOCK_COLORS = [RED, YELLOW, BLUE, GREEN, ORANGE, PURPLE].flatMap((c) =>
+  [c.body, c.shade].map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))),
+);
+
+describe("toy kingdom shelf", () => {
+  // render.ts writes "tap to drop" centered at 0.9 of the screen height (0.055 u type, about
+  // 0.29 u wide in Fredoka). On every phone that line falls somewhere across the letter blocks'
+  // height, so the blocks keep the middle of the shelf clear: only shelf, meadow and ink there.
+  it.each(SIZES)("%ix%i: the letter blocks leave the start line clear", (W, H) => {
+    const s = startScene(W, H, 0);
+    const ctx = context(W, H);
+    front(ctx, s);
+    const x0 = Math.floor(W / 2 - s.u * 0.16);
+    const x1 = Math.ceil(W / 2 + s.u * 0.16);
+    const y0 = Math.floor(H * 0.9 - s.u * 0.05);
+    const y1 = Math.ceil(H * 0.9 + s.u * 0.016);
+    const data = ctx.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+    let block = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const near = BLOCK_COLORS.some(([r, g, b]) => Math.abs(data[i]! - r!) + Math.abs(data[i + 1]! - g!) + Math.abs(data[i + 2]! - b!) < 30);
+      if (near) block++;
+    }
+    expect(block, "letter-block pixels behind the start line").toBe(0);
+    // And the blocks are there, either side of it.
+    const row = Math.round(blocksTop(s) + s.u * 0.04);
+    const side = ctx.getImageData(0, row, Math.round(W / 2 - s.u * 0.2), 1).data;
+    let colored = 0;
+    for (let i = 0; i < side.length; i += 4) {
+      if (BLOCK_COLORS.some(([r, g, b]) => Math.abs(side[i]! - r!) + Math.abs(side[i + 1]! - g!) + Math.abs(side[i + 2]! - b!) < 30)) colored++;
+    }
+    expect(colored, "letter blocks on the left of the shelf").toBeGreaterThan(s.u * 0.15);
+  });
+});
