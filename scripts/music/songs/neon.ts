@@ -443,11 +443,18 @@ const downlifter: Note[] = [17, 33, 41].map((b) => ({ t: bar(b), d: 4, n: "C4", 
 /** The pump key: every pitched part ducks at these kicks. */
 const KICK = "kick";
 
+/** Seconds per beat (for the cues). */
+const SEC = 60 / BPM;
+
 const song: Song = {
   name: "neon",
   bpm: BPM,
   beatsPerBar: BPB,
   bars: BARS,
+  // Synthwave's chrome car keeps time with these (src/skins/neon/car.ts): it floors it and drives
+  // off into the distance on the first drop (bar 17), and comes back round on the lift (bar 25,
+  // the B section's climb in drop 1, with its crash).
+  cues: { drop: bar(17) * SEC, lift: bar(25) * SEC },
   reverb: { room: 0.78, damp: 0.5, width: 1, level: 0.8 },
   pump: { from: KICK, release: 0.75, curve: 2 },
   delay: { time: 0.75, feedback: 0.38, pingPong: true, damp: 4500, lowCut: 400, level: 0.9 },

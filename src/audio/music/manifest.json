@@ -49,7 +49,11 @@
     "PAD": 12000,
     "priming": 2112,
     "bpm": 125,
-    "bars": 48
+    "bars": 48,
+    "cues": {
+      "drop": 30.72,
+      "lift": 46.08
+    }
   },
   "stpatricks": {
     "sr": 48000,
@@ -58,5 +62,21 @@
     "priming": 2112,
     "bpm": 360,
     "bars": 80
+  },
+  "neon-cyber": {
+    "sr": 48000,
+    "L": 3600000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 192,
+    "bars": 40
+  },
+  "toyblock": {
+    "sr": 48000,
+    "L": 3456000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 320,
+    "bars": 64
   }
 }

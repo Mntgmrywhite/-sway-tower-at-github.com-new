@@ -119,6 +119,8 @@ export const INSTRUMENTS = {
   triangle: { dir: `${VCSL}/Idiophones/Struck Idiophones/Triangles`, match: /Triangle3_Hit_/, fixedNote: "C4", oneShot: true, gain: 0.5 },
   triangleMuted: { dir: `${VCSL}/Idiophones/Struck Idiophones/Triangles`, match: /Triangle3_HitFM_/i, fixedNote: "C4", oneShot: true, gain: 0.5 },
   timpani: { dir: `${VSCO}/Percussion/Timpani`, fixedNote: "C3", oneShot: true },
+  // Toy Kingdom's wind-up key: single turns of a crank ratchet (four takes, round robin).
+  ratchet: { dir: `${VCSL}/Idiophones/Struck Idiophones/Ratchet`, match: /Crank/, fixedNote: "C4", oneShot: true },
 
   // Bodhran: the VCSL frame drum (large: open hit and muted; small: a higher tap).
   bodhran: { dir: `${VCSL}/Membranophones/Struck Membranophones/Frame Drum`, match: /HDrumL_Hit_/, fixedNote: "D2", oneShot: true },
@@ -141,6 +143,9 @@ export const INSTRUMENTS = {
   owl: { dir: BSB, match: /^(1763|0429)-/, fixedNote: "C4", oneShot: true },
   cackle: { dir: BSB, match: /^0489-/, fixedNote: "C4", oneShot: true },
   madLaugh: { dir: BSB, match: /^2103-/, fixedNote: "C4", oneShot: true },
+  // Cyberpunk's rainy night: the long thunder roll (3181, 41 s) alone, so a song can let it go
+  // where it likes (`ring`) and it dies away over a long release instead of stopping.
+  thunderRoll: { dir: BSB, match: /^3181-/, fixedNote: "C4", oneShot: true, trim: false, release: 3 },
 } satisfies Record<string, InstrumentOptions>;
 
 export type InstrumentName = keyof typeof INSTRUMENTS;
