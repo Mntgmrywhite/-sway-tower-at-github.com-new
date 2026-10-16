@@ -1,8 +1,9 @@
-import { hash, type Ctx } from "../../base/draw";
+import type { Ctx } from "../../base/draw";
 import { fieldY } from "../../base/world";
 import type { Scene } from "../skin";
 import { inkW, spot } from "./common";
-import { crowPerched } from "./crow";
+import { crowFlying, crowPerched } from "./crow";
+import { crowPose, PERCH, type CrowPose } from "./flight";
 import { grave } from "./graves";
 import { drawTufts, tuft } from "./dirt";
 import { kids } from "./kids";
@@ -30,14 +31,9 @@ type Prop =
 /** The big jack-o'-lantern behind the tower, right of its column. */
 const PUMPKIN = { X: 0.298 * (3.6 / 3), z: 3.6, size: 0.04 };
 
-/**
- * The headstone the crow sits on. It stands below the tower's base inside its column, so the
- * stone is kept squat and the crow small enough that its head stays ~0.02u below the ground
- * line at the start view (the field rows only drop further below it as you climb).
- */
-const PERCH = { kind: "stone", X: 0.09, z: 1.64, w: 0.06, h: 0.066, stone: "round", seed: 3 } as const;
-/** Crow height on the perch, in u at the tower's depth. */
-const CROW_SIZE = 0.06;
+// The headstone the crow sits on (PERCH, in flight.ts). It stands below the tower's base inside
+// its column, so the stone is kept squat and the crow small enough that its head stays ~0.02u
+// below the ground line at the start view (the field rows only drop further below it as you climb).
 
 const FRONT: readonly Prop[] = ([
   { kind: "grave", X: 0.26, z: 2.1, size: 0.065, grave: 1 },
@@ -75,21 +71,24 @@ function front(ctx: Ctx, s: Scene): void {
   drawTufts(ctx, inkW(s, 1.7));
 }
 
-/** A crow keeping watch on the front headstone, cawing now and then. */
-function crow(ctx: Ctx, s: Scene): void {
-  const { x, y, k } = spot(s, PERCH.X, PERCH.z);
-  if (y - s.u * 0.2 > s.cssH) return;
-  const h = PERCH.h * s.u * k;
-  const tilt = (hash(PERCH.seed) - 0.5) * 0.2;
-  const fx = x + Math.sin(tilt) * h;
-  const fy = y - Math.cos(tilt) * h + s.u * 0.002;
-  // Caws in a little burst every few seconds; tips its head in between.
-  const c = (s.t % 5.3) / 5.3;
-  const caw = c > 0.8 ? Math.abs(Math.sin((c - 0.8) * Math.PI * 10)) : 0;
-  crowPerched(ctx, fx, fy, s.u * CROW_SIZE * k, -1, caw, Math.sin(s.t * 0.9), inkW(s, k));
+/** In flight the crow is drawn behind the graves (and in front of the kids) when farther than this. */
+const BEHIND_GRAVES = 2.05;
+
+/**
+ * The crow keeping watch on the front headstone, cawing now and then, and every half minute
+ * taking a turn round the moon (flight.ts). `far` draws it only if it is behind the graves now,
+ * otherwise only if it is in front of them.
+ */
+function crow(ctx: Ctx, s: Scene, p: CrowPose, far: boolean): void {
+  if (far !== (!p.perched && p.z > BEHIND_GRAVES)) return;
+  if (p.y - p.size * 2 > s.cssH) return;
+  const lw = inkW(s, 3 / p.z);
+  if (p.perched) crowPerched(ctx, p.x, p.y, p.size, p.dir, p.caw, p.look, lw);
+  else crowFlying(ctx, p.x, p.y, p.size, p.dir, p.lift, p.pitch, p.legs, p.caw, lw);
 }
 
-function graveyard(ctx: Ctx, s: Scene): void {
+/** Everything standing on the field (the town, the kids, the churchyard and its crow). */
+export function graveyard(ctx: Ctx, s: Scene): void {
   if (fieldY(s, FAR_Z) - s.u * 0.3 > s.cssH) return;
   town(ctx, s);
   fallen(ctx, s);
@@ -98,8 +97,10 @@ function graveyard(ctx: Ctx, s: Scene): void {
     jackOLantern(ctx, s.t, x, y, PUMPKIN.size * s.u * k, inkW(s, k));
   }
   kids(ctx, s);
+  const bird = crowPose(s);
+  crow(ctx, s, bird, true);
   front(ctx, s);
-  crow(ctx, s);
+  crow(ctx, s, bird, false);
 }
 
 /** The skin's ground layer: everything on the field, then the leaves blowing over it. */

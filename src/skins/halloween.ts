@@ -3,7 +3,7 @@ import { ground } from "./halloween/graveyard";
 import { hollow } from "./halloween/hollow";
 import * as icon from "./halloween/icons";
 import { piles } from "./halloween/leaves";
-import { flyers, moon } from "./halloween/sky";
+import { celestial, flyers } from "./halloween/sky";
 import type { CartoonSkin } from "./skin";
 
 // Halloween, after Trick 'r Treat and The Legend of Sleepy Hollow, in the bright cartoon
@@ -43,7 +43,7 @@ export const halloween: CartoonSkin = {
     accent: "#ffd23f",
     life: "#ff9a2e",
   },
-  celestial: moon,
+  celestial,
   sky: flyers,
   far: hollow,
   ground,

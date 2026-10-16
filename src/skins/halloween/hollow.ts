@@ -4,6 +4,7 @@ import type { Scene } from "../skin";
 import { INK, LAMP, PALETTE, RIDGE, smooth } from "./common";
 import { horseman } from "./horseman";
 import { moonAt } from "./sky";
+import { toneOf } from "./tone";
 
 // Beyond the town lies Sleepy Hollow, faded by distance and mist: a long hill under the moon
 // with dead trees on its crest, where the Headless Horseman gallops past the moon's face and
@@ -182,15 +183,64 @@ const RIDE_TO = -0.035;
 /** His size unit, in u: about 3 long and 3.3 tall with the pumpkin raised. */
 const RIDER_SIZE = 0.046;
 
-function rider(ctx: Ctx, s: Scene): void {
+/** Scratch result of `riderAt`. */
+const R = { x: 0, y: 0, size: 0, tilt: 0, vis: 0 };
+
+/** Where the Horseman is (ground under his middle, size unit, tilt, opacity); vis 0 while he is off his ride. */
+function ride(s: Scene): typeof R {
   const p = ((((s.t + RIDE_SHIFT) % RIDE_LOOP) + RIDE_LOOP) % RIDE_LOOP) / RIDE_TIME;
-  if (p >= 1) return;
-  const x = G.cx + (RIDE_FROM + (RIDE_TO - RIDE_FROM) * p) * G.u;
-  const y = crest(x);
+  R.vis = 0;
+  if (p >= 1) return R;
+  R.x = G.cx + (RIDE_FROM + (RIDE_TO - RIDE_FROM) * p) * G.u;
+  R.y = crest(R.x) + s.u * 0.003;
   const d = s.u * 0.03;
-  const tilt = Math.max(-0.4, Math.min(0.4, Math.atan2(crest(x + d) - crest(x - d), 2 * d)));
-  const vis = smooth(0.1, 0.24, p) * (1 - smooth(0.84, 0.99, p));
-  horseman(ctx, x, y + s.u * 0.003, s.u * RIDER_SIZE, s.t, tilt, vis);
+  R.tilt = Math.max(-0.4, Math.min(0.4, Math.atan2(crest(R.x + d) - crest(R.x - d), 2 * d)));
+  R.size = s.u * RIDER_SIZE;
+  R.vis = smooth(0.1, 0.24, p) * (1 - smooth(0.84, 0.99, p));
+  return R;
+}
+
+function rider(ctx: Ctx, s: Scene): void {
+  const r = ride(s);
+  horseman(ctx, r.x, r.y, r.size, s.t, r.tilt, r.vis);
+}
+
+/**
+ * Where the Headless Horseman is in this scene (for keeping other things clear of him): ground
+ * under his middle, size unit, tilt, and his opacity (0 while he is off his ride or the hollow
+ * has faded).
+ */
+export function riderAt(s: Scene): Readonly<typeof R> {
+  if (!geometry(s)) {
+    R.vis = 0;
+    return R;
+  }
+  const r = ride(s);
+  r.vis *= toneOf(s).hollow;
+  return r;
+}
+
+/** His drawing's reach in his size unit, from the ground under his middle (facing right, untilted). */
+const RIDER_REACH = { x0: -1.9, x1: 1.45, y0: -3.95, y1: 0.2 };
+
+/** The screen box the Horseman covers this frame, tilt included; null while he is out of sight. */
+export function riderBox(s: Scene): { x0: number; y0: number; x1: number; y1: number } | null {
+  const r = riderAt(s);
+  if (r.vis <= 0.02) return null;
+  const c = Math.cos(r.tilt);
+  const n = Math.sin(r.tilt);
+  const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  for (const lx of [RIDER_REACH.x0, RIDER_REACH.x1]) {
+    for (const ly of [RIDER_REACH.y0, RIDER_REACH.y1]) {
+      const x = r.x + (lx * c - ly * n) * r.size;
+      const y = r.y + (lx * n + ly * c) * r.size;
+      box.x0 = Math.min(box.x0, x);
+      box.x1 = Math.max(box.x1, x);
+      box.y0 = Math.min(box.y0, y);
+      box.y1 = Math.max(box.y1, y);
+    }
+  }
+  return box;
 }
 
 // ---------------------------------------------------------------- covered bridge
@@ -345,7 +395,8 @@ function church(ctx: Ctx, s: Scene): void {
 
 // ---------------------------------------------------------------- layer
 
-export function hollow(ctx: Ctx, s: Scene): void {
+/** Set up this frame's hill geometry; false once the hill has sunk below the screen. */
+function geometry(s: Scene): boolean {
   const u = s.u;
   G.cx = s.cssW / 2;
   G.u = u;
@@ -355,7 +406,29 @@ export function hollow(ctx: Ctx, s: Scene): void {
   G.mx = m.x;
   // The crest crosses the moon's lower face, but stays well above the mist.
   G.top = Math.min(m.y + m.r0 * 0.36, G.hy0 - u * 0.2);
-  if (G.top + G.drop - u * 0.2 > s.cssH) return;
+  return G.top + G.drop - u * 0.2 <= s.cssH;
+}
+
+/**
+ * The far layer: the hollow. Past the first pass it fades into the mist (tone.ts), so the
+ * loop above it has the sky to itself.
+ */
+export function hollow(ctx: Ctx, s: Scene): void {
+  const fade = toneOf(s).hollow;
+  if (fade <= 0.004) return;
+  if (fade < 1) {
+    ctx.save();
+    ctx.globalAlpha = fade;
+    scene(ctx, s);
+    ctx.restore();
+  } else {
+    scene(ctx, s);
+  }
+}
+
+function scene(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  if (!geometry(s)) return;
 
   hill(ctx, s);
   // Dead trees on the crest, left of the moon and on the shoulder past it

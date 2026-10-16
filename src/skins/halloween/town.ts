@@ -324,3 +324,22 @@ function house(ctx: Ctx, s: Scene, h: House): void {
 export function town(ctx: Ctx, s: Scene): void {
   for (const h of HOUSES) house(ctx, s, h);
 }
+
+/** Scratch result of `houseBox`. */
+const HB = { x0: 0, y0: 0, x1: 0, y1: 0 };
+
+/**
+ * The screen box of the house on `side` (-1 left of the tower, 1 right): porch roof and eaves to
+ * either side, roof ridge down to the ground, ink included. For keeping a flyer clear of it.
+ */
+export function houseBox(s: Scene, side: -1 | 1): typeof HB {
+  const h = HOUSES[side < 0 ? 0 : 1]!;
+  const p = spot(s, h.X, h.z);
+  const w = h.w * s.u * p.k;
+  const ink = inkW(s, p.k);
+  HB.x0 = p.x - 0.66 * w - ink;
+  HB.x1 = p.x + 0.66 * w + ink;
+  HB.y0 = p.y - 1.64 * w - ink;
+  HB.y1 = p.y + ink;
+  return HB;
+}
