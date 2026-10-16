@@ -14,7 +14,8 @@
     "check": "npm run typecheck && npm run lint && npm run test",
     "build:artifact": "npm run build && node scripts/build-artifact.mjs",
     "snap": "tsx scripts/preview.ts",
-    "music": "tsx scripts/music/render.ts"
+    "music": "tsx scripts/music/render.ts",
+    "music:check": "tsx scripts/music/check.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

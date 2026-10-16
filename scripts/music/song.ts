@@ -106,10 +106,10 @@ export function master(audio: Audio, targetRms = 0.16): Audio {
   for (let f = 0; f < n; f++) sum += audio.left[f]! ** 2 + audio.right[f]! ** 2;
   const rms = Math.sqrt(sum / (2 * n)) || 1;
   const g = targetRms / rms;
+  // tanh never exceeds 1, so peaks are guaranteed under the ceiling (-1 dBFS).
   const drive = 1.4;
-  const norm = Math.tanh(drive);
   const ceiling = 0.89;
-  const shape = (x: number) => (Math.tanh(x * g * drive) / norm) * ceiling;
+  const shape = (x: number) => Math.tanh(x * g * drive) * ceiling;
   return { rate: audio.rate, left: audio.left.map(shape), right: audio.right.map(shape) };
 }
 
