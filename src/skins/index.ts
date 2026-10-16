@@ -5,11 +5,12 @@ import { neon } from "./neon";
 import { neonCyber } from "./neon-cyber";
 import { newYear } from "./newyear";
 import type { Skin } from "./skin";
+import { stPatricks } from "./stpatricks";
 import { thanksgiving } from "./thanksgiving";
 import { toyBlock } from "./toyblock";
 
 /** Every skin, in picker order. Classic is always first and is the fallback. */
-export const SKINS: Skin[] = [classic, toyBlock, neon, neonCyber, halloween, thanksgiving, christmas, newYear];
+export const SKINS: Skin[] = [classic, toyBlock, neon, neonCyber, halloween, thanksgiving, christmas, newYear, stPatricks];
 
 /** Skins that were retired, and the skin a saved choice of them now shows. */
 const RETIRED: Record<string, string> = { "neon-glow": "neon", "neon-minimal": "neon" };
