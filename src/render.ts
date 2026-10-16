@@ -3,13 +3,46 @@ import { startLives, swayOffset, type Block, type GameState, type Tip } from "./
 import { roundRectPath } from "./base/draw";
 import { kitFor } from "./base/style";
 import { horizonFor } from "./base/world";
-import { fadeCamera, frameFor, GROUND_START, holdPan, PAN_EASE, panFade, panTarget, type Frame } from "./camera";
+import {
+  easeZoom,
+  fadeCamera,
+  frameFor,
+  GROUND_START,
+  holdPan,
+  newZoom,
+  PAN_EASE,
+  panFade,
+  panTarget,
+  stepZoom,
+  zoomTarget,
+  type Frame,
+  type Zoom,
+} from "./camera";
 import type { Scene, Skin } from "./skins/skin";
+import type { Achievement } from "./achievements";
+import { drawMedalStrip } from "./medals";
 import { addFalling as pushFalling, FALL_ALPHA, stepFalling, type Falling } from "./fx/falling";
 import { addPop, drawPops, stepPops, type Pop } from "./fx/pops";
 import { slabPoses, startTopple, stepTopple, toppling, type Topple } from "./fx/topple";
 
 export const GAME_NAME = "Sway Tower";
+
+/** The HUD's top line (the score, or the logo) sits this far down the screen. */
+const HUD_TOP = 0.14;
+/** The logo's type size, in u (shrunk to fit narrow screens). */
+const LOGO_SIZE = 0.13;
+/** "tap to play again" sits this far below the game-over card, in u. */
+const OVER_TAP_LINE = 0.1;
+
+/** Per-frame choices from main.ts. */
+export interface RenderOptions {
+  /** The title screen: the scene and the logo only (src/title.ts draws its controls over it). */
+  title?: boolean;
+  /** The game-over card only: the medals this run earned, shown in a row above the card. */
+  newMedals?: readonly Achievement[];
+  /** Seconds the game-over card has been up, for the medals' pop-in (default: fully in). */
+  cardAge?: number;
+}
 
 const CAMERA_EASE = 6; // per second
 /** Perfect-drop flash: light bursts along the seam and the block glows in the accent color. */
@@ -25,6 +58,12 @@ const PAN_RELEASE_TIME = 0.25;
 const PAN_HOLD_MIN = 0.05;
 /** The screen size the sideways camera frames the tower for until the first frame is drawn, CSS px. */
 const DEFAULT_SCREEN = { w: 390, h: 844 };
+/**
+ * The drawn pan fades in at most this fast, per second: as fast as the climbing camera ever fades it
+ * in (a bar's climb at CAMERA_EASE over the fade's span). A zoom sweeps the base past the bottom edge
+ * several times faster than that.
+ */
+const PAN_FADE_RATE = 3;
 
 interface Flash {
   level: number;
@@ -38,7 +77,18 @@ export interface View {
    * while the base is on screen (src/camera.ts). Always 0 in Normal.
    */
   panX: number;
-  /** The CSS size the view was last drawn at: the sideways camera frames the tower for it. */
+  /**
+   * Hard mode's zoom (src/camera.ts): the whole frame but the HUD is drawn shrunk by `zoom.zoom`
+   * (1: not zoomed), so a leaning or swinging tower top and the slider stay on screen. Always 1 in Normal.
+   */
+  zoom: Zoom;
+  /**
+   * Hard mode: how much of the pan is drawn (0..1). It follows panFade down at once, so the tower is
+   * on its plinth whenever the base shows, but rises at most PAN_FADE_RATE a second: a zoom that
+   * sweeps the base off the bottom edge eases the pan in instead of throwing the tower sideways.
+   */
+  fade: number;
+  /** The CSS size the view was last drawn at: the zoom and the sideways camera frame the tower for it. */
   screen: { w: number; h: number };
   /** panX when the tower toppled: a fall back down to the base lets go of it from there. */
   panAtTopple: number;
@@ -56,6 +106,8 @@ export function newView(): View {
   return {
     cameraY: BLOCK_HEIGHT,
     panX: 0,
+    zoom: newZoom(),
+    fade: 0,
     screen: { ...DEFAULT_SCREEN },
     panAtTopple: 0,
     falling: [],
@@ -98,12 +150,34 @@ export function updateView(view: View, state: GameState, dt: number): void {
   let target = (state.blocks.length + 1) * BLOCK_HEIGHT;
   // A tower that tips low down: bring the pivot into view.
   if (view.topple) target = Math.min(target, view.topple.py + TOPPLE_CAMERA_ROOM);
-  if (state.mode === "hard") target = stepPan(view, state, target, dt);
+  if (state.mode === "hard") {
+    // The zoom first: the pan frames the tower for the zoom it has this frame. Once the run is over
+    // it only settles where it was heading.
+    const { w, h } = view.screen;
+    if (state.phase === "playing") stepZoom(view.zoom, zoomTarget(state, w, h, view.cameraY, view.zoom.zoom), dt);
+    else easeZoom(view.zoom, dt);
+    target = stepPan(view, state, target, dt);
+  }
   view.cameraY += (target - view.cameraY) * Math.min(1, CAMERA_EASE * dt);
-  view.falling = stepFalling(view.falling, dt, view.cameraY);
+  if (state.mode === "hard") {
+    const { w, h } = view.screen;
+    view.fade = Math.min(panFade(frameFor(w, h, view.cameraY, view.zoom.zoom)), view.fade + PAN_FADE_RATE * dt);
+  }
+  view.falling = stepFalling(view.falling, dt, view.cameraY + zoomDrop(view, state));
   // After the falling step, so a bar that peels off this frame starts exactly where the slab had it.
   if (view.topple) stepTopple(view.topple, dt, view.falling);
   stepPops(view.pops, dt);
+}
+
+/**
+ * How much further down (world units) the zoomed screen reaches than an unzoomed one would: falling
+ * bars are let go that much lower, so they leave by the bottom edge as they do at zoom 1. 0 in Normal.
+ */
+function zoomDrop(view: View, state: GameState): number {
+  const zoom = towerZoom(view, state);
+  if (zoom === 1) return 0;
+  const { w, h } = view.screen;
+  return frameFor(w, h, view.cameraY, zoom).bottom - frameFor(w, h, view.cameraY).bottom;
 }
 
 /**
@@ -116,19 +190,20 @@ export function updateView(view: View, state: GameState, dt: number): void {
  */
 function stepPan(view: View, state: GameState, target: number, dt: number): number {
   const { w, h } = view.screen;
+  const z = view.zoom.zoom;
   const ease = Math.min(1, PAN_EASE * dt);
   if (state.phase === "playing") {
-    view.panX += (panTarget(state, frameFor(w, h, view.cameraY)) - view.panX) * ease;
-  } else if (view.topple && panFade(frameFor(w, h, target)) < 1) {
+    view.panX += (panTarget(state, frameFor(w, h, view.cameraY, z)) - view.panX) * ease;
+  } else if (view.topple && panFade(frameFor(w, h, target, z)) < 1) {
     const k = Math.min(1, view.topple.age / PAN_RELEASE_TIME);
     const left = 1 - k * k * (3 - 2 * k);
     view.panX = view.panAtTopple * left;
     if (left > 0 && Math.abs(view.panAtTopple) > PAN_HOLD_MIN) {
-      target = Math.max(target, Math.min(view.cameraY, fadeCamera(w, h, left)));
+      target = Math.max(target, Math.min(view.cameraY, fadeCamera(w, h, left, z)));
     }
   } else {
     const pivot = view.topple ? view.topple.px : null;
-    view.panX += (holdPan(view.panX, frameFor(w, h, view.cameraY), pivot, TOPPLE_PAN_ROOM) - view.panX) * ease;
+    view.panX += (holdPan(view.panX, frameFor(w, h, view.cameraY, z), pivot, TOPPLE_PAN_ROOM) - view.panX) * ease;
   }
   return target;
 }
@@ -143,14 +218,22 @@ export function render(
   skin: Skin,
   /** Seconds into the current music loop (audio.position()); NaN when silent. */
   songTime = NaN,
+  opts: RenderOptions = {},
 ): void {
   // A zero-size canvas (a hidden tab, a web view not laid out yet) has nothing to draw, and the
   // scale below would divide by zero: the NaNs would throw and stop the frame loop for good.
   if (cssW <= 0 || cssH <= 0) return;
   view.screen.w = cssW;
   view.screen.h = cssH;
-  const frame = frameFor(cssW, cssH, view.cameraY);
+  // Hard's camera can zoom out: then the world, the tower and the foreground are laid out on a
+  // virtual screen 1/zoom as big (same u and scale) and drawn shrunk by the zoom; the PERFECT pop
+  // and the HUD are drawn at the screen's own size. Normal never zooms.
+  const zoom = towerZoom(view, state);
+  const zoomed = zoom !== 1;
+  const frame = frameFor(cssW, cssH, view.cameraY, zoom);
   const { u, scale, offsetX, anchorPx, cameraY } = frame;
+  const vw = frame.width;
+  const vh = frame.height;
   const sx = (x: number) => offsetX + x * scale;
   const sy = (y: number) => anchorPx - (y - cameraY) * scale;
   // The tower layer (bars, slider, loose and falling bars, flash, pop) pans with Hard's sideways
@@ -160,15 +243,17 @@ export function render(
 
   const base = state.blocks[0];
   const groundY = sy(0);
-  const rise = Math.max(0, groundY - cssH * GROUND_START);
+  const rise = Math.max(0, groundY - vh * GROUND_START);
   const scene: Scene = {
-    cssW,
-    cssH,
+    cssW: vw,
+    cssH: vh,
     u,
     scale,
     t: view.t,
     rise,
-    altitude: cameraY,
+    // The story follows the climb, not the zoom: a zoomed frame's camera is held higher early on
+    // (its virtual screen is taller), which would move every skin's sky forward while zoomed.
+    altitude: zoomed ? frameFor(cssW, cssH, view.cameraY).cameraY : cameraY,
     groundY,
     horizonY: horizonFor(groundY, rise, u),
     baseX: base ? sx(base.x) : 0,
@@ -177,9 +262,16 @@ export function render(
   };
   const kit = kitFor(skin);
   const h = BLOCK_HEIGHT * scale;
-  const titleScreen = state.phase === "playing" && state.score === 0;
-  const hud = hudLayout(cssH, u, state, titleScreen);
+  // The title screen shows the scene and the logo (src/title.ts puts the buttons over it). A run's
+  // start shows the name instead of a zero, best, lives and "tap to drop".
+  const titleScreen = opts.title === true;
+  const ready = !titleScreen && state.phase === "playing" && state.score === 0;
+  const hud = hudLayout(cssH, u, state, ready);
 
+  if (zoomed) {
+    ctx.save();
+    ctx.scale(zoom, zoom);
+  }
   kit.world(ctx, scene);
 
   /** Draw a block whose world left edge is `x`. */
@@ -205,12 +297,12 @@ export function render(
     const reach = (w * scale) / 2 + h;
     const x = tx(cx);
     const y = sy(cy);
-    return x > -reach && x < cssW + reach && y > -reach && y < cssH + reach;
+    return x > -reach && x < vw + reach && y > -reach && y < vh + reach;
   };
 
   // Only draw blocks that can be on screen. A toppled tower's slab is drawn by its fall instead.
   const standing = state.toppled ? state.toppled.level : state.blocks.length;
-  const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - cssH / h - 2));
+  const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - vh / h - 2));
   for (let i = firstVisible; i < standing; i++) {
     const b = state.blocks[i];
     if (b) drawBlock(b.x + swayOffset(state, i), b.w, i);
@@ -252,7 +344,8 @@ export function render(
     ctx.globalAlpha = fade;
     ctx.fillStyle = grad;
     ctx.shadowColor = skin.hud.accent;
-    ctx.shadowBlur = h * 0.8 * fade;
+    // (Shadows ignore the canvas transform: scaled by the zoom so the glow keeps its size.)
+    ctx.shadowBlur = h * 0.8 * fade * zoom;
     ctx.fillRect(x - reach, seamY - thick / 2, w + reach * 2, thick);
     ctx.restore();
   }
@@ -264,15 +357,25 @@ export function render(
   }
 
   // The slider is in world space: it does not sway.
-  if (state.phase === "playing") drawBlock(state.slider.x, state.slider.w, state.blocks.length);
+  if (state.phase === "playing" && !titleScreen) drawBlock(state.slider.x, state.slider.w, state.blocks.length);
 
   // The PERFECT pop goes over the slider so it always reads. Once the last life is gone the
   // game-over card takes the stage at once, so a pop still in flight would peek out around it.
+  // Zoomed out, the pop rides its block where the zoom draws it but keeps its own size.
+  if (zoomed) ctx.restore();
   if (state.phase === "playing") {
-    drawPops({ ctx, kit, skin, state, cssW, u, scale, h, sx: tx, sy, hudBottom: hud.bottom }, view.pops);
+    const pop = zoomed
+      ? { scale: scale * zoom, h: h * zoom, sx: (x: number) => tx(x) * zoom, sy: (y: number) => sy(y) * zoom }
+      : { scale, h, sx: tx, sy };
+    drawPops({ ctx, kit, skin, state, cssW, u, ...pop, hudBottom: hud.bottom }, view.pops);
   }
 
+  if (zoomed) {
+    ctx.save();
+    ctx.scale(zoom, zoom);
+  }
   kit.front(ctx, scene);
+  if (zoomed) ctx.restore();
 
   // HUD: outlined type (plus glow in neon), so it reads over any part of the scene.
   ctx.save();
@@ -284,22 +387,27 @@ export function render(
 
   // A toppled tower falls first; the card comes once it has gone over.
   if (state.phase === "over" && !toppling(view.topple)) {
-    drawGameOver(ctx, cssW, cssH, u, state, best, skin);
+    drawGameOver(ctx, cssW, cssH, u, state, best, skin, opts);
     ctx.restore();
     return;
   }
 
-  if (titleScreen) {
-    // Start screen: the name instead of a zero.
-    const size = fitFont(ctx, GAME_NAME, `400 {px}px ${skin.hud.display}`, u * 0.13, cssW * 0.88);
+  if (titleScreen || ready) {
+    // The logo on the title, and the name instead of a zero at the start of a run.
+    const size = fitFont(ctx, GAME_NAME, `400 {px}px ${skin.hud.display}`, u * LOGO_SIZE, cssW * 0.88);
     text(GAME_NAME, cssW / 2, top, skin.hud.title, Math.max(3, size * 0.12));
-    if (state.mode === "hard") {
+    if (ready && state.mode === "hard") {
       ctx.font = `700 ${Math.round(u * 0.04)}px ${body}`;
       text("HARD", cssW / 2, top + u * 0.062, skin.hud.accent, u * 0.01);
     }
   } else {
     ctx.font = `700 ${Math.round(u * 0.13)}px ${body}`;
     text(String(state.score), cssW / 2, top, "#ffffff", u * 0.016);
+  }
+  // The title's own controls show the modes and their bests.
+  if (titleScreen) {
+    ctx.restore();
+    return;
   }
   ctx.font = `600 ${Math.round(u * 0.038)}px ${body}`;
   text(`best ${best}`, cssW / 2, hud.bestY, "#e8e4ff", u * 0.009);
@@ -318,7 +426,7 @@ export function render(
     text(`★ ${state.perfects} perfect`, cssW / 2, hud.perfY, skin.hud.accent, u * 0.011);
   }
 
-  if (titleScreen) {
+  if (ready) {
     ctx.font = `600 ${Math.round(u * 0.055)}px ${body}`;
     ctx.globalAlpha = 0.7 + 0.3 * Math.sin(view.t * 3);
     text("tap to drop", cssW / 2, cssH * 0.9, "#ffffff", u * 0.013);
@@ -327,13 +435,18 @@ export function render(
   ctx.restore();
 }
 
+/** How much the frame is shrunk this frame: Hard's eased zoom (1: not zoomed). Always 1 in Normal. */
+export function towerZoom(view: View, state: GameState): number {
+  return state.mode === "hard" ? view.zoom.zoom : 1;
+}
+
 /**
  * How far left the tower layer is drawn this frame, world units: Hard's eased sideways camera,
- * faded out while the base is on screen. 0 in Normal.
+ * faded out while the base is on screen (and fading in no faster than PAN_FADE_RATE). 0 in Normal.
  */
 export function towerPan(view: View, state: GameState, frame: Frame): number {
   if (state.mode !== "hard") return 0;
-  return view.panX * panFade(frame);
+  return view.panX * Math.min(view.fade, panFade(frame));
 }
 
 interface HudLayout {
@@ -348,10 +461,10 @@ interface HudLayout {
   bottom: number;
 }
 
-/** Top-center HUD stack: score, best, lives, perfect counter. Hard's title screen adds a HARD line. */
-function hudLayout(cssH: number, u: number, state: GameState, titleScreen: boolean): HudLayout {
-  const top = cssH * 0.14;
-  const hardLine = titleScreen && state.mode === "hard" ? u * 0.05 : 0;
+/** Top-center HUD stack: score, best, lives, perfect counter. Hard's start of a run adds a HARD line. */
+function hudLayout(cssH: number, u: number, state: GameState, ready: boolean): HudLayout {
+  const top = cssH * HUD_TOP;
+  const hardLine = ready && state.mode === "hard" ? u * 0.05 : 0;
   const bestY = top + u * 0.065 + hardLine;
   const livesY = top + u * 0.11 + hardLine;
   const perfY = top + u * 0.18;
@@ -369,16 +482,14 @@ function drawGameOver(
   state: GameState,
   best: number,
   skin: Skin,
+  opts: RenderOptions,
 ): void {
   const hud = skin.hud;
   const kit = kitFor(skin);
   ctx.fillStyle = "rgba(4, 2, 10, 0.45)";
   ctx.fillRect(0, 0, cssW, cssH);
 
-  const w = Math.min(cssW - 32, u * 0.82);
-  const h = u * 0.62;
-  const x = (cssW - w) / 2;
-  const y = cssH * 0.42 - h / 2;
+  const { x, y, w, h } = overCard(cssW, cssH, u);
   kit.card(ctx, x, y, w, h, u);
 
   const cx = cssW / 2;
@@ -395,8 +506,41 @@ function drawGameOver(
   text(newBest ? "New best!" : `best ${best}`, y + h * 0.68, newBest ? hud.accent : "#ffffff", u * 0.01);
   text(`★ ${state.perfects} perfect`, y + h * 0.8, hud.accent, u * 0.01);
 
+  // The medals this run earned, in a row above the card (nothing shows while stacking).
+  drawMedalStrip(ctx, {
+    medals: opts.newMedals ?? [],
+    card: { x, y, w, h },
+    u,
+    age: opts.cardAge ?? Infinity,
+    text: (t, tx, ty, fill, outline) => kit.text(ctx, t, tx, ty, fill, outline),
+    font: kit.body,
+    accent: hud.accent,
+  });
+
   ctx.font = `600 ${Math.round(u * 0.055)}px ${kit.body}`;
-  text("tap to play again", y + h + u * 0.1, "#ffffff", u * 0.014);
+  text("tap to play again", y + h + u * OVER_TAP_LINE, "#ffffff", u * 0.014);
+}
+
+/** The game-over card's box, CSS px. */
+function overCard(cssW: number, cssH: number, u: number): { x: number; y: number; w: number; h: number } {
+  const w = Math.min(cssW - 32, u * 0.82);
+  const h = u * 0.62;
+  return { x: (cssW - w) / 2, y: cssH * 0.42 - h / 2, w, h };
+}
+
+/**
+ * Where src/title.ts lays its buttons out to match the canvas (CSS px): `u` is the size unit,
+ * `top` is just under the logo's descenders, `menuTop` is under the game-over card's
+ * "tap to play again" (the Menu button back to the title).
+ */
+export function titleLayout(cssW: number, cssH: number): { u: number; top: number; menuTop: number } {
+  const { u } = frameFor(cssW, cssH, 0);
+  const card = overCard(cssW, cssH, u);
+  return {
+    u,
+    top: cssH * HUD_TOP + u * LOGO_SIZE * 0.4,
+    menuTop: card.y + card.h + u * (OVER_TAP_LINE + 0.06),
+  };
 }
 
 /**

@@ -2,9 +2,24 @@ import { createCanvas } from "@napi-rs/canvas";
 import { afterEach, describe, expect, it } from "vitest";
 import { BLOCK_HEIGHT, resetTuning, SLIDE_RANGE, WORLD_WIDTH } from "./config";
 import { balanceFailure, drop, newGame, sliderSpeed, step, swayOffset, top, type GameState } from "./game";
-import { fadeCamera, frameFor, panFade, panTarget, swayReach, type Frame } from "./camera";
-import { addTopple, isToppling, newView, render, towerPan, updateView, type View } from "./render";
+import {
+  fadeCamera,
+  frameFor,
+  newZoom,
+  panFade,
+  panTarget,
+  stepZoom,
+  swayReach,
+  VIEW_WIDTH,
+  ZOOM_HOLD,
+  ZOOM_MIN,
+  zoomTarget,
+  type Frame,
+} from "./camera";
+import { addFalling, addFlash, addTopple, isToppling, newView, render, towerPan, towerZoom, updateView, type View } from "./render";
 import { SKINS } from "./skins";
+import type { Scene, Skin } from "./skins/skin";
+import { FRAME, humanPlayer, mulberry32 } from "./testing/hard-bots";
 
 afterEach(resetTuning);
 
@@ -108,8 +123,8 @@ describe("Hard's sideways camera target", () => {
             const c = t.x + t.w / 2;
             // The top bar at either end of its sway.
             expect(inView(frame, pan, t.x - reach, t.x + t.w + reach)).toBe(true);
-            // At least two thirds of the slider, even at the ends of its run.
-            expect(inView(frame, pan, c - SLIDE_RANGE - t.w / 6, c + SLIDE_RANGE + t.w / 6)).toBe(true);
+            // As much of the slider as Normal shows (5/6), even at the ends of its run.
+            expect(inView(frame, pan, c - SLIDE_RANGE - t.w / 3, c + SLIDE_RANGE + t.w / 3)).toBe(true);
             // Without the pan, the top would have left the screen.
             if (!inView(frame, 0, t.x - reach, t.x + t.w + reach)) needed++;
           }
@@ -145,15 +160,19 @@ describe("Hard's sideways camera target", () => {
   });
 
   it("follows the bars on screen, the top ones most, within what keeps the slider on screen", () => {
-    // A long lean: the bars further down sit left of the top, and pull the camera a little left.
+    // A long lean: the bars further down sit left of the top, and pull the camera a little left, as
+    // far as still shows as much of the slider at the ends of its run as Normal does.
     const g = leaning(26, 12, 0.9);
     const [w, h] = PHONES[1];
-    const frame = frameFor(w, h, restingCamera(g));
-    const pan = panTarget(g, frame);
     const t = top(g);
     const onTop = t.x + t.w / 2 - MID;
+    // On a phone at full zoom that takes the whole view: it centers on the top bar.
+    expect(panTarget(g, frameFor(w, h, restingCamera(g)))).toBeCloseTo(onTop, 9);
+    // Zoomed out a little, there is room to follow.
+    const frame = frameFor(w, h, restingCamera(g), 0.85);
+    const pan = panTarget(g, frame);
     expect(pan).toBeLessThan(onTop);
-    expect(pan).toBeGreaterThan(onTop - t.w / 6 - 1e-9);
+    expect(pan).toBeGreaterThan(onTop - (frame.halfWidth - VIEW_WIDTH / 2) - 1e-9);
   });
 
   it.each(PHONES)("never jolts between drops: a bar leaving the screen or a kick dying down only glides it, at %ix%i", (w, h) => {
@@ -260,14 +279,17 @@ describe("Hard's sideways camera in play", () => {
     view.screen = { w, h };
     const drawn: number[] = [];
     const topOut: number[] = [];
+    // As drawn: the frame at the zoom it has, shrunk by it (screen px).
     const watch = () => {
-      const frame = frameFor(w, h, view.cameraY);
+      const zoom = towerZoom(view, g);
+      const frame = frameFor(w, h, view.cameraY, zoom);
       const pan = towerPan(view, g, frame);
-      drawn.push(pan * frame.scale);
+      const px = frame.scale * zoom;
+      drawn.push(pan * px);
       if (g.phase !== "playing") return;
       const t = top(g);
-      const x = frame.offsetX + (t.x + swayOffset(g, g.blocks.length - 1) - pan) * frame.scale;
-      topOut.push(Math.max(0, -x, x + t.w * frame.scale - w));
+      const x = (frame.offsetX + (t.x + swayOffset(g, g.blocks.length - 1) - pan) * frame.scale) * zoom;
+      topOut.push(Math.max(0, -x, x + t.w * px - w));
     };
     for (let i = 0; i < straight; i++) {
       dropAt(g, view, 0);
@@ -300,7 +322,337 @@ describe("Hard's sideways camera in play", () => {
       expect(maxStep).toBeLessThan(15);
       expect(drawn[drawn.length - 1]).toBe(0);
       expect(isToppling(view)).toBe(false);
-      expect(panFade(frameFor(w, h, view.cameraY))).toBe(0);
+      expect(panFade(frameFor(w, h, view.cameraY, towerZoom(view, g)))).toBe(0);
     },
   );
+});
+
+describe("Hard's zoom", () => {
+  /** How far the top bar (as drawn, swaying) and the slider stick out past the screen's sides this frame, CSS px. */
+  function outside(g: GameState, view: View, w: number, h: number) {
+    const zoom = towerZoom(view, g);
+    const frame = frameFor(w, h, view.cameraY, zoom);
+    const pan = towerPan(view, g, frame);
+    const px = frame.scale * zoom;
+    const lo = MID + pan - frame.halfWidth;
+    const hi = MID + pan + frame.halfWidth;
+    const t = top(g);
+    const x = t.x + swayOffset(g, g.blocks.length - 1);
+    const s = g.slider;
+    return {
+      top: Math.max(0, lo - x, x + t.w - hi) * px,
+      slider: Math.max(0, lo - s.x, s.x + s.w - hi) * px,
+      /** The slider's width on screen, px. */
+      sliderW: s.w * px,
+      /** How far left the tower layer is drawn, screen px. */
+      pan: pan * px,
+    };
+  }
+
+  it("lays a zoomed frame out on a virtual screen 1/zoom as big, at the screen's own u and scale", () => {
+    for (const [w, h] of PHONES) {
+      for (const cam of [0, 120, 400]) {
+        const one = frameFor(w, h, cam);
+        expect(frameFor(w, h, cam, 1)).toEqual(one);
+        expect([one.zoom, one.width, one.height]).toEqual([1, w, h]);
+        const out = frameFor(w, h, cam, ZOOM_MIN);
+        expect([out.u, out.scale]).toEqual([one.u, one.scale]);
+        expect(out.width).toBeCloseTo(w / ZOOM_MIN, 9);
+        expect(out.height).toBeCloseTo(h / ZOOM_MIN, 9);
+        expect(out.halfWidth).toBeCloseTo(one.halfWidth / ZOOM_MIN, 9);
+        // The camera's rules hold on the virtual screen: drawn shrunk by the zoom from the top left,
+        // the camera (the tower top, once it climbs) stays where it was on the screen.
+        expect(out.anchorPx * ZOOM_MIN).toBeCloseTo(one.anchorPx, 9);
+        if (cam === 400) expect(out.cameraY).toBe(one.cameraY);
+      }
+    }
+  });
+
+  it.each(PHONES)("stays at 1 for a straight tower and zooms a short leaning one out just enough, at %ix%i", (w, h) => {
+    const straight = leaning(14, 0, 0);
+    straight.kick = 12;
+    expect(zoomTarget(straight, w, h, restingCamera(straight), 1)).toEqual({ zoom: 1, urgent: false });
+    for (const [n, share] of [
+      [3, 0.4],
+      [4, 0.5],
+      [6, 0.6],
+    ] as const) {
+      // A short tower leaning right: its base is in view, so nothing may pan.
+      const g = leaning(4, n, share);
+      g.kick = 8;
+      const cam = restingCamera(g);
+      const aim = zoomTarget(g, w, h, cam, 1);
+      expect(aim.urgent).toBe(true);
+      expect(aim.zoom).toBeLessThan(0.85);
+      expect(aim.zoom).toBeGreaterThanOrEqual(ZOOM_MIN);
+      const frame = frameFor(w, h, cam, aim.zoom);
+      expect(panFade(frame)).toBe(0);
+      // There, the top bar at either end of its sway and the slider as far as Normal shows it fit...
+      const t = top(g);
+      const reach = swayReach(g, g.blocks.length - 1);
+      const c = t.x + t.w / 2;
+      expect(inView(frame, 0, t.x - reach, t.x + t.w + reach)).toBe(true);
+      expect(inView(frame, 0, c - SLIDE_RANGE - t.w / 3, c + SLIDE_RANGE + t.w / 3)).toBe(true);
+      // ...only just: a hair further in they wouldn't.
+      expect(inView(frameFor(w, h, cam, aim.zoom + 0.003), 0, c - SLIDE_RANGE - t.w / 3, c + SLIDE_RANGE + t.w / 3)).toBe(false);
+      // Already out there, it stays.
+      expect(zoomTarget(g, w, h, cam, aim.zoom).zoom).toBeCloseTo(aim.zoom, 3);
+    }
+    // A lean too far for any zoom: it goes no further out than ZOOM_MIN.
+    const far = leaning(2, 14, 0.95);
+    expect(zoomTarget(far, w, h, restingCamera(far), 1)).toEqual({ zoom: ZOOM_MIN, urgent: true });
+  });
+
+  it("eases out briskly, holds, then eases back in gently, never overshooting or jolting", () => {
+    const z = newZoom();
+    const seen: number[] = [1];
+    const out = { zoom: ZOOM_MIN, urgent: true };
+    for (let t = 0; t < 2; t += DT) {
+      stepZoom(z, out, DT);
+      seen.push(z.zoom);
+    }
+    // It arrives (no endless creep).
+    expect(z.zoom).toBe(ZOOM_MIN);
+    // More than half the way out within a quarter second.
+    expect(seen[Math.round(0.25 / DT)]! - ZOOM_MIN).toBeLessThan(0.5 * (1 - ZOOM_MIN));
+    const settled = seen.length;
+    // Room again: it holds for ZOOM_HOLD seconds, then eases all the way back in.
+    const back = { zoom: 1, urgent: false };
+    for (let t = 0; t < ZOOM_HOLD + 5; t += DT) {
+      stepZoom(z, back, DT);
+      seen.push(z.zoom);
+    }
+    expect(seen[settled + Math.floor(ZOOM_HOLD / DT) - 2]).toBe(ZOOM_MIN);
+    expect(seen[seen.length - 1]).toBe(1);
+    const steps = seen.slice(1).map((v, i) => v - seen[i]!);
+    expect(Math.min(...seen)).toBe(ZOOM_MIN);
+    // Even this whole swing (more than a drop ever asks for at once) moves it by at most 2% a frame.
+    expect(Math.max(...steps.map(Math.abs))).toBeLessThan(0.021);
+    // Starts and stops without a jolt: the speed changes a little from frame to frame.
+    const accel = steps.slice(1).map((v, i) => Math.abs(v - steps[i]!));
+    expect(Math.max(...accel)).toBeLessThan(0.006);
+  });
+
+  it.each(PHONES)("keeps the top bar and the slider on screen through seeded human runs, easing smoothly, at %ix%i", (w, h) => {
+    // Good players of several skills (src/testing/hard-bots), frame by frame as main.ts feeds the view.
+    let frames = 0;
+    let topOut = 0;
+    let worstTop = 0;
+    let sliderOut = 0;
+    let worstSlider = 0;
+    let zoomed = 0;
+    let least = 1;
+    let maxStep = 0;
+    let maxAccel = 0;
+    let maxPan = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const g = newGame("hard");
+      const view = newView();
+      view.screen = { w, h };
+      const player = humanPlayer(mulberry32(seed), { noiseMs: 15 + (seed % 4) * 15 });
+      let lastZ = 1;
+      let lastStep = 0;
+      let dropped = 0;
+      let lastPan = NaN;
+      for (let t = 0; g.phase === "playing" && t < 600; t += FRAME) {
+        if (player(g, t)) {
+          dropped = t;
+          const r = drop(g);
+          if (r?.kind === "toppled") addTopple(view, g, r.tip);
+        }
+        step(g, FRAME);
+        updateView(view, g, FRAME);
+        const z = towerZoom(view, g);
+        expect(z).toBeGreaterThanOrEqual(ZOOM_MIN);
+        expect(z).toBeLessThanOrEqual(1);
+        maxStep = Math.max(maxStep, Math.abs(z - lastZ));
+        maxAccel = Math.max(maxAccel, Math.abs(z - lastZ - lastStep));
+        lastStep = z - lastZ;
+        lastZ = z;
+        if (g.phase !== "playing") break;
+        frames++;
+        if (z < 0.99) zoomed++;
+        least = Math.min(least, z);
+        const o = outside(g, view, w, h);
+        if (o.top > 1) topOut++;
+        worstTop = Math.max(worstTop, o.top);
+        if (!Number.isNaN(lastPan)) maxPan = Math.max(maxPan, Math.abs(o.pan - lastPan));
+        lastPan = o.pan;
+        // The slider shows as much as Normal does at the ends of its run (5/6), once the new one has
+        // left the far end of a run that the drop just moved (it is quick: within a tenth of a second).
+        if (t - dropped > 0.1 && o.slider > o.sliderW / 6 + 1) sliderOut++;
+        worstSlider = Math.max(worstSlider, o.slider / o.sliderW);
+      }
+      // Once the run is over the zoom only settles where it was heading.
+      const goal = view.zoom.goal;
+      let was = view.zoom.zoom;
+      for (let t = 0; t < 4; t += FRAME) {
+        updateView(view, g, FRAME);
+        expect(Math.abs(view.zoom.zoom - goal)).toBeLessThanOrEqual(Math.abs(was - goal));
+        was = view.zoom.zoom;
+      }
+      expect([view.zoom.zoom, view.zoom.goal]).toEqual([goal, goal]);
+    }
+    // It did zoom, often and far.
+    expect(zoomed / frames).toBeGreaterThan(0.3);
+    expect(least).toBeLessThan(0.7);
+    // The top bar leaves the screen (by more than a pixel) in well under a frame in a thousand, and
+    // never far: a lean too wide for the most zoomed-out view while the base still shows, or the
+    // camera catching up for a moment after a drop landed near the edge.
+    expect(topOut / frames).toBeLessThan(0.001);
+    expect(worstTop).toBeLessThan(25);
+    // The slider likewise. (Fresh at the far end of a run that a drop just moved, it can start a
+    // little over half off screen for a few frames while the camera catches up.)
+    expect(sliderOut / frames).toBeLessThan(0.001);
+    expect(worstSlider).toBeLessThan(0.65);
+    // Eased: the zoom changes by at most ~1-2% a frame, and its speed changes gently.
+    expect(maxStep).toBeLessThan(0.02);
+    expect(maxAccel).toBeLessThan(0.008);
+    // The tower layer slides sideways no faster than the pan catches up after a drop (about 10 px a
+    // frame at most), even while a zoom sweeps the base past the bottom edge and the pan fades in.
+    expect(maxPan).toBeLessThan(12);
+  });
+
+  it.each(PHONES)("eases back in once the pan can take over: a lean low down, then straight up past the base, at %ix%i", (w, h) => {
+    const g = newGame("hard");
+    const view = newView();
+    view.screen = { w, h };
+    let topOut = 0;
+    const settle = (seconds: number) =>
+      run(g, view, seconds, () => {
+        topOut = Math.max(topOut, outside(g, view, w, h).top);
+      });
+    for (let i = 0; i < 4; i++) {
+      dropAt(g, view, 0);
+      settle(0.5);
+    }
+    // Six bars stepping right (about 25 units in all, which a straight tower above can carry).
+    for (let i = 0; i < 6; i++) {
+      dropAt(g, view, (0.34 * 30) / (6 - i));
+      settle(0.9);
+    }
+    const leaned = view.zoom.zoom;
+    expect(leaned).toBeLessThan(0.85);
+    // Perfect drops straight up until the base is long gone.
+    for (let i = 0; i < 30; i++) {
+      dropAt(g, view, 0);
+      settle(0.6);
+    }
+    expect(g.phase).toBe("playing");
+    settle(3);
+    const frame = frameFor(w, h, view.cameraY, view.zoom.zoom);
+    expect(panFade(frame)).toBe(1);
+    expect(view.zoom.zoom).toBeGreaterThan(0.97);
+    expect(towerPan(view, g, frame)).toBeGreaterThan(15);
+    expect(topOut).toBeLessThan(1);
+  });
+
+  it("draws the world and the tower zoomed, and the HUD and the PERFECT pop at the screen's own size", () => {
+    const g = leaning(6, 4, 0.5);
+    const view = newView();
+    view.cameraY = restingCamera(g);
+    addFlash(view, g.blocks.length - 1, 1);
+    view.pops[0]!.age = 0.3; // bounced in
+    const seen = (zoom: number) => {
+      view.zoom = { ...newZoom(), zoom, goal: zoom };
+      const canvas = createCanvas(375, 667);
+      const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+      let scene: Scene | undefined;
+      let worldScale = NaN;
+      const base = SKINS[0]!;
+      const spy = {
+        ...base,
+        ground(c: CanvasRenderingContext2D, s: Scene) {
+          scene = s;
+          worldScale = c.getTransform().a;
+        },
+      } as Skin;
+      const texts = new Map<string, { scale: number; font: string }>();
+      /** Where each text is drawn across the screen, px. */
+      const at = new Map<string, number>();
+      const fill = ctx.fillText.bind(ctx);
+      ctx.fillText = (t: string, x: number, y: number) => {
+        texts.set(t, { scale: ctx.getTransform().a, font: ctx.font });
+        at.set(t, ctx.getTransform().e + x);
+        fill(t, x, y);
+      };
+      render(ctx, 375, 667, g, view, 0, spy);
+      return { scene: scene!, worldScale, texts, at };
+    };
+    const one = seen(1);
+    const out = seen(ZOOM_MIN);
+    expect(one.worldScale).toBe(1);
+    expect(out.worldScale).toBeCloseTo(ZOOM_MIN, 6);
+    expect(out.scene.cssW).toBeCloseTo(375 / ZOOM_MIN, 9);
+    expect(out.scene.cssH).toBeCloseTo(667 / ZOOM_MIN, 9);
+    expect([out.scene.u, out.scene.scale]).toEqual([one.scene.u, one.scene.scale]);
+    for (const t of [String(g.score), "PERFECT"]) {
+      expect(out.texts.get(t)).toEqual(one.texts.get(t));
+      expect(out.texts.get(t)!.scale).toBe(1);
+    }
+    // The pop rides its bar where the zoom draws it: over the bar's center on the screen.
+    const level = g.blocks.length - 1;
+    const b = g.blocks[level]!;
+    for (const [zoom, drawn] of [
+      [1, one],
+      [ZOOM_MIN, out],
+    ] as const) {
+      const f = frameFor(375, 667, view.cameraY, zoom);
+      const center = (f.offsetX + (b.x + b.w / 2 + swayOffset(g, level)) * f.scale) * zoom;
+      expect(drawn.at.get("PERFECT")).toBeCloseTo(center, 6);
+    }
+    expect(Math.abs(out.at.get("PERFECT")! - one.at.get("PERFECT")!)).toBeGreaterThan(10);
+  });
+
+  it("a straight tower never zooms, whatever the phone's width (rounding in the view's width is no spill)", () => {
+    const g = newGame("hard");
+    for (let w = 300; w <= 500; w++) {
+      for (const h of [568, 667, 844, 932]) {
+        if (w > h * 0.6) continue;
+        expect(zoomTarget(g, w, h, restingCamera(g), 1)).toEqual({ zoom: 1, urgent: false });
+      }
+    }
+  });
+
+  it("lets falling bars go only once they are below the zoomed-out screen's bottom edge", () => {
+    // A tower over at full zoom-out on a tall phone: the screen reaches further below the camera
+    // than at zoom 1, and the bars falling off the top must fall all the way out of it.
+    const [w, h] = PHONES[1];
+    const g = leaning(30, 0, 0);
+    g.phase = "over";
+    const view = newView();
+    view.screen = { w, h };
+    view.cameraY = restingCamera(g);
+    view.zoom = { ...newZoom(), zoom: ZOOM_MIN, goal: ZOOM_MIN };
+    for (let i = 0; i < 6; i++) addFalling(view, { x: 20 + 4 * i, w: 60 }, 30 - i, MID);
+    let gone = 0;
+    for (let t = 0; t < 8 && view.falling.length > 0; t += DT) {
+      const frame = frameFor(w, h, view.cameraY, towerZoom(view, g));
+      const before = view.falling;
+      updateView(view, g, DT);
+      for (const f of before) {
+        if (view.falling.includes(f)) continue;
+        gone++;
+        // Its center was below the bottom edge by more than it can reach at any angle.
+        expect(f.y + BLOCK_HEIGHT / 2 + f.w / 2 + BLOCK_HEIGHT).toBeLessThan(frame.bottom);
+      }
+    }
+    expect(gone).toBe(6);
+  });
+
+  it("Normal never zooms: the view's zoom stays 1, and whatever it says, nothing is drawn differently", () => {
+    const g = newGame();
+    const view = newView();
+    view.screen = { w: 375, h: 667 };
+    for (let i = 0; i < 40; i++) {
+      dropAt(g, view, [0, 12, -15, 9][i % 4]!);
+      run(g, view, 0.3, () => expect(view.zoom.zoom).toBe(1));
+    }
+    expect(towerZoom({ ...view, zoom: { ...newZoom(), zoom: 0.6 } }, g)).toBe(1);
+    const still = leaning(30, 0, 0);
+    still.mode = "normal";
+    const v = newView();
+    v.cameraY = restingCamera(still);
+    expect(pixels(still, { ...v, zoom: { ...newZoom(), zoom: 0.6 } })).toEqual(pixels(still, v));
+  });
 });

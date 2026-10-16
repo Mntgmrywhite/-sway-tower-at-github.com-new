@@ -40,6 +40,10 @@ function swatch(skin: Skin): HTMLElement {
 
 export interface Options {
   isOpen(): boolean;
+  /** Open the sheet (the title screen's Skins button); the focus goes back to `from` on close. */
+  open(from?: HTMLElement): void;
+  /** Show or hide the Options button (the title screen has its own). */
+  showButton(show: boolean): void;
 }
 
 /** The current mode, and switching it (which starts a fresh run). */
@@ -48,7 +52,8 @@ export interface ModeControl {
   setMode(mode: Mode): void;
 }
 
-export function createOptions(modes: ModeControl): Options {
+/** `onClose` runs when the sheet closes (the title screen re-reads the mode and the sound). */
+export function createOptions(modes: ModeControl, onClose?: () => void): Options {
   const button = document.createElement("button");
   button.id = "options-toggle";
   button.type = "button";
@@ -160,11 +165,19 @@ export function createOptions(modes: ModeControl): Options {
     for (const sw of switches) sw.el.setAttribute("aria-checked", String(sw.on()));
   };
 
+  /** Where the focus goes back to when the sheet closes. */
+  let opener: HTMLElement | null = null;
   const setOpen = (open: boolean) => {
+    if (open === !backdrop.hidden) return;
     if (open) refresh();
     backdrop.hidden = !open;
     button.setAttribute("aria-expanded", String(open));
     if (open) choices.find((c) => c.value === tuning.skin)?.el.focus();
+    else {
+      onClose?.();
+      opener?.focus({ preventScroll: true });
+      opener = null;
+    }
   };
 
   button.addEventListener("click", () => setOpen(backdrop.hidden !== false));
@@ -177,5 +190,14 @@ export function createOptions(modes: ModeControl): Options {
   });
 
   document.body.append(button, backdrop);
-  return { isOpen: () => backdrop.hidden === false };
+  return {
+    isOpen: () => backdrop.hidden === false,
+    open(from) {
+      opener = from ?? null;
+      setOpen(true);
+    },
+    showButton(show) {
+      button.hidden = !show;
+    },
+  };
 }

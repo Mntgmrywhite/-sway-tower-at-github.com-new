@@ -1,0 +1,269 @@
+/*
+ * The Achievements screen (src/achievements-sheet.ts), in the Options sheet's look: dark glass,
+ * rimmed in the skin's --accent (set on the page by main.ts). --hl (the skin's highlight),
+ * --display and --body come from the skin too. Medals are inline SVG (src/medals.ts).
+ * Also the NEW count on the title's Medals button.
+ */
+
+#achievements {
+  --hl: #ffe066;
+  --display: system-ui, sans-serif;
+  --body: system-ui, sans-serif;
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  background: rgba(4, 2, 10, 0.55);
+  touch-action: none;
+  animation: achievements-fade 0.2s ease-out;
+}
+
+#achievements[hidden] {
+  display: none;
+}
+
+@keyframes achievements-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes achievements-rise {
+  from {
+    transform: translateY(24px);
+  }
+}
+
+#achievements .sheet {
+  width: min(460px, 100vw);
+  max-height: 90dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 16px max(16px, env(safe-area-inset-left)) max(18px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
+  border-radius: 18px 18px 0 0;
+  background: rgba(10, 4, 22, 0.97);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-bottom: 0;
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+  color: #f3e9f5;
+  font: 15px/1.3 var(--body);
+  touch-action: pan-y;
+  animation: achievements-rise 0.22s ease-out;
+}
+
+#achievements .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#achievements h2 {
+  margin: 0;
+  font: 400 24px/1.1 var(--display);
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--hl) 70%, white);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+#achievements .close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#achievements .close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#achievements .count {
+  margin: 2px 0 12px;
+  color: rgba(243, 233, 245, 0.7);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Progress: best stack and best perfect streak, toward the next medal --- */
+
+#achievements .progress {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 8px;
+}
+
+/* Each tile's rows (label, value, bar, next) line up with the other's, even when a label wraps. */
+#achievements .tile {
+  grid-row: span 4;
+  display: grid;
+  grid-template-rows: subgrid;
+  align-items: end;
+  row-gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+#achievements .tile .label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(243, 233, 245, 0.7);
+}
+
+#achievements .tile .value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--hl);
+}
+
+#achievements .bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+#achievements .bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--hl);
+}
+
+#achievements .tile .next {
+  align-self: start;
+  font-size: 12px;
+  color: rgba(243, 233, 245, 0.7);
+}
+
+#achievements .tile[data-done="true"] .next {
+  color: var(--hl);
+}
+
+/* --- The medals: five to a row, earned in their metal, locked as outlines --- */
+
+#achievements h3 {
+  display: flex;
+  justify-content: space-between;
+  margin: 18px 0 8px;
+  font: 600 12px/1 var(--body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(243, 233, 245, 0.7);
+}
+
+#achievements h3 .of {
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+#achievements .medals {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#achievements .medals li {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+#achievements .medal {
+  display: block;
+  width: min(54px, 100%);
+  height: auto;
+  font-family: var(--body);
+}
+
+#achievements .tag {
+  min-height: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+  color: rgba(243, 233, 245, 0.62);
+}
+
+#achievements .tag[data-mode="hard"] {
+  color: var(--hl);
+}
+
+#achievements .badge {
+  position: absolute;
+  top: -2px;
+  right: 0;
+  padding: 1px 5px;
+  border: 1.5px solid #000000;
+  border-radius: 8px;
+  background: var(--hl);
+  color: #000000;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+  text-transform: uppercase;
+}
+
+#achievements .new .medal {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--hl) 70%, transparent));
+}
+
+#achievements .sr-only,
+.achievements-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- The title's Medals button: how many medals are NEW --- */
+
+#title-achievements {
+  position: relative;
+}
+
+#title-achievements[data-new]::after {
+  content: attr(data-new);
+  position: absolute;
+  top: calc(var(--u, 390px) * -0.018);
+  right: calc(var(--u, 390px) * -0.018);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border: 2px solid #000000;
+  border-radius: 10px;
+  background: var(--hl);
+  color: #000000;
+  font: 700 12px/16px var(--body);
+  text-align: center;
+  text-shadow: none;
+  -webkit-text-stroke: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #achievements,
+  #achievements .sheet {
+    animation: none;
+  }
+}

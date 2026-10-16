@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chimeStep, dropSounds } from "./sounds";
+import { chimeStep, dropSounds, unlockSounds } from "./sounds";
 
 describe("drop sounds", () => {
   it("a perfect lands softly and rings a chime that climbs with the streak", () => {
@@ -25,5 +25,21 @@ describe("drop sounds", () => {
 
   it("a miss just misses", () => {
     expect(dropSounds({ kind: "miss", cut: { x: 0, w: 60 } }, 0)).toEqual([{ sound: "miss" }]);
+  });
+});
+
+describe("medal unlock sound", () => {
+  it("rolls three soft notes up a major chord, after the drop's own sounds", () => {
+    const cues = unlockSounds();
+    expect(cues.map((c) => c.semitones)).toEqual([7, 12, 16]);
+    const delays = cues.map((c) => c.delay!);
+    expect(delays[0]).toBeGreaterThan(0.15);
+    expect(delays).toEqual([...delays].sort((a, b) => a - b));
+  });
+
+  it("is quieter than the perfect chime and unlike it (a chord, not one note)", () => {
+    const perfect = dropSounds({ kind: "perfect", placed: { x: 0, w: 60 }, regained: 0 }, 1).find((c) => c.sound === "chime")!;
+    for (const c of unlockSounds()) expect(c.gain!).toBeLessThan(perfect.gain ?? 1);
+    expect(new Set(unlockSounds().map((c) => c.semitones)).size).toBe(3);
   });
 });

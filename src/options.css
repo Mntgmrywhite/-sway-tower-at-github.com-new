@@ -16,6 +16,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Hidden on the title screen, which has its own Skins button. */
+#options-toggle[hidden] {
+  display: none;
+}
+
 #options-toggle:focus-visible,
 #options .choice:focus-visible,
 #options .close:focus-visible {

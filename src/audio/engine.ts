@@ -54,6 +54,12 @@ const RECHECK_MS = 100;
 /** Every song name that has rendered music. */
 export const SONGS = Object.keys(MUSIC).map((p) => p.replace(/^.*\/|\.mp4$/g, ""));
 
+/** The song that plays for `name`: its own when it has rendered music, else `fallback`, else Classic. */
+export function pickSong(name: string, fallback = "classic", songs: readonly string[] = SONGS): string {
+  if (songs.includes(name)) return name;
+  return songs.includes(fallback) ? fallback : "classic";
+}
+
 function bytes(dataUrl: string): ArrayBuffer {
   const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
   const bin = atob(b64);
@@ -287,9 +293,12 @@ class GameAudio {
     return p;
   }
 
-  /** Play this song (crossfading from the current one). Falls back to "classic" if it has no music yet. */
-  setMusic(name: string): void {
-    const song = MUSIC[`./music/${name}.mp4`] ? name : "classic";
+  /**
+   * Play this song (crossfading from the current one). A song with no music yet plays `fallback`
+   * instead, or Classic if that has none either (pickSong).
+   */
+  setMusic(name: string, fallback = "classic"): void {
+    const song = pickSong(name, fallback);
     if (song === this.wanted) return;
     this.wanted = song;
     this.sync();

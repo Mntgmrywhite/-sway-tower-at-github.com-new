@@ -8,6 +8,8 @@ export interface SoundCue {
   /** Pitch shift in semitones. */
   semitones?: number;
   gain?: number;
+  /** Seconds to wait before playing (main.ts schedules it). */
+  delay?: number;
 }
 
 /** Major-scale steps for the perfect chime: each perfect in a streak climbs one note. */
@@ -35,4 +37,24 @@ export function dropSounds(r: DropResult, streak: number): SoundCue[] {
     case "miss":
       return [{ sound: "miss" }];
   }
+}
+
+/**
+ * A medal earned: three soft glockenspiel notes rolled up a major chord (G, C, E above the
+ * chime's home note), a beat after the drop's own sounds so it never masks the perfect chime.
+ * A quick rising arpeggio, where a perfect is one note: distinct, and quieter.
+ */
+export const UNLOCK_NOTES = [7, 12, 16];
+/** When the first unlock note plays after the drop, and the gap between notes (seconds). */
+const UNLOCK_AFTER = 0.22;
+const UNLOCK_GAP = 0.07;
+const UNLOCK_GAIN = 0.32;
+
+export function unlockSounds(): SoundCue[] {
+  return UNLOCK_NOTES.map((semitones, i) => ({
+    sound: "chime",
+    semitones,
+    gain: UNLOCK_GAIN,
+    delay: UNLOCK_AFTER + i * UNLOCK_GAP,
+  }));
 }

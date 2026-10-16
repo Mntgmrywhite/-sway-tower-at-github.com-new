@@ -1,0 +1,308 @@
+/*
+ * The title screen and the game-over Menu button (src/title.ts). Sizes follow render.ts's unit
+ * --u (the portrait play area's width) so the overlay scales with the logo drawn on the canvas.
+ * Colors and faces come from the skin's HUD (set by title.ts): --ui (card color), --title (logo),
+ * --hl (highlight: PERFECT, the chosen mode, PLAY), --display and --body.
+ * data-style="cartoon": flat fills, ink outline, light top, shaded bottom, like the bars.
+ * data-style="neon": dark glass and glowing rims, like the Options sheet.
+ */
+
+#title,
+#over-menu {
+  --u: min(100vw, 60dvh);
+  --top: calc(14dvh + var(--u) * 0.05);
+  --menu-top: calc(42dvh + var(--u) * 0.47);
+  --ui: #2f58c8;
+  --title: #ffd447;
+  --hl: #ffe066;
+  --display: system-ui, sans-serif;
+  --body: system-ui, sans-serif;
+  --ink: #000000;
+  --line: max(2px, calc(var(--u) * 0.008));
+  font-family: var(--body);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#title {
+  position: fixed;
+  inset: 0;
+  /* The scene shows through; only the controls take taps. */
+  pointer-events: none;
+  animation: title-in 0.25s ease-out;
+}
+
+#title[hidden],
+#over-menu[hidden] {
+  display: none;
+}
+
+@keyframes title-in {
+  from {
+    opacity: 0;
+  }
+}
+
+#title .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+#title .column {
+  position: absolute;
+  top: var(--top);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(var(--u) * 0.84), calc(100vw - 32px));
+  display: grid;
+  justify-items: center;
+  gap: calc(var(--u) * 0.045);
+}
+
+#title button {
+  font: inherit;
+}
+
+#title button,
+#over-menu {
+  pointer-events: auto;
+  margin: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#title button:focus-visible,
+#over-menu:focus-visible {
+  outline: 3px solid var(--hl);
+  outline-offset: 3px;
+}
+
+/* --- Mode: Normal and Hard side by side, each with its best --- */
+
+#title .modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 0.03);
+  width: 100%;
+}
+
+#title .mode {
+  position: relative;
+  display: grid;
+  place-content: center;
+  gap: calc(var(--u) * 0.006);
+  min-height: max(48px, calc(var(--u) * 0.14));
+  padding: calc(var(--u) * 0.015) calc(var(--u) * 0.02);
+  border-radius: calc(var(--u) * 0.035);
+  color: #ffffff;
+  text-align: center;
+  line-height: 1.1;
+}
+
+#title .mode strong {
+  font-size: max(15px, calc(var(--u) * 0.048));
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#title .mode .best {
+  font-size: max(12px, calc(var(--u) * 0.036));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- PLAY --- */
+
+#title .play {
+  width: min(calc(var(--u) * 0.62), 100%);
+  min-height: max(60px, calc(var(--u) * 0.19));
+  padding: 0 calc(var(--u) * 0.04) calc(var(--u) * 0.008);
+  border-radius: calc(var(--u) * 0.05);
+  font: 400 max(30px, calc(var(--u) * 0.1)) / 1 var(--display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* --- The small buttons: Skins, (Achievements), Sound; and the game-over Menu --- */
+
+#title .row {
+  display: flex;
+  justify-content: center;
+  gap: calc(var(--u) * 0.045);
+}
+
+#title .small,
+#over-menu {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: calc(var(--u) * 0.006);
+  width: max(60px, calc(var(--u) * 0.17));
+  min-height: max(56px, calc(var(--u) * 0.155));
+  padding: calc(var(--u) * 0.012) 0;
+  border-radius: calc(var(--u) * 0.035);
+  color: #ffffff;
+}
+
+#title .small svg,
+#over-menu svg {
+  width: max(22px, calc(var(--u) * 0.068));
+  height: max(22px, calc(var(--u) * 0.068));
+}
+
+#title .caption,
+#over-menu .caption {
+  font-size: max(11px, calc(var(--u) * 0.031));
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+#title-sound[aria-checked="true"] .off,
+#title-sound[aria-checked="false"] .on {
+  display: none;
+}
+
+#title-sound[aria-checked="false"] {
+  opacity: 0.8;
+}
+
+#over-menu {
+  position: fixed;
+  top: var(--menu-top);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 0;
+  animation: title-in 0.25s ease-out;
+}
+
+/* --- Cartoon: flat fills, ink outline, light top and shaded bottom; a press sinks the button --- */
+
+[data-style="cartoon"] .mode,
+[data-style="cartoon"] .small,
+#over-menu[data-style="cartoon"],
+[data-style="cartoon"] .play {
+  border: var(--line) solid var(--ink);
+  box-shadow:
+    inset 0 calc(var(--u) * 0.008) 0 rgba(255, 255, 255, 0.28),
+    inset 0 calc(var(--u) * -0.012) 0 rgba(0, 0, 0, 0.22),
+    0 calc(var(--u) * 0.012) 0 var(--ink);
+  text-shadow: 0 calc(var(--u) * 0.004) 0 rgba(0, 0, 0, 0.45);
+  transition: transform 0.06s, box-shadow 0.06s;
+}
+
+[data-style="cartoon"] .mode,
+[data-style="cartoon"] .small,
+#over-menu[data-style="cartoon"] {
+  background: var(--ui);
+}
+
+/* The mode not chosen sits back; the chosen one gets the highlight ring and a check. */
+[data-style="cartoon"] .mode[aria-checked="false"] {
+  background: color-mix(in srgb, var(--ui) 55%, #20202a);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+[data-style="cartoon"] .mode[aria-checked="true"] {
+  outline: calc(var(--line) * 1.4) solid var(--hl);
+  outline-offset: 0;
+}
+
+[data-style="cartoon"] .mode[aria-checked="true"]:focus-visible {
+  outline: 3px solid #ffffff;
+}
+
+[data-style="cartoon"] .play {
+  background: linear-gradient(color-mix(in srgb, var(--hl) 70%, white), var(--hl) 45%, color-mix(in srgb, var(--hl) 80%, #b05a00));
+  color: #ffffff;
+  -webkit-text-stroke: calc(var(--u) * 0.012) var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 0 calc(var(--u) * 0.008) 0 var(--ink);
+  box-shadow:
+    inset 0 calc(var(--u) * 0.01) 0 rgba(255, 255, 255, 0.45),
+    inset 0 calc(var(--u) * -0.016) 0 rgba(0, 0, 0, 0.18),
+    0 calc(var(--u) * 0.016) 0 var(--ink);
+}
+
+[data-style="cartoon"] button:active,
+#over-menu[data-style="cartoon"]:active {
+  transform: translateY(calc(var(--u) * 0.008));
+  box-shadow:
+    inset 0 calc(var(--u) * 0.008) 0 rgba(255, 255, 255, 0.28),
+    inset 0 calc(var(--u) * -0.012) 0 rgba(0, 0, 0, 0.22),
+    0 calc(var(--u) * 0.004) 0 var(--ink);
+}
+
+#over-menu[data-style="cartoon"]:active {
+  transform: translate(-50%, calc(var(--u) * 0.008));
+}
+
+/* --- Neon: dark glass, glowing rims (the Options sheet's look) --- */
+
+[data-style="neon"] .mode,
+[data-style="neon"] .small,
+#over-menu[data-style="neon"],
+[data-style="neon"] .play {
+  border: 1.5px solid color-mix(in srgb, var(--ui) 70%, transparent);
+  background: rgba(10, 4, 22, 0.82);
+  color: #f3e9f5;
+  box-shadow: 0 0 calc(var(--u) * 0.03) color-mix(in srgb, var(--ui) 45%, transparent);
+  text-shadow: 0 0 calc(var(--u) * 0.02) var(--ui);
+}
+
+[data-style="neon"] .mode[aria-checked="false"] {
+  color: rgba(243, 233, 245, 0.6);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: none;
+  text-shadow: none;
+}
+
+[data-style="neon"] .mode[aria-checked="true"] {
+  border-color: var(--hl);
+  background: color-mix(in srgb, var(--ui) 22%, rgba(10, 4, 22, 0.85));
+  box-shadow:
+    0 0 calc(var(--u) * 0.035) color-mix(in srgb, var(--hl) 50%, transparent),
+    inset 0 0 calc(var(--u) * 0.03) color-mix(in srgb, var(--hl) 25%, transparent);
+}
+
+[data-style="neon"] .mode .best {
+  color: var(--hl);
+}
+
+[data-style="neon"] .mode[aria-checked="false"] .best {
+  color: inherit;
+}
+
+[data-style="neon"] .play {
+  border: 2px solid var(--ui);
+  color: var(--title);
+  text-shadow:
+    0 0 calc(var(--u) * 0.015) var(--ui),
+    0 0 calc(var(--u) * 0.04) var(--ui);
+  box-shadow:
+    0 0 calc(var(--u) * 0.045) color-mix(in srgb, var(--ui) 70%, transparent),
+    inset 0 0 calc(var(--u) * 0.04) color-mix(in srgb, var(--ui) 45%, transparent);
+}
+
+[data-style="neon"] button:active,
+#over-menu[data-style="neon"]:active {
+  background: color-mix(in srgb, var(--ui) 30%, rgba(10, 4, 22, 0.9));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #title,
+  #over-menu {
+    animation: none;
+  }
+
+  [data-style="cartoon"] button,
+  #over-menu {
+    transition: none;
+  }
+}
