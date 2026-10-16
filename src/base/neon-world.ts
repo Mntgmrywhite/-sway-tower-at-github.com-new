@@ -203,13 +203,35 @@ export function drawNeonForeground(ctx: Ctx, s: Scene, skin: NeonSkin): void {
 }
 
 /** Scanlines and a vignette over the whole scene (under the HUD). */
-export function drawNeonPost(ctx: Ctx, s: Scene): void {
+/** Scanlines and a vignette over the whole screen. */
+function paintPost(ctx: Ctx | OffscreenCanvasRenderingContext2D, w: number, h: number): void {
   ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
-  for (let y = 0; y < s.cssH; y += 3) ctx.fillRect(0, y, s.cssW, 1);
-  const r = Math.hypot(s.cssW, s.cssH) / 2;
-  const v = ctx.createRadialGradient(s.cssW / 2, s.cssH / 2, r * 0.45, s.cssW / 2, s.cssH / 2, r);
+  for (let y = 0; y < h; y += 3) ctx.fillRect(0, y, w, 1);
+  const r = Math.hypot(w, h) / 2;
+  const v = ctx.createRadialGradient(w / 2, h / 2, r * 0.45, w / 2, h / 2, r);
   v.addColorStop(0, "rgba(0, 0, 0, 0)");
   v.addColorStop(1, "rgba(0, 0, 0, 0.45)");
   ctx.fillStyle = v;
-  ctx.fillRect(0, 0, s.cssW, s.cssH);
+  ctx.fillRect(0, 0, w, h);
+}
+
+/** The post pass only changes with the screen size, so the browser paints it once per size. */
+let postCache: { key: string; image: OffscreenCanvas } | null = null;
+
+export function drawNeonPost(ctx: Ctx, s: Scene): void {
+  // Offline renders (npm run snap, tests) have no OffscreenCanvas: paint directly.
+  if (typeof OffscreenCanvas === "undefined") {
+    paintPost(ctx, s.cssW, s.cssH);
+    return;
+  }
+  const scale = ctx.getTransform().a;
+  const key = `${s.cssW}x${s.cssH}@${scale}`;
+  if (postCache?.key !== key) {
+    const image = new OffscreenCanvas(Math.max(1, Math.round(s.cssW * scale)), Math.max(1, Math.round(s.cssH * scale)));
+    const g = image.getContext("2d")!;
+    g.scale(scale, scale);
+    paintPost(g, s.cssW, s.cssH);
+    postCache = { key, image };
+  }
+  ctx.drawImage(postCache.image, 0, 0, s.cssW, s.cssH);
 }

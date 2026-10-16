@@ -82,8 +82,14 @@ let clock = 1;
 let cssW = 0;
 let cssH = 0;
 
+/**
+ * Canvas pixels per CSS pixel. Drawing cost grows with pixel count, and a 3x phone at 2x
+ * paints 2.25 times fewer pixels with barely visible softening in this flat cartoon style.
+ */
+const MAX_DPR = 2;
+
 function resize(): void {
-  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
   cssW = canvas!.clientWidth;
   cssH = canvas!.clientHeight;
   canvas!.width = Math.round(cssW * dpr);
