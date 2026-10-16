@@ -50,7 +50,7 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - Placed blocks never topple. Cut pieces fall visibly and tumble (cosmetic, renderer-only).
 - Kick damping is capped at critical (an overdamped spring settles slower, so higher "decay" past that would feel worse).
 - A perfect drop calms the tower: sway (base and kick) scales by `1 - perfectCalm * calm`, where `calm` eases to 1 for `CALM_TIME` then back to 0. Smooth, so no jumps. Shown with a seam flash and a gold tint on the block.
-- A perfect drop wins back the most recent slice (`lastCut`), on the side it was cut from, once per slice. Misses are not slices.
+- Every slice is pushed onto `cuts`; each perfect drop pops the newest and wins it back on the tower edge that receded, so a run of perfects rebuilds a sliver to the exact original bar. Misses are not slices.
 - A miss does not end the game: it costs one of `LIVES` (3); game over at 0.
 
 ## Build order

@@ -40,8 +40,8 @@ export interface GameState {
   streak: number;
   /** Total perfect drops this game. */
   perfects: number;
-  /** The most recent slice off the tower, which the next perfect drop wins back. */
-  lastCut: { w: number; side: -1 | 1 } | null;
+  /** Every slice taken off the tower, oldest first, by the edge that receded. Each perfect drop wins back the newest. */
+  cuts: { w: number; side: -1 | 1 }[];
   lives: number;
   /** Sway phase in radians; accumulated so changing the period mid-game doesn't jump. */
   swayAngle: number;
@@ -137,7 +137,7 @@ export function newGame(): GameState {
     score: 0,
     streak: 0,
     perfects: 0,
-    lastCut: null,
+    cuts: [],
     lives: LIVES,
     swayAngle: 0,
     kick: 0,
@@ -199,12 +199,12 @@ export function drop(state: GameState): DropResult | null {
   let result: DropResult;
   if (Math.abs(s.x - underX) <= PERFECT_TOLERANCE) {
     // Perfect: sits square on the block below, adds no sway, calms the tower,
-    // and wins back the most recent slice on the side it was cut from.
+    // and wins back the newest remaining slice on the edge that lost it. A run of
+    // perfects rebuilds the tower all the way back to its original bar.
     state.streak += 1;
     state.perfects += 1;
     state.calmTimer = CALM_TIME;
-    const back = state.lastCut;
-    state.lastCut = null;
+    const back = state.cuts.pop();
     const placed = back
       ? { x: back.side < 0 ? under.x - back.w : under.x, w: under.w + back.w }
       : { x: under.x, w: under.w };
@@ -213,7 +213,8 @@ export function drop(state: GameState): DropResult | null {
     const cutW = s.w - overlap;
     const cut = s.x < underX ? { x: s.x, w: cutW } : { x: right, w: cutW };
     state.streak = 0;
-    state.lastCut = { w: cutW, side: s.x < underX ? -1 : 1 };
+    // Record the edge of the tower that receded (opposite the overhang that fell).
+    state.cuts.push({ w: cutW, side: s.x < underX ? 1 : -1 });
     if (tuning.swayOn) addKick(state, cutW * tuning.kickPerUnit, s.x < underX ? -1 : 1);
     result = { kind: "sliced", placed: { x: left - newOffset, w: overlap }, cut };
   }

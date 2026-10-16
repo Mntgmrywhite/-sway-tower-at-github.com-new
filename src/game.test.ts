@@ -73,10 +73,10 @@ describe("drop", () => {
 });
 
 describe("perfect drops win back length", () => {
-  it("restores the most recent slice, on the side it was cut from", () => {
+  it("restores the most recent slice on the edge that lost it", () => {
     const g = newGame();
     const base = top(g);
-    aim(g, 10); // slice 10 off the right
+    aim(g, 10); // lands 10 right: the tower's left edge recedes by 10
     drop(g);
     expect(top(g).w).toBeCloseTo(base.w - 10);
     aim(g, 0);
@@ -84,30 +84,49 @@ describe("perfect drops win back length", () => {
     expect(r?.kind).toBe("perfect");
     if (r?.kind === "perfect") expect(r.regained).toBeCloseTo(10);
     expect(top(g).w).toBeCloseTo(base.w);
-    // Left edge stays put: the length came back on the right.
-    expect(top(g).x).toBeCloseTo(base.x + 10);
+    // Back on the left: the bar is exactly the original again.
+    expect(top(g).x).toBeCloseTo(base.x);
   });
 
-  it("left-side slices come back on the left", () => {
+  it("landing left loses the right edge, and gets it back there", () => {
     const g = newGame();
     const base = top(g);
     aim(g, -8);
     drop(g);
     aim(g, 0);
     drop(g);
-    expect(top(g).x).toBeCloseTo(base.x - 8);
+    expect(top(g).x).toBeCloseTo(base.x);
     expect(top(g).w).toBeCloseTo(base.w);
   });
 
-  it("only the most recent slice, and only once", () => {
+  it("each perfect wins back the next slice, newest first", () => {
     const g = newGame();
     const base = top(g);
     aim(g, 6);
     drop(g);
     aim(g, 4);
-    drop(g); // total lost 10, most recent 4
-    stack(g, 3);
+    drop(g); // lost 6 then 4
+    stack(g, 1);
     expect(top(g).w).toBeCloseTo(base.w - 6);
+    stack(g, 1);
+    expect(top(g).w).toBeCloseTo(base.w);
+    stack(g, 1); // nothing left to win back
+    expect(top(g).w).toBeCloseTo(base.w);
+  });
+
+  it("a run of perfects rebuilds a sliver to the full original bar", () => {
+    const g = newGame();
+    const base = top(g);
+    let slices = 0;
+    while (top(g).w > 4) {
+      aim(g, Math.min(5, top(g).w - 3));
+      drop(g);
+      slices++;
+    }
+    expect(slices).toBeGreaterThan(5);
+    stack(g, slices);
+    expect(top(g).w).toBeCloseTo(base.w);
+    expect(top(g).x).toBeCloseTo(base.x);
   });
 
   it("a miss is not a slice and gives nothing back", () => {
