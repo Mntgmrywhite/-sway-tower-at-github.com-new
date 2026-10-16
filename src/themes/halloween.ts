@@ -1,3 +1,4 @@
+import { ghouls, hauntedHouses, moons, mummies, spiders, tombstones, vampires, witches } from "./spooky-blocks";
 import { roundRectPath, type Scene, type Theme } from "./theme";
 
 // Palette
@@ -157,8 +158,21 @@ function skulls(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, 
   ctx.restore();
 }
 
-/** The stack cycles pumpkin → candy corn → bats → skulls. */
-const CYCLE: BlockDrawer[] = [pumpkin, candyCorn, bats, skulls];
+/** The stack cycles through these, ordered so neighbors contrast in color. */
+const CYCLE: BlockDrawer[] = [
+  pumpkin,
+  witches,
+  candyCorn,
+  ghouls,
+  bats,
+  tombstones,
+  mummies,
+  moons,
+  skulls,
+  vampires,
+  spiders,
+  hauntedHouses,
+];
 
 // Fixed star field, as fractions of the screen.
 const STARS = Array.from({ length: 45 }, (_, i) => {
