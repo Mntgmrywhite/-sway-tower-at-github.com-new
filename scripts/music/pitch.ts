@@ -125,14 +125,19 @@ const HEARD_HOP = 0.05;
  * part, not by a late, quiet sustain. NaN if the partial never stands out.
  */
 export function centsHeard(x: Float32Array, rate: number, note: number, partial = 1): number {
-  const hz = 440 * 2 ** ((note - 69) / 12) * partial;
-  const lo = Math.max(1, Math.floor((hz * 2 ** (-80 / 1200) * HEARD_N) / rate));
-  const hi = Math.min(HEARD_N / 2 - 2, Math.ceil((hz * 2 ** (80 / 1200) * HEARD_N) / rate));
-  if (hi - lo < 2) return NaN;
+  return centsHeardPartials(x, rate, note, [partial])[0]!;
+}
+
+/** centsHeard for several partials at once (one FFT per frame for all of them). */
+export function centsHeardPartials(x: Float32Array, rate: number, note: number, partials: number[]): number[] {
+  const bands = partials.map((partial) => {
+    const hz = 440 * 2 ** ((note - 69) / 12) * partial;
+    const lo = Math.max(1, Math.floor((hz * 2 ** (-80 / 1200) * HEARD_N) / rate));
+    const hi = Math.min(HEARD_N / 2 - 2, Math.ceil((hz * 2 ** (80 / 1200) * HEARD_N) / rate));
+    return { partial, lo, hi, sum: 0, weight: 0 };
+  });
   const re = new Float64Array(HEARD_N);
   const im = new Float64Array(HEARD_N);
-  let sum = 0;
-  let weight = 0;
   for (let start = 0; start + HEARD_N <= x.length && start <= rate * HEARD_SPAN; start += Math.round(rate * HEARD_HOP)) {
     let energy = 0;
     for (let i = 0; i < HEARD_N; i++) {
@@ -143,18 +148,22 @@ export function centsHeard(x: Float32Array, rate: number, note: number, partial 
     }
     fft(re, im);
     const mag = (k: number) => Math.log(1e-9 + Math.hypot(re[k]!, im[k]!));
-    let p = lo;
-    for (let k = lo; k <= hi; k++) if (mag(k) > mag(p)) p = k;
-    if (p === lo || p === hi) continue;
-    const a = mag(p - 1);
-    const b = mag(p);
-    const c = mag(p + 1);
-    const denom = a - 2 * b + c;
-    const shift = denom < 0 ? (0.5 * (a - c)) / denom : 0;
-    sum += energy * centsFrom(((p + shift) * rate) / HEARD_N / partial, note);
-    weight += energy;
+    for (const band of bands) {
+      const { lo, hi } = band;
+      if (hi - lo < 2) continue;
+      let p = lo;
+      for (let k = lo; k <= hi; k++) if (mag(k) > mag(p)) p = k;
+      if (p === lo || p === hi) continue;
+      const a = mag(p - 1);
+      const b = mag(p);
+      const c = mag(p + 1);
+      const denom = a - 2 * b + c;
+      const shift = denom < 0 ? (0.5 * (a - c)) / denom : 0;
+      band.sum += energy * centsFrom(((p + shift) * rate) / HEARD_N / band.partial, note);
+      band.weight += energy;
+    }
   }
-  return weight > 0 ? sum / weight : NaN;
+  return bands.map((b) => (b.weight > 0 ? b.sum / b.weight : NaN));
 }
 
 /** Cents from the equal-tempered pitch of MIDI note `note` (A4 = 440). */

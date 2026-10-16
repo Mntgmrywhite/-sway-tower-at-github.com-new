@@ -98,10 +98,26 @@ function ringLimits(events: NoteEvent[], loopSeconds: number, track: Track): voi
   }
 }
 
+/** The notes of track `ti` as the renderer plays them: swung, humanized, in seconds, with ring limits. */
+export function trackEvents(song: Song, ti: number): NoteEvent[] {
+  const track = song.tracks[ti]!;
+  const beat = 60 / song.bpm;
+  const h = track.humanize ?? 0.3;
+  const events: NoteEvent[] = track.notes.map((n, ni) => {
+    let t = n.t;
+    // Swing: push offbeat eighths later.
+    if (song.swing && Math.abs((t % 1) - 0.5) < 1e-6) t += song.swing * 0.5;
+    const jitter = (rand(ti * 1000 + ni) - 0.5) * 0.012 * h;
+    const vel = Math.min(1, Math.max(0.05, (n.v ?? 0.7) + (rand(ti * 2000 + ni) - 0.5) * 0.12 * h));
+    return { time: Math.max(0, t * beat + jitter), dur: n.d * beat, note: typeof n.n === "number" ? n.n : midi(n.n), vel };
+  });
+  if (track.choke || track.ring !== undefined) ringLimits(events, loopFrames(song) / RATE, track);
+  return events;
+}
+
 /** Render one seamless loop of the song (before mastering). */
 export function renderLoop(song: Song): Audio {
   const frames = loopFrames(song);
-  const beat = 60 / song.bpm;
   const dryL = new Float32Array(frames);
   const dryR = new Float32Array(frames);
   const sendL = new Float32Array(frames);
@@ -110,16 +126,7 @@ export function renderLoop(song: Song): Audio {
   for (const track of song.tracks) instrument(track.inst).resetRoundRobin();
   song.tracks.forEach((track, ti) => {
     const inst = instrument(track.inst);
-    const h = track.humanize ?? 0.3;
-    const events: NoteEvent[] = track.notes.map((n, ni) => {
-      let t = n.t;
-      // Swing: push offbeat eighths later.
-      if (song.swing && Math.abs((t % 1) - 0.5) < 1e-6) t += song.swing * 0.5;
-      const jitter = (rand(ti * 1000 + ni) - 0.5) * 0.012 * h;
-      const vel = Math.min(1, Math.max(0.05, (n.v ?? 0.7) + (rand(ti * 2000 + ni) - 0.5) * 0.12 * h));
-      return { time: Math.max(0, t * beat + jitter), dur: n.d * beat, note: typeof n.n === "number" ? n.n : midi(n.n), vel };
-    });
-    if (track.choke || track.ring !== undefined) ringLimits(events, frames / RATE, track);
+    const events = trackEvents(song, ti);
     const tL = new Float32Array(frames);
     const tR = new Float32Array(frames);
     renderNotes(inst, events, tL, tR, RATE, track.gain ?? 1, track.pan ?? 0);

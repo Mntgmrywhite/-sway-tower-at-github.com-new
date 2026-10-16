@@ -256,28 +256,11 @@ for (const line of [trumpetC2, tuttiSoprano, tuttiTenor]) push(line, bar(57));
 // Velocity only picks the take and shapes the accents (soft takes stay well under 0.5, the layer
 // split, even after humanizing); the build through the form is done in gain (see the tracks).
 const SOFT_FROM = midi("Bb4");
-/**
- * Song-local tuning of the lead (cents). The harmon-mute set is the one lead recording that
- * instruments.ts does not auto-tune, so each take is corrected here, from measuring every rendered
- * lead note as heard (scripts/music/pitch.ts centsHeard, the median of its partials). The soft
- * Bb4 take (played for Bb4–C5) starts with a lip scoop from -24 cents that settles after ~150 ms,
- * so the shorter the note, the flatter it sounds: -15 for a pickup clipped by a push, -9 for a
- * quarter, -4 for a held note. The soft D5 take (D5, Eb5) sits 5 flat, the soft F5 take (F5, G5)
- * 5 sharp, the loud Bb3 6 flat and the loud C4 4 sharp; the other takes measure within 3.
- */
-function leadCents(m: number, beats: number): number {
-  if (m >= midi("F5")) return -5;
-  if (m >= midi("D5")) return 5;
-  if (m >= SOFT_FROM) return beats < 0.6 ? 14 : beats < 1.5 ? 9 : 4;
-  if (m === midi("C4")) return -4;
-  if (m === midi("Bb3")) return 6;
-  return 0;
-}
 const lead: Note[] = [...trumpetC1, ...trumpetC2].map((n) => {
   const a = n.v ?? 0;
   const m = num(n.n);
   const v = m >= SOFT_FROM ? Math.min(0.46, 0.34 + a * 0.4) : 0.6 + a * 0.75;
-  return { ...n, n: m + leadCents(m, n.d) / 100, v };
+  return { ...n, n: m, v };
 });
 /**
  * Gain per recording (dB) so the line is even, with a natural gentle rise to the top: the
@@ -457,9 +440,6 @@ function oom(b: number): number {
   while (m < midi("Eb2")) m += 12;
   return m;
 }
-// The comping needs no song-local tuning: with the piano tuned as heard (instruments.ts), the soft
-// F#3 recording that plays F3 and G3 measures +0.5 to +2.4 cents in the short "pah" chords
-// (centsHeard, rendered solo), and every other comping note within 3.
 const piano: Note[] = [];
 for (let b = 1; b <= BARS; b++) {
   const kind = STRIDE[b - 1]!;
@@ -633,22 +613,7 @@ for (let b = 61; b <= 64; b++) {
 // (One recorded layer each, so velocity is level here: the soli leads, the ensemble's inner voices
 // sit under the trumpet but stay within ~10 dB of the mix through the countdown.)
 const sopranoLine = [...soliSoprano.map((n) => ({ ...n, v: 0.62 + (n.v ?? 0) })), ...tuttiSoprano.map((n) => ({ ...n, v: 0.58 + (n.v ?? 0) }))];
-/**
- * Song-local tuning of the tenor's short notes (cents). The tenor sax scoops up into its low notes;
- * auto-tuning centres each recording's first half second, so a quarter note, which ends inside the
- * scoop, sounds flat: Eb3 -11, G3 -8, Bb3 -7, G4 and Ab4 -4, and the G4 pickup a push clips -7
- * (centsHeard, every rendered note). Its held notes, and every other note, measure within 3.
- */
-const TENOR_SCOOP = new Map(Object.entries({ Eb3: 10, G3: 8, Bb3: 7, G4: 4, Ab4: 4 }).map(([k, c]) => [midi(k), c]));
-function tenorCents(m: number, beats: number): number {
-  if (beats >= 1.5) return 0;
-  const c = TENOR_SCOOP.get(m) ?? 0;
-  return beats < 0.6 ? c + 3 : c;
-}
-const tenorLine = [...soliTenor.map((n) => ({ ...n, v: 0.55 + (n.v ?? 0) })), ...tuttiTenor.map((n) => ({ ...n, v: 0.58 + (n.v ?? 0) }))].map((n) => ({
-  ...n,
-  n: num(n.n) + tenorCents(num(n.n), n.d) / 100,
-}));
+const tenorLine = [...soliTenor.map((n) => ({ ...n, v: 0.55 + (n.v ?? 0) })), ...tuttiTenor.map((n) => ({ ...n, v: 0.58 + (n.v ?? 0) }))];
 
 const song: Song = {
   name: "newyear",

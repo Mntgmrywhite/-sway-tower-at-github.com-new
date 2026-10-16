@@ -27,15 +27,12 @@
 // euphonium (trombone + tuba) has recordings up to F4, which is why it, not the horn, sings the
 // tune in the last phrase.
 //
-// Tuning is instruments.ts's: it tunes every recording by measurement. This file only raises the
-// horn's short notes, which are heard in their scoop (heardInTune), and the violins' layer-2 F4s
-// (a repitched take, 7 cents flat), and has the harp damp strings that would rub against the next
-// chord (damped).
+// Tuning is the sampler's: it tunes every note as heard, at its pitch and length (instruments.ts).
+// This file only has the harp damp strings that would rub against the next chord (damped).
 
 import { instrument, type InstrumentName } from "../instruments";
-import { centsHeard } from "../pitch";
-import { midi, renderNotes } from "../sampler";
-import { euphonium, RATE, type Note, type Song, type Track } from "../song";
+import { midi } from "../sampler";
+import { euphonium, type Note, type Song, type Track } from "../song";
 import { chordNotes, EIGHTHS_PER_BAR, harmony, melody, THEME_BARS, THEME_BPM, type Quality } from "../theme";
 
 const KEY = 5; // C major -> F major
@@ -399,10 +396,6 @@ const violins: Note[] = [];
     if (cur) violins.push(cur);
   }
 }
-// Song-local tuning: layer 2 has no F4, so an F4 plays its F#4 take a semitone down, which is heard
-// 7 cents flat (-7.4 as the median of its partials, -6.5 loudness-weighted; the same take reads
-// -0.2 at F#4, and layer 1's F4 within 1.6). Those F4s are raised 7 cents (they stay on that take).
-for (const n of violins) if (n.n === midi("F4") && (n.v ?? 0.7) >= 0.5) n.n = midi("F4") + 0.07;
 
 // Vibraphone (celesta stand-in): soft bell dyads on the bar under pass 2's music box. These
 // recordings can't be damped: a note is still only ~4 dB down a bar later and ~9 dB down two bars
@@ -418,36 +411,6 @@ for (let bar = THEME_BARS; bar < THEME_BARS + 4; bar++) {
 }
 
 // ---------------------------------------------------------------- horn and street band
-
-/**
- * A horn scoops up into each note. The sampler tunes a recording by the pitch heard over its first
- * half second, so a note shorter than that is heard mostly in its scoop: the harmony line's soft
- * eighths on A3 and F3 sound 5–7 cents flat. Each short note is rendered alone, heard the way the
- * sampler hears a harmonic instrument (median of its partials from 150 Hz to 2.5 kHz) and played
- * that much higher. Longer notes are left as the sampler tunes them (within 1.5 cents here).
- */
-function heardInTune(name: InstrumentName, notes: Note[]): Note[] {
-  const inst = instrument(name);
-  const eighth = 60 / THEME_BPM;
-  const out = notes.map((n) => {
-    const m = num(n);
-    if (n.d * eighth >= 0.5) return n;
-    const left = new Float32Array(RATE);
-    const right = new Float32Array(RATE);
-    renderNotes(inst, [{ time: 0, dur: n.d * eighth, note: m, vel: n.v ?? 0.7 }], left, right, RATE, 1, 0);
-    const mono = left.map((x, i) => x + right[i]!);
-    const hz = 440 * 2 ** ((m - 69) / 12);
-    const reads = [1, 2, 3, 4, 5, 6, 7, 8]
-      .filter((k) => k * hz >= 150 && k * hz <= Math.max(2500, hz * 4.5))
-      .map((k) => centsHeard(mono, RATE, m, k))
-      .filter(Number.isFinite)
-      .sort((a, b) => a - b);
-    return reads.length ? { ...n, n: m - reads[Math.floor(reads.length / 2)]! / 100 } : n;
-  });
-  // Measuring played the notes through the sampler: start its round robins over.
-  inst.resetRoundRobin();
-  return out;
-}
 
 /**
  * The brass recordings take 30–110 ms to speak (most about 50), against the drum's and the
@@ -589,8 +552,8 @@ const song: Song = {
     ...damped({ inst: "harp", notes: harp, gain: 0.9, pan: 0.35, reverb: 0.35, humanize: 0.25, label: "harp" }),
     { inst: "violins", notes: violins, gain: 0.27, pan: -0.3, reverb: 0.4, humanize: 0.15 },
     { inst: "vibraphone", notes: vibes, gain: 0.24, pan: -0.2, reverb: 0.4, humanize: 0.15 },
-    { inst: "horn", notes: early(heardInTune("horn", horn)), gain: 0.75, pan: -0.15, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (countermelody)" },
-    ...evenTracks({ inst: "horn", notes: early(heardInTune("horn", hornLow)), gain: 2, pan: -0.2, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (harmony)" }, HORN_LOW_DB),
+    { inst: "horn", notes: early(horn), gain: 0.75, pan: -0.15, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (countermelody)" },
+    ...evenTracks({ inst: "horn", notes: early(hornLow), gain: 2, pan: -0.2, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (harmony)" }, HORN_LOW_DB),
     ...euphonium(early(euphHymn), { gain: 2.9, pan: 0.15, reverb: 0.32, humanize: 0.15, label: "euphonium (hymn)" }),
     ...euphonium(early(euphTune), { gain: 12, pan: 0.1, reverb: 0.32, humanize: 0.15, label: "euphonium (tune)" }),
     { inst: "tuba", notes: early(tuba), gain: 1, pan: 0.05, reverb: 0.2, humanize: 0.15 },

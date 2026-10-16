@@ -27,10 +27,10 @@
 //   euphonium bass D2–E3 (pass 1), D2–C3 (pass 2) · drums
 // Bright parts are low-passed (sax, glockenspiel, snare, cymbals) so nothing bites: the mix has
 // no more 5–10 kHz energy than the other cartoon skins.
-// Tuning: every recording is auto-tuned (instruments.ts); on top of that the song plays the
-// horn's tune and the countermelody's tuba in their cleanest layers, gives the pickups to the
-// staccato takes, and raises one-eighth notes on the horn's and trombone's sustained takes a
-// few cents (`settle`). Measured as heard, every pitched note lands within 5 cents.
+// Tuning is the sampler's: every note is tuned as heard at its length (instruments.ts). The song
+// plays the horn's tune and the countermelody's tuba in their cleanest layers and gives the
+// pickups to the staccato takes. Measured as heard (scripts/music/tuning.ts), every pitched note
+// lands within 5 cents.
 
 import { midi } from "../sampler";
 import { euphonium, type Note, type Song, type Track } from "../song";
@@ -159,9 +159,8 @@ const hornAnswer = cells(
 );
 
 // Pass 2: the horns take the tune two octaves down (C3–D4, the horn's warm middle), in the
-// horn's mp layer (velocity under 0.5): the louder layer's F3 take starts 45 cents flat for its
-// first 0.2 s, so every short E, F and G of the tune sounded flat. The pickups (bars 20, 24,
-// 32) and the leading tone into bar 24 belong to the staccato horns (and the staccato sax).
+// horn's mp layer (velocity under 0.5). The pickups (bars 20, 24, 32) and the leading tone into
+// bar 24 belong to the staccato horns (and the staccato sax).
 // Two tune notes the horn's recordings can't play cleanly go to the sax alone while the horn
 // holds the note before (a chord tone): the leap to the top E in bar 21 (an E4 would stretch
 // the C4 recording, the horn has nothing between C4 and D5) and the C at the end of bar 30
@@ -209,13 +208,6 @@ const isPickup = (t: number) => [20, 24, 32].some((b) => t >= bar(b) + 3 && t < 
 const punched = (t: number) => (isPickup(t) && t < bar(32)) || t === bar(23) + 5;
 /** Tune notes the sax carries alone (bars 21 and 30, last eighth) while the horn holds the note before. */
 const SAX_ALONE = [bar(21) + 5, bar(30) + 5];
-/**
- * Song-local tuning for one-eighth notes on sustained recordings: such a note is heard only for
- * its first 0.2 s, while autotune judges a take over its first half second. The horn's mp takes
- * and the trombone's settle into pitch from a little flat, so one-eighth notes measure -5 to
- * -6 cents (horn) and -4 to -5 (trombone) as heard; raise them by that much.
- */
-const settle = (notes: Note[], cents: number): Note[] => notes.map((n) => (n.d <= 1 ? { ...n, n: num(n.n) + cents / 100 } : n));
 const hornLine = shift(tune2, -24);
 const hornTune: Note[] = hornLine
   .filter((n) => !isPickup(n.t) && !punched(n.t) && !SAX_ALONE.includes(n.t))
@@ -235,7 +227,7 @@ const hornShort: Note[] = [
 
 // Pass 2: the sax doubles the horns' tune an octave up (G3–E5), the line a phone speaker carries,
 // and has two of its notes to itself (bars 21 and 30). The punched pickups are its staccato
-// takes: the sustained takes scoop 7-9 cents flat into a short note below C4.
+// takes.
 const saxLine = shift(tune2, -12, (n) => (n.t % 3 === 0 || SAX_ALONE.includes(n.t) ? 0.62 : 0.54));
 const sax = saxLine.filter((n) => !punched(n.t));
 const saxShort = saxLine.filter((n) => punched(n.t)).map((n) => ({ ...n, v: 0.6 }));
@@ -335,18 +327,17 @@ const crash: Note[] = [9, 25, 29].map((b) => ({ t: bar(b), d: 1, n: "C#3", v: 0.
 // ---------------------------------------------------------------- song
 
 // The countermelody's euphonium, its tuba in the soft layer (velocity under 1/3, hence the gain):
-// the louder takes start 10-20 cents flat on A#2 and F2, which its short notes would hear. The
-// trombone's one-eighth notes settle.
+// the louder takes scoop up from 10-20 cents flat on A#2 and F2, and its short notes would be all scoop.
 const counterTracks = euphonium(counter, { gain: 2.7, pan: 0.3, reverb: 0.3, humanize: 0.15 }).map((t) =>
-  t.inst === "tuba" ? { ...t, notes: counter.map((n) => ({ ...n, v: 0.3 })), gain: (t.gain ?? 1) * 3 } : { ...t, notes: settle(counter, 4) },
+  t.inst === "tuba" ? { ...t, notes: counter.map((n) => ({ ...n, v: 0.3 })), gain: (t.gain ?? 1) * 3 } : t,
 );
 
 const tracks: Track[] = [
   // Tune
   { inst: "piano", notes: pianoTune, gain: 0.26, pan: -0.05, reverb: 0.25, humanize: 0.2 },
   { inst: "glockenspiel", notes: glock, gain: 7, pan: 0.25, reverb: 0.35, lowpass: 3000 },
-  { inst: "horn", notes: settle(hornTune, 5), gain: 2.9, pan: -0.2, reverb: 0.3, humanize: 0.15 },
-  { inst: "horn", notes: settle(hornHarmony, 5), gain: 2.1, pan: -0.3, reverb: 0.3, humanize: 0.15 },
+  { inst: "horn", notes: hornTune, gain: 2.9, pan: -0.2, reverb: 0.3, humanize: 0.15 },
+  { inst: "horn", notes: hornHarmony, gain: 2.1, pan: -0.3, reverb: 0.3, humanize: 0.15 },
   { inst: "sax", notes: sax, gain: 0.87, pan: 0.15, reverb: 0.28, humanize: 0.15, lowpass: 3500 },
   { inst: "saxShort", notes: saxShort, gain: 0.87, pan: 0.15, reverb: 0.28, humanize: 0.15, lowpass: 3500 },
   // Harmony and answers

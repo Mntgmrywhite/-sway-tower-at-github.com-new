@@ -36,14 +36,13 @@
 // mix where they play, and the drums grow from about -16 dB (the distant hoofbeats of bar 21) to
 // -6 in the tutti (scripts/music/mix.ts, and per bar).
 //
-// Tuning: the shared instruments are auto-tuned per recording to the pitch heard. Song-local, only
-// what that leaves: the horn's E3–G3 go to its second layer and the sustained brass's eighth notes
-// are lifted 4 cents (see the horn), the toms are tuned per layer and the timpani to the chord.
-// Measured as rendered, every note of the piano, sax, horn, euphonium (trombone + tuba together),
-// harpsichord and bassoon is within 5 cents of pitch as heard.
+// Tuning: the sampler tunes every note to the pitch heard, at its length (instruments.ts). Only the
+// drums are tuned here: the toms per layer and the timpani to the chord. Measured as rendered
+// (scripts/music/tuning.ts), every note of the piano, sax, horn, euphonium, harpsichord and bassoon
+// is within 5 cents of pitch as heard.
 
 import { midi } from "../sampler";
-import { euphonium, transpose, type Note, type Song, type Track } from "../song";
+import { euphonium, transpose, type Note, type Song } from "../song";
 import { CHORDS, EIGHTHS_PER_BAR, melody, minorize, THEME_BARS, THEME_BPM } from "../theme";
 
 const BAR = EIGHTHS_PER_BAR;
@@ -230,9 +229,7 @@ const bassoonTune: Note[] = [
 
 // Low octaves on an upright: a boom on the tonic, then a chromatic creep down F–E–Eb–D into the
 // iv while the tune holds its C, and an E–F–E (the Phrygian half step over the dominant) in the
-// held E of bars 4 and 16. Pass 1 only: bars 1–4 and 13–16, with the pizz waltz. The shared
-// autotune tunes the upright's bass on partials 2–4, which is how it is heard against the pizz
-// bass (measured as rendered: every note within 2 cents), so it needs no correction here.
+// held E of bars 4 and 16. Pass 1 only: bars 1–4 and 13–16, with the pizz waltz.
 const piano: Note[] = [];
 const octave = (t: number, low: string, d: number, v: number) => piano.push({ t, d, n: low, v }, { t, d, n: num(low) + 12, v: v - 0.02 });
 for (const from of [1, 13]) {
@@ -272,31 +269,6 @@ const saxTreat: Note[] = [
 // under the euphonium's solo (bars 26–28, a step back so it stays the lead). All in the
 // brassy third velocity layer, in the horn's well-recorded middle (E3–D4): above C4 only the
 // softest layer has notes, and the loudest layer has only two.
-//
-// Except E3–G3: the third layer plays those from its F3 recording, which scoops up from about 50
-// cents flat over its first ~220 ms. The shared autotune tunes what is heard of a long note, so a
-// dotted quarter is in tune (-2 cents as rendered), but an eighth note (222 ms) is nearly all
-// scoop: E3 measures -38 cents heard, G3 -23. Those notes go to the second layer instead (its F3
-// bends little), on a twin track with the level made up (that layer sits about 9 dB lower).
-//
-// Eighth notes on sustained brass hear mostly the attack of a long-note recording, which starts a
-// little flat: as rendered, the euphonium's eighths (trombone + tuba) measure 3 to 7 cents under
-// pitch, its longer notes within 2, and the horn's second-layer F3 take plays eighths 5 to 6 cents
-// flat. Those eighths are lifted 4 cents. (The horn's other takes are within 5 at any length.)
-const EIGHTH_LIFT = 0.04;
-const liftEighths = (notes: Note[]): Note[] => notes.map((n) => (n.d <= 1 ? { ...n, n: num(n.n) + EIGHTH_LIFT } : n));
-const HORN_SCOOP = new Set(["E3", "F3", "F#3", "G3"].map(num));
-const hornTracks = (notes: Note[], opts: Omit<Track, "inst" | "notes">): Track[] =>
-  [
-    { inst: "horn" as const, notes: notes.filter((n) => !HORN_SCOOP.has(num(n.n))), ...opts },
-    {
-      inst: "horn" as const,
-      // 0.30–0.47: inside the second layer (0.25–0.5) with a humanize-width to spare.
-      notes: liftEighths(notes.filter((n) => HORN_SCOOP.has(num(n.n)))).map((n) => ({ ...n, v: Math.min(0.47, Math.max(0.3, (n.v ?? 0.7) - 0.14)) })),
-      ...opts,
-      gain: (opts.gain ?? 1) * 2.9,
-    },
-  ].filter((t) => t.notes.length > 0);
 const call = (t: number, [a, b, c]: [string, string, string], v: number, last = 3): Note[] => [
   { t, d: 2, n: a, v },
   { t: t + 2, d: 1, n: b, v: v - 0.03 },
@@ -324,7 +296,7 @@ const hornTune = tuneIn(29, 32, -24, (v) => 0.5 + (v - 0.5) * 0.7);
 // Ominous open fifths over the bass as the gallop starts (bars 21–24), the tune's pickup an octave
 // over the solo (E–F–G, turning onto its first F), the B section (25–28) as the Horseman rides,
 // then the tune with the horn in the tutti.
-const euphLine: Note[] = liftEighths([
+const euphLine: Note[] = [
   { t: bar(21), d: 6, n: "E3", v: 0.46 },
   { t: bar(22), d: 3, n: "D3", v: 0.48 },
   { t: bar(22) + 3, d: 3, n: "C3", v: 0.5 },
@@ -334,10 +306,10 @@ const euphLine: Note[] = liftEighths([
   { t: bar(24) + 3, d: 1, n: "E3", v: 0.56 },
   { t: bar(24) + 4, d: 1, n: "F3", v: 0.58 },
   { t: bar(24) + 5, d: 1, n: "G3", v: 0.6 },
-]);
+];
 // The solo is its own track: it leads the ride, so it plays out well over the opening fifths.
-const euphTune = liftEighths(tuneIn(25, 28, -24, (v) => Math.min(0.64, v * 0.9)));
-const euphTutti = liftEighths(tuneIn(29, 32, -24, (v) => Math.min(0.64, v * 0.85)));
+const euphTune = tuneIn(25, 28, -24, (v) => Math.min(0.64, v * 0.9));
+const euphTutti = tuneIn(29, 32, -24, (v) => Math.min(0.64, v * 0.85));
 
 // ------------------------------------------------------------------ pizzicato waltz
 
@@ -507,10 +479,10 @@ const song: Song = {
     { inst: "sax", notes: saxTreat, gain: 1.6, pan: 0.2, reverb: 0.25, lowpass: 4500 },
     { inst: "bassoonShort", notes: bassoon, gain: 0.65, pan: 0.05, reverb: 0.25 },
     { inst: "bassoonShort", notes: bassoonTune, gain: 1.1, pan: 0.05, reverb: 0.25 },
-    ...hornTracks(hornFar, { gain: 1.2, pan: -0.45, reverb: 0.55, humanize: 0.15 }),
-    ...hornTracks(hornCalls, { gain: 1.2, pan: -0.25, reverb: 0.4, humanize: 0.15 }),
-    ...hornTracks(hornRide, { gain: 1.35, pan: -0.25, reverb: 0.4, humanize: 0.15 }),
-    ...hornTracks(hornTune, { gain: 1.6, pan: -0.2, reverb: 0.3, humanize: 0.15 }),
+    { inst: "horn", notes: hornFar, gain: 1.2, pan: -0.45, reverb: 0.55, humanize: 0.15 },
+    { inst: "horn", notes: hornCalls, gain: 1.2, pan: -0.25, reverb: 0.4, humanize: 0.15 },
+    { inst: "horn", notes: hornRide, gain: 1.35, pan: -0.25, reverb: 0.4, humanize: 0.15 },
+    { inst: "horn", notes: hornTune, gain: 1.6, pan: -0.2, reverb: 0.3, humanize: 0.15 },
     ...euphonium(euphLine, { gain: 3.5, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
     ...euphonium(euphTune, { gain: 7.5, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
     ...euphonium(euphTutti, { gain: 4, pan: 0.15, reverb: 0.28, humanize: 0.15 }),

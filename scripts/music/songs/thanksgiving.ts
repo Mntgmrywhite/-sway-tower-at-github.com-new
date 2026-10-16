@@ -30,7 +30,6 @@
 // are bright, and the owner hears that edge as harsh.
 
 import { instrument, type InstrumentName } from "../instruments";
-import { centsHeard } from "../pitch";
 import { midi } from "../sampler";
 import { euphonium, transpose, type Note, type Song, type Track } from "../song";
 import { CHORDS, EIGHTHS_PER_BAR, melody, THEME_BARS, type Quality } from "../theme";
@@ -150,68 +149,6 @@ function leveled(track: Omit<Track, "notes">, notes: Note[]): Track[] {
     groups.set(step, group);
   }
   return [...groups].map(([step, group]) => ({ ...track, notes: group, gain: (track.gain ?? 1) * 10 ** (step / 20) }));
-}
-
-// ---------------------------------------------------------------- short notes, tuned as heard
-
-// The sampler tunes every recording on what you hear of it over its first half second. A short
-// note plays only the start of its recording, and some takes start off their settled pitch: the
-// tenor sax's low notes scoop up from below (an A3 or G3 held a swung quarter is heard 7–10 cents
-// flat), some of the fiddle's vibrato takes start sharp (its G5 held a quarter +8, a B5 eighth +12),
-// the euphonium's eighth notes come out 4–5 cents flat. So the short notes of the melodic parts are tuned one by
-// one on the part of the recording they actually play: its first `seconds` and release, read the
-// way the sampler reads it (the median of its partials' heard pitch), but on both channels as they
-// sound together (the sampler reads the left one). Notes held longer play most of what the sampler
-// tuned on (they measure within 2 cents of it), so they are left to it, except the fiddle's: its
-// stereo takes read differently left and right (the loud E5 +21.5 cents left, +14 both channels),
-// so tuned on the left one, its E5, A4 and G5 were heard 6-9 cents flat at any length. The
-// fiddle's every note is tuned here.
-const SHORT = 0.45;
-
-const heardCache = new Map<string, number>();
-/** Cents a note is heard off its pitch when held `seconds` (after the sampler's own tuning). */
-function heardCents(name: InstrumentName, note: number, vel: number, seconds: number): number {
-  const inst = instrument(name);
-  const z = inst.zoneFor(note, vel);
-  const key = `${name}/${z.note}/${z.layer}/${note}/${seconds.toFixed(3)}`;
-  let cents = heardCache.get(key);
-  if (cents === undefined) {
-    const { left, right, rate } = z.audio;
-    // In the recording's own time: a note shifted up plays through it faster.
-    const speed = 2 ** ((note - z.note + z.detune / 100) / 12);
-    const attack = Math.max(1, inst.opts.attack * rate * speed);
-    const hold = Math.round(seconds * rate * speed);
-    const release = Math.max(1, Math.round(inst.opts.release * rate * speed));
-    const x = new Float32Array(Math.max(Math.min(left.length, hold + 3 * release), 8192 + 1));
-    const fall = Math.exp(Math.log(0.001) / release);
-    let g = 1;
-    for (let i = 0; i < Math.min(left.length, hold + 3 * release); i++) {
-      if (i >= hold) g *= fall;
-      x[i] = ((left[i]! + right[i]!) / 2) * Math.min(1, i / attack) * g;
-    }
-    const hz = 440 * 2 ** ((z.note - 69) / 12);
-    const reads = [1, 2, 3, 4, 5, 6, 7, 8]
-      .filter((h) => h * hz >= 150 && h * hz <= Math.max(2500, hz * 4.5))
-      .map((h) => centsHeard(x, rate, z.note, h))
-      .filter((c) => Number.isFinite(c))
-      .sort((a, b) => a - b);
-    const read = reads.length >= 3 ? reads[Math.floor(reads.length / 2)]! : NaN;
-    // A short note can't always be read; past 30 cents it is a misread, not a tuning.
-    cents = Number.isFinite(read) && Math.abs(read + z.detune) <= 30 ? read + z.detune : 0;
-    heardCache.set(key, cents);
-  }
-  return cents;
-}
-
-/** A melodic track with each short note (`every`: each note) played that far the other way. */
-function asHeard(track: Track, every = false): Track {
-  const notes = track.notes.map((n) => {
-    const seconds = (n.d * 60) / BPM;
-    if (seconds >= SHORT && !every) return n;
-    const note = n.n as number;
-    return { ...n, n: note - heardCents(track.inst, note, n.v ?? 0.7, seconds) / 100 };
-  });
-  return { ...track, notes };
 }
 
 /** The hoedown's dynamics: rising through A' into the B section's peak (bar 12), the band full in A''. */
@@ -586,11 +523,11 @@ const song: Song = {
   reverb: { room: 0.6, damp: 0.7, width: 0.9, level: 0.85 },
   tracks: [
     // hoedown
-    ...leveled({ inst: "fiddle", gain: 1, pan: -0.05, reverb: 0.3, lowpass: 3500 }, fiddle).map((t) => asHeard(t, true)),
+    ...leveled({ inst: "fiddle", gain: 1, pan: -0.05, reverb: 0.3, lowpass: 3500 }, fiddle),
     ...leveled({ inst: "fiddleShort", gain: 1.15, pan: -0.05, reverb: 0.3, lowpass: 3500 }, spiccato),
-    asHeard({ inst: "harmonica", notes: harmonica, gain: 1, pan: 0.25, reverb: 0.25, lowpass: 2400 }),
+    { inst: "harmonica", notes: harmonica, gain: 1, pan: 0.25, reverb: 0.25, lowpass: 2400 },
     ...leveled({ inst: "strumstick", gain: 0.75, pan: 0.4, reverb: 0.3, lowpass: 6000 }, strumstick),
-    ...euphoniumTracks({ gain: 2.2, pan: 0.3, reverb: 0.3, humanize: 0.2 }).map((t) => asHeard(t)),
+    ...euphoniumTracks({ gain: 2.2, pan: 0.3, reverb: 0.3, humanize: 0.2 }),
     ...leveled({ inst: "horn", gain: 2.6, pan: -0.3, reverb: 0.35, humanize: 0.2 }, hornBand),
     // Each string rings until it is struck again; the break's chord (bar 16) lets go as the trio starts.
     ...guitar.map((notes): Track => ({ inst: "guitar", notes, gain: 0.039, pan: -0.35, reverb: 0.2, humanize: 0.5, choke: true, ring: 1.1, label: "guitar" })),
@@ -605,9 +542,9 @@ const song: Song = {
     { inst: "piano", notes: pianoTune, gain: 0.18, pan: -0.1, reverb: 0.25, humanize: 0.3 },
     { inst: "piano", notes: comp, gain: 0.1, pan: -0.15, reverb: 0.25, humanize: 0.4 },
     // The sax under the piano in A' (doubling), level with it in B (harmony), out front in A''.
-    asHeard({ inst: "sax", notes: saxDouble, gain: 0.55, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 }),
-    asHeard({ inst: "sax", notes: saxHarmony, gain: 0.85, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 }),
-    asHeard({ inst: "sax", notes: saxLead, gain: 1, pan: 0.15, reverb: 0.3, humanize: 0.2, lowpass: 3500 }),
+    { inst: "sax", notes: saxDouble, gain: 0.55, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
+    { inst: "sax", notes: saxHarmony, gain: 0.85, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
+    { inst: "sax", notes: saxLead, gain: 1, pan: 0.15, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
     ...leveled({ inst: "horn", gain: 3.5, pan: -0.3, reverb: 0.35, humanize: 0.2 }, hornTrio),
     // The kit: a dark ride (its wash carried the trio's whole top end; each stroke rings at most
     // 1.1 s, so bar 32's last one is gone by the hoedown's first beat), the hi-hat's foot chick

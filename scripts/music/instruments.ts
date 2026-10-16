@@ -13,9 +13,10 @@ const OCT = 12;
 // drift note by note, so they are auto-tuned per recording: the mallets on their fundamental;
 // brass, winds and strings on the median of their harmonics; the piano and harp on their
 // fundamental (partials 2-4 in the bass). "heard" tunes what you hear in a note's first half
-// second: the pizzicato sections start up to 19 cents sharp and settle, the horn and sax
-// scoop up into low notes. A few sets keep one measured `cents` correction; the honky-tonk
-// piano's detune is its character and is left alone.
+// second: the pizzicato sections start up to 19 cents sharp and settle, the horn, low brass and
+// saxes scoop up into their notes. Shorter notes are tuned on the part of the take they play
+// (sampler.ts detuneFor), so a song never corrects pitch itself. A few sets keep one measured
+// `cents` correction; the honky-tonk piano's detune is its character and is left alone.
 
 const VCSL = "VCSL";
 const VSCO = "VSCO-2-CE";
@@ -37,7 +38,8 @@ export const INSTRUMENTS = {
   violinsPizz: { dir: `${VSCO}/Strings/Violin Section/Pizz`, oneShot: true, transpose: OCT, autotune: "heard", harmonic: true, strictTuning: true },
   violasPizz: { dir: `${VSCO}/Strings/Viola Section/pizz`, oneShot: true, transpose: OCT, autotune: "heard", harmonic: true, strictTuning: true },
   cellosPizz: { dir: `${VSCO}/Strings/Cello Section/pizzT`, oneShot: true, transpose: OCT, autotune: "heard", harmonic: true },
-  bassPizz: { dir: `${VSCO}/Strings/Solo Contrabass/Pizz`, oneShot: true, gain: 1.1, transpose: OCT, autotune: "heard", harmonic: true },
+  // Strict: a few takes' partials scatter (the loud C2's first take by ±30 cents: no clear pitch).
+  bassPizz: { dir: `${VSCO}/Strings/Solo Contrabass/Pizz`, oneShot: true, gain: 1.1, transpose: OCT, autotune: "heard", harmonic: true, strictTuning: true },
   violins: { dir: `${VSCO}/Strings/Violin Section/susVib`, attack: 0.08, release: 0.4, gain: 0.8, transpose: OCT, autotune: "heard", harmonic: true },
   cellos: { dir: `${VSCO}/Strings/Cello Section/susvib`, attack: 0.08, release: 0.4, gain: 0.8, transpose: OCT, autotune: "heard", harmonic: true },
   fiddle: { dir: `${VSCO}/Strings/Solo Violin/Arco Vib`, attack: 0.03, release: 0.2, autotune: "heard", harmonic: true },
@@ -49,16 +51,17 @@ export const INSTRUMENTS = {
   clarinet: { dir: `${VSCO}/Woodwinds/Clarinet/susLong`, attack: 0.03, release: 0.2, gain: 0.8, transpose: OCT, autotune: "heard", harmonic: true },
   clarinetShort: { dir: `${VSCO}/Woodwinds/Clarinet/stac`, oneShot: true, transpose: OCT, autotune: "heard", harmonic: true },
   bassoonShort: { dir: `${VSCO}/Woodwinds/Bassoon/stac`, oneShot: true, transpose: OCT, autotune: "heard", harmonic: true },
-  horn: { dir: `${VSCO}/Brass/F Horn/sus`, attack: 0.05, release: 0.3, gain: 0.7, transpose: OCT, autotune: "heard", harmonic: true },
-  trumpetMute: { dir: `${VSCO}/Brass/Trumpet/harmonM-sus`, attack: 0.02, release: 0.15, gain: 0.8, transpose: OCT },
+  // Without the loud F3 take (VSCO's F2 v3): it starts 45 cents flat for its first 0.2 s.
+  horn: { dir: `${VSCO}/Brass/F Horn/sus`, exclude: /_F2_v3_/, attack: 0.05, release: 0.3, gain: 0.7, transpose: OCT, autotune: "heard", harmonic: true },
+  trumpetMute: { dir: `${VSCO}/Brass/Trumpet/harmonM-sus`, attack: 0.02, release: 0.15, gain: 0.8, transpose: OCT, autotune: "heard", harmonic: true },
   trumpetShort: { dir: `${VSCO}/Brass/Trumpet/stac`, oneShot: true, gain: 0.8, transpose: OCT, autotune: "heard", harmonic: true, strictTuning: true },
   tromboneShort: { dir: `${VSCO}/Brass/Tenor Trombone/stac`, oneShot: true, gain: 0.85, transpose: OCT, autotune: "heard", harmonic: true },
   // The owner's favorites: French horn, saxophones and low brass. There is no CC0 euphonium,
   // so songs voice it as tuba + trombone on the same notes (a tenor tuba is what a euphonium is).
   // Gains put each at about -28 dB RMS for a mid-velocity note in its main range (like the horn).
   hornShort: { dir: `${VSCO}/Brass/F Horn/stac`, oneShot: true, gain: 0.5, transpose: OCT, even: true, autotune: "heard", harmonic: true, strictTuning: true },
-  trombone: { dir: `${VSCO}/Brass/Tenor Trombone/sus`, attack: 0.05, release: 0.3, gain: 2.4, transpose: OCT, even: true, autotune: true, harmonic: true },
-  tuba: { dir: `${VSCO}/Brass/Tuba/sus`, attack: 0.05, release: 0.3, gain: 0.62, transpose: OCT, even: true, autotune: true, harmonic: true },
+  trombone: { dir: `${VSCO}/Brass/Tenor Trombone/sus`, attack: 0.05, release: 0.3, gain: 2.4, transpose: OCT, even: true, autotune: "heard", harmonic: true },
+  tuba: { dir: `${VSCO}/Brass/Tuba/sus`, attack: 0.05, release: 0.3, gain: 0.62, transpose: OCT, even: true, autotune: "heard", harmonic: true },
   // Only the louder staccato layer: the soft one is played 40-60 cents flat. Short notes bend,
   // so the staccato sets keep only the takes whose pitch measures steady (strictTuning).
   tubaShort: { dir: `${VSCO}/Brass/Tuba/stac`, match: /_v2_/, oneShot: true, gain: 2.2, transpose: OCT, autotune: "heard", harmonic: true, even: true, strictTuning: true },
@@ -67,7 +70,7 @@ export const INSTRUMENTS = {
   // Saxello: a curved soprano sax, an octave above the tenor.
   sopranoSax: { dir: `${VCSL}/Aerophones/Reed Aerophones/Saxello/Vibrato`, attack: 0.03, release: 0.2, gain: 0.45, transpose: OCT, even: true, autotune: "heard", harmonic: true },
   sopranoSaxShort: { dir: `${VCSL}/Aerophones/Reed Aerophones/Saxello/Staccato`, oneShot: true, gain: 0.7, transpose: OCT, even: true, autotune: "heard", harmonic: true, strictTuning: true },
-  harmonica: { dir: `${VCSL}/Aerophones/Free Aerophones/Harmonica-Hohner-Special20-C/Sustains/Normal`, attack: 0.02, release: 0.15, transpose: OCT },
+  harmonica: { dir: `${VCSL}/Aerophones/Free Aerophones/Harmonica-Hohner-Special20-C/Sustains/Normal`, attack: 0.02, release: 0.15, transpose: OCT, autotune: "heard", harmonic: true },
 
   // Mallets and bells
   glockenspiel: { dir: `${VCSL}/Idiophones/Struck Idiophones/Glockenspiel`, oneShot: true, gain: 0.7, transpose: OCT, autotune: true },
