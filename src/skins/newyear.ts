@@ -4,6 +4,7 @@ import {
   AMBER,
   AMETHYST,
   AQUA,
+  DECO_FACE,
   FAR,
   GOLD,
   INK,
@@ -45,7 +46,8 @@ import { decoMoon, newYearSky } from "./newyear/sky";
 // behind three depths of our-own Deco towers — a hazy back row, a middle row with gilded
 // stepped crowns, and five black-lacquer towers rimmed in gold with lit window grids and gilded
 // crowns: the Sunburst's fan and needle spire, and the Times Tower, whose clock counts down to
-// midnight while the New Year's ball slides down its mast as you climb. Navy clouds with
+// midnight while the New Year's ball slides down its mast as you climb, and whose marquee counts
+// down the last ten seconds with the song's crowd. Navy clouds with
 // moonlit silver tops pile at its feet. Across the bay, the Gatsby mansion throws its party with
 // the green light at the end of its dock; on our ivory-marble terrace, a gold-and-emerald
 // sunburst inlay, a champagne-coupe tower, a gramophone and a cream boat-tail roadster with a
@@ -94,7 +96,7 @@ export const newYear: CartoonSkin = {
     { color: SILVER, icon: bowTie },
   ],
   hud: {
-    display: "Limelight, 'Arial Black', Impact, sans-serif",
+    display: DECO_FACE,
     title: "#ffd34d",
     // Deep emerald lacquer: the Game Over card and panel rims, and (main.ts copies it to the
     // CSS --accent) the Options sheet's borders and switches, which a near-black lost.

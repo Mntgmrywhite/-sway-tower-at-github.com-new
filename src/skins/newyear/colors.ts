@@ -65,6 +65,9 @@ export const MARBLE_NEAR = "#dcc69a";
 /** Firework / confetti colors, in a fixed order so hash() can pick from them. Gold leads. */
 export const PARTY = [GOLD, IVORY, EMERALD, GOLD_LIGHT, ROSE, CHAMPAGNE] as const;
 
+/** The Deco display face (the HUD's and the Times Tower marquee's), with its fallbacks. */
+export const DECO_FACE = "Limelight, 'Arial Black', Impact, sans-serif";
+
 export const TAU = Math.PI * 2;
 
 export function clamp01(x: number): number {

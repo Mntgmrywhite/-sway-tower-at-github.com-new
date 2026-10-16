@@ -2,6 +2,7 @@ import { circle, hash, mix, type Ctx } from "../../base/draw";
 import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
 import { clamp01, GOLD, GOLD_DEEP, GOLD_LIGHT, INK, IVORY, TAU, TOWER } from "./colors";
+import { marquee, songMidnight } from "./marquee";
 import { cloudCover, raiseProfile, sideOf } from "./skyline";
 
 // Manhattan's hero towers: five big Art Deco skyscrapers of our own design, black lacquer
@@ -9,7 +10,7 @@ import { cloudCover, raiseProfile, sideOf } from "./skyline";
 // Left of the tower column, the Sunburst: three setbacks under a gold fan crown and a needle
 // spire. Right of it, the Times Tower: a clock face counting down to midnight and the New
 // Year's ball sliding down its mast as you climb (at the top of the sky it is midnight and the
-// gilding flashes). Behind the column, lower: a gilded ziggurat, a gold pyramid cap and a
+// gilding flashes), and a marquee above the clock that counts down with the song (marquee.ts). Behind the column, lower: a gilded ziggurat, a gold pyramid cap and a
 // fluted tower with chevrons, kept under the cap so fireworks burst over them.
 // Geometry is in u: x from each tower's center, y up from the horizon; built once at load.
 
@@ -340,6 +341,9 @@ export function landmarks(ctx: Ctx, s: Scene): void {
   const a = altitude01(s);
   const mid = midnight(s);
   const flash = mid > 0 && Math.sin(s.t * 7) > 0.3;
+  // At the song's midnight only the clock face flashes, with the marquee: the gilding behind the
+  // tower column stays still.
+  const faceFlash = flash || (songMidnight(s) && Math.sin(s.t * 7) > 0.3);
   const tx = cx + TIMES.x * u;
   const clockY = hy - TIMES.clockY * u;
   const cr = TIMES.clockR * u;
@@ -387,7 +391,7 @@ export function landmarks(ctx: Ctx, s: Scene): void {
 
   ctx.beginPath();
   circle(ctx, tx, clockY, cr * 0.78);
-  ctx.fillStyle = flash ? FACE_LIT : FACE;
+  ctx.fillStyle = faceFlash ? FACE_LIT : FACE;
   ctx.fill();
 
   // Lit windows (a few switch off and on now and then) and lit gold
@@ -478,4 +482,6 @@ export function landmarks(ctx: Ctx, s: Scene): void {
   }
   ctx.fillStyle = BEACON;
   ctx.fill();
+
+  marquee(ctx, s, TIMES.x);
 }

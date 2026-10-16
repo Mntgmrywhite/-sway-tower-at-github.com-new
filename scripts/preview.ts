@@ -1,7 +1,8 @@
 // Renders a skin offscreen to PNGs so you can look at it without a browser.
-//   npm run snap -- <skinId> [width] [height]
+//   npm run snap -- <skinId> [width] [height] [songTime]
 // Writes preview/<skin>-<shot>.png for every shot in src/preview/shots.ts (start, climb, high,
-// over) and preview/<skin>-bars.png.
+// over) and preview/<skin>-bars.png. With a songTime (seconds into the skin's music loop), the
+// shots are drawn as if the music were that far in, for scenery that keeps time with it.
 // Web fonts aren't available offline, so text uses fallback faces here.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createCanvas } from "@napi-rs/canvas";
@@ -10,7 +11,7 @@ import { shots } from "../src/preview/shots";
 import { render } from "../src/render";
 import { SKINS } from "../src/skins";
 
-const [id = "neon", wArg = "390", hArg = "844"] = process.argv.slice(2);
+const [id = "neon", wArg = "390", hArg = "844", songArg = "NaN"] = process.argv.slice(2);
 const skin = SKINS.find((s) => s.id === id);
 if (!skin) {
   console.error(`Unknown skin "${id}". Known: ${SKINS.map((s) => s.id).join(", ")}`);
@@ -19,13 +20,14 @@ if (!skin) {
 const W = Number(wArg);
 const H = Number(hArg);
 const DPR = 2;
+const songTime = Number(songArg);
 mkdirSync("preview", { recursive: true });
 
 for (const shot of shots()) {
   const canvas = createCanvas(W * DPR, H * DPR);
   const ctx = canvas.getContext("2d");
   ctx.scale(DPR, DPR);
-  render(ctx as unknown as CanvasRenderingContext2D, W, H, shot.state, shot.view, shot.best, skin);
+  render(ctx as unknown as CanvasRenderingContext2D, W, H, shot.state, shot.view, shot.best, skin, songTime);
   const file = `preview/${skin.id}-${shot.name}.png`;
   writeFileSync(file, canvas.toBuffer("image/png"));
   console.log(file);
