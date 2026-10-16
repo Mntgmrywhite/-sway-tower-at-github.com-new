@@ -1,5 +1,6 @@
 import { tuning } from "./config";
 import { drop, newGame, step, swayOffset, top, type GameState } from "./game";
+import { createOptions } from "./options";
 import { createPanel } from "./panel";
 import { addFalling, addFlash, newView, render, updateView, type View } from "./render";
 import { resolveSkin } from "./skins";
@@ -52,6 +53,9 @@ function restart(): void {
 }
 
 const panel = createPanel(restart);
+const options = createOptions();
+/** True while an overlay is open: input goes to the overlay and the game pauses. */
+const paused = () => panel.isOpen() || options.isOpen();
 
 function tap(): void {
   if (state.phase === "over") {
@@ -75,11 +79,11 @@ function tap(): void {
 
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
-  if (panel.isOpen()) return;
+  if (paused()) return;
   tap();
 });
 window.addEventListener("keydown", (e) => {
-  if (panel.isOpen()) return;
+  if (paused()) return;
   if (e.code === "Space" && !e.repeat) {
     e.preventDefault();
     tap();
@@ -128,7 +132,7 @@ function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
   // Paused while tuning, so values can be changed without losing the run.
-  if (!panel.isOpen()) {
+  if (!paused()) {
     step(state, dt);
     updateView(view, state, dt);
   }

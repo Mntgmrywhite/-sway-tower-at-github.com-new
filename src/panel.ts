@@ -37,7 +37,8 @@ function load(): void {
   }
 }
 
-function save(): void {
+/** Persist the current tuning (shared with the options sheet). */
+export function saveTuning(): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tuning));
   } catch {
@@ -109,12 +110,12 @@ export function createPanel(onRestart: () => void): Panel {
 
   skinPick.addEventListener("change", () => {
     tuning.skin = skinPick.value;
-    save();
+    saveTuning();
   });
   for (const [key, box] of boxes) {
     box.addEventListener("change", () => {
       tuning[key] = box.checked;
-      save();
+      saveTuning();
     });
   }
   for (const s of SLIDERS) {
@@ -122,11 +123,12 @@ export function createPanel(onRestart: () => void): Panel {
     input.addEventListener("input", () => {
       tuning[s.key] = Number(input.value);
       panel.querySelector(`[data-val="${s.key}"]`)!.textContent = format(tuning[s.key], s);
-      save();
+      saveTuning();
     });
   }
 
   const setOpen = (open: boolean) => {
+    if (open) sync(); // another control (the options sheet) may have changed values
     panel.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
   };
@@ -136,7 +138,7 @@ export function createPanel(onRestart: () => void): Panel {
     const action = (e.target as HTMLElement).closest<HTMLElement>("[data-action]")?.dataset.action;
     if (action === "reset") {
       resetTuning();
-      save();
+      saveTuning();
       sync();
     } else if (action === "copy") {
       // Handy for pasting settings back into chat after a playtest.
