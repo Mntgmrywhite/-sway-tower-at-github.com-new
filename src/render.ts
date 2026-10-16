@@ -1,8 +1,9 @@
-import { BLOCK_HEIGHT, WORLD_WIDTH } from "./config";
+import { BLOCK_HEIGHT } from "./config";
 import { startLives, swayOffset, type Block, type GameState, type Tip } from "./game";
 import { roundRectPath } from "./base/draw";
 import { kitFor } from "./base/style";
 import { horizonFor } from "./base/world";
+import { fadeCamera, frameFor, GROUND_START, holdPan, PAN_EASE, panFade, panTarget, type Frame } from "./camera";
 import type { Scene, Skin } from "./skins/skin";
 import { addFalling as pushFalling, FALL_ALPHA, stepFalling, type Falling } from "./fx/falling";
 import { addPop, drawPops, stepPops, type Pop } from "./fx/pops";
@@ -10,18 +11,20 @@ import { slabPoses, startTopple, stepTopple, toppling, type Topple } from "./fx/
 
 export const GAME_NAME = "Sway Tower";
 
-/** World units visible horizontally; a little wider than the slider's travel. */
-const VIEW_WIDTH = WORLD_WIDTH * 1.5;
-/** Keep the tower top this fraction of the screen down from the top. */
-const TOP_ANCHOR = 0.38;
-/** Until the tower is tall enough, hold the ground this far down the screen. */
-const GROUND_START = 0.7;
 const CAMERA_EASE = 6; // per second
 /** Perfect-drop flash: light bursts along the seam and the block glows in the accent color. */
 const FLASH_TIME = 0.5; // seconds
 const SEAM_SPREAD = 0.6; // how far the seam light reaches past the block edges, in block widths
 /** While a Hard-mode tower falls, the camera keeps its pivot at most this far below the anchor, world units. */
 const TOPPLE_CAMERA_ROOM = 12 * BLOCK_HEIGHT;
+/** ...and at least this far inside the screen's side edges, world units. */
+const TOPPLE_PAN_ROOM = 2 * BLOCK_HEIGHT;
+/** A fall that brings the base back on screen lets go of the sideways pan over this long, seconds... */
+const PAN_RELEASE_TIME = 0.25;
+/** ...holding the camera above the base meanwhile, unless the pan is smaller than this, world units. */
+const PAN_HOLD_MIN = 0.05;
+/** The screen size the sideways camera frames the tower for until the first frame is drawn, CSS px. */
+const DEFAULT_SCREEN = { w: 390, h: 844 };
 
 interface Flash {
   level: number;
@@ -30,6 +33,15 @@ interface Flash {
 
 export interface View {
   cameraY: number; // world y shown at TOP_ANCHOR
+  /**
+   * Hard mode's sideways camera, world units: the tower layer is drawn this far left, faded out
+   * while the base is on screen (src/camera.ts). Always 0 in Normal.
+   */
+  panX: number;
+  /** The CSS size the view was last drawn at: the sideways camera frames the tower for it. */
+  screen: { w: number; h: number };
+  /** panX when the tower toppled: a fall back down to the base lets go of it from there. */
+  panAtTopple: number;
   falling: Falling[];
   flashes: Flash[];
   /** The PERFECT word over the block that just landed (src/fx/pops.ts). */
@@ -41,12 +53,23 @@ export interface View {
 }
 
 export function newView(): View {
-  return { cameraY: BLOCK_HEIGHT, falling: [], flashes: [], pops: [], topple: null, t: 0 };
+  return {
+    cameraY: BLOCK_HEIGHT,
+    panX: 0,
+    screen: { ...DEFAULT_SCREEN },
+    panAtTopple: 0,
+    falling: [],
+    flashes: [],
+    pops: [],
+    topple: null,
+    t: 0,
+  };
 }
 
 /** Call after a drop tipped the tower (Hard mode): the slab above the failing interface falls. */
 export function addTopple(view: View, state: GameState, tip: Tip): void {
   view.topple = startTopple(state, tip);
+  view.panAtTopple = view.panX;
 }
 
 /** True while a toppled tower is still falling: the game-over card (and a restart) wait for it. */
@@ -75,11 +98,39 @@ export function updateView(view: View, state: GameState, dt: number): void {
   let target = (state.blocks.length + 1) * BLOCK_HEIGHT;
   // A tower that tips low down: bring the pivot into view.
   if (view.topple) target = Math.min(target, view.topple.py + TOPPLE_CAMERA_ROOM);
+  if (state.mode === "hard") target = stepPan(view, state, target, dt);
   view.cameraY += (target - view.cameraY) * Math.min(1, CAMERA_EASE * dt);
   view.falling = stepFalling(view.falling, dt, view.cameraY);
   // After the falling step, so a bar that peels off this frame starts exactly where the slab had it.
   if (view.topple) stepTopple(view.topple, dt, view.falling);
   stepPops(view.pops, dt);
+}
+
+/**
+ * Hard mode's sideways camera for this frame; returns the vertical camera's target (`target`, or
+ * held higher while a fall lets go of the pan). While the run is played it follows the tower. Once
+ * it is over it holds still, bringing a toppling slab's pivot on screen; but a fall that takes the
+ * camera back down to the base (where nothing may be panned) first lets go of the pan, eased over
+ * PAN_RELEASE_TIME, and holds the camera just above the base until it has: so the tower settles
+ * back onto its plinth instead of snapping to it as the base comes into view.
+ */
+function stepPan(view: View, state: GameState, target: number, dt: number): number {
+  const { w, h } = view.screen;
+  const ease = Math.min(1, PAN_EASE * dt);
+  if (state.phase === "playing") {
+    view.panX += (panTarget(state, frameFor(w, h, view.cameraY)) - view.panX) * ease;
+  } else if (view.topple && panFade(frameFor(w, h, target)) < 1) {
+    const k = Math.min(1, view.topple.age / PAN_RELEASE_TIME);
+    const left = 1 - k * k * (3 - 2 * k);
+    view.panX = view.panAtTopple * left;
+    if (left > 0 && Math.abs(view.panAtTopple) > PAN_HOLD_MIN) {
+      target = Math.max(target, Math.min(view.cameraY, fadeCamera(w, h, left)));
+    }
+  } else {
+    const pivot = view.topple ? view.topple.px : null;
+    view.panX += (holdPan(view.panX, frameFor(w, h, view.cameraY), pivot, TOPPLE_PAN_ROOM) - view.panX) * ease;
+  }
+  return target;
 }
 
 export function render(
@@ -96,16 +147,16 @@ export function render(
   // A zero-size canvas (a hidden tab, a web view not laid out yet) has nothing to draw, and the
   // scale below would divide by zero: the NaNs would throw and stop the frame loop for good.
   if (cssW <= 0 || cssH <= 0) return;
-  // Portrait-shaped play area, centered; letterboxed on wide screens.
-  const u = Math.min(cssW, cssH * 0.6);
-  const scale = u / VIEW_WIDTH;
-  const offsetX = (cssW - WORLD_WIDTH * scale) / 2;
-  const anchorPx = cssH * TOP_ANCHOR;
-  // Early on, sit the ground low so the sky gets the room; the follow camera takes over
-  // smoothly once the tower is taller than that.
-  const cameraY = Math.max(view.cameraY, ((GROUND_START - TOP_ANCHOR) * cssH) / scale);
+  view.screen.w = cssW;
+  view.screen.h = cssH;
+  const frame = frameFor(cssW, cssH, view.cameraY);
+  const { u, scale, offsetX, anchorPx, cameraY } = frame;
   const sx = (x: number) => offsetX + x * scale;
   const sy = (y: number) => anchorPx - (y - cameraY) * scale;
+  // The tower layer (bars, slider, loose and falling bars, flash, pop) pans with Hard's sideways
+  // camera; the scenery and the HUD stay put. Normal never pans.
+  const pan = towerPan(view, state, frame);
+  const tx = pan === 0 ? sx : (x: number) => sx(x - pan);
 
   const base = state.blocks[0];
   const groundY = sy(0);
@@ -133,13 +184,13 @@ export function render(
 
   /** Draw a block whose world left edge is `x`. */
   const drawBlock = (x: number, w: number, level: number) =>
-    kit.bar(ctx, sx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
+    kit.bar(ctx, tx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
 
   /** A bar off the tower (falling, or swinging with a toppled slab), centered at world (cx, cy). */
   const drawLoose = (cx: number, cy: number, w: number, angle: number, level: number, alpha: number) => {
     const pw = w * scale;
     ctx.save();
-    ctx.translate(sx(cx), sy(cy));
+    ctx.translate(tx(cx), sy(cy));
     ctx.rotate(angle);
     ctx.globalAlpha = alpha;
     kit.bar(ctx, -pw / 2, -h / 2, pw, h, level);
@@ -152,7 +203,7 @@ export function render(
    */
   const onScreen = (cx: number, cy: number, w: number) => {
     const reach = (w * scale) / 2 + h;
-    const x = sx(cx);
+    const x = tx(cx);
     const y = sy(cy);
     return x > -reach && x < cssW + reach && y > -reach && y < cssH + reach;
   };
@@ -175,7 +226,7 @@ export function render(
     if (f.age >= FLASH_TIME) continue;
     const k = f.age / FLASH_TIME; // 0 → 1
     const fade = 1 - k;
-    const x = sx(b.x + swayOffset(state, f.level));
+    const x = tx(b.x + swayOffset(state, f.level));
     const y = sy((f.level + 1) * BLOCK_HEIGHT);
     const w = b.w * scale;
     ctx.save();
@@ -218,7 +269,7 @@ export function render(
   // The PERFECT pop goes over the slider so it always reads. Once the last life is gone the
   // game-over card takes the stage at once, so a pop still in flight would peek out around it.
   if (state.phase === "playing") {
-    drawPops({ ctx, kit, skin, state, cssW, u, scale, h, sx, sy, hudBottom: hud.bottom }, view.pops);
+    drawPops({ ctx, kit, skin, state, cssW, u, scale, h, sx: tx, sy, hudBottom: hud.bottom }, view.pops);
   }
 
   kit.front(ctx, scene);
@@ -274,6 +325,15 @@ export function render(
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+}
+
+/**
+ * How far left the tower layer is drawn this frame, world units: Hard's eased sideways camera,
+ * faded out while the base is on screen. 0 in Normal.
+ */
+export function towerPan(view: View, state: GameState, frame: Frame): number {
+  if (state.mode !== "hard") return 0;
+  return view.panX * panFade(frame);
 }
 
 interface HudLayout {

@@ -68,6 +68,27 @@ function topple(seconds: number): Sim {
   return s;
 }
 
+/**
+ * Hard mode: a straight tower, then a harmonic lean to the right (each bar hangs a little less than
+ * the most it could over the one below, the top one most), so the top stands far past the base:
+ * nothing is sliced, so the tower top and the slider sit well right of the scenery and the camera
+ * pans to keep them on screen.
+ */
+function lean(): Sim {
+  const s = climb(20, "hard", [0]);
+  const n = 10;
+  for (let i = 0; i < n && s.state.phase === "playing"; i++) {
+    // From the bottom of the lean up: 1/n, 1/(n-1), ... 1/1 of the most a lone bar could hang.
+    dropAt(s, (LEAN_SHARE * (s.state.slider.w / 2)) / (n - i));
+    settle(s, 0.25);
+  }
+  settle(s, 1.2);
+  return s;
+}
+
+/** How much of the harmonic limit each bar of the leaning shot hangs (1 would balance on the edge). */
+const LEAN_SHARE = 0.85;
+
 export function shots(): Shot[] {
   const start = sim();
   settle(start, 3);
@@ -88,7 +109,8 @@ export function shots(): Shot[] {
   settle(over, 0.5);
 
   // Hard mode: the title (HARD under the name, one life), a tower of overhanging bars that still
-  // balances (nothing is sliced), a tower mid-fall, and the card once it has gone over.
+  // balances (nothing is sliced), a strongly leaning tower the camera pans after, a tower mid-fall,
+  // and the card once it has gone over.
   const hard = sim("hard");
   settle(hard, 3);
   const hardClimb = climb(22, "hard", [0, 7, -6, 0, 5, -8, 3, 0, -4, 6]);
@@ -101,6 +123,7 @@ export function shots(): Shot[] {
     { name: "over", ...over, best: 52 },
     { name: "hard", ...hard, best: 17 },
     { name: "hardClimb", ...hardClimb, best: 17 },
+    { name: "hardLean", ...lean(), best: 17 },
     { name: "topple", ...topple(0.5), best: 17 },
     { name: "toppled", ...topple(1.6), best: 17 },
   ];
