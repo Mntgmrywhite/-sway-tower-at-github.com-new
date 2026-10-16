@@ -15,6 +15,7 @@
     "build:artifact": "npm run build && node scripts/build-artifact.mjs",
     "ios": "npm run build && cap sync ios",
     "ios:open": "cap open ios",
+    "ios:art": "tsx scripts/ios-art.ts",
     "snap": "tsx scripts/preview.ts",
     "music": "tsx scripts/music/render.ts",
     "music:check": "tsx scripts/music/check.ts",
