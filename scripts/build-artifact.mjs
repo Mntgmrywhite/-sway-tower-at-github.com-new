@@ -1,5 +1,5 @@
 // Inlines the Vite build into one HTML page for publishing as a claude.ai Artifact.
-// Usage: npm run build:artifact  →  dist/one-tap-stack.html
+// Usage: npm run build:artifact  →  dist/sway-tower.html
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 
 const assets = readdirSync("dist/assets");
@@ -12,7 +12,7 @@ const js = read(".js");
 const css = read(".css");
 if (js.includes("</script")) throw new Error("bundle contains </script; cannot inline safely");
 
-const page = `<title>One-Tap Stack</title>
+const page = `<title>Sway Tower</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#14161f">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Monoton&family=Orbitron:wght@600;700&display=swap">
@@ -28,5 +28,5 @@ ${css}
 ${js}
 </script>
 `;
-writeFileSync("dist/one-tap-stack.html", page);
-console.log(`dist/one-tap-stack.html  ${(page.length / 1024).toFixed(1)} kB`);
+writeFileSync("dist/sway-tower.html", page);
+console.log(`dist/sway-tower.html  ${(page.length / 1024).toFixed(1)} kB`);

@@ -5,7 +5,7 @@ import { neonStroke, neonText, roundRectPath } from "./neon/draw";
 import { drawForeground, drawPost, drawWorld, horizonFor } from "./neon/world";
 import type { Scene, Skin } from "./skins/skin";
 
-export const GAME_NAME = "One-Tap Stack";
+export const GAME_NAME = "Sway Tower";
 
 /** HUD text face for every skin; the skin picks the display face for titles. */
 const BODY_FONT = "Orbitron, 'Trebuchet MS', system-ui, sans-serif";
