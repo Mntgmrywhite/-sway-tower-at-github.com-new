@@ -39,6 +39,16 @@ export interface Track {
    * to soften a fiddle's or harpsichord's edge, 2500 for a mellow, distant voice. Off by default.
    */
   lowpass?: number;
+  /** The part this track belongs to, for reports (mix.ts sums a part's tracks into one row). */
+  label?: string;
+  /**
+   * One-shot instruments ring out their whole recording (a ride cymbal ~7 s, a guitar string
+   * into the next chord). `choke` stops each note at the track's next note, as a drummer's or
+   * guitarist's hand would; `ring` caps how many seconds any note rings. Both release through
+   * the instrument's release time.
+   */
+  choke?: boolean;
+  ring?: number;
 }
 
 export interface Song {
@@ -65,6 +75,23 @@ export function loopFrames(song: Song): number {
   return frames;
 }
 
+/**
+ * Set each one-shot's ring time: until the track's next note starts (choke; notes struck
+ * together don't choke each other, and the last note chokes on the loop's first), and at most
+ * `ring` seconds.
+ */
+function ringLimits(events: NoteEvent[], loopSeconds: number, track: Track): void {
+  const starts = [...new Set(events.map((e) => e.time))].sort((a, b) => a - b);
+  for (const e of events) {
+    let ring = track.ring ?? Infinity;
+    if (track.choke && starts.length) {
+      const next = starts.find((t) => t > e.time + 0.01) ?? starts[0]! + loopSeconds;
+      ring = Math.min(ring, next - e.time);
+    }
+    if (Number.isFinite(ring)) e.ring = ring;
+  }
+}
+
 /** Render one seamless loop of the song (before mastering). */
 export function renderLoop(song: Song): Audio {
   const frames = loopFrames(song);
@@ -73,6 +100,8 @@ export function renderLoop(song: Song): Audio {
   const dryR = new Float32Array(frames);
   const sendL = new Float32Array(frames);
   const sendR = new Float32Array(frames);
+  // Round robins restart with every render, so a song sounds the same whatever rendered before.
+  for (const track of song.tracks) instrument(track.inst).resetRoundRobin();
   song.tracks.forEach((track, ti) => {
     const inst = instrument(track.inst);
     const h = track.humanize ?? 0.3;
@@ -84,6 +113,7 @@ export function renderLoop(song: Song): Audio {
       const vel = Math.min(1, Math.max(0.05, (n.v ?? 0.7) + (rand(ti * 2000 + ni) - 0.5) * 0.12 * h));
       return { time: Math.max(0, t * beat + jitter), dur: n.d * beat, note: typeof n.n === "number" ? n.n : midi(n.n), vel };
     });
+    if (track.choke || track.ring !== undefined) ringLimits(events, frames / RATE, track);
     const tL = new Float32Array(frames);
     const tR = new Float32Array(frames);
     renderNotes(inst, events, tL, tR, RATE, track.gain ?? 1, track.pan ?? 0);
@@ -170,6 +200,7 @@ export function transpose(notes: Note[], semis: number): Note[] {
  */
 export function euphonium(notes: Note[], opts: Omit<Track, "inst" | "notes"> & { short?: boolean } = {}): Track[] {
   const { short, gain = 1, ...rest } = opts;
+  rest.label ??= short ? "euphonium (short)" : "euphonium";
   return [
     { ...rest, inst: short ? "tromboneShort" : "trombone", notes, gain: gain * (short ? 2.2 : 0.6), lowpass: 2800 },
     { ...rest, inst: short ? "tubaShort" : "tuba", notes, gain: gain * (short ? 0.7 : 0.5), lowpass: 3500 },

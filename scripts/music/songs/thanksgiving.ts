@@ -15,19 +15,19 @@
 //          swung eighths, played a little lighter than the jig's triplets. The piano plays the tune
 //          over left-hand rootless voicings (sevenths and ninths on the theme's chords); the
 //          contrabass plays in 2 (17–24), then walks (25–32); the drums play a stick ride (ding,
-//          ding-a), the hi-hat on the backbeat pulse, a feathered kick and ghosted snare. A tenor sax
-//          joins: doubling the tune an octave below in A' (21–24), a tenth below in B (25–28), then
-//          taking the tune in A'' (29–32) with the horn in harmony under it while the piano comps
-//          above. The bass walks up D-E-F#, the drums fill and the guitar's pickup strum hand back to
-//          the hoedown at bar 1.
+//          ding-a), the hi-hat on the backbeat pulse, a feathered kick and ghosted snare, and a soft
+//          crash lifts B. A tenor sax joins: doubling the tune an octave below in A' (21–24, leaving
+//          the pickup run into B to the piano), a tenth below in B (25–28), then taking the tune in
+//          A'' (29–32) with the horn in harmony under it while the piano comps above. The bass walks
+//          up D-E-F#, the drums fill and the guitar's pickup strum hand back to the hoedown at bar 1.
 //
 // Register plan (low to high), so parts don't fight:
-//   hoedown  bass pizz B1–G2 · guitar strums A2–F#4 · horn (13–16) E3–B3 · euphonium E3–D4 ·
+//   hoedown  bass pizz G1–G2 · guitar strums A2–F#4 · horn (13–16) E3–B3 · euphonium E3–D4 ·
 //            strumstick B3–E5 (5–8) · harmonica F#4–E5 (7–8) · fiddle D4–B5
-//   trio     bass G1–F#2 · piano left hand E3–E4 (A), B2–G3 shells under the sax (A', B) ·
-//            horn E3–B3 (29–32) · sax F#3–B4 · piano right hand: tune B4–B5, comping A4–F#5 (29–32)
-// The fiddle, harmonica, strumstick and sax are low-passed: the solo recordings are bright, and
-// the owner hears that edge as harsh.
+//   trio     bass G1–F#2 · piano left hand D3–E4 (A), B2–A3 shells under the sax (A', B) ·
+//            horn D3–B3 (29–32) · sax F#3–B4 · piano right hand: tune D4–B5, comping A4–F#5 (29–32)
+// The fiddle, harmonica, strumstick, sax, cymbals and hi-hat are low-passed: the solo recordings
+// are bright, and the owner hears that edge as harsh.
 
 import { instrument, type InstrumentName } from "../instruments";
 import { midi } from "../sampler";
@@ -261,21 +261,24 @@ for (const [t, d, name] of COUNTER) {
 // The euphonium takes over the countermelody, the band's classic role for it: a singing tenor
 // line in long notes that rises to the B section's peak (the C held from Am into D7, bar 12) and
 // resolves down a step into A''; the horn joins a third under it for A''. Both hold the D7 (C over
-// F#) through the break in bar 16, resolving into the trio's G. [time, length, note]
+// F#) through the break in bar 16; the euphonium's C resolves to B on the trio's first chord.
+// [time, length, note]
 const EUPH: [number, number, string][] = [
   [48, 3, "G3"], [51, 3, "E3"], [54, 3, "A3"], [57, 1, "F#3"], [58, 1, "G3"], [59, 1, "A3"],
   [60, 3, "B3"], [63, 3, "G3"], [66, 6, "C4"],
   [72, 3, "B3"], [75, 3, "D4"], [78, 3, "B3"], [81, 3, "G3"],
-  [84, 3, "A3"], [87, 3, "C4"], [90, 3, "A3"], [93, 4.5, "C4"],
+  [84, 3, "A3"], [87, 3, "C4"], [90, 3, "A3"], [93, 3, "C4"], [96, 2.5, "B3"],
 ];
 /**
  * The horn's line, here under the euphonium and again under the sax at the end of the trio
- * (bars 29–32), where it moves to the F# a pulse early and holds it into bar 1.
+ * (bars 29–32). There it takes D (Em7) under the sax's B in bar 30, since E3 would follow the
+ * tune's D-B in parallel fifths in the bare two-voice texture, then climbs D-E-F#, reaching the
+ * F# a pulse early and holding it through bar 32.
  */
-const HORN_LINE: [number, number, string][] = [[72, 3, "G3"], [75, 3, "B3"], [78, 3, "G3"], [81, 3, "E3"], [84, 3, "E3"]];
-const HORN_HOEDOWN: [number, number, string][] = [...HORN_LINE, [87, 3, "A3"], [90, 7.5, "F#3"]];
-const HORN_TRIO: [number, number, string][] = [...HORN_LINE, [87, 8.5, "F#3"]];
-const euph: Note[] = EUPH.map(([t, d, name]) => ({ t: t - 0.1, d: d - 0.2, n: midi(name), v: 0.55 + lift(t) * 0.5 }));
+const HORN_LINE: [number, number, string][] = [[72, 3, "G3"], [75, 3, "B3"], [78, 3, "G3"]];
+const HORN_HOEDOWN: [number, number, string][] = [...HORN_LINE, [81, 3, "E3"], [84, 3, "E3"], [87, 3, "A3"], [90, 7.5, "F#3"]];
+const HORN_TRIO: [number, number, string][] = [...HORN_LINE, [81, 3, "D3"], [84, 3, "E3"], [87, 8.5, "F#3"]];
+const euph: Note[] = EUPH.map(([t, d, name]) => ({ t: t - 0.1, d: d - 0.2, n: midi(name), v: t >= TRIO ? 0.45 : 0.55 + lift(t) * 0.5 }));
 // The horn's A3 recording speaks ~4 dB hotter than its neighbours: played a little softer.
 const hornPart = (start: number, line: [number, number, string][]): Note[] =>
   line.map(([t, d, name]) => ({ t: start + t - 0.1, d: d - 0.2, n: midi(name), v: name === "A3" ? 0.52 : 0.64 }));
@@ -348,7 +351,7 @@ for (let t = 0; t <= 90; t++) {
 
 // Felt in 2, the theme's eighths are swung eighths. The jig's lilt is an even triplet (long-short
 // 2:1); the trio plays its offbeat eighths a little earlier (60:40), a lighter swing, except inside
-// the tune's triplet runs (bars 4, 8). The ride's skip note stays on the triplet, as drummers play it.
+// the tune's triplet runs (bars 4, 8).
 const LIGHT = 0.2;
 const pulsePos = (t: number) => (((t % 3) + 3) % 3);
 const offbeat = (t: number) => Math.abs(pulsePos(t) - 2) < 1e-6;
@@ -386,25 +389,25 @@ for (const n of tune.filter((o) => o.t >= HANDOFF)) pianoTune.push({ t: n.t, d: 
 // ---------------------------------------------------------------- piano: comping
 
 // Rootless voicings (two of 3rd, 7th, 9th, 11th), between D3 and E4 under the tune in A;
-// two-note shells under the sax in A' and B (B2–G3); in A'' the right hand comps above the sax.
+// two-note shells under the sax in A' and B (B2–A3); in A'' the right hand comps above the sax.
 const V: Record<string, string[]> = {
   Gmaj9: ["F#3", "A3", "B3"],
   Em9: ["D3", "F#3", "G3"],
-  Cmaj9: ["E3", "B3", "D4"],
+  C69: ["E3", "A3", "D4"], // no maj7: B3 would sit a minor ninth under the tune's C5
   D9sus: ["G3", "C4", "E4"],
-  D9: ["F#3", "C4", "E4"],
+  D9: ["A3", "C4", "E4"], // no 3rd: the tune's F#4 is the 3rd, and its passing G4 would rub a minor ninth on an F#3
   // shells
   G: ["B2", "F#3"],
   G6: ["B2", "E3"],
   Em: ["D3", "G3"],
   Am: ["C3", "G3"],
   D7: ["C3", "F#3"],
-  C: ["B2", "E3"],
+  C: ["E3", "A3"], // C6: a maj7 would sit a minor ninth under the tune's C5
   Bm: ["D3", "A3"],
   // right hand, above the sax
   rG: ["A4", "B4", "E5"],
   rEm: ["B4", "D5", "F#5"],
-  rAm: ["B4", "C5", "E5"],
+  rAm: ["A4", "C5", "E5"],
   rD7: ["C5", "E5", "F#5"],
 };
 /** [position in the bar (eighths, swung), length, velocity, voicing] per trio bar. */
@@ -413,8 +416,8 @@ const COMP: Hit[][] = [
   // A (17–20): the hand alone with the tune, Charleston-like pushes into the next bar
   [[0, 1.8, 0.4, "Gmaj9"], [4.8, 1.2, 0.38, "Em9"]],
   [[3, 1, 0.34, "Em9"]],
-  [[0, 1.4, 0.39, "Cmaj9"], [1.8, 0.9, 0.34, "Cmaj9"], [4.8, 1.2, 0.38, "D9sus"]],
-  [[3, 2.2, 0.38, "D9"]],
+  [[0, 1.4, 0.39, "C69"], [1.8, 0.9, 0.34, "C69"], [4.8, 1.2, 0.38, "D9sus"]],
+  [[3, 0.9, 0.38, "D9"]], // a short stab under the tune's pickup run
   // A' (21–24): shells under the sax
   [[0, 2.4, 0.44, "G"]],
   [[1.8, 1, 0.4, "Em"], [4.8, 1.4, 0.42, "Am"]],
@@ -424,11 +427,11 @@ const COMP: Hit[][] = [
   [[3, 1.2, 0.4, "C"]],
   [[1.8, 1, 0.42, "D7"], [4.8, 1.4, 0.42, "Bm"]],
   [[3, 1.6, 0.42, "Em"]],
-  [[0, 1.6, 0.44, "Am"], [3, 2.6, 0.44, "D7"]],
+  [[0, 1.6, 0.44, "Am"], [3, 2.2, 0.44, "D7"]], // let go before the horn's G3 enters (a semitone above its F#3)
   // A'' (29–32): right-hand chords above the sax, on the offbeats
   [[1.8, 1, 0.42, "rG"], [4.8, 1, 0.4, "rG"]],
   [[1.8, 1, 0.4, "rEm"], [3, 1.2, 0.4, "rEm"]],
-  [[1.8, 1, 0.42, "rAm"], [4.8, 1, 0.42, "rAm"]],
+  [[3, 1, 0.42, "rAm"], [4.8, 1, 0.42, "rAm"]], // not on 1.8: the sax passes through B3 there
   [[0, 2.4, 0.44, "rD7"]],
 ];
 const comp: Note[] = [];
@@ -455,7 +458,10 @@ const saxDouble: Note[] = [];
 const saxHarmony: Note[] = [];
 const saxLead: Note[] = [];
 for (const n of swungTune) {
-  const inA1 = n.t >= 24 && n.t < 48;
+  // In bar 24 the sax leaves the tune's pickup run (D-E-F#) to the piano and breathes before its
+  // harmony line: the tenor's low recordings scoop up from ~30 cents flat over their first 0.1 s,
+  // which in quick eighths an octave under the piano sounds out of tune.
+  const inA1 = n.t >= 24 && n.t < 45;
   const inA3 = n.t >= 72;
   if (!inA1 && !inA3) continue;
   const v = 0.62 + ((n.v ?? 0.6) - 0.55) * 0.6;
@@ -463,17 +469,19 @@ for (const n of swungTune) {
   const d = n.d >= 2.5 ? n.d - 0.4 : n.d - 0.05;
   (inA3 ? saxLead : saxDouble).push({ t: TRIO + n.t - REED, d, n: (n.n as number) - 12, v });
 }
-for (const [t, d, name] of SAX_B) saxHarmony.push({ t: TRIO + sw(t) - REED, d: d - 0.05, n: midi(name), v: 0.62 });
+// Held until the next (swung) note, like the other sax lines, so one note never overlaps the next.
+for (const [t, d, name] of SAX_B) saxHarmony.push({ t: TRIO + sw(t) - REED, d: sw(t + d) - sw(t) - 0.05, n: midi(name), v: 0.62 });
 
 // ---------------------------------------------------------------- bass in 2, then walking
 
-// [bar of the trio (0-based), position, note]. In 2 (half notes, here one per bar) with a skip
-// note before the next bar's root; walking (two per bar, chromatic approaches) from B.
+// [bar of the trio (0-based), position, note]. In 2 (half notes, here one per bar, two where the
+// chord changes) with a skip note before the next bar's root; walking from B (two per bar, with
+// chromatic and stepwise approaches), up D-E-F# into the hoedown's G.
 const WALK: [number, number, string][] = [
   [0, 0, "G1"], [0, 4.8, "D2"], [1, 0, "E2"], [2, 0, "C2"], [2, 4.8, "G1"], [3, 0, "D2"], [3, 3, "A1"],
   [4, 0, "G1"], [4, 4.8, "D2"], [5, 0, "E2"], [6, 0, "A1"], [6, 3, "D2"], [7, 0, "G1"], [7, 3, "B1"],
-  [8, 0, "C2"], [8, 3, "E2"], [9, 0, "D2"], [9, 3, "C#2"], [10, 0, "B1"], [10, 3, "E2"], [11, 0, "A1"], [11, 3, "D2"],
-  [12, 0, "G1"], [12, 3, "B1"], [13, 0, "E2"], [13, 3, "B1"], [14, 0, "A1"], [14, 3, "C#2"],
+  [8, 0, "C2"], [8, 3, "E2"], [9, 0, "D2"], [9, 3, "C2"], [10, 0, "B1"], [10, 3, "E2"], [11, 0, "A1"], [11, 3, "D2"],
+  [12, 0, "G1"], [12, 3, "B1"], [13, 0, "E2"], [13, 3, "B1"], [14, 0, "A1"], [14, 3, "C2"],
   [15, 0, "D2"], [15, 3, "D2"], [15, 4, "E2"], [15, 5, "F#2"],
 ];
 for (const [b, pos, name] of WALK) {
@@ -484,20 +492,25 @@ for (const [b, pos, name] of WALK) {
 
 // ---------------------------------------------------------------- drums
 
-// Stick ride: ding (1), ding (backbeat pulse), -a (the skip, on the triplet before the next bar).
+// Stick ride: ding (1), ding (the backbeat pulse), -a (the skip, just before the next bar).
 // The ride's two recordings (a firm and a medium stroke, ~7 dB apart) alternate as round robins
 // in note order, so the notes are listed in the order that gives the firm stroke to the backbeat
-// and the medium one to the skips: per two bars [A4, A6, B4, B6, A1, B1] (the first bar's
-// downbeat firm, the second's medium: a lean on 1 of each 4/4 bar).
+// and the medium one to the skips: per two bars [A backbeat, A skip, B backbeat, B skip,
+// A downbeat, B downbeat] (the first bar's downbeat firm, the second's medium: a lean on 1 of each
+// 4/4 bar). Velocities then set the accents within each stroke.
+/** The skip lands a hair after the piano's offbeats, nearer the triplet, as drummers play it. */
+const SKIP = 4.9;
 const ride: Note[] = [];
 for (let b = 0; b < 16; b += 2) {
   const A = TRIO + b * BAR;
   const B = A + BAR;
+  // In bar 32 the sticks leave the ride after the downbeat for the fill (which also keeps the
+  // ride's long ring from washing over the hoedown's first bars); the pairs stay in step.
+  const last = b === 14;
   ride.push(
     { t: A + 3, d: 1, n: "D#3", v: 0.18 },
-    { t: A + 5, d: 1, n: "D#3", v: 0.42 },
-    { t: B + 3, d: 1, n: "D#3", v: 0.18 },
-    { t: B + 5, d: 1, n: "D#3", v: 0.42 },
+    { t: A + SKIP, d: 1, n: "D#3", v: 0.42 },
+    ...(last ? [] : [{ t: B + 3, d: 1, n: "D#3", v: 0.18 }, { t: B + SKIP, d: 1, n: "D#3", v: 0.42 }]),
     { t: A, d: 1, n: "D#3", v: b === 8 ? 0.4 : 0.22 },
     { t: B, d: 1, n: "D#3", v: 0.62 },
   );
@@ -535,9 +548,9 @@ const song: Song = {
   reverb: { room: 0.6, damp: 0.7, width: 0.9, level: 0.85 },
   tracks: [
     // hoedown
-    ...leveled({ inst: "fiddle", gain: 1, pan: -0.05, reverb: 0.3, lowpass: 4200 }, fiddle),
-    ...leveled({ inst: "fiddleShort", gain: 1.15, pan: -0.05, reverb: 0.3, lowpass: 4200 }, spiccato),
-    { inst: "harmonica", notes: harmonica, gain: 0.7, pan: 0.25, reverb: 0.25, lowpass: 4000 },
+    ...leveled({ inst: "fiddle", gain: 1, pan: -0.05, reverb: 0.3, lowpass: 3500 }, fiddle),
+    ...leveled({ inst: "fiddleShort", gain: 1.15, pan: -0.05, reverb: 0.3, lowpass: 3500 }, spiccato),
+    { inst: "harmonica", notes: harmonica, gain: 1, pan: 0.25, reverb: 0.25, lowpass: 2400 },
     ...leveled({ inst: "strumstick", gain: 0.75, pan: 0.4, reverb: 0.3, lowpass: 6000 }, strumstick),
     ...euphonium(euph, { gain: 2.2, pan: 0.3, reverb: 0.3, humanize: 0.2 }),
     { inst: "horn", notes: hornBand, gain: 0.75, pan: -0.3, reverb: 0.35, humanize: 0.2 },
@@ -548,18 +561,20 @@ const song: Song = {
     { inst: "kick", notes: stomp, gain: 0.33, pan: 0, reverb: 0.1 },
     { inst: "claps", notes: claps, gain: 0.29, pan: 0.1, reverb: 0.25, humanize: 0.5 },
     // trio
-    { inst: "piano", notes: pianoTune, gain: 0.14, pan: -0.1, reverb: 0.25, humanize: 0.3 },
-    { inst: "piano", notes: comp, gain: 0.09, pan: -0.15, reverb: 0.25, humanize: 0.4 },
+    { inst: "piano", notes: pianoTune, gain: 0.18, pan: -0.1, reverb: 0.25, humanize: 0.3 },
+    { inst: "piano", notes: comp, gain: 0.1, pan: -0.15, reverb: 0.25, humanize: 0.4 },
     // The sax under the piano in A' (doubling), level with it in B (harmony), out front in A''.
     { inst: "sax", notes: saxDouble, gain: 0.55, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
     { inst: "sax", notes: saxHarmony, gain: 0.85, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
     { inst: "sax", notes: saxLead, gain: 1, pan: 0.15, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
     { inst: "horn", notes: hornTrio, gain: 1, pan: -0.3, reverb: 0.35, humanize: 0.2 },
-    { inst: "ride", notes: ride, gain: 4.8, pan: 0.3, reverb: 0.15, humanize: 0.3, lowpass: 6000 },
-    { inst: "hatClosed", notes: hat, gain: 2, pan: 0.35, reverb: 0.1, humanize: 0.3, lowpass: 7000 },
-    { inst: "snareOn", notes: snare, gain: 2.4, pan: 0.05, reverb: 0.15, humanize: 0.3 },
-    { inst: "kick", notes: kick, gain: 0.7, pan: 0, reverb: 0.05, humanize: 0.2 },
-    { inst: "crash", notes: crash, gain: 0.3, pan: 0.3, reverb: 0.2 },
+    // The kit: a dark ride (its wash carried the trio's whole top end), the hi-hat darkened toward
+    // a foot chick and up where it reads under the ride, the crash a soft swell into B.
+    { inst: "ride", notes: ride, gain: 6, pan: 0.3, reverb: 0.15, humanize: 0.3, lowpass: 4500 },
+    { inst: "hatClosed", notes: hat, gain: 6.5, pan: 0.35, reverb: 0.1, humanize: 0.3, lowpass: 5000 },
+    { inst: "snareOn", notes: snare, gain: 3, pan: 0.05, reverb: 0.15, humanize: 0.3 },
+    { inst: "kick", notes: kick, gain: 0.9, pan: 0, reverb: 0.05, humanize: 0.2 },
+    { inst: "crash", notes: crash, gain: 1.1, pan: 0.3, reverb: 0.2, lowpass: 5000 },
   ],
 };
 

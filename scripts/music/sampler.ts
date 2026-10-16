@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import { centsNear } from "./pitch";
+import { centsHeard, centsNear } from "./pitch";
 import { readWav, type Audio } from "./wav";
 
 export const SAMPLES = join(homedir(), "APP", "samples");
@@ -43,6 +43,12 @@ export interface InstrumentOptions {
   match?: RegExp;
   /** Fallback note for unpitched one-shots (drums), e.g. "C4". */
   fixedNote?: string;
+  /**
+   * Velocity layers by filename, softest first, for sets whose names carry dynamics the parser
+   * can't read (e.g. "hit_stick_mp1" vs "hit_stick_f1": "f1" also reads as a note). A file gets
+   * the layer of the first pattern it matches.
+   */
+  layerBy?: RegExp[];
   /** Attack and release in seconds. */
   attack?: number;
   release?: number;
@@ -54,8 +60,12 @@ export interface InstrumentOptions {
   transpose?: number;
   /** Fine tuning for the whole instrument, in cents (measured; see pitch.test.ts). */
   cents?: number;
-  /** Measure each recording's pitch on load and correct it individually (sets that drift per note). */
-  autotune?: boolean;
+  /**
+   * Measure each recording's pitch on load and correct it individually (sets that drift per note).
+   * "heard" tunes the pitch you hear (loudness-weighted over the first half second) rather than
+   * the settled sustain: for plucks that start sharp and settle, and winds that scoop in.
+   */
+  autotune?: boolean | "heard";
   /** Harmonic overtones (winds, brass, strings): lets autotune measure low notes on a higher partial. */
   harmonic?: boolean;
   /** With autotune: drop takes whose pitch can't be measured reliably (bent staccato notes). */
@@ -129,17 +139,18 @@ interface Reading {
  * first four) and take the median; it is steady only when the partials agree, since short
  * staccato notes bend in pitch and their partials scatter. Offsets of 60+ cents are misreads.
  */
-function measurePitch(z: Zone, harmonic: boolean): Reading {
+function measurePitch(z: Zone, harmonic: boolean, heard: boolean): Reading {
   const hz = 440 * 2 ** ((z.note - 69) / 12);
+  const read = (h: number) => (heard ? centsHeard : centsNear)(z.audio.left, z.audio.rate, z.note, h);
   if (!harmonic) {
-    const cents = centsNear(z.audio.left, z.audio.rate, z.note);
+    const cents = read(1);
     return { cents, steady: Math.abs(cents) < 60 };
   }
   const reads: number[] = [];
   for (let h = 1; h <= 8; h++) {
     // Low and middle notes: partials up to 2.5 kHz; high notes: the first four.
     if (h * hz < 150 || h * hz > Math.max(2500, hz * 4.5)) continue;
-    const c = centsNear(z.audio.left, z.audio.rate, z.note, h);
+    const c = read(h);
     if (Number.isFinite(c)) reads.push(c);
   }
   if (!reads.length) return { cents: NaN, steady: false };
@@ -168,7 +179,7 @@ function wavPath(file: string): string {
 
 export class Instrument {
   readonly zones: Zone[] = [];
-  readonly opts: Required<Omit<InstrumentOptions, "match" | "fixedNote">> & InstrumentOptions;
+  readonly opts: Required<Omit<InstrumentOptions, "match" | "fixedNote" | "layerBy">> & InstrumentOptions;
   private rrCounter = new Map<number, number>();
 
   constructor(opts: InstrumentOptions) {
@@ -178,6 +189,10 @@ export class Instrument {
     for (const f of files.sort()) {
       const parsed = parseName(f);
       if (opts.fixedNote) parsed.note = midi(opts.fixedNote);
+      if (opts.layerBy) {
+        const i = opts.layerBy.findIndex((re) => re.test(f));
+        if (i >= 0) parsed.layer = i + 1;
+      }
       if (Number.isNaN(parsed.note)) continue;
       const audio = trimLead(readWav(wavPath(join(dir, f))));
       if (!audio) {
@@ -190,7 +205,7 @@ export class Instrument {
     if (this.opts.autotune) {
       const reading = new Map<Zone, Reading>();
       for (const z of this.zones) {
-        const r = measurePitch(z, this.opts.harmonic);
+        const r = measurePitch(z, this.opts.harmonic, this.opts.autotune === "heard");
         reading.set(z, r);
         if (r.steady) z.detune = -r.cents;
       }
@@ -229,14 +244,14 @@ export class Instrument {
     }
   }
 
-  /** The zone for a note at velocity 0..1: nearest pitch, matching layer, cycling round robins. */
-  pick(note: number, velocity: number): { zone: Zone; ratio: number } {
+  /** The layer and the nearest recording a note at velocity 0..1 plays (before round robins). */
+  zoneFor(note: number, velocity: number): Zone {
     const layers = [...new Set(this.zones.map((z) => z.layer))].sort((a, b) => a - b);
     const layer = layers[Math.min(layers.length - 1, Math.floor(velocity * layers.length))]!;
-    const inLayer = this.zones.filter((z) => z.layer === layer);
-    let best = inLayer[0]!;
+    let best: Zone | null = null;
     let bestCost = Infinity;
-    for (const z of inLayer) {
+    for (const z of this.zones) {
+      if (z.layer !== layer) continue;
       const d = note - z.note;
       // Prefer shifting up (d >= 0) and small shifts; down-shifts cost a little more.
       const cost = d >= 0 ? d : -d * 1.3;
@@ -245,12 +260,23 @@ export class Instrument {
         best = z;
       }
     }
-    const candidates = inLayer.filter((z) => z.note === best.note);
-    const key = best.note * 10 + layer;
+    return best!;
+  }
+
+  /** The zone for a note at velocity 0..1: nearest pitch, matching layer, cycling round robins. */
+  pick(note: number, velocity: number): { zone: Zone; ratio: number } {
+    const best = this.zoneFor(note, velocity);
+    const candidates = this.zones.filter((z) => z.layer === best.layer && z.note === best.note);
+    const key = best.note * 10 + best.layer;
     const next = ((this.rrCounter.get(key) ?? 0) % candidates.length) + 1;
     this.rrCounter.set(key, next);
     const zone = candidates.find((z) => z.rr === next) ?? best;
     return { zone, ratio: Math.pow(2, (note - zone.note + zone.detune / 100) / 12) };
+  }
+
+  /** Start every note's round robin from its first take again, so each render stands alone. */
+  resetRoundRobin(): void {
+    this.rrCounter.clear();
   }
 }
 
@@ -276,6 +302,8 @@ export interface NoteEvent {
   note: number;
   /** 0..1 */
   vel: number;
+  /** One-shots only: seconds it rings before its release starts (default: the whole recording). */
+  ring?: number;
 }
 
 /**
@@ -300,7 +328,7 @@ export function renderNotes(
     const step = ratio * (src.rate / rate);
     const start = Math.round(ev.time * rate);
     const attack = Math.max(1, Math.round(inst.opts.attack * rate));
-    const holdFrames = inst.opts.oneShot ? Infinity : Math.round(ev.dur * rate);
+    const holdFrames = inst.opts.oneShot ? (ev.ring === undefined ? Infinity : Math.round(ev.ring * rate)) : Math.round(ev.dur * rate);
     const releaseFrames = Math.max(1, Math.round(inst.opts.release * rate));
     const srcFrames = src.left.length;
     const amp = gain * inst.opts.gain * (zone.level ?? 1) * (0.35 + 0.65 * ev.vel);

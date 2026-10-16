@@ -22,14 +22,16 @@
 //                         a fourth where the chord asks), the brass answering under the held notes
 //             49–56  B    muted trumpet back; the tenor saxes hold guide-tone pads under it
 //             57–60  A''  everyone: trumpet lead, soprano and tenor in close harmony under it, crash
-//             61–64       countdown 4-3-2-1: claps on 2 and 3, a hit on every downbeat with a crash,
-//                         a tom fill into the "Happy New Year" hit (crash + clash cymbals) on bar 1.
+//             61–64       countdown 4-3-2-1 (the ensemble carries on): claps on 2 and 3, a brass hit on
+//                         every downbeat, crashes on the "2" and "1", a tom fill into the
+//                         "Happy New Year" hit (crash + clash cymbals) on bar 1.
 //
 // Register plan (so the parts don't fight): bass pizz F1–C3; piano "oom" Eb2–D3 and chords C3–F4
 // (only the lowest two notes while the saxes hold harmony); trombone hits D3–C4, trumpet hits C4–G4,
-// sax stabs Eb4–D5, all voiced under the lead (top note at most doubling it) except the bar-1 hit;
-// tenor sax Eb3–Eb5 in the soli, G3–Eb4 in the pads; lead Bb3–G5 (muted trumpet, soprano sax, piano
-// right hand Ab4–Bb5 in the break).
+// sax stabs D4–E5; the hits are voiced under the lead (top note at most doubling it) except the
+// bar-1 hit, and the sax answers move above the trumpet only while it holds a note. Tenor sax
+// Eb3–Eb5 in the soli, F3–Eb4 in the pads, G3–G4 in the last A (soprano C4–C5 there); lead Bb3–G5
+// (muted trumpet, soprano sax; the piano's right hand F4–Bb5 in octaves in the break).
 
 import { midi } from "../sampler";
 import type { Note, Song, Track } from "../song";
@@ -95,16 +97,17 @@ const buildDb = (t: number, maxDb: number) => Math.round(maxDb * energy(t));
 // ---------------------------------------------------------------- harmony (one chord per bar)
 
 // Piano voicings: rootless shells (3rd + 7th, or 7th + 3rd), sometimes a 9th/13th/6th on top,
-// kept between C3 and F4 so they sit under the trumpet and clear of the bass.
+// kept between C3 and F4 so they sit under the trumpet and clear of the bass. No D (a maj7 or 9th)
+// sits a half step or a minor 9th under an Eb that the tune or the saxes hold in the same bar.
 const PIANO: string[][] = [
-  ["G3", "D4"], // 1  Ebmaj7
+  ["G3", "C4", "D4"], // 1  Ebmaj7(13) (chorus 2 keeps G3 C4: no D under the soli tenor's Eb4)
   ["G3", "C4", "F4"], // 2  Eb6/9 (no 7th under the tune's Eb5)
   ["Eb3", "Bb3", "D4"], // 3  Cm9
-  ["Eb3", "Bb3", "D4"], // 4  Cm9
+  ["Eb3", "G3", "Bb3"], // 4  Cm7 (no 9th: the saxes' answer, and the soli tenor, are on Eb)
   ["F3", "C4", "Eb4"], // 5  Ab6 (no G under the tune's Ab4)
   ["G3", "C4", "F4"], // 6  Abmaj7(13)
   ["Eb3", "Ab3", "C4"], // 7  Bb9sus
-  ["D3", "Ab3"], // 8  Bb7 (low: the tune dips to D4 here)
+  ["F3", "Ab3", "C4"], // 8  Bb9 without its 3rd: the tune passes Eb4 on 2 (the bass brings the D)
   ["G3", "C4"], // 9  Eb6 (no maj7 D4: it would sit a b9 under the Eb5 pushed into bar 10)
   ["G3", "C4", "F4"], // 10 Eb6/9
   ["Eb3", "Bb3", "F4"], // 11 Cm11
@@ -118,10 +121,10 @@ const PIANO: string[][] = [
   ["Eb3", "Ab3", "C4"], // 19 Bb9sus
   ["D3", "Ab3"], // 20 Bb7
   ["F3", "Bb3", "D4"], // 21 Gm7
-  ["Eb3", "Bb3", "D4"], // 22 Cm9
+  ["Eb3", "G3", "Bb3"], // 22 Cm7 (tune on Eb5)
   ["Eb3", "Ab3", "C4"], // 23 Fm7
   ["D3", "Ab3", "C4"], // 24 Bb9
-  ["D3", "G3", "C4"], // 25 Ebmaj7(13)
+  ["G3", "C4", "D4"], // 25 Ebmaj7(13) (no D3: anticipated on &3, it sat a half step under the trombones' Eb3)
   ["G3", "C4", "F4"], // 26 Eb6/9
   ["Eb3", "Bb3", "D4"], // 27 Cm9
   ["Eb3", "Bb3"], // 28 Cm7 (tune on G4/Eb4)
@@ -232,7 +235,7 @@ const tuttiTenor = harmonize(tuttiSoprano, true);
 push(trumpetC1, bar(10)); // A': Eb5 anticipated
 push(trumpetC1, bar(22)); // B: C5 anticipated
 push(trumpetC1, bar(25)); // into the last A, with the whole band
-push(trumpetC2, bar(54));
+push(trumpetC2, bar(54)); // B: C5 anticipated
 for (const line of [trumpetC2, tuttiSoprano, tuttiTenor]) push(line, bar(57));
 
 // The harmon-mute set has a soft and a loud take of each note. From Bb4 up the loud takes are
@@ -242,10 +245,22 @@ for (const line of [trumpetC2, tuttiSoprano, tuttiTenor]) push(line, bar(57));
 // Velocity only picks the take and shapes the accents (soft takes stay well under 0.5, the layer
 // split, even after humanizing); the build through the form is done in gain (see the tracks).
 const SOFT_FROM = midi("Bb4");
+/**
+ * Song-local tuning of the lead (cents), from measuring each rendered note: the soft G5 (the F5
+ * take played up) drifts sharp, +9 cents over its quarter note; the soft Bb4 take starts with a
+ * lip scoop from -24 cents that settles after 150 ms, so the clipped pickup before a push (under
+ * half a beat) measured -14. Everything else is within 7 cents.
+ */
+function leadCents(m: number, d: number): number {
+  if (m === midi("G5")) return -8;
+  if (m === midi("Bb4") && d < 0.5) return 10;
+  return 0;
+}
 const lead: Note[] = [...trumpetC1, ...trumpetC2].map((n) => {
   const a = n.v ?? 0;
-  const v = num(n.n) >= SOFT_FROM ? Math.min(0.46, 0.34 + a * 0.4) : 0.6 + a * 0.75;
-  return { ...n, v };
+  const m = num(n.n);
+  const v = m >= SOFT_FROM ? Math.min(0.46, 0.34 + a * 0.4) : 0.6 + a * 0.75;
+  return { ...n, n: m + leadCents(m, n.d) / 100, v };
 });
 /**
  * Gain per recording (dB) so the line is even, with a natural gentle rise to the top: the
@@ -277,10 +292,14 @@ const PADS: [string, string][] = [
   ["C4", "G3"], ["C4", "F3"], ["Eb4", "Ab3"], ["D4", "Ab3"], // Abmaj7 Ab6 Bb9sus Bb7
   ["D4", "Bb3"], ["Eb4", "Bb3"], ["Eb4", "Ab3"], ["D4", "Ab3"], // Gm7 Cm9 Fm7 Bb9
 ];
-const pads: Note[] = PADS.flatMap(([hi, lo], i) => [hi, lo].map((n) => ({ t: bar(49 + i), d: 2.85, n, v: 0.45 + 0.1 * energy(bar(49 + i)) })));
+// The last one lets go before the band's push on &3 of bar 56, so its D4 doesn't ring under the
+// soprano's Eb4.
+const pads: Note[] = PADS.flatMap(([hi, lo], i) =>
+  [hi, lo].map((n) => ({ t: bar(49 + i), d: i === PADS.length - 1 ? 2.35 : 2.85, n, v: 0.45 + 0.1 * energy(bar(49 + i)) })),
+);
 
-// Answers (chorus 1): the section's reply under the trumpet's held notes, staccato, in sixths and
-// thirds. [beat, soprano, tenor]
+// Answers (chorus 1): the section's staccato reply while the trumpet holds a note, rising (bar 4,
+// in sixths) and falling (bar 12, in thirds) around it. [beat, soprano, tenor]
 const ANSWERS: [number, string, string][] = [
   [bar(4) + 1, "Bb4", "D4"], [bar(4) + 1.5, "C5", "Eb4"], [bar(4) + 2, "Eb5", "G4"], // Cm9 under G4
   [bar(12) + 1, "E5", "C5"], [bar(12) + 1.5, "D5", "Bb4"], [bar(12) + 2, "Bb4", "G4"], // C9 under C5
@@ -301,13 +320,19 @@ interface Hit {
 }
 // Every hit is voiced under the lead (its top note at most doubles the lead's note), so the
 // open, brighter trumpets never take the tune over. Only the bar-1 hit puts the saxes on top.
+// The saxes join three of chorus 1's B hits and the stop-time hit.
 const CM9 = { tbn: ["Eb3", "Bb3"], tpt: ["D4", "G4"] };
+// Chorus 2's hits under the saxes' Eb4 (or the Eb6 push): C4 in place of the 9th, which would sit a
+// half step under it.
+const CM7 = { tbn: ["Eb3", "Bb3"], tpt: ["C4", "G4"] };
 const SUS = { tbn: ["Eb3", "Ab3"], tpt: ["C4", "F4"] }; // Bb9sus
 const BB9 = { tbn: ["D3", "Ab3"], tpt: ["C4", "F4"] };
 const TBN_EB6 = ["Eb3", "G3", "C4"];
 const HITS: Hit[] = [
   // "Happy New Year!": lands on bar 1 after the countdown, the trumpets doubling the tune's G4.
-  { t: 0, tbn: ["Eb3", "Bb3"], tpt: ["D4", "G4"], sax: ["D5", "Bb4"], db: 6, ff: true },
+  // (+4 dB, not the one-chorus version's +6: with the saxes, kick and cymbals on it, +6 drove the
+  // master's limiter.)
+  { t: 0, tbn: ["Eb3", "Bb3"], tpt: ["D4", "G4"], sax: ["D5", "Bb4"], db: 4, ff: true },
   { t: bar(7) + 1, ...SUS, db: -1.5 }, // under the held Bb4
   { t: bar(7) + 2, ...SUS, db: -1 },
   { t: bar(15) + 1, tbn: TBN_EB6, db: -2 }, // trombones only under the low Eb4
@@ -320,11 +345,12 @@ const HITS: Hit[] = [
   { t: bar(23) + 1.5, tbn: ["Eb3", "Ab3"], tpt: ["C4", "G4"], sax: ["C5", "Eb4"], db: 0.5 }, // Fm9 under F5
   { t: bar(24) + 2.5, tbn: ["Eb3", "Bb3"], tpt: ["D4", "F4"], sax: ["G4", "D4"], db: 1.5 }, // push into the last A
   { t: bar(28) + 1, ...CM9, db: 0 },
-  // The break: one stop-time hit (Fm9, the saxes on the piano's Ab4), then the piano alone.
-  { t: bar(29), tbn: ["Eb3", "Ab3"], tpt: ["C4", "G4"], sax: ["Ab4", "Eb4"], db: 1 },
+  // The break: one stop-time hit (Fm7, the saxes on the piano's Ab4; no 9th G4 a half step under
+  // that melody note), then the piano alone.
+  { t: bar(29), tbn: ["Eb3", "Ab3"], tpt: ["C4", "F4"], sax: ["Ab4", "Eb4"], db: 1 },
   // Chorus 2: the band lands with the sax soli, and the brass answer its held notes.
   { t: bar(33), tbn: ["Eb3", "Bb3"], db: 0 },
-  { t: bar(36) + 1.5, ...CM9, db: -1 },
+  { t: bar(36) + 1.5, ...CM7, db: -1 },
   { t: bar(39) + 1, ...SUS, db: -1 },
   { t: bar(39) + 2, ...SUS, db: -0.5 },
   { t: bar(44) + 1.5, tbn: ["E3", "Bb3"], tpt: ["D4", "G4"], db: -0.5 }, // C9 under C5
@@ -336,8 +362,9 @@ const HITS: Hit[] = [
   { t: bar(52) + 2, ...BB9, db: 1 },
   { t: bar(53) + 1.5, tbn: ["F3", "Bb3"], tpt: ["D4", "F4"], db: 0.5 },
   { t: bar(55) + 1.5, tbn: ["Eb3", "Ab3"], tpt: ["C4", "G4"], db: 1 },
-  { t: bar(56) + 2.5, tbn: ["Eb3", "Bb3"], tpt: ["D4", "F4"], db: 2 },
-  { t: bar(60) + 1, ...CM9, db: 0.5 },
+  // The push into the ensemble's last A: Eb6, as the saxes' close harmony (G4 Eb4 C4) lands with it.
+  { t: bar(56) + 2.5, ...CM7, db: 2 },
+  { t: bar(60) + 1, ...CM7, db: 0.5 },
   // Countdown 4-3-2-1: a hit on every downbeat, louder each time, trumpets joining for the last two.
   { t: bar(61), tbn: ["Eb3", "Ab3", "C4"], db: -2 },
   { t: bar(62), tbn: ["Eb3", "Ab3", "C4"], db: -0.5 },
@@ -351,7 +378,7 @@ const TBN_V = 0.62;
 const TBN_FF_V = 0.88;
 const TBN_FF_TRIM_DB = -11; // brings the fortissimo take back in line; its brassier tone remains
 const TPT_V = 0.5;
-const SAX_STAB_V = 0.6; // the staccato saxes' loud layer: the soft one barely speaks
+const SAX_STAB_V = 0.6; // the staccato saxes' loud layer (0.5 and up), punchier than the soft one
 const trombones: Note[] = [];
 const trumpets: Note[] = [];
 const sopranoStabs: Note[] = [];
@@ -375,10 +402,10 @@ for (const h of HITS) {
     const ten = { t: t + 0.002, d: 0.5, n: h.sax[1], v: SAX_STAB_V };
     sopranoStabs.push(sop);
     tenorStabs.push(ten);
-    // The saxes follow the hit's dynamics only up to +1 dB: on the big hits the brass carry the
-    // weight, and staccato saxes on top of them drove the master's limiter.
-    hitDb.set(sop, Math.min(h.db, 1));
-    hitDb.set(ten, Math.min(h.db, 1));
+    // The saxes follow the hit's dynamics only up to 0 dB (-2 on the big bar-1 hit): there the
+    // brass carry the weight, and staccato saxes on top of them drove the master's limiter.
+    hitDb.set(sop, h.ff ? -2 : Math.min(h.db, 0));
+    hitDb.set(ten, h.ff ? -2 : Math.min(h.db, 0));
   }
 }
 for (const [t, sop, ten] of ANSWERS) {
@@ -394,7 +421,8 @@ const hitTimes = new Set(HITS.map((h) => h.t));
 
 // ---------------------------------------------------------------- piano: stride comping, a break
 
-// The warm upright (in tune; the honky-tonk's detuned unisons read as sour next to the saxes).
+// The warm upright piano: it is in tune, where the honky-tonk's unisons are detuned by design (and
+// the owner hears tuning); its recordings are hot, hence the small gains.
 // Stride: the left hand's bass note ("oom") on 1, the chord ("pah") on 2 and 3.
 //   S  oom-pah-pah        P  oom, pah on 2, pah on &3 anticipating the next chord
 //   C  Charleston: oom + chord on 1, chord on &2      L  light: oom, pah on 2      -  tacet
@@ -458,8 +486,9 @@ for (let b = 1; b <= BARS; b++) {
   }
 }
 
-// The break (bars 29–32): the tune's last phrase in octaves, a triplet run down the Bb9sus while
-// the tune holds its Bb4, and the stride left hand (oom on 1, pah on 2 and 3).
+// The break (bars 29–32): the tune's last phrase in octaves (the loud layer: brighter), a triplet
+// run down the Bb9sus where the tune holds its Bb4, and the stride left hand (oom on 1, pah on 2
+// and 3). Velocities stay over 0.5, the layer split, even after humanizing.
 const breakNotes: Note[] = [];
 const BREAK_RH: [number, number, string][] = [
   [bar(29), 1.8, "Ab4"], [bar(29) + 2, 0.8, "G4"],
@@ -470,7 +499,7 @@ const BREAK_RH: [number, number, string][] = [
 for (const [t, d, n] of BREAK_RH) {
   breakNotes.push({ t, d, n, v: 0.62 }, { t: t + 0.01, d, n: num(n) + 12, v: 0.56 });
 }
-["F5", "Eb5", "C5", "Bb4", "Ab4", "F4"].forEach((n, i) => breakNotes.push({ t: bar(31) + 1 + i / 3, d: 0.4, n, v: 0.6 - i * 0.02 }));
+["F5", "Eb5", "C5", "Bb4", "Ab4", "F4"].forEach((n, i) => breakNotes.push({ t: bar(31) + 1 + i / 3, d: 0.4, n, v: 0.62 - i * 0.015 }));
 const BREAK_LH: [number, string, string[]][] = [
   [29, "F2", ["Eb3", "Ab3", "C4"]], [30, "C3", ["Eb3", "Ab3", "C4"]],
   [31, "Bb2", ["Eb3", "Ab3", "C4"]], [32, "F2", ["D3", "Ab3", "C4"]],
@@ -507,9 +536,10 @@ const BASS_GAIN = 0.24;
 const BASS_TRIM = new Map(
   Object.entries({ G1: 3.5, Ab1: 2, C2: 3.5, D2: 3.5, F2: -1, G2: 7, Ab2: -1.5, Bb2: -1, C3: 1 }).map(([k, db]) => [midi(k), db]),
 );
-// Bb2 is played from the A2 recording, which measures ~10 cents sharp even after the
-// instrument's correction (YIN and harmonic-peak estimates agree), so it is pulled down.
-const BASS_CENTS = new Map([[midi("Bb2"), -10]]);
+// Bb2 is played from the A2 recording, whose two round-robin takes alternate note by note and
+// measure (with the instrument's -6 cent correction) about +10 and 0 cents. Pulling every Bb2 down
+// 5 cents leaves both within 5; the old -10 put the in-tune take 10 cents flat.
+const BASS_CENTS = new Map([[midi("Bb2"), -5]]);
 const bass = byGain(
   { inst: "bassPizz", pan: 0, reverb: 0.1, humanize: 0.25 },
   bassNotes.map((n) => {
@@ -538,8 +568,10 @@ for (let b = 1; b <= BARS; b++) {
   if (b >= 29 && b <= 32) continue; // the piano break (its hit and pickup are below)
   const lift = 0.06 * energy(s);
   // Jazz-waltz time, "1  2-a 3 | 1  2  3-a": on the closed hat for the first A sections, then on
-  // the ride with the hat "chick" on 2.
-  const skips = b >= 57 ? [1.5, 2.5] : b % 2 ? [1.5] : [2.5];
+  // the ride with the hat "chick" on 2. Always four strokes a bar: the ride's two recordings (mp
+  // and f) alternate as round robins in note order, so an even count keeps the f take on 1 and 3
+  // (an extra skip in the last A flipped the accent onto beat 2 every other bar).
+  const skips = b % 2 ? [1.5] : [2.5];
   if (b <= 16) {
     for (const beat of [0, 1, 2]) hat.push({ t: s + beat, d: 1, n: "F#2", v: (beat === 0 ? 0.66 : 0.6) + lift });
     for (const beat of skips) hat.push({ t: s + beat, d: 1, n: "F#2", v: 0.54 + lift });
@@ -573,13 +605,14 @@ for (const h of HITS) {
 }
 // The break's pickup: swung eighths on 2-&-3-& of bar 32, into the soli's crash.
 for (const [beat, v] of [[1, 0.22], [1.5, 0.26], [2, 0.32], [2.5, 0.42]]) snare.push({ t: bar(32) + beat!, d: 1, n: "D2", v: v! });
-// Crashes: the soli's entrance, the last A, the countdown's downbeats (growing), and the big one.
-for (const [t, v] of [[bar(33), 0.6], [bar(57), 0.65], [bar(61), 0.35], [bar(62), 0.42], [bar(63), 0.5], [bar(64), 0.6], [0, 0.9]]) {
+// Crashes: the soli's entrance, the last A, the countdown's "2" and "1", and the big one.
+for (const [t, v] of [[bar(33), 0.6], [bar(57), 0.65], [bar(63), 0.35], [bar(64), 0.45], [0, 0.9]]) {
   crash.push({ t: t!, d: 1, n: "C#3", v: v! });
 }
 // "Happy New Year": big downbeat, with the clash cymbals.
 kick.push({ t: 0, d: 1, n: "C2", v: 0.66 });
-const cymbals: Note[] = [{ t: 0, d: 1, n: "C#3", v: 0.8 }];
+// (The clash lands a hair after the band, as a hand-held pair does.)
+const cymbals: Note[] = [{ t: 0.06, d: 1, n: "C#3", v: 0.8 }];
 // Tom fill into the top of the loop: high tom on 2-&, low tom on 3-&, getting louder.
 for (const [beat, v] of [[1, 0.5], [1.5, 0.58]]) toms.push({ t: bar(64) + beat!, d: 1, n: "A2", v: v! });
 for (const [beat, v] of [[2, 0.62], [2.5, 0.72]]) tomsLow.push({ t: bar(64) + beat!, d: 1, n: "F2", v: v! });
@@ -597,8 +630,10 @@ for (let b = 61; b <= 64; b++) {
 
 // ---------------------------------------------------------------- the song
 
-const sopranoLine = [...soliSoprano.map((n) => ({ ...n, v: 0.62 + (n.v ?? 0) })), ...tuttiSoprano.map((n) => ({ ...n, v: 0.5 + (n.v ?? 0) }))];
-const tenorLine = [...soliTenor.map((n) => ({ ...n, v: 0.55 + (n.v ?? 0) })), ...tuttiTenor.map((n) => ({ ...n, v: 0.45 + (n.v ?? 0) }))];
+// (One recorded layer each, so velocity is level here: the soli leads, the ensemble's inner voices
+// sit under the trumpet but stay within ~10 dB of the mix through the countdown.)
+const sopranoLine = [...soliSoprano.map((n) => ({ ...n, v: 0.62 + (n.v ?? 0) })), ...tuttiSoprano.map((n) => ({ ...n, v: 0.58 + (n.v ?? 0) }))];
+const tenorLine = [...soliTenor.map((n) => ({ ...n, v: 0.55 + (n.v ?? 0) })), ...tuttiTenor.map((n) => ({ ...n, v: 0.58 + (n.v ?? 0) }))];
 
 const song: Song = {
   name: "newyear",
@@ -609,8 +644,11 @@ const song: Song = {
   reverb: { room: 0.55, damp: 0.5, width: 0.85, level: 0.85 },
   tracks: [
     // The lead rises ~3 dB from the first A to the countdown.
-    // A gentle low-pass takes the fizz off the harmon mute (-1 dB at 2.5 kHz, -6 dB at 5.5 kHz).
-    ...byGain({ inst: "trumpetMute", pan: 0.05, reverb: 0.3, humanize: 0.35, lowpass: 5500 }, lead, (n) => 2.7 * dB(leadGainDb(num(n.n)) + buildDb(n.t, 3))),
+    // The harmon mute's buzz peaks at 2.5 kHz, its loudest third-octave (louder than its own
+    // fundamentals), and it alone made this the brightest song by 8-13 dB at 2-4 kHz. The low-pass
+    // (-0.5 dB at 500 Hz, -2 dB at 1 kHz, -6 dB at 2 kHz, -8 dB at 2.5 kHz) tames it to a warmer,
+    // hat-muted 1920s sound; +3.2 dB of gain keeps the lead on top.
+    ...byGain({ inst: "trumpetMute", pan: 0.05, reverb: 0.3, humanize: 0.35, lowpass: 2000 }, lead, (n) => 3.9 * dB(leadGainDb(num(n.n)) + buildDb(n.t, 3))),
     // The sax section: soprano on top (the soli's lead), tenor under it, both darkened a little.
     { inst: "sopranoSax", notes: sopranoLine, gain: 0.5, pan: 0.15, reverb: 0.28, humanize: 0.3, lowpass: 4500 },
     { inst: "sax", notes: tenorLine, gain: 0.38, pan: -0.15, reverb: 0.28, humanize: 0.3, lowpass: 5000 },
@@ -619,20 +657,24 @@ const song: Song = {
     ...byGain({ inst: "saxShort", pan: -0.2, reverb: 0.25, humanize: 0.4, lowpass: 4500 }, tenorStabs, (n) => 0.36 * dB(hitDb.get(n)!)),
     ...byGain({ inst: "tromboneShort", pan: 0.3, reverb: 0.25, humanize: 0.4 }, trombones, (n) => 0.5 * dB(hitDb.get(n)!)),
     ...byGain({ inst: "trumpetShort", pan: -0.25, reverb: 0.25, humanize: 0.4 }, trumpets, (n) => 0.9 * dB(hitDb.get(n)!)),
-    // The comping a little louder in chorus 2, where it plays only two-note shells.
-    ...byGain({ inst: "piano", pan: -0.3, reverb: 0.2, humanize: 0.4 }, piano, (n) => (n.t < bar(33) ? 0.058 : 0.068)),
-    { inst: "piano", notes: breakNotes, gain: 0.08, pan: -0.3, reverb: 0.25, humanize: 0.3 },
+    // The comping louder in chorus 2, where it plays only two-note shells under the saxes (so it
+    // stays within ~10 dB of the mix there, on a phone speaker too).
+    ...byGain({ inst: "piano", pan: -0.3, reverb: 0.2, humanize: 0.4 }, piano, (n) => (n.t < bar(33) ? 0.058 : 0.08)),
+    { inst: "piano", notes: breakNotes, gain: 0.065, pan: -0.3, reverb: 0.25, humanize: 0.3 },
     ...bass,
-    // The hat is kept back: it is the only thing above 8 kHz and already the mix's brightest part.
-    { inst: "hatClosed", notes: hat, gain: 0.47, pan: 0.25, reverb: 0.1, humanize: 0.4 },
-    { inst: "ride", notes: ride, gain: 0.9, pan: 0.3, reverb: 0.15, humanize: 0.4 },
-    { inst: "rim", notes: rim, gain: 1.0, pan: 0.05, reverb: 0.15, humanize: 0.4 },
-    { inst: "snareOn", notes: snare, gain: 0.85, pan: 0.05, reverb: 0.18, humanize: 0.4 },
-    { inst: "kick", notes: kick, gain: 0.33, reverb: 0.05 },
+    // The cymbals are the mix's only content above 8 kHz, so both are darkened (an old, dark 1920s
+    // cymbal), the ride most, as it plays through 44 of the 64 bars; their gains make up the level.
+    // Hat, ride, rim and snare sit up front enough for the kit to be featured on a phone speaker,
+    // where the kick is lost.
+    { inst: "hatClosed", notes: hat, gain: 0.67, pan: 0.25, reverb: 0.1, humanize: 0.4, lowpass: 7000 },
+    { inst: "ride", notes: ride, gain: 1.49, pan: 0.3, reverb: 0.15, humanize: 0.4, lowpass: 6000 },
+    { inst: "rim", notes: rim, gain: 1.35, pan: 0.05, reverb: 0.15, humanize: 0.4 },
+    { inst: "snareOn", notes: snare, gain: 1.32, pan: 0.05, reverb: 0.18, humanize: 0.4 },
+    { inst: "kick", notes: kick, gain: 0.37, reverb: 0.05 },
     { inst: "crash", notes: crash, gain: 0.5, pan: -0.3, reverb: 0.2 },
     { inst: "cymbals", notes: cymbals, gain: 0.18, pan: 0.2, reverb: 0.25 },
-    { inst: "tomHigh", notes: toms, gain: 0.6, pan: 0.2, reverb: 0.15 },
-    { inst: "tomLow", notes: tomsLow, gain: 0.6, pan: -0.15, reverb: 0.15 },
+    { inst: "tomHigh", notes: toms, gain: 0.5, pan: 0.2, reverb: 0.15 },
+    { inst: "tomLow", notes: tomsLow, gain: 0.35, pan: -0.15, reverb: 0.15 },
     { inst: "claps", notes: clapsL, gain: 0.3, pan: -0.35, reverb: 0.25, humanize: 0.5 },
     { inst: "claps", notes: clapsR, gain: 0.3, pan: 0.35, reverb: 0.25, humanize: 0.5 },
   ],

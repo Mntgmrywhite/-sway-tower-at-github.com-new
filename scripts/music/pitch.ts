@@ -114,6 +114,49 @@ export function centsNear(x: Float32Array, rate: number, note: number, partial =
   return centsFrom(((p + shift) * rate) / N / partial, note);
 }
 
+const HEARD_N = 8192;
+const HEARD_SPAN = 0.6;
+const HEARD_HOP = 0.05;
+
+/**
+ * Like centsNear, but the pitch you hear: the partial is read in short frames (about 170 ms,
+ * every 50 ms) over the note's first 0.6 s and averaged weighted by each frame's loudness. A
+ * pluck that starts sharp and settles, or a horn that scoops in, is judged by its sounding
+ * part, not by a late, quiet sustain. NaN if the partial never stands out.
+ */
+export function centsHeard(x: Float32Array, rate: number, note: number, partial = 1): number {
+  const hz = 440 * 2 ** ((note - 69) / 12) * partial;
+  const lo = Math.max(1, Math.floor((hz * 2 ** (-80 / 1200) * HEARD_N) / rate));
+  const hi = Math.min(HEARD_N / 2 - 2, Math.ceil((hz * 2 ** (80 / 1200) * HEARD_N) / rate));
+  if (hi - lo < 2) return NaN;
+  const re = new Float64Array(HEARD_N);
+  const im = new Float64Array(HEARD_N);
+  let sum = 0;
+  let weight = 0;
+  for (let start = 0; start + HEARD_N <= x.length && start <= rate * HEARD_SPAN; start += Math.round(rate * HEARD_HOP)) {
+    let energy = 0;
+    for (let i = 0; i < HEARD_N; i++) {
+      const v = x[start + i]!;
+      energy += v * v;
+      re[i] = v * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / HEARD_N));
+      im[i] = 0;
+    }
+    fft(re, im);
+    const mag = (k: number) => Math.log(1e-9 + Math.hypot(re[k]!, im[k]!));
+    let p = lo;
+    for (let k = lo; k <= hi; k++) if (mag(k) > mag(p)) p = k;
+    if (p === lo || p === hi) continue;
+    const a = mag(p - 1);
+    const b = mag(p);
+    const c = mag(p + 1);
+    const denom = a - 2 * b + c;
+    const shift = denom < 0 ? (0.5 * (a - c)) / denom : 0;
+    sum += energy * centsFrom(((p + shift) * rate) / HEARD_N / partial, note);
+    weight += energy;
+  }
+  return weight > 0 ? sum / weight : NaN;
+}
+
 /** Cents from the equal-tempered pitch of MIDI note `note` (A4 = 440). */
 export function centsFrom(hz: number, note: number): number {
   return 1200 * Math.log2(hz / (440 * 2 ** ((note - 69) / 12)));
