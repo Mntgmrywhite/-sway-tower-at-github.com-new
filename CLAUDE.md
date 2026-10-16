@@ -15,7 +15,7 @@ Node lives in `~/.local/node` (user install). If `node` is not on PATH: `export 
 - `npm run check` — typecheck + lint + test; run before every commit
 - `npm run build` — typecheck, then static bundle to `dist/`
 - `npm run preview` — serve the built bundle
-- `npm run snap -- <skinId>` — render a skin offscreen to `preview/<skin>-{start,climb,high,over,bars}.png` (fallback fonts; look at them with an image viewer). Use this to check visual work.
+- `npm run snap -- <skinId>` — render a skin offscreen to `preview/<skin>-{start,climb,high,over,wobbly,lastChance,gust,toppled,bars}.png` (fallback fonts; look at them with an image viewer). Use this to check visual work.
 - `npm run build:artifact` — build, then inline everything into `dist/sway-tower.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); republish that file to keep the same link
 
 ## Stack
@@ -38,13 +38,26 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
   - `src/preview/shots.ts` — deterministic game moments shared by `npm run snap` and the render smoke test.
 - **Cartoon art rules:** bright, saturated, high-contrast — readability first (the user found heavy neon impossible to see). Near things: flat fills, a light top / shaded bottom, ink outline (palette.ink). Far things: faded flat silhouettes, no outline. No glow-heavy effects, no dark muddy scenes. Bright flashes are for feedback moments (perfect drops), not the scenery.
 - `src/render.ts` — draws a state to a canvas via the active theme. Cosmetic-only effects (falling sliced pieces, camera easing) live here, never in logic.
+- `src/fx/` — the balance telegraphing (docs/balance-spec.md, "Telegraphing"), renderer-only: `fx.ts` (view-side state: eased label tiers with hysteresis, pops, lean arrows, sparks, haptic cues; `onDrop`/`onSaved`/`onWindZone` events that main.ts feeds), `world-fx.ts` (plumb line, heavy-side rail, tint, glints, bank chips, teeter ring, gust streaks, pops), `hud-fx.ts` (tilt gauge, tags, hints, banners, danger vignette, topple overlay), `topple.ts` (the TOPPLED fall), `falling.ts` (falling pieces). All drawing goes through the style kit's `tones`/`plate`/`beam`/`halo`, no `shadowBlur`, motion from `view.t`/state only.
 - `src/main.ts` — wiring: canvas sizing, input, RAF loop, best score.
 - Tests sit next to code as `*.test.ts`. The bot test proves the game is beatable with perfect timing.
 
 ## Identity
 
 - Name: **Sway Tower**. Sway is the hook and the reason the game exists; keep it front and center.
+- **Classic (the default skin) is a castle tower:** you stack on top of a sunny castle keep high above a lush Green-Hill-Zone-style valley with a lake — daytime sky, clouds, birds, forest animals, heraldic bars. That image is the game's signature.
 - Stay clearly distinct from Ketchapp's *Stack*: no isometric 3D blocks, no pastel gradient backgrounds, no thin minimal score font, and don't lean on "stack" in the name. Bright, flashy, high-contrast visuals (neon is the current base).
+
+## Skin art direction (decided by the owner)
+
+Evoke each reference's setting, era, mood, palette and motifs — never copy copyrighted characters or distinctive designs (e.g. Sam from *Trick 'r Treat*, the Peanuts gang and Snoopy's doghouse, Henson's creatures, Disney's character styling). Public-domain sources are fair game: Dickens' *A Christmas Carol* (1843), Irving's *Legend of Sleepy Hollow* (1820), Fitzgerald's *The Great Gatsby* (1925). Use generic, our-own designs for real-world landmarks.
+
+- **Classic:** a castle tower, in the spirit of Sonic's *Green Hill Zone* (lush, saturated, joyful — never grey or industrial): a warm sandstone keep dressed in vines and flowers rising from rolling bright-green hills with checker-banded earth cliffs (our own pattern), waterfalls into a deep-blue lake, palms, giant sunflowers, a forest edge, clouds, birds and forest animals (deer, ducks, rabbits, fox, owl, squirrel). No Sega characters, rings, totems or badniks.
+- **Christmas — *A Christmas Carol*:** snowy Victorian London at dusk: brick townhouses with candlelit windows and wreaths, a "Scrooge & Marley" counting house, Marley's face in a door knocker, gas lamps, carolers in top hats and bonnets, a poulterer's window, a horse-drawn carriage, a cathedral dome in the fog.
+- **Halloween — *Trick 'r Treat* + *The Legend of Sleepy Hollow*:** small-town Halloween night (porches lined with jack-o'-lanterns, blowing leaves, kids in classic costumes with candy bags) beyond which lies the misty hollow (covered bridge, gnarled trees, crows) and the Headless Horseman galloping past the moon with a flaming pumpkin. Keep the churchyard with randomly emerging skeleton parts; no sky ghosts, no zombies.
+- **Thanksgiving — *Jim Henson's Turkey Hollow* + *A Charlie Brown Thanksgiving*:** a cozy small town in a hollow in a simple, warm comic-strip spirit (gentle linework, flat autumn colors, open space): farmhouse porch, a backyard Thanksgiving table with mismatched chairs, a turkey farm, falling leaves, rolling fields.
+- **New Year's — Manhattan + *The Great Gatsby*:** Art Deco 1920s glamour in black and gold: stepped Deco skyscraper crowns and spires, searchlights, fireworks over the skyline, a ball drop, a Long Island mansion party across the water with the green light at the end of the dock, a champagne-coupe tower, Deco sunburst/fan motifs, flapper feathers.
+- **Neon family** (style "neon"; dark grounds, glowing tubes, still readable): **Synthwave** (`neon`: hot pink, neon orange, cyan, deep violet; sunset grid, palms, a chrome car cruising the grid), **Cyberpunk** (`neon-cyber`: neon blue, electric purple, magenta on charcoal; rainy tech-noir megacity, holo signs, flying cars, wet reflections), **Blacklight** (`neon-glow`: UV green, yellow, pink, bright white; glow party, lasers, glowing paint splatters, dancing glow-stick silhouettes), **Minimal** (`neon-minimal`: orange, gold, hot pink, blue, green on dark neutrals; clean geometric neon line art, gallery-calm).
 
 ## Rules
 
@@ -71,6 +84,13 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - All skins: no prop may be cut off — not by the foreground band, not by the screen edges, not by another prop. Keep props fully on screen (or let them leave the view only by parallax as the camera climbs), and space them so they don't cut into each other. The only allowed clip is a body part emerging from the soil, and that edge must be hidden behind its dirt mound.
 - Halloween graveyard: skeleton parts pop out **at random**. Each grave spot re-picks which part comes up (hand, skull, or feet) every cycle, and spots run on staggered, varying timings, so no two spots show the same part in lockstep and no spot always shows the same part. Deterministic from `scene.t` + `hash()` (cycle index × spot), never `Math.random()`.
 - Halloween: no zombies, no ghosts in the sky, tombstones planted (base sunk into a mound), the mansion sits on its ground line, the jack-o'-lantern stands behind the tower, faces drawn with `circle`/`oval` so features never join.
+
+## Music (decided by the owner)
+
+- Real instruments, never synth-sounding: songs are rendered offline from CC0 recordings in `~/APP/samples` (`PROVENANCE.json` there lists every source). Only CC0/MIT audio ships: no CC BY, GPL or non-commercial samples (App Store).
+- One theme (`scripts/music/theme.ts`, a 6/8 waltz) with an arrangement per skin in `scripts/music/songs/<skin>.ts`; `npm run music -- <song>` renders `src/audio/music/<song>.mp4` + `manifest.json` (loop points). The theme must stay recognizable.
+- **The owner's favorite instruments: saxophone, French horn, euphonium, piano and drums.** Feature them wherever they fit a skin's world. There is no CC0 euphonium: use `euphonium()` from `song.ts` (trombone + tuba on the same notes, mellowed).
+- The owner hears tuning and harshness ("a little sharp"): every recording is tuned (`autotune`, per-instrument `cents`, or song-local corrections that say so), and bright leads get a `lowpass`. Check a mix with `npx tsx scripts/music/mix.ts <song>` (ranges, per-phrase levels) and `npm run music:check -- <song>` (peak, loudness, seam).
 
 ## Build order
 

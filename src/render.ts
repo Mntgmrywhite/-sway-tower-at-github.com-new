@@ -1,14 +1,47 @@
 import { BLOCK_HEIGHT, LIVES, WORLD_WIDTH } from "./config";
-import { swayOffset, type Block, type GameState } from "./game";
+import { stability, swayOffset, type Block, type GameState } from "./game";
 import { roundRectPath } from "./base/draw";
 import { kitFor } from "./base/style";
 import { horizonFor } from "./base/world";
 import type { Scene, Skin } from "./skins/skin";
+import { addFalling as pushFalling, stepFalling, type Falling } from "./fx/falling";
+import { newFx, updateFx, type Fx } from "./fx/fx";
+import { fitFont, type Frame } from "./fx/frame";
+import {
+  drawBanners,
+  drawGauge,
+  drawHints,
+  drawTag,
+  drawToppleOverlay,
+  drawVignette,
+  gaugeVisible,
+  tagVisible,
+} from "./fx/hud-fx";
+import { CARD_FADE, slabPose, TOPPLE_CARD_AT, toppleShake } from "./fx/topple";
+import {
+  drawArrows,
+  drawChips,
+  drawCrack,
+  drawGlints,
+  drawGust,
+  drawLock,
+  drawPlumb,
+  drawPops,
+  drawRail,
+  drawRing,
+  drawSparks,
+  drawSweeps,
+  drawTint,
+  drawWind,
+} from "./fx/world-fx";
+
+export { onDrop, onSaved, onWindZone, takeCues, type Cue, type DropInfo } from "./fx/fx";
 
 export const GAME_NAME = "Sway Tower";
-/** Length of the topple animation; restart waits for it. */
-export const TOPPLE_ANIM_MS = 1400;
-
+/** Length of the topple animation (until the game-over card); restart waits for it. */
+export const TOPPLE_ANIM_MS = TOPPLE_CARD_AT * 1000;
+/** How fast main's game clock eases into and out of slow motion (timeScale), per second. */
+export const SLOWMO_EASE = 10;
 
 /** World units visible horizontally; a little wider than the slider's travel. */
 const VIEW_WIDTH = WORLD_WIDTH * 1.5;
@@ -17,29 +50,15 @@ const TOP_ANCHOR = 0.38;
 /** Until the tower is tall enough, hold the ground this far down the screen. */
 const GROUND_START = 0.7;
 const CAMERA_EASE = 6; // per second
-// Cosmetic falling pieces only; slow enough to watch the chop happen.
-const GRAVITY = 55; // world units/sec^2
-const FALL_DRIFT = 9; // units/sec sideways, away from the tower
-const FALL_SPIN = 1.2; // radians/sec
 /** Perfect-drop flash: light bursts along the seam and the block glows in the accent color. */
 const FLASH_TIME = 0.5; // seconds
-/** "PERFECT" text floats up and fades over this long. */
-const POP_TIME = 0.9; // seconds
 const SEAM_SPREAD = 0.6; // how far the seam light reaches past the block edges, in block widths
+/** Below this screen height (in u) the HUD packs tighter: short phones, landscape, desktop. */
+const COMPACT_HUD = 2.1;
 
 interface Flash {
   level: number;
   age: number;
-  streak: number;
-}
-
-interface Falling extends Block {
-  y: number; // world y of the piece's bottom
-  vx: number;
-  vy: number;
-  angle: number;
-  spin: number;
-  level: number;
 }
 
 export interface View {
@@ -48,44 +67,32 @@ export interface View {
   flashes: Flash[];
   /** Animation clock for background effects, seconds. */
   t: number;
+  /** Balance telegraphing state (src/fx). */
+  fx: Fx;
 }
 
 export function newView(): View {
-  return { cameraY: BLOCK_HEIGHT, falling: [], flashes: [], t: 0 };
+  return { cameraY: BLOCK_HEIGHT, falling: [], flashes: [], t: 0, fx: newFx() };
 }
 
 /** `towerX` is the world x of the tower top's center; pieces tumble away from it. */
 export function addFalling(view: View, piece: Block, level: number, towerX: number): void {
-  const dir = piece.x + piece.w / 2 < towerX ? -1 : 1;
-  view.falling.push({
-    ...piece,
-    y: level * BLOCK_HEIGHT,
-    vx: dir * FALL_DRIFT,
-    vy: 0,
-    angle: 0,
-    spin: dir * FALL_SPIN,
-    level,
-  });
+  pushFalling(view.falling, piece, level, towerX);
 }
 
-/** Call after a perfect drop onto `level`. */
-export function addFlash(view: View, level: number, streak: number): void {
-  view.flashes.push({ level, age: 0, streak });
+/** Call after a perfect drop onto `level` (the PERFECT word comes from onDrop). */
+export function addFlash(view: View, level: number): void {
+  view.flashes.push({ level, age: 0 });
 }
 
 export function updateView(view: View, state: GameState, dt: number): void {
   view.t += dt;
   for (const f of view.flashes) f.age += dt;
-  view.flashes = view.flashes.filter((f) => f.age < POP_TIME);
+  if (view.flashes.some((f) => f.age >= FLASH_TIME)) view.flashes = view.flashes.filter((f) => f.age < FLASH_TIME);
   const target = (state.blocks.length + 1) * BLOCK_HEIGHT;
   view.cameraY += (target - view.cameraY) * Math.min(1, CAMERA_EASE * dt);
-  for (const f of view.falling) {
-    f.vy += GRAVITY * dt;
-    f.y -= f.vy * dt;
-    f.x += f.vx * dt;
-    f.angle += f.spin * dt;
-  }
-  view.falling = view.falling.filter((f) => f.y > view.cameraY - 300);
+  view.falling = stepFalling(view.falling, dt, view.cameraY);
+  updateFx(view.fx, state, dt, view.falling);
 }
 
 export function render(
@@ -125,19 +132,77 @@ export function render(
     baseW: base ? base.w * scale : 0,
   };
   const kit = kitFor(skin);
-  kit.world(ctx, scene);
-
+  const fx = view.fx;
   const h = BLOCK_HEIGHT * scale;
+  const hud = hudLayout(cssH, u, state, fx);
+  const frame: Frame = {
+    ctx,
+    kit,
+    skin,
+    state,
+    fx,
+    st: stability(state),
+    t: view.t,
+    cssW,
+    cssH,
+    u,
+    scale,
+    h,
+    sx,
+    sy,
+    hudBottom: hud.bottom,
+  };
+
+  // Camera: rolls toward the lean while teetering, shakes on a topple. Zoom just enough that
+  // the rotated/shifted scene still covers the screen.
+  const [shakeX, shakeY] = toppleShake(fx.topple, u);
+  const roll = fx.roll;
+  ctx.save();
+  if (roll !== 0 || shakeX !== 0 || shakeY !== 0) {
+    const aspect = Math.max(cssH / cssW, cssW / cssH);
+    const cover =
+      Math.cos(Math.abs(roll)) + aspect * Math.sin(Math.abs(roll)) + (2 * Math.hypot(shakeX, shakeY)) / Math.min(cssW, cssH);
+    ctx.translate(cssW / 2 + shakeX, cssH / 2 + shakeY);
+    ctx.rotate(roll);
+    ctx.scale(cover, cover);
+    ctx.translate(-cssW / 2, -cssH / 2);
+  }
+
+  kit.world(ctx, scene);
+  drawWind(frame, "back");
+  drawPlumb(frame);
+
   /** Draw a block whose world left edge is `x`. */
   const drawBlock = (x: number, w: number, level: number) =>
     kit.bar(ctx, sx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
 
-  // Only draw blocks that can be on screen.
+  // Only draw blocks that can be on screen. A toppling slab rotates about its pivot corner
+  // and loses bars from the top as they peel off into falling pieces.
+  const slab = fx.topple && state.toppled ? slabPose(fx.topple, state) : null;
   const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - cssH / h - 2));
+  let inSlab = false;
   for (let i = firstVisible; i < state.blocks.length; i++) {
     const b = state.blocks[i];
-    if (b) drawBlock(b.x + swayOffset(state, i), b.w, i);
+    if (!b) continue;
+    if (slab && i > slab.pivot) {
+      if (i > slab.keep) break;
+      // The slab's bars all share one pose: set it once.
+      if (!inSlab) {
+        const px = sx(slab.px);
+        const py = sy(slab.py);
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(slab.angle);
+        ctx.translate(-px, -py);
+        inSlab = true;
+      }
+    }
+    drawBlock(b.x + swayOffset(state, i), b.w, i);
   }
+  if (inSlab) ctx.restore();
+  drawTint(frame);
+  drawSweeps(frame);
+  drawGlints(frame);
 
   // Perfect-drop flash: accent tint on the block, light along the seam below it.
   for (const f of view.flashes) {
@@ -187,47 +252,55 @@ export function render(
     ctx.restore();
   }
 
-  // "PERFECT" pops up beside the placed block.
-  for (const f of view.flashes) {
-    const b = state.blocks[f.level];
-    if (!b) continue;
-    const k = f.age / POP_TIME;
-    const cx = sx(b.x + b.w / 2 + swayOffset(state, f.level));
-    const y = sy((f.level + 1) * BLOCK_HEIGHT) - h * 0.4 - k * h * 2;
-    const size = Math.round(u * 0.065 * (1 + 0.25 * Math.min(1, f.streak / 5)));
-    ctx.save();
-    ctx.globalAlpha = 1 - k * k;
-    ctx.font = `400 ${size}px ${skin.hud.display}`;
-    ctx.textAlign = "center";
-    const label = f.streak >= 2 ? `PERFECT ×${f.streak}` : "PERFECT";
-    kit.text(ctx, label, cx, y, skin.hud.accent, Math.max(3, size * 0.12));
-    ctx.restore();
-  }
+  drawWind(frame, "front");
+  drawCrack(frame);
+  drawRail(frame);
+  drawRing(frame);
+  drawLock(frame);
+  drawArrows(frame);
+  drawGust(frame);
+  drawSparks(frame);
 
   // The slider is in world space: it does not sway.
   if (state.phase === "playing") drawBlock(state.slider.x, state.slider.w, state.blocks.length);
 
+  // Bank chips and word pops go over the slider so they always read.
+  drawChips(frame);
+  drawPops(frame);
+
   kit.front(ctx, scene);
+  ctx.restore();
+
+  kit.post?.(ctx, scene);
+  drawVignette(frame);
 
   // HUD: outlined type (plus glow in neon), so it reads over any part of the scene.
   ctx.save();
   ctx.textAlign = "center";
-  const hud = skin.hud;
-  const top = cssH * 0.14;
+  const top = hud.top;
   const body = kit.body;
   const text = (t: string, x: number, y: number, fill: string, outline: number) =>
     kit.text(ctx, t, x, y, fill, outline);
 
   if (state.phase === "over") {
-    drawGameOver(ctx, cssW, cssH, u, state, best, skin);
+    // A topple plays its fall first; the card (titled TOPPLED) comes after.
+    const card = cardBox(cssH, u, state);
+    const cardAt = TOPPLE_CARD_AT;
+    const age = state.toppled && fx.topple ? fx.topple.age : Infinity;
+    if (age >= cardAt) drawGameOver(ctx, cssW, cssH, u, state, best, skin, Math.min(1, (age - cardAt) / CARD_FADE));
+    if (state.toppled) drawToppleOverlay(frame, card.titleY, cardAt);
+    if (age < cardAt) {
+      ctx.font = `700 ${Math.round(u * 0.13)}px ${body}`;
+      text(String(state.score), cssW / 2, top, "#ffffff", u * 0.016);
+    }
     ctx.restore();
     return;
   }
 
   if (state.score === 0) {
     // Start screen: the name instead of a zero.
-    const size = fitFont(ctx, GAME_NAME, `400 {px}px ${hud.display}`, u * 0.13, cssW * 0.88);
-    text(GAME_NAME, cssW / 2, top, hud.title, Math.max(3, size * 0.12));
+    const size = fitFont(ctx, GAME_NAME, `400 {px}px ${skin.hud.display}`, u * 0.13, cssW * 0.88);
+    text(GAME_NAME, cssW / 2, top, skin.hud.title, Math.max(3, size * 0.12));
   } else {
     ctx.font = `700 ${Math.round(u * 0.13)}px ${body}`;
     text(String(state.score), cssW / 2, top, "#ffffff", u * 0.016);
@@ -241,14 +314,21 @@ export function render(
     kit.life(ctx, cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, top + u * 0.11, r, i < state.lives);
   }
 
-  // Perfect counter: total this game, plus the current run. Hidden until the first one.
+  // Tilt gauge under the lives, with its tier tag; the perfect counter moves down to make room.
+  if (hud.gauge) {
+    drawGauge(frame, hud.gaugeY);
+    drawTag(frame, hud.tagY);
+  }
+
+  // Perfect counter: total this game, plus the current run (on the same line when the HUD
+  // is compact). Hidden until the first one.
   if (state.perfects > 0) {
-    const perfY = top + u * 0.18;
     ctx.font = `700 ${Math.round(u * 0.045)}px ${body}`;
-    text(`★ ${state.perfects} perfect`, cssW / 2, perfY, hud.accent, u * 0.011);
-    if (state.streak >= 2) {
+    const run = hud.compact && state.streak >= 2 ? `  ×${state.streak}` : "";
+    text(`★ ${state.perfects} perfect${run}`, cssW / 2, hud.perfY, skin.hud.accent, u * 0.011);
+    if (state.streak >= 2 && !hud.compact) {
       ctx.font = `600 ${Math.round(u * 0.038)}px ${body}`;
-      text(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.052, "#ffffff", u * 0.01);
+      text(`×${state.streak} in a row`, cssW / 2, hud.perfY + u * 0.052, "#ffffff", u * 0.01);
     }
   }
 
@@ -256,8 +336,46 @@ export function render(
     ctx.font = `600 ${Math.round(u * 0.055)}px ${body}`;
     ctx.globalAlpha = 0.7 + 0.3 * Math.sin(view.t * 3);
     text("tap to drop", cssW / 2, cssH * 0.9, "#ffffff", u * 0.013);
+    ctx.globalAlpha = 1;
   }
+  drawHints(frame);
+  drawBanners(frame);
   ctx.restore();
+}
+
+interface HudLayout {
+  /** Score baseline. */
+  top: number;
+  gauge: boolean;
+  gaugeY: number;
+  tagY: number;
+  /** "★ N perfect" baseline. */
+  perfY: number;
+  /** Streak shares the perfect line, and lines sit closer. */
+  compact: boolean;
+  /** Lowest HUD pixel this frame: pops, wind streaks and the plumb bob stay below it. */
+  bottom: number;
+}
+
+/** Top-center HUD stack: score, best, lives, tilt gauge, tier tag, perfect counter. */
+function hudLayout(cssH: number, u: number, state: GameState, fx: Fx): HudLayout {
+  const top = cssH * 0.14;
+  const compact = cssH < COMPACT_HUD * u;
+  const gauge = gaugeVisible(state);
+  const gaugeY = top + u * 0.165;
+  const tagY = gaugeY + u * 0.085;
+  const perfY = gauge ? gaugeY + u * (compact ? 0.13 : 0.14) : top + u * 0.18;
+  let bottom = top + u * 0.13; // lives
+  if (gauge) bottom = tagVisible(fx) ? tagY + u * 0.012 : gaugeY + u * 0.05;
+  if (state.perfects > 0) bottom = perfY + u * (state.streak >= 2 && !compact ? 0.064 : 0.012);
+  return { top, gauge, gaugeY, tagY, perfY, compact, bottom };
+}
+
+/** Game-over card geometry (shared with the TOPPLED! slam, which lands on the title). */
+function cardBox(cssH: number, u: number, state: GameState): { h: number; y: number; titleY: number } {
+  const h = u * (state.toppled ? 0.72 : 0.62);
+  const y = cssH * 0.42 - h / 2;
+  return { h, y, titleY: y + h * (state.toppled ? 0.2 : 0.22) };
 }
 
 function drawGameOver(
@@ -268,47 +386,52 @@ function drawGameOver(
   state: GameState,
   best: number,
   skin: Skin,
+  fade: number,
 ): void {
   const hud = skin.hud;
   const kit = kitFor(skin);
+  const toppled = state.toppled !== null;
+  ctx.save();
+  ctx.globalAlpha = fade;
   ctx.fillStyle = "rgba(4, 2, 10, 0.45)";
   ctx.fillRect(0, 0, cssW, cssH);
 
+  const { h, y, titleY } = cardBox(cssH, u, state);
   const w = Math.min(cssW - 32, u * 0.82);
-  const h = u * 0.62;
   const x = (cssW - w) / 2;
-  const y = cssH * 0.42 - h / 2;
   kit.card(ctx, x, y, w, h, u);
 
   const cx = cssW / 2;
   const text = (t: string, ty: number, fill: string, outline: number) => kit.text(ctx, t, cx, ty, fill, outline);
   ctx.textAlign = "center";
-  ctx.font = `400 ${Math.round(u * 0.09)}px ${hud.display}`;
-  text("Game Over", y + h * 0.22, hud.title, u * 0.014);
+  if (toppled) {
+    // Height (the score) and the saves this run.
+    fitFont(ctx, "TOPPLED", `400 {px}px ${hud.display}`, u * 0.1, w * 0.86);
+    text("TOPPLED", titleY, kit.tones.danger, u * 0.014);
+    ctx.font = `600 ${Math.round(u * 0.036)}px ${kit.body}`;
+    text("height", y + h * 0.33, "#e8e4ff", u * 0.009);
+    ctx.font = `700 ${Math.round(u * 0.15)}px ${kit.body}`;
+    text(String(state.score), y + h * 0.53, "#ffffff", u * 0.018);
+    const newBest = state.score > 0 && state.score >= best;
+    ctx.font = `600 ${Math.round(u * 0.045)}px ${kit.body}`;
+    text(newBest ? "New best!" : `best ${best}`, y + h * 0.66, newBest ? hud.accent : "#ffffff", u * 0.01);
+    text(`★ ${state.perfects} perfect`, y + h * 0.775, hud.accent, u * 0.01);
+    const saves = state.saves === 1 ? "1 save" : `${state.saves} saves`;
+    text(saves, y + h * 0.89, kit.tones.ok, u * 0.01);
+  } else {
+    ctx.font = `400 ${Math.round(u * 0.09)}px ${hud.display}`;
+    text("Game Over", titleY, hud.title, u * 0.014);
 
-  ctx.font = `700 ${Math.round(u * 0.15)}px ${kit.body}`;
-  text(String(state.score), y + h * 0.54, "#ffffff", u * 0.018);
+    ctx.font = `700 ${Math.round(u * 0.15)}px ${kit.body}`;
+    text(String(state.score), y + h * 0.54, "#ffffff", u * 0.018);
 
-  const newBest = state.score > 0 && state.score >= best;
-  ctx.font = `600 ${Math.round(u * 0.045)}px ${kit.body}`;
-  text(newBest ? "New best!" : `best ${best}`, y + h * 0.68, newBest ? hud.accent : "#ffffff", u * 0.01);
-  text(`★ ${state.perfects} perfect`, y + h * 0.8, hud.accent, u * 0.01);
+    const newBest = state.score > 0 && state.score >= best;
+    ctx.font = `600 ${Math.round(u * 0.045)}px ${kit.body}`;
+    text(newBest ? "New best!" : `best ${best}`, y + h * 0.68, newBest ? hud.accent : "#ffffff", u * 0.01);
+    text(`★ ${state.perfects} perfect`, y + h * 0.8, hud.accent, u * 0.01);
+  }
 
   ctx.font = `600 ${Math.round(u * 0.055)}px ${kit.body}`;
   text("tap to play again", y + h + u * 0.1, "#ffffff", u * 0.014);
-}
-
-/**
- * Set ctx.font from `template` ("{px}" is replaced by the size) at `size`, shrinking it
- * until `text` fits in `maxWidth`. Returns the size used.
- */
-function fitFont(ctx: CanvasRenderingContext2D, text: string, template: string, size: number, maxWidth: number): number {
-  let px = Math.round(size);
-  ctx.font = template.replace("{px}", String(px));
-  const w = ctx.measureText(text).width;
-  if (w > maxWidth) {
-    px = Math.floor((px * maxWidth) / w);
-    ctx.font = template.replace("{px}", String(px));
-  }
-  return px;
+  ctx.restore();
 }

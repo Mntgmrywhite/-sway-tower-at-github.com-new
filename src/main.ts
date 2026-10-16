@@ -1,8 +1,24 @@
+import { audio } from "./audio/engine";
+import { dropSounds } from "./audio/sounds";
 import { tuning } from "./config";
-import { drop, newGame, step, swayOffset, timeScale, top, type GameState } from "./game";
+import { drop, leanTarget, newGame, step, swayOffset, timeScale, top, windStrength, type GameState } from "./game";
 import { createOptions } from "./options";
 import { createPanel } from "./panel";
-import { addFalling, addFlash, newView, render, TOPPLE_ANIM_MS, updateView, type View } from "./render";
+import {
+  addFalling,
+  addFlash,
+  newView,
+  onDrop,
+  onSaved,
+  onWindZone,
+  render,
+  SLOWMO_EASE,
+  takeCues,
+  TOPPLE_ANIM_MS,
+  updateView,
+  type Cue,
+  type View,
+} from "./render";
 import { resolveSkin } from "./skins";
 import type { Skin } from "./skins/skin";
 
@@ -10,8 +26,26 @@ import type { Skin } from "./skins/skin";
 const BEST_KEY = "sway-stack:best";
 /** Ignore taps for this long after game over so a mistap doesn't instantly restart. */
 const RESTART_GUARD_MS = 400;
-/** How fast the game clock eases into and out of slow motion, per second. */
-const SLOWMO_EASE = 10;
+
+/** Vibration patterns, ms. navigator.vibrate is missing on iOS web, where these are no-ops. */
+const HAPTICS: Record<Cue | "armed" | "saved" | "topple", number | number[]> = {
+  creak: 8,
+  whoa: [30, 40, 30],
+  teeter: [15, 90, 15],
+  armed: 60,
+  saved: [25, 70, 25],
+  topple: [90, 50, 180],
+};
+
+function buzz(kind: keyof typeof HAPTICS): void {
+  // Browsers refuse (and log) vibration before the first real tap.
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
+  try {
+    navigator.vibrate?.(HAPTICS[kind]);
+  } catch {
+    // Not allowed here (no user activation yet, or blocked); haptics are a bonus.
+  }
+}
 
 /** A fresh run with its own seed (gust timing and direction come from it). */
 function freshGame(): GameState {
@@ -78,10 +112,17 @@ function tap(): void {
   const level = state.blocks.length;
   const under = top(state);
   const towerX = under.x + under.w / 2 + swayOffset(state, level - 1);
+  // Before/after the drop, for the lean arrow and the wind banner.
+  const leanBefore = leanTarget(state);
+  const windBefore = windStrength(state.score);
   const r = drop(state);
   if (!r) return;
-  if (r.kind === "perfect") addFlash(view, level, state.streak);
+  for (const cue of dropSounds(r, state.streak)) audio.play(cue.sound, cue);
+  if (r.kind === "perfect") addFlash(view, level);
   else addFalling(view, r.cut, level, towerX);
+  onDrop(view.fx, state, { result: r, level, leanBefore, leanAfter: leanTarget(state) });
+  if (r.kind === "sliced" && r.armed) buzz("armed");
+  if (windBefore === 0 && windStrength(state.score) > 0) onWindZone(view.fx);
   if (state.score > best) {
     best = state.score;
     saveBest(best);
@@ -91,10 +132,14 @@ function tap(): void {
 
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
+  audio.unlock();
   if (paused()) return;
   tap();
 });
+// Browsers only start sound inside a user gesture; iOS Safari wants the end of a touch.
+window.addEventListener("pointerup", () => audio.unlock());
 window.addEventListener("keydown", (e) => {
+  audio.unlock();
   if (paused()) return;
   if (e.code === "Space" && !e.repeat) {
     e.preventDefault();
@@ -137,6 +182,8 @@ function currentSkin(): Skin {
     skin = resolveSkin(tuning.skin, now);
     ensureFonts(skin);
     document.documentElement.style.setProperty("--accent", skin.hud.ui);
+    // Each skin has its arrangement of the theme (skins without one play Classic's).
+    audio.setMusic(skin.id);
   }
   return skin;
 }
@@ -149,10 +196,24 @@ function frame(now: number): void {
   if (!paused()) {
     clock += (timeScale(state) - clock) * (1 - Math.exp(-SLOWMO_EASE * dt));
     const wasPlaying = state.phase === "playing";
+    const saves = state.saves;
     step(state, dt * clock);
+    // SAVED!: the tower came back from the rail (the logic counts it in step()).
+    if (state.saves > saves) {
+      onSaved(view.fx, state);
+      buzz("saved");
+      audio.play("chime", { semitones: 12 });
+    }
     updateView(view, state, dt * clock);
     // Game over can come from a drop (last life) or from step() (a topple).
-    if (wasPlaying && state.phase === "over") overAt = performance.now();
+    if (wasPlaying && state.phase === "over") {
+      overAt = performance.now();
+      if (state.toppled) {
+        buzz("topple");
+        audio.play("topple");
+      }
+    }
+    for (const cue of takeCues(view.fx)) buzz(cue);
   }
   render(ctx!, cssW, cssH, state, view, best, currentSkin());
   requestAnimationFrame(frame);
@@ -162,3 +223,4 @@ requestAnimationFrame(frame);
 // Debug/inspection hook for automated checks.
 (window as unknown as { __game: () => GameState; __view: () => View }).__game = () => state;
 (window as unknown as { __view: () => View }).__view = () => view;
+(window as unknown as { __audio: typeof audio }).__audio = audio;

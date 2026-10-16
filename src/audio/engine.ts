@@ -178,9 +178,3 @@ class GameAudio {
 }
 
 export const audio = new GameAudio();
-
-/** Major-scale steps for the perfect chime: each perfect in a streak climbs one note. */
-const SCALE = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19];
-export function chimeStep(streak: number): number {
-  return SCALE[Math.max(0, Math.min(SCALE.length - 1, streak - 1))]!;
-}

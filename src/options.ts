@@ -1,11 +1,13 @@
 import "./options.css";
+import { audio } from "./audio/engine";
 import { tuning } from "./config";
 import { saveTuning } from "./panel";
 import { AUTO, SKINS, skinForDate } from "./skins";
 import type { Skin } from "./skins/skin";
 
-// Player-facing options: an Options button (top-left) that opens a skin picker.
-// Picking a skin applies it immediately behind the sheet and saves it on the device.
+// Player-facing options: an Options button (top-left) that opens a sheet with sound switches
+// (music, effects) and a skin picker. Picking a skin applies it immediately behind the sheet;
+// everything is saved on the device.
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -55,12 +57,34 @@ export function createOptions(): Options {
   sheet.setAttribute("aria-labelledby", "options-title");
   sheet.innerHTML = `
     <div class="head">
-      <h2 id="options-title">Skins</h2>
+      <h2 id="options-title">Options</h2>
       <button type="button" class="close" aria-label="Close">✕</button>
     </div>
+    <h3>Sound</h3>
+    <div class="toggles"></div>
+    <h3>Skins</h3>
     <div class="list" role="radiogroup" aria-label="Skin"></div>`;
   backdrop.append(sheet);
   const list = sheet.querySelector<HTMLElement>(".list")!;
+  const toggles = sheet.querySelector<HTMLElement>(".toggles")!;
+
+  const switches: { el: HTMLButtonElement; on: () => boolean }[] = [];
+  const addSwitch = (label: string, on: () => boolean, set: (on: boolean) => void) => {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "toggle";
+    el.setAttribute("role", "switch");
+    el.textContent = label;
+    el.addEventListener("click", () => {
+      audio.unlock();
+      set(!on());
+      refresh();
+    });
+    toggles.append(el);
+    switches.push({ el, on });
+  };
+  addSwitch("Music", () => audio.settings.music, (on) => audio.setMusicOn(on));
+  addSwitch("Effects", () => audio.settings.sfx, (on) => audio.setSfxOn(on));
 
   const choices: { value: string; el: HTMLButtonElement }[] = [];
   const addChoice = (value: string, title: string, sub: string, preview: HTMLElement) => {
@@ -93,6 +117,7 @@ export function createOptions(): Options {
   const refresh = () => {
     auto.when.textContent = `Matches the date · today: ${skinForDate(new Date()).name}`;
     for (const c of choices) c.el.setAttribute("aria-checked", String(c.value === tuning.skin));
+    for (const sw of switches) sw.el.setAttribute("aria-checked", String(sw.on()));
   };
 
   const setOpen = (open: boolean) => {
