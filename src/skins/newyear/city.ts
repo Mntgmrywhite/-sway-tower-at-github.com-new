@@ -187,9 +187,13 @@ function beacons(ctx: Ctx, s: Scene): void {
   ctx.fill();
 }
 
+/** The highest anything in the city reaches (u over the horizon): the back row's spires and
+ *  masts by the screen's edges (the heroes stay under CROWN_TOP and the Sunburst's needle). */
+const TALLEST = 0.65;
+
 /** The far layer. */
 export function city(ctx: Ctx, s: Scene): void {
-  if (s.horizonY - s.u * 0.65 > s.cssH) return;
+  if (s.horizonY - s.u * TALLEST > s.cssH) return;
   sinks(s, BACK, BACK_SINK);
   sinks(s, MID, MID_SINK);
   searchlights(ctx, s);

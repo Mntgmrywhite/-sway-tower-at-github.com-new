@@ -1,17 +1,18 @@
 import { circle, hash, mix, type Ctx } from "../../base/draw";
-import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
-import { clamp01, GOLD, GOLD_DEEP, GOLD_LIGHT, INK, IVORY, TAU, TOWER } from "./colors";
-import { marquee, songMidnight } from "./marquee";
+import { clamp01, GOLD, GOLD_DEEP, GOLD_LIGHT, INK, IVORY, RUBY, TAU, TOWER } from "./colors";
+import { ballAt, clockAt, cycleTime, MIDNIGHT } from "./countdown";
+import { marquee, SIGN } from "./marquee";
 import { cloudCover, raiseProfile, sideOf } from "./skyline";
 
 // Manhattan's hero towers: five big Art Deco skyscrapers of our own design, black lacquer
 // rimmed in gold, with grids of lit gold windows and gilded crowns — readable at phone size.
 // Left of the tower column, the Sunburst: three setbacks under a gold fan crown and a needle
-// spire. Right of it, the Times Tower: a clock face counting down to midnight and the New
-// Year's ball sliding down its mast as you climb (at the top of the sky it is midnight and the
-// gilding flashes), and a marquee above the clock that counts down with the song (marquee.ts). Behind the column, lower: a gilded ziggurat, a gold pyramid cap and a
-// fluted tower with chevrons, kept under the cap so fireworks burst over them.
+// spire. Right of it, the Times Tower: a clock, the screen above it counting down to midnight
+// (marquee.ts) and the New Year's ball coming down its mast in the last minute to land at
+// midnight, all on the countdown's time (countdown.ts). Behind the column, lower: a gilded
+// ziggurat, a gold pyramid cap and a fluted tower with chevrons, kept under the cap so fireworks
+// burst over them.
 // Geometry is in u: x from each tower's center, y up from the horizon; built once at load.
 
 interface Hero {
@@ -113,7 +114,7 @@ function finish(h: Omit<Hero, "top" | "hw">): Hero {
 
 /* ---------------------------------------------------------------- the Sunburst */
 
-const SUN = { x: -0.315, tiers: [[0.062, 0.34], [0.05, 0.395], [0.037, 0.44]] as const, fanR: 0.037, needle: 0.62, needleW: 0.0065 };
+const SUN = { x: -0.315, tiers: [[0.062, 0.34], [0.05, 0.395], [0.037, 0.44]] as const, fanR: 0.037, needle: 0.6, needleW: 0.0065 };
 const FAN_RAYS = 9;
 const FAN_ARC = 3;
 
@@ -172,39 +173,69 @@ const sunburst: Hero = (() => {
 
 /* ---------------------------------------------------------------- the Times Tower */
 
+// A shaft with the clock near its top, the screen (marquee.ts) standing on stepped gilded
+// brackets above it, wider than the shaft like a billboard, then two setbacks and the mast the
+// New Year's ball comes down. It is packed between two limits: the clock stands just clear of
+// the cloud bank piled at the screen's side, and nothing (the ball's rays included) rises over
+// CROWN_TOP, so the start screen's title row stays clear of it on every screen shape.
+
+/** The highest the Times Tower reaches, the ball's rays included (u over the horizon). On the
+ *  squarest screens (u = 0.6 cssH) the title's outline ends 0.62 u over the horizon at the start;
+ *  the Sunburst's needle and its beacon stop just under this too. */
+export const CROWN_TOP = 0.61;
 const TIMES = {
-  x: 0.372,
-  tiers: [[0.056, 0.36], [0.044, 0.4], [0.03, 0.43]] as const,
-  mast: 0.6,
+  x: 0.4,
+  /** The shaft's half-width and the setbacks over the screen: [half-width, top]. */
+  shaft: 0.05,
+  tiers: [[0.04, 0.497], [0.026, 0.505]] as const,
   mastW: 0.0035,
-  clockY: 0.312,
-  clockR: 0.03,
+  clockY: 0.324,
+  clockR: 0.027,
 };
-/** The ball's radius, and its run down the mast: from the top at the start to its foot. */
-const BALL_R = 0.03;
-const BALL_TOP = TIMES.mast - 0.012 - BALL_R;
-const BALL_FOOT = TIMES.tiers[2][1] + BALL_R + 0.008;
+/** The Times Tower's center, u right of the screen's center. */
+export const TIMES_X = TIMES.x;
+/** The brackets under the screen's overhang: [half-width, top] of each step out. */
+const CORBELS = [[TIMES.shaft, 0.338], [0.0625, 0.346], [0.075, 0.354]] as const;
+/** The ball's sunburst of rays reaches this many radii, pulsing by RAY_PULSE more, and by
+ *  RAY_MIDNIGHT more as midnight strikes (the ball has landed by then). */
+const RAY_REACH = 1.75;
+const RAY_PULSE = 0.12;
+const RAY_MIDNIGHT = 0.6;
+/** The ball's radius, and its run down the mast: from the top (a minute to midnight), its rays
+ *  just under CROWN_TOP, to its foot on the top setback. */
+const BALL_R = 0.021;
+const BALL_TOP = CROWN_TOP - BALL_R * (RAY_REACH + RAY_PULSE);
+const BALL_FOOT = TIMES.tiers[1][1] + BALL_R + 0.003;
+const MAST = BALL_TOP + BALL_R + 0.007;
 
 const times: Hero = (() => {
-  const [t0, t1, t2] = TIMES.tiers;
-  const outline = stepped(TIMES.tiers, (out) => {
-    out.push(-TIMES.mastW, t2[1], -TIMES.mastW, TIMES.mast, TIMES.mastW, TIMES.mast, TIMES.mastW, t2[1]);
-  });
+  const [t1, t2] = TIMES.tiers;
+  const mw = TIMES.mastW;
+  // Up the left: the shaft, the brackets stepping out, the screen's side, the setbacks, the mast.
+  const left: number[] = [-TIMES.shaft, 0];
+  for (let i = 0; i < CORBELS.length; i++) {
+    const [hw, y] = CORBELS[i]!;
+    const out = i + 1 < CORBELS.length ? CORBELS[i + 1]![0] : SIGN.hw;
+    left.push(-hw, y, -out, y);
+  }
+  left.push(-SIGN.hw, SIGN.y1, -t1[0], SIGN.y1, -t1[0], t1[1], -t2[0], t1[1], -t2[0], t2[1], -mw, t2[1], -mw, MAST);
+  const outline = [...left];
+  for (let i = left.length - 2; i >= 0; i -= 2) outline.push(-left[i]!, left[i + 1]!);
   const gilt = [
-    box(-t0[0], t0[1] - 0.009, t0[0], t0[1]),
-    box(-t1[0], t1[1] - 0.008, t1[0], t1[1]),
-    box(-t2[0], t2[1] - 0.007, t2[0], t2[1]),
-    chevron(t2[0] - 0.004, t1[1] + 0.003, 0.009, 0.0045),
-    chevron(t1[0] - 0.005, t0[1] + 0.006, 0.014, 0.005),
+    // A gilded ledge under the screen, the setbacks' cornices and a chevron over the screen
+    box(-TIMES.shaft, SIGN.y0 - 0.006, TIMES.shaft, SIGN.y0),
+    box(-t1[0], t1[1] - 0.006, t1[0], t1[1]),
+    box(-t2[0], t2[1] - 0.005, t2[0], t2[1]),
+    chevron(t1[0] - 0.009, SIGN.y1 + 0.002, 0.004, 0.0028),
   ];
-  const lit = [box(-TIMES.mastW, t2[1], TIMES.mastW * 0.2, TIMES.mast)];
-  const deep = [box(TIMES.mastW * 0.2, t2[1], TIMES.mastW, TIMES.mast)];
+  const lit = [box(-mw, t2[1], mw * 0.2, MAST)];
+  const deep = [box(mw * 0.2, t2[1], mw, MAST)];
   const { clockY: cy, clockR: cr } = TIMES;
-  const win = windows(bayColumns(t0[0], [-0.028, 0.028], 0.01), 0.03, t0[1] - 0.012, 21, 0.56, (x, y) => Math.abs(x) < 0.02 && y > cy - cr - 0.02);
+  const win = windows(bayColumns(TIMES.shaft, [-0.025, 0.025], 0.01), 0.03, cy - cr - 0.008, 21, 0.56, (x, y) => Math.abs(x) < 0.02 && y > cy - cr - 0.02);
   return finish({
     x: TIMES.x,
     outline,
-    inset: insetTiers(TIMES.tiers),
+    inset: insetTiers([[TIMES.shaft, SIGN.y0 + RIM], ...TIMES.tiers]),
     gilt,
     lit,
     deep,
@@ -297,8 +328,9 @@ const RAYS = 16;
 /** The ball's facet lines and the clock's hands: dark bronze, readable on ivory and gold. */
 const BRONZE = mix(GOLD_DEEP, INK, 0.35);
 const FACE = IVORY;
-const FACE_LIT = "#fffbe8";
-const MIDNIGHT_FLASH = IVORY;
+/** At midnight the face and its rim swap: a gold face in an ivory ring. */
+const FACE_LIT = GOLD;
+const SECOND_HAND = RUBY;
 
 /** A polygon in u at (ox, oy); points on the ground (y = 0) are raised to `floor`, the cloud
  *  bank's cover, since nothing under it ever shows. */
@@ -322,32 +354,31 @@ const GILT = (h: Hero): readonly number[][] => h.gilt;
 const LIT = (h: Hero): readonly number[][] => h.lit;
 const DEEP = (h: Hero): readonly number[][] => h.deep;
 
-/** 0 until the ball is nearly down, then 1: midnight. */
-function midnight(s: Scene): number {
-  return clamp01((altitude01(s) - 0.97) / 0.03);
-}
+/** Seconds the clock face flashes and the ball's rays reach out after midnight. */
+const MIDNIGHT_GLOW = 4;
 
 /**
  * The five hero towers, batched by color so the whole layer is a dozen fills: gold
  * silhouettes (the rims), lacquer bodies, the ball's glow, gilding (with the clock's rim), the
  * clock face, lit windows and lit gold, shaded gold (with the clock's marks), then the ball and
- * the clock's hands. The hands close on twelve as the ball comes down the mast; at midnight
- * the gilding and the clock face flash.
+ * the clock's hands, and the Times Tower's screen. The clock and the ball keep the countdown's
+ * time (countdown.ts): the ball comes down its mast over the last minute and lands at midnight,
+ * when the clock's hands meet on twelve and its face flashes. Nothing behind the tower column
+ * moves.
  */
 export function landmarks(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = s.cssW / 2;
   const hy = s.horizonY + 1;
-  const a = altitude01(s);
-  const mid = midnight(s);
-  const flash = mid > 0 && Math.sin(s.t * 7) > 0.3;
-  // At the song's midnight only the clock face flashes, with the marquee: the gilding behind the
-  // tower column stays still.
-  const faceFlash = flash || (songMidnight(s) && Math.sin(s.t * 7) > 0.3);
+  const p = cycleTime(s);
+  const since = p - MIDNIGHT;
+  // The rays reach out at midnight and draw back in over the last second of the glow.
+  const mid = since >= 0 ? clamp01(since / 0.3) * clamp01(MIDNIGHT_GLOW - since) : 0;
+  const faceFlash = since >= 0 && since < MIDNIGHT_GLOW && Math.floor(since * 4) % 2 === 0;
   const tx = cx + TIMES.x * u;
   const clockY = hy - TIMES.clockY * u;
   const cr = TIMES.clockR * u;
-  const by = hy - (BALL_TOP - a * (BALL_TOP - BALL_FOOT)) * u;
+  const by = hy - (BALL_TOP - ballAt(p) * (BALL_TOP - BALL_FOOT)) * u;
   const br = BALL_R * u;
   for (let k = 0; k < HEROES.length; k++) {
     const h = HEROES[k]!;
@@ -367,7 +398,7 @@ export function landmarks(ctx: Ctx, s: Scene): void {
   // The ball's radiance: a slowly turning Deco sunburst of thin gold rays behind it (and behind
   // the mast), longer at midnight
   ctx.beginPath();
-  const reach = br * (1.85 + 0.12 * Math.sin(s.t * 2.4) + mid * 0.6);
+  const reach = br * (RAY_REACH + RAY_PULSE * Math.sin(s.t * 2.4) + mid * RAY_MIDNIGHT);
   const spin = s.t * 0.25;
   for (let i = 0; i < RAYS; i++) {
     const ra = spin + (i / RAYS) * TAU;
@@ -385,9 +416,15 @@ export function landmarks(ctx: Ctx, s: Scene): void {
 
   ctx.beginPath();
   polys(ctx, s, GILT);
-  circle(ctx, tx, clockY, cr);
-  ctx.fillStyle = flash ? GOLD_LIGHT : GOLD;
+  if (!faceFlash) circle(ctx, tx, clockY, cr);
+  ctx.fillStyle = GOLD;
   ctx.fill();
+  if (faceFlash) {
+    ctx.beginPath();
+    circle(ctx, tx, clockY, cr);
+    ctx.fillStyle = FACE;
+    ctx.fill();
+  }
 
   ctx.beginPath();
   circle(ctx, tx, clockY, cr * 0.78);
@@ -408,15 +445,9 @@ export function landmarks(ctx: Ctx, s: Scene): void {
       ctx.rect(ox + h.win[i]! * u, hy - h.win[i + 1]! * u - wh, ww, wh);
     }
   }
-  if (!flash) polys(ctx, s, LIT);
+  polys(ctx, s, LIT);
   ctx.fillStyle = WINDOW;
   ctx.fill();
-  if (flash) {
-    ctx.beginPath();
-    polys(ctx, s, LIT);
-    ctx.fillStyle = MIDNIGHT_FLASH;
-    ctx.fill();
-  }
 
   // Shaded gold, and the clock's marks at twelve, three, six and nine
   ctx.beginPath();
@@ -430,8 +461,7 @@ export function landmarks(ctx: Ctx, s: Scene): void {
   ctx.fill();
 
   // The ball: body, shaded lower right, then (in one bronze stroke) its outline, its facet
-  // grid of two latitudes and a turning meridian, and the clock's hands — five to midnight at
-  // the start, twelve when the ball is down.
+  // grid of two latitudes and a turning meridian, and the clock's hands.
   ctx.beginPath();
   circle(ctx, tx, by, br);
   ctx.fillStyle = BALL;
@@ -451,17 +481,26 @@ export function landmarks(ctx: Ctx, s: Scene): void {
   const mer = Math.sin(s.t * 0.8) * br * 0.55;
   ctx.moveTo(tx + mer * 0.2, by - br);
   ctx.quadraticCurveTo(tx + mer, by, tx + mer * 0.2, by + br);
-  const left = 1 - a;
-  const minute = -Math.PI / 2 - left * (TAU / 12);
-  const hour = -Math.PI / 2 - left * (TAU / 144);
+  // The hands: hour and minute from the countdown's clock (a minute to midnight, then twelve)
+  const clock = clockAt(p);
+  const minute = -Math.PI / 2 + (clock / 3600) * TAU;
+  const hour = -Math.PI / 2 + (clock / 43200) * TAU;
   ctx.moveTo(tx, clockY);
   ctx.lineTo(tx + Math.cos(minute) * cr * 0.66, clockY + Math.sin(minute) * cr * 0.66);
   ctx.moveTo(tx, clockY);
-  ctx.lineTo(tx + Math.cos(hour) * cr * 0.42, clockY + Math.sin(hour) * cr * 0.42);
+  ctx.lineTo(tx + Math.cos(hour) * cr * 0.44, clockY + Math.sin(hour) * cr * 0.44);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = BRONZE;
   ctx.lineWidth = Math.max(1.3, cr * 0.12);
+  ctx.stroke();
+  // ...and the second hand sweeping round to meet them, in ruby
+  const second = -Math.PI / 2 + ((((clock % 60) + 60) % 60) / 60) * TAU;
+  ctx.beginPath();
+  ctx.moveTo(tx - Math.cos(second) * cr * 0.16, clockY - Math.sin(second) * cr * 0.16);
+  ctx.lineTo(tx + Math.cos(second) * cr * 0.72, clockY + Math.sin(second) * cr * 0.72);
+  ctx.strokeStyle = SECOND_HAND;
+  ctx.lineWidth = Math.max(1, cr * 0.06);
   ctx.stroke();
   ctx.lineCap = "butt";
 

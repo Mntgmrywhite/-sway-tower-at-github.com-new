@@ -1,14 +1,18 @@
-import { alpha, circle, hash, mix, type Ctx } from "../../base/draw";
+import { alpha, circle, hash, mix, oval, type Ctx } from "../../base/draw";
 import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
-import { CHAMPAGNE, clamp01, GOLD, GOLD_LIGHT, INK, IVORY, PARTY, ROSE, TAU } from "./colors";
+import { CHAMPAGNE, clamp01, GOLD, GOLD_LIGHT, INK, IVORY, PARTY, ROSE, SILVER, TAU } from "./colors";
 import { barbPath, PLUME, PLUME_HALF, plumePath, quillPath } from "./plume";
 import { cloudTop, MID_SPAN, skylineTop } from "./skyline";
+import { toneOf, type Tone } from "./story";
 
 // The New Year's sky: a pale-gold full moon ringed with flat Deco halos, bright cartoon
 // fireworks (fat dots of flat color, no outlines; gold willows for Gatsby) that come faster
 // the higher you climb, confetti drifting down, and a few flapper's ostrich plumes see-sawing
-// down with it. Everything here is drawn behind the city and the clouds.
+// down with it. Past the climb the night goes round (story.ts): a grand finale lighting the sky,
+// balloons rising after it, then snow in the small hours, then midnight again. Everything that
+// drifts keeps to the side lanes, clear of the tower column, and everything here is drawn
+// behind the city and the clouds.
 
 /* ---------------------------------------------------------------- HUD keep-out */
 
@@ -20,6 +24,20 @@ const HUD_BOTTOM = 0.32; // of cssH
 const HUD_X0 = 0.2; // of cssW
 const HUD_X1 = 0.8;
 const TITLE_Y = 0.14; // of cssH
+
+/** Half-width of the tower column (u) that nothing drifting ever enters. */
+export const COLUMN = 0.28;
+
+/**
+ * A screen x in the side lanes for `f` in [0, 1): across the left lane for f < 0.5, across the
+ * right one for the rest, keeping `reach` px clear of the tower column and the screen's edges.
+ */
+export function laneX(s: Scene, f: number, reach: number): number {
+  const lane = s.cssW / 2 - COLUMN * s.u;
+  const k = f < 0.5 ? f * 2 : f * 2 - 1;
+  const x = reach + k * Math.max(0, lane - 2 * reach);
+  return f < 0.5 ? x : s.cssW - x;
+}
 
 /** 1 while the start-screen title row is protected, fading to 0 as the camera climbs. */
 function titleOn(s: Scene): number {
@@ -74,8 +92,58 @@ export function underMoon(s: Scene, x0: number, x1: number): number {
   return (s.horizonY - moonY(s) - R) / s.u - 0.015;
 }
 
-/** A full moon in flat pale gold, ringed by two flat Deco halos. */
+/* ---------------------------------------------------------------- the sky's glow */
+
+/** Light low in the sky, added onto the navy: the grand finale's bursts lighting the haze a
+ *  brighter royal blue, and the small hours' snow light, silvery. Never warm: gold or rose
+ *  added onto navy turns it grey or purple. */
+const GLOW = "#3768d6";
+const SNOW_LIGHT = "#8aa6dc";
+const GLOW_ALPHA = 0.42;
+const SNOW_ALPHA = 0.3;
+/** The glow fades in from this far down the screen (of cssH) to the horizon (the city, the bay
+ *  and the terrace cover the rest). */
+const GLOW_TOP = 0.42;
+const GREF = 100;
+let glowCtx: Ctx | null = null;
+let glowFill: CanvasGradient | null = null;
+let snowFill: CanvasGradient | null = null;
+
+function glowBand(ctx: Ctx, s: Scene, fill: CanvasGradient, a: number): void {
+  const y0 = s.cssH * GLOW_TOP;
+  const y1 = Math.min(s.cssH, s.horizonY + 2);
+  if (y1 <= y0) return;
+  ctx.globalAlpha = a;
+  ctx.save();
+  ctx.translate(0, y0);
+  ctx.scale(1, (y1 - y0) / GREF);
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, s.cssW, GREF);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function skyGlow(ctx: Ctx, s: Scene, tone: Tone): void {
+  if (tone.glow < 0.01 && tone.silver < 0.01) return;
+  if (glowCtx !== ctx) {
+    glowCtx = ctx;
+    glowFill = ctx.createLinearGradient(0, 0, 0, GREF);
+    glowFill.addColorStop(0, alpha(GLOW, 0));
+    glowFill.addColorStop(1, GLOW);
+    snowFill = ctx.createLinearGradient(0, 0, 0, GREF);
+    snowFill.addColorStop(0, alpha(SNOW_LIGHT, 0));
+    snowFill.addColorStop(1, SNOW_LIGHT);
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  if (tone.glow >= 0.01) glowBand(ctx, s, glowFill!, tone.glow * GLOW_ALPHA);
+  if (tone.silver >= 0.01) glowBand(ctx, s, snowFill!, tone.silver * SNOW_ALPHA);
+  ctx.restore();
+}
+
+/** The sky's glow, then a full moon in flat pale gold, ringed by two flat Deco halos. */
 export function decoMoon(ctx: Ctx, s: Scene): void {
+  skyGlow(ctx, s, toneOf(s));
   const r = moonR(s);
   const x = moonX(s, r);
   const y = moonY(s);
@@ -102,8 +170,10 @@ export function decoMoon(ctx: Ctx, s: Scene): void {
 interface Launcher {
   period: number;
   offset: number;
-  /** altitude01 at which this launcher joins in. */
+  /** The tone's `fireworks` (or, for the finale's launchers, its `finale`) at which this
+   *  launcher joins in. */
   need: number;
+  finale: boolean;
 }
 
 /** Launchers that always fire; the rest join in one by one as the tower climbs. */
@@ -116,8 +186,15 @@ const LAUNCHERS: Launcher[] = Array.from({ length: 15 }, (_, i) => {
     // a few bursts in the air within the first seconds.
     offset: ((i * 0.618034) % 1) * period + hash(i * 5.31 + 2) * 0.4 + 3.75,
     need: i < ALWAYS ? -1 : 0.06 + ((i - ALWAYS) / (14 - ALWAYS)) * 0.8,
+    finale: false,
   };
-});
+}).concat(
+  // The grand finale's launchers: quicker, joining in as it builds.
+  Array.from({ length: 6 }, (_, j) => {
+    const period = 2.3 + hash(j * 7.7 + 301) * 0.8;
+    return { period, offset: ((j * 0.618034 + 0.31) % 1) * period + 1.3, need: 0.05 + j * 0.13, finale: true };
+  }),
+);
 
 const RISE = 0.75; // seconds the rocket climbs
 const BLOOM = 1.9; // seconds the burst lasts
@@ -184,7 +261,7 @@ function floorAt(s: Scene, x: number, r: number): number {
  * on the moon, below a rooftop, or (once the camera follows the tower) across the slider's row.
  * Returns how visible the burst is: 0 when there is no room this time.
  */
-function place(s: Scene, seed: number, a: number): number {
+function place(s: Scene, seed: number, grow: number): number {
   const { cssW: W, cssH: H, u } = s;
   const cx = W / 2;
   const hudBottom = H * HUD_BOTTOM;
@@ -214,10 +291,12 @@ function place(s: Scene, seed: number, a: number): number {
   }
 
   // Low beside the tower column, over the rooftops on that side
-  const R = u * (0.085 + hash(seed + 3) * 0.04 + a * 0.02);
+  const R = u * (0.085 + hash(seed + 3) * 0.04 + grow * 0.02);
   const xMin = R + u * 0.02;
-  // Mostly clear of the tower: at most a sliver of the burst slips behind the bars.
-  const xMax = Math.max(xMin, cx - u * 0.25 - R * 0.2);
+  // Mostly clear of the tower: at most a sliver of the burst slips behind the bars. The grand
+  // finale's bigger bursts (grow over 1) stand further out by their extra size, so they slip no
+  // further behind the bars than the climb's biggest.
+  const xMax = Math.max(xMin, cx - u * 0.25 - R * 0.2 - Math.max(0, grow - 1) * u * 0.02);
   const lx = xMin + hash(seed + 2) * (xMax - xMin);
   const lowX = left ? lx : W - lx;
   const lowY0 = rowBottom + R * ABOVE;
@@ -251,21 +330,22 @@ function place(s: Scene, seed: number, a: number): number {
   return overTower ? clamp01(follow * 2 - 1) : 1;
 }
 
-function fireworks(ctx: Ctx, s: Scene): void {
-  const a = altitude01(s);
+function fireworks(ctx: Ctx, s: Scene, tone: Tone): void {
+  // Bursts grow with the climb, and again in the finale.
+  const grow = altitude01(s) + tone.finale;
   const u = s.u;
   const launchY = Math.min(s.horizonY, s.cssH + u * 0.05);
 
   for (let i = 0; i < LAUNCHERS.length; i++) {
     const L = LAUNCHERS[i]!;
-    const join = clamp01((a - L.need) / 0.08);
+    const join = L.finale ? clamp01((tone.finale - L.need) / 0.15) : clamp01((tone.fireworks - L.need) / 0.08);
     if (join <= 0) continue;
     const tt = s.t + L.offset;
     const cycle = Math.floor(tt / L.period);
     const local = tt - cycle * L.period;
     if (local > RISE + BLOOM) continue;
     const seed = i * 101 + cycle * 13;
-    const on = join * place(s, seed, a);
+    const on = join * place(s, seed, grow);
     if (on <= 0) continue;
     const { x: bx, y: by, r: R } = SPOT;
     if (by > launchY - u * 0.05) continue;
@@ -386,12 +466,13 @@ const CONFETTI_BACK = mix(GOLD, INK, 0.35);
 /** Where a falling piece is: x and y in CSS px, or y > floor when it is out of sight. */
 const AT = { x: 0, y: 0, d: 0 };
 
-/** Shared fall for confetti and feathers: pieces whose swing (`reach`, u either side) takes
- *  them over the HUD columns start falling below the HUD. */
-function fall(s: Scene, fx01: number, phase: number, speed: number, reach: number): void {
+/** Shared fall for confetti, snow and feathers down the side lanes (`f`: where across them, see
+ *  laneX): pieces whose swing (`reach`, u either side) takes them over the HUD columns start
+ *  falling below the HUD. */
+function fall(s: Scene, f: number, phase: number, speed: number, reach: number): void {
   const { cssW: W, cssH: H, u } = s;
-  const fx = fx01 * W;
   const r = reach * u;
+  const fx = laneX(s, f, r);
   const top = fx + r > W * HUD_X0 && fx - r < W * HUD_X1 ? H * HUD_BOTTOM : -u * 0.06;
   const span = H + u * 0.08 - top;
   AT.d = (((s.t * speed * u + phase * span) % span) + span) % span;
@@ -430,9 +511,9 @@ function confettiPiece(ctx: Ctx, s: Scene, i: number, floor: number, back: boole
 
 /** Confetti drifting down the sky, tumbling so each piece flashes its foil back: the fronts in
  *  their party colors, every back in one shared shade (one fill for all of them). */
-function confettiFall(ctx: Ctx, s: Scene): void {
+function confettiFall(ctx: Ctx, s: Scene, tone: Tone): void {
   const floor = Math.min(s.cssH, s.horizonY);
-  const count = Math.round(26 + 18 * altitude01(s));
+  const count = Math.round(CONFETTI.length * tone.confetti);
   for (let c = 0; c < PARTY.length; c++) {
     ctx.beginPath();
     let any = false;
@@ -449,12 +530,14 @@ function confettiFall(ctx: Ctx, s: Scene): void {
   ctx.fill();
 }
 
+/** How far a plume reaches from where it hangs, as a fraction of its size, at any turn. */
+const PLUME_REACH = 0.62;
 /** Ostrich plumes: color, its shaded half, and how each one falls and see-saws. */
 const PLUME_COLORS = [IVORY, ROSE, GOLD_LIGHT, IVORY, ROSE, CHAMPAGNE] as const;
 const PLUMES = PLUME_COLORS.map((color, i) => ({
   color,
   shade: mix(color, "#3d4f80", 0.28),
-  x: 0.08 + ((i * 0.618034 + 0.13) % 1) * 0.84,
+  x: (i * 0.618034 + 0.13) % 1,
   phase: hash(i * 7.3 + 61),
   speed: 0.045 + hash(i * 7.3 + 62) * 0.02,
   swing: 0.04 + hash(i * 7.3 + 63) * 0.03,
@@ -463,14 +546,14 @@ const PLUMES = PLUME_COLORS.map((color, i) => ({
 }));
 
 /** Plumes falling slowly, see-sawing as they go, never in front of the HUD. */
-function plumes(ctx: Ctx, s: Scene): void {
+function plumes(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
   const floor = Math.min(s.cssH, s.horizonY) + u * 0.05;
-  const n = 3 + Math.round(3 * altitude01(s));
+  const n = Math.round(PLUMES.length * tone.plumes);
   ctx.lineCap = "round";
   for (let i = 0; i < n; i++) {
     const p = PLUMES[i]!;
-    fall(s, p.x, p.phase, p.speed, p.swing + p.size * 0.6);
+    fall(s, p.x, p.phase, p.speed, p.swing + p.size * PLUME_REACH);
     if (AT.y - u * p.size > floor) continue;
     const grow = clamp01(AT.d / (u * 0.08));
     if (grow <= 0) continue;
@@ -508,8 +591,8 @@ const GLITTER = Array.from({ length: 16 }, (_, i) => ({
   need: 0.1 + (i / 16) * 0.8,
 }));
 
-function glitter(ctx: Ctx, s: Scene): void {
-  const a = altitude01(s);
+function glitter(ctx: Ctx, s: Scene, tone: Tone): void {
+  const a = tone.glitter;
   const { cssW: W, cssH: H, u } = s;
   const top = H * 0.44;
   const floor = Math.min(H * 0.86, s.horizonY - u * 0.42);
@@ -543,10 +626,155 @@ function glitter(ctx: Ctx, s: Scene): void {
   ctx.fill();
 }
 
+/* ---------------------------------------------------------------- snow */
+
+/** Snowflakes for the small hours: where across the lanes, phase, fall speed (u per second),
+ *  sway (u) and its rate, radius (u). */
+const SNOW = Array.from({ length: 48 }, (_, i) => ({
+  x: hash(i * 5.1 + 401),
+  phase: hash(i * 5.1 + 402),
+  speed: 0.035 + hash(i * 5.1 + 403) * 0.03,
+  sway: 0.006 + hash(i * 5.1 + 404) * 0.01,
+  rate: 0.6 + hash(i * 5.1 + 405) * 0.8,
+  r: 0.004 + hash(i * 5.1 + 406) * 0.005,
+}));
+const FLAKE = "#f4f7ff";
+
+function snowfall(ctx: Ctx, s: Scene, tone: Tone): void {
+  const n = Math.round(SNOW.length * tone.snow);
+  if (n === 0) return;
+  const u = s.u;
+  const floor = Math.min(s.cssH, s.horizonY);
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const f = SNOW[i]!;
+    fall(s, f.x, f.phase, f.speed, f.sway + f.r);
+    if (AT.y > floor) continue;
+    const grow = clamp01(AT.d / (u * 0.05));
+    circle(ctx, AT.x + Math.sin(s.t * f.rate + i * 1.3) * f.sway * u, AT.y, Math.max(0.6, f.r * u * grow));
+  }
+  ctx.fillStyle = FLAKE;
+  ctx.fill();
+}
+
+/* ---------------------------------------------------------------- balloons */
+
+/** Balloons let go after the finale, rising up the side lanes and dwindling into the night. */
+const BALLOON_COLORS = [GOLD, SILVER, IVORY, GOLD_LIGHT, ROSE, CHAMPAGNE] as const;
+const BALLOON_SHADES = BALLOON_COLORS.map((c) => mix(c, "#3d4f80", 0.3));
+const BALLOONS = Array.from({ length: 12 }, (_, i) => ({
+  x: (i * 0.618034 + 0.21) % 1,
+  phase: (i * 0.381966 + hash(i * 6.3 + 501) * 0.2) % 1,
+  speed: 0.05 + hash(i * 6.3 + 502) * 0.03,
+  sway: 0.005 + hash(i * 6.3 + 503) * 0.007,
+  rate: 0.7 + hash(i * 6.3 + 504) * 0.6,
+  size: 0.026 + hash(i * 6.3 + 505) * 0.01,
+  color: i % BALLOON_COLORS.length,
+}));
+/** Scratch: each balloon's center and radius this frame (r 0 when it is not showing). */
+const BALLOON_AT = new Float32Array(BALLOONS.length * 3);
+const BALLOON_INK = mix(INK, "#3d4f80", 0.3);
+/** A balloon is this much taller than wide; its string hangs this many radii below it. */
+const BALLOON_TALL = 1.18;
+const STRING = 2.4;
+
+function balloons(ctx: Ctx, s: Scene, tone: Tone): void {
+  const n = Math.round(BALLOONS.length * tone.balloons);
+  if (n === 0) return;
+  const { cssH: H, u } = s;
+  // They rise from behind the skyline (or from below the screen, once it has gone) to the HUD's
+  // line, shrinking into the distance as they go, so none ever reaches the moon or the HUD.
+  const top = H * HUD_BOTTOM;
+  const bottom = Math.max(top + u * 0.3, Math.min(H + u * 0.12, s.horizonY - u * 0.12));
+  const span = bottom - top;
+  for (let i = 0; i < BALLOONS.length; i++) {
+    const b = BALLOONS[i]!;
+    BALLOON_AT[i * 3 + 2] = 0;
+    if (i >= n) continue;
+    const d = (((s.t * b.speed * u + b.phase * span) % span) + span) % span;
+    const k = d / span;
+    const r = b.size * u * (1 - k * k * k);
+    if (r < 0.8) continue;
+    const reach = b.sway * u + b.size * u * 1.2;
+    BALLOON_AT[i * 3] = laneX(s, b.x, reach) + Math.sin(s.t * b.rate + i * 2.3) * b.sway * u;
+    BALLOON_AT[i * 3 + 1] = bottom - d;
+    BALLOON_AT[i * 3 + 2] = r;
+  }
+  const lw = Math.max(0.8, u * 0.0022);
+  // Strings, one stroke
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const r = BALLOON_AT[i * 3 + 2]!;
+    if (r === 0) continue;
+    const x = BALLOON_AT[i * 3]!;
+    const y = BALLOON_AT[i * 3 + 1]! + r * BALLOON_TALL;
+    const w = Math.sin(s.t * 2 + i) * r * 0.35;
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + w, y + r * STRING * 0.5, x - w * 0.5, y + r * STRING);
+  }
+  ctx.strokeStyle = BALLOON_INK;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+  // Bodies by color, with their knots
+  for (let c = 0; c < BALLOON_COLORS.length; c++) {
+    ctx.beginPath();
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      const r = BALLOON_AT[i * 3 + 2]!;
+      if (r === 0 || BALLOONS[i]!.color !== c) continue;
+      const x = BALLOON_AT[i * 3]!;
+      const y = BALLOON_AT[i * 3 + 1]!;
+      oval(ctx, x, y, r, r * BALLOON_TALL);
+      ctx.moveTo(x - r * 0.2, y + r * (BALLOON_TALL + 0.18));
+      ctx.lineTo(x, y + r * (BALLOON_TALL - 0.05));
+      ctx.lineTo(x + r * 0.2, y + r * (BALLOON_TALL + 0.18));
+      ctx.closePath();
+      any = true;
+    }
+    if (!any) continue;
+    ctx.fillStyle = BALLOON_COLORS[c]!;
+    ctx.fill();
+    ctx.strokeStyle = BALLOON_INK;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+    // The shaded lower right
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const r = BALLOON_AT[i * 3 + 2]!;
+      if (r === 0 || BALLOONS[i]!.color !== c) continue;
+      const x = BALLOON_AT[i * 3]!;
+      const y = BALLOON_AT[i * 3 + 1]!;
+      ctx.moveTo(x + r * 0.95, y);
+      ctx.ellipse(x, y, r * 0.95, r * BALLOON_TALL * 0.95, 0, 0, Math.PI * 0.7);
+      ctx.quadraticCurveTo(x + r * 0.45, y + r * 0.45, x + r * 0.95, y);
+      ctx.closePath();
+    }
+    ctx.fillStyle = BALLOON_SHADES[c]!;
+    ctx.fill();
+  }
+  // Highlights
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const r = BALLOON_AT[i * 3 + 2]!;
+    if (r < 2) continue;
+    oval(ctx, BALLOON_AT[i * 3]! - r * 0.38, BALLOON_AT[i * 3 + 1]! - r * 0.45, r * 0.18, r * 0.3);
+  }
+  ctx.fillStyle = HIGHLIGHT;
+  ctx.fill();
+}
+
+/** Everything drifting in the side lanes: glitter, confetti, snow, balloons and plumes. */
+export function drifters(ctx: Ctx, s: Scene, tone: Tone): void {
+  glitter(ctx, s, tone);
+  confettiFall(ctx, s, tone);
+  snowfall(ctx, s, tone);
+  balloons(ctx, s, tone);
+  plumes(ctx, s, tone);
+}
+
 /** Everything in the New Year's sky between the moon and the skyline. */
 export function newYearSky(ctx: Ctx, s: Scene): void {
-  fireworks(ctx, s);
-  glitter(ctx, s);
-  confettiFall(ctx, s);
-  plumes(ctx, s);
+  const tone = toneOf(s);
+  fireworks(ctx, s, tone);
+  drifters(ctx, s, tone);
 }

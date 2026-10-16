@@ -1,196 +1,179 @@
-import manifest from "../../audio/music/manifest.json";
 import { circle, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { DECO_FACE, GOLD, GOLD_DEEP, GOLD_LIGHT, IVORY } from "./colors";
+import { DECO_FACE, GOLD, GOLD_DEEP, GOLD_LIGHT, IVORY, LACQUER } from "./colors";
+import { cycleTime, formatLeft, readingAt, YEAR, type Reading } from "./countdown";
 
-// The Times Tower's marquee: our own Deco news screen hung on the tower above its clock, wider
-// than the tier behind it like a billboard, gold-rimmed with a ring of bulbs. It keeps time with
-// the song (Scene.songTime): dark between countdowns, then "10" … "1" with the crowd counting
-// down, then HAPPY NEW YEAR scrolling past at midnight, its bulbs chasing on the band's eighths
-// and flashing at midnight. The cues come from the song's manifest entry (scripts/music/songs/
-// newyear.ts writes them), so a re-arranged song moves the countdown with it. Silent (no music,
-// muted, hidden): the screen stays dark. It sits right of the tower column, so nothing it does
-// moves behind the bars.
+// The Times Tower's screen: our own Art Deco news screen above the clock, wider than the
+// shaft under it like a billboard on gilded brackets, in a gold frame with a row of bulbs along
+// its top and bottom. It is always lit and always counting (countdown.ts keeps the time): the
+// time left to midnight ("0:52", a tick a second, the bulbs ticking with it), then the last ten
+// seconds big ("10" … "1", each one popping in, the bulbs chasing), then MIDNIGHT with every
+// bulb flashing, then HAPPY and the coming year until the cycle restarts. Big enough to read
+// on a phone (digits over 18 px tall on a 390 px screen), and right of the tower column, so
+// nothing it does moves behind the bars.
 
-const CUES = (manifest as Record<string, { cues?: { countdownStart?: number; midnight?: number } }>).newyear?.cues;
-/** Seconds into the song as written when the screen shows "10", and when it is midnight. */
-export const COUNT_FROM = CUES?.countdownStart ?? NaN;
-export const MIDNIGHT = CUES?.midnight ?? NaN;
-/** Whole seconds counted down: "10" through "1". */
-const COUNT = Math.round(MIDNIGHT - COUNT_FROM);
-/** How long HAPPY NEW YEAR scrolls after midnight, and how long the clock face flashes. */
-const SHOW = 8;
-const CLOCK_FLASH = 4;
-/** Each digit pops in this big and settles over POP seconds. */
-const POP = 0.2;
-const POP_SCALE = 0.3;
-/** The screen flashes gold as each digit lands, fading over this long. */
-const BLINK = 0.25;
-const BLINK_ALPHA = 0.45;
-/** Scroll speed (u per second) and the gap between repeats (in screen widths). */
-const SCROLL = 0.1;
-const SCROLL_GAP = 0.5;
-const GREETING = "HAPPY NEW YEAR";
-/** Bulb chase steps per second (the band's eighths at 240 bpm) and midnight flashes per second. */
-const CHASE = 8;
-const FLASHES = 4;
-
-/** The sign in u: x from the Times Tower's center, y up from the horizon. */
+/** The screen in u: x from the Times Tower's center, y up from the horizon. */
 export const SIGN = {
-  hw: 0.062,
-  y0: 0.346,
-  y1: 0.404,
-  /** Gold rim around the screen. */
-  rim: 0.0045,
+  /** Half-width and bottom and top of the frame. */
+  hw: 0.0875,
+  y0: 0.362,
+  y1: 0.482,
+  /** The gold frame round it. */
+  rim: 0.0035,
+  /** The bulb rows along the top and bottom, inside the frame. */
+  band: 0.0105,
+  /** Lacquer between the frame's sides and the glass. */
+  gap: 0.0015,
 };
-const BULB_R = 0.003;
+const BULB_R = 0.0034;
 const BULB_STEP = 0.0125;
 
-const SCREEN_OFF = "#060a1a";
-const SCREEN_ON = "#160f22";
-const FAN = "#3a2a14";
+/** The glass, in u from the tower's center and the horizon. */
+const GLASS = {
+  hw: SIGN.hw - SIGN.rim - SIGN.gap,
+  y0: SIGN.y0 + SIGN.rim + SIGN.band,
+  y1: SIGN.y1 - SIGN.rim - SIGN.band,
+};
+
+/** Text sizes as cap height over glass height, and how much of the glass's width text may take. */
+const LEFT_CAP = 0.56;
+const COUNT_CAP = 0.82;
+const WORD_CAP = 0.38;
+const HAPPY_CAP = 0.3;
+const YEAR_CAP = 0.5;
+const FIT = 0.94;
+/** Cap height of the Deco face (and its fallbacks), as a fraction of the font size. */
+const CAP = 0.7;
+/** Each big count pops in this much bigger and settles over POP seconds. */
+const POP = 0.2;
+const POP_SCALE = 0.2;
+/** Bulb rates: the count's chase and midnight's flashing (per second), the greeting's sparkle. */
+const CHASE = 8;
+const FLASHES = 4;
+const SPARKLE = 3;
+
+const GLASS_FILL = "#0e1126";
+const RULE = GOLD_DEEP;
+const DIGITS = GOLD_LIGHT;
 const BULB_OFF = GOLD_DEEP;
 const BULB_ON = "#fffbe8";
 
-export type MarqueeState = { kind: "dark" } | { kind: "count"; n: number; into: number } | { kind: "midnight"; into: number };
-
-const DARK: MarqueeState = { kind: "dark" };
-
-/** What the screen shows this many seconds into the song (NaN: no music, so dark). */
-export function marqueeAt(songTime: number): MarqueeState {
-  if (!(songTime >= COUNT_FROM)) return DARK;
-  const t = songTime - COUNT_FROM;
-  if (t < COUNT) return { kind: "count", n: COUNT - Math.floor(t), into: t - Math.floor(t) };
-  const m = songTime - MIDNIGHT;
-  return m < SHOW ? { kind: "midnight", into: m } : DARK;
-}
-
-/** True for the first seconds after the song's midnight: the clock face flashes with the sign. */
-export function songMidnight(s: Scene): boolean {
-  const m = (s.songTime ?? NaN) - MIDNIGHT;
-  return m >= 0 && m < CLOCK_FLASH;
-}
-
-/** Bulb centers (u, from the tower's center) clockwise round the rim from the top-left corner. */
+/** Bulb centers (u from the tower's center): the top row left to right, then the bottom row
+ *  right to left, so a chase runs round the screen. */
 const BULBS: readonly (readonly [number, number])[] = (() => {
   const out: [number, number][] = [];
-  const x0 = -SIGN.hw + SIGN.rim / 2;
-  const x1 = SIGN.hw - SIGN.rim / 2;
-  const yb = SIGN.y0 + SIGN.rim / 2;
-  const yt = SIGN.y1 - SIGN.rim / 2;
-  const across = Math.round((x1 - x0) / BULB_STEP);
-  const down = Math.max(1, Math.round((yt - yb) / BULB_STEP));
-  for (let i = 0; i < across; i++) out.push([x0 + ((x1 - x0) * i) / across, yt]);
-  for (let i = 0; i < down; i++) out.push([x1, yt - ((yt - yb) * i) / down]);
-  for (let i = 0; i < across; i++) out.push([x1 - ((x1 - x0) * i) / across, yb]);
-  for (let i = 0; i < down; i++) out.push([x0, yb + ((yt - yb) * i) / down]);
+  const x0 = -SIGN.hw + SIGN.rim;
+  const x1 = SIGN.hw - SIGN.rim;
+  const n = Math.round((x1 - x0) / BULB_STEP);
+  const step = (x1 - x0) / n;
+  const yt = SIGN.y1 - SIGN.rim - SIGN.band / 2;
+  const yb = SIGN.y0 + SIGN.rim + SIGN.band / 2;
+  for (let i = 0; i < n; i++) out.push([x0 + step * (i + 0.5), yt]);
+  for (let i = n - 1; i >= 0; i--) out.push([x0 + step * (i + 0.5), yb]);
   return out;
 })();
 
-let fontPx = -1;
-let font = "";
-let greetingW = 0;
+const GREETING = "HAPPY";
+const YEAR_TEXT = String(YEAR);
 
-function setFont(ctx: Ctx, px: number): void {
+function setFont(ctx: Ctx, px: number): number {
   const size = Math.max(6, Math.round(px));
-  if (size !== fontPx) {
-    fontPx = size;
-    font = `${size}px ${DECO_FACE}`;
-    greetingW = -1;
-  }
-  ctx.font = font;
+  ctx.font = `${size}px ${DECO_FACE}`;
+  return size;
 }
 
-/** Draw the marquee on the Times Tower, centered `x` u right of the screen center. */
+/** One line of text centered at (x, y) (y: the middle of its capitals), `cap` px tall and no
+ *  wider than `maxW` (squeezed to fit). */
+function line(ctx: Ctx, text: string, x: number, y: number, cap: number, maxW: number): void {
+  const px = setFont(ctx, cap / CAP);
+  ctx.fillText(text, x, y + (px * CAP) / 2, maxW);
+}
+
+function lit(r: Reading, p: number, i: number): boolean {
+  switch (r.kind) {
+    case "left":
+      // Every other bulb, swapping with each tick.
+      return (i + r.secs) % 2 === 0;
+    case "count":
+      return (((i - Math.floor(p * CHASE)) % 3) + 3) % 3 === 0;
+    case "midnight":
+      return (i + Math.floor(p * FLASHES)) % 2 === 0;
+    case "year":
+      return (((i - Math.floor(p * SPARKLE)) % 4) + 4) % 4 === 0;
+  }
+}
+
+/** Draw the screen on the Times Tower, whose center is `x` u right of the screen center. */
 export function marquee(ctx: Ctx, s: Scene, x: number): void {
   const u = s.u;
   const tx = s.cssW / 2 + x * u;
   const hy = s.horizonY + 1;
-  const left = tx - SIGN.hw * u;
-  const w = SIGN.hw * 2 * u;
   const top = hy - SIGN.y1 * u;
   const h = (SIGN.y1 - SIGN.y0) * u;
   if (top > s.cssH || top + h < 0) return;
-  const r = SIGN.rim * u;
-  const sx = left + r;
-  const sy = top + r;
-  const sw = w - 2 * r;
-  const sh = h - 2 * r;
-  const songTime = s.songTime ?? NaN;
-  const show = marqueeAt(songTime);
+  const left = tx - SIGN.hw * u;
+  const w = SIGN.hw * 2 * u;
+  const p = cycleTime(s);
+  const r = readingAt(p);
 
-  // Rim and screen
-  ctx.fillStyle = show.kind === "midnight" ? GOLD_LIGHT : GOLD;
+  // Frame, the bulbs' lacquer, the glass and its gilt rule
+  ctx.fillStyle = r.kind === "midnight" ? GOLD_LIGHT : GOLD;
   ctx.fillRect(left, top, w, h);
-  ctx.fillStyle = show.kind === "dark" ? SCREEN_OFF : SCREEN_ON;
-  ctx.fillRect(sx, sy, sw, sh);
+  const rim = SIGN.rim * u;
+  ctx.fillStyle = LACQUER;
+  ctx.fillRect(left + rim, top + rim, w - 2 * rim, h - 2 * rim);
+  const gx = tx - GLASS.hw * u;
+  const gw = GLASS.hw * 2 * u;
+  const gy = hy - GLASS.y1 * u;
+  const gh = (GLASS.y1 - GLASS.y0) * u;
+  const rule = Math.max(1, u * 0.0022);
+  ctx.fillStyle = RULE;
+  ctx.fillRect(gx - rule, gy - rule, gw + 2 * rule, gh + 2 * rule);
+  ctx.fillStyle = GLASS_FILL;
+  ctx.fillRect(gx, gy, gw, gh);
 
-  if (show.kind === "dark") {
-    // Switched off: a faint Deco fan rising from the bottom of the glass
-    ctx.beginPath();
-    const fx = sx + sw / 2;
-    const fy = sy + sh;
-    for (let i = 0; i < 5; i++) {
-      const a = Math.PI * (0.2 + 0.15 * i);
-      const c = Math.cos(a);
-      const sn = Math.sin(a);
-      const spread = 0.05;
-      ctx.moveTo(fx, fy);
-      ctx.lineTo(fx - Math.cos(a - spread) * sh * 0.85, fy - Math.sin(a - spread) * sh * 0.85);
-      ctx.lineTo(fx - c * sh * 0.95, fy - sn * sh * 0.95);
-      ctx.lineTo(fx - Math.cos(a + spread) * sh * 0.85, fy - Math.sin(a + spread) * sh * 0.85);
-      ctx.closePath();
-    }
-    ctx.fillStyle = FAN;
-    ctx.fill();
-  } else {
+  const cx = tx;
+  const cy = gy + gh / 2;
+  const maxW = gw * FIT;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  if (r.kind === "left") {
+    // A tick brightens the digits for a moment.
+    ctx.fillStyle = r.into < 0.12 ? IVORY : DIGITS;
+    line(ctx, formatLeft(r.secs), cx, cy, gh * LEFT_CAP, maxW);
+  } else if (r.kind === "count") {
+    const settle = Math.max(0, 1 - r.into / POP);
+    const cap = gh * COUNT_CAP * (1 + POP_SCALE * settle * settle);
     ctx.save();
     ctx.beginPath();
-    ctx.rect(sx, sy, sw, sh);
+    ctx.rect(gx, gy, gw, gh);
     ctx.clip();
-    if (show.kind === "count") {
-      if (show.into < BLINK) {
-        ctx.globalAlpha = BLINK_ALPHA * (1 - show.into / BLINK);
-        ctx.fillStyle = GOLD;
-        ctx.fillRect(sx, sy, sw, sh);
-        ctx.globalAlpha = 1;
-      }
-      const settle = Math.max(0, 1 - show.into / POP);
-      const px = sh * 0.9 * (1 + POP_SCALE * settle * settle);
-      setFont(ctx, px);
-      ctx.textAlign = "center";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillStyle = GOLD_LIGHT;
-      ctx.fillText(String(show.n), sx + sw / 2, sy + sh / 2 + fontPx * 0.36, sw * 0.92);
-    } else {
-      setFont(ctx, sh * 0.62);
-      if (greetingW < 0) greetingW = ctx.measureText(GREETING).width;
-      const period = greetingW + sw * SCROLL_GAP;
-      const shift = (show.into * SCROLL * u) % period;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillStyle = Math.floor(songTime * FLASHES) % 2 ? GOLD_LIGHT : IVORY;
-      const y = sy + sh / 2 + fontPx * 0.36;
-      // Enters from the right edge; the copy before it may still be leaving on the left
-      const gx = sx + sw - shift;
-      ctx.fillText(GREETING, gx, y);
-      if (gx - period + greetingW > sx) ctx.fillText(GREETING, gx - period, y);
-    }
+    ctx.fillStyle = DIGITS;
+    line(ctx, String(r.n), cx, cy, cap, gw * 0.98);
     ctx.restore();
+  } else if (r.kind === "midnight") {
+    ctx.fillStyle = Math.floor(p * FLASHES) % 2 ? GOLD_LIGHT : IVORY;
+    line(ctx, "MIDNIGHT", cx, cy, gh * WORD_CAP, maxW);
+  } else {
+    const happy = gh * HAPPY_CAP;
+    const year = gh * YEAR_CAP;
+    const gap = (gh - happy - year) / 3;
+    ctx.fillStyle = IVORY;
+    line(ctx, GREETING, cx, gy + gap + happy / 2, happy, maxW);
+    ctx.fillStyle = DIGITS;
+    line(ctx, YEAR_TEXT, cx, gy + gh - gap - year / 2, year, maxW);
   }
 
-  // Bulbs: dim when the screen is dark, chasing round the rim on the count, flashing at midnight
-  const step = Math.floor(songTime * (show.kind === "midnight" ? FLASHES : CHASE));
-  const br = Math.max(0.8, BULB_R * u);
-  for (const lit of [false, true]) {
+  // Bulbs, lit ones last: one fill each
+  const br = Math.max(1, BULB_R * u);
+  for (const on of [false, true]) {
     ctx.beginPath();
     for (let i = 0; i < BULBS.length; i++) {
-      const on = show.kind === "count" ? (((i - step) % 3) + 3) % 3 === 0 : show.kind === "midnight" && (i + step) % 2 === 0;
-      if (on !== lit) continue;
+      if (lit(r, p, i) !== on) continue;
       const [bx, by] = BULBS[i]!;
       circle(ctx, tx + bx * u, hy - by * u, br);
     }
-    ctx.fillStyle = lit ? BULB_ON : BULB_OFF;
+    ctx.fillStyle = on ? BULB_ON : BULB_OFF;
     ctx.fill();
   }
 }

@@ -105,8 +105,9 @@ function rowTower(x0: number, x1: number, h: number, kind: number): RowTower {
   return { shape: s, crown, beacon, gilt, x0, x1, h, top };
 }
 
-/** Generate this far either side of the center (wide screens see more of the city). */
-const SPAN = 1.8;
+/** Generate this far either side of the center: wide screens see more of the city, and Hard's
+ *  camera zooms out to 1/0.6 of the screen's width (a 21:9 monitor then shows ±3.3 u). */
+const SPAN = 3.6;
 /** Behind the tower column the skyline stays under this (u), so bursts fit over it. */
 export const MID_SPAN = 0.24;
 export const MID_CAP = 0.235;
@@ -122,25 +123,41 @@ interface RowSpec {
   kinds: readonly number[];
 }
 
+/** The skyline as first laid out runs from -CORE to the right; further out it goes on. */
+const CORE = 1.8;
+
+/** One tower of a row, its left edge at x and `w` wide (k: its hash key). */
+function rowAt(spec: RowSpec, k: number, x: number, w: number): RowTower {
+  const mid = Math.abs(x + w / 2);
+  const f = clamp01((mid - 0.16) / 0.4);
+  let h = spec.low + (spec.high - spec.low) * f * f * (3 - 2 * f) + hash(k + 1) * spec.jitter;
+  const kind = spec.kinds[Math.floor(hash(k + 2) * spec.kinds.length)]!;
+  let t = rowTower(x, x + w, h, kind);
+  // Behind the tower column, nothing (spires included) rises over the cap.
+  if (t.x1 > -MID_SPAN && t.x0 < MID_SPAN && t.top > MID_CAP) {
+    h -= t.top - MID_CAP;
+    t = rowTower(x, x + w, h, kind);
+  }
+  return t;
+}
+
 /** A row of towers: low behind the tower column, rising to `high` toward the screen edges. */
 function row(spec: RowSpec): RowTower[] {
   const out: RowTower[] = [];
-  let x = -SPAN;
+  let x = -CORE;
   for (let i = 0; x < SPAN; i++) {
     const k = spec.seed + i * 3.1;
     const w = spec.minW + hash(k) * (spec.maxW - spec.minW);
-    const mid = Math.abs(x + w / 2);
-    const f = clamp01((mid - 0.16) / 0.4);
-    let h = spec.low + (spec.high - spec.low) * f * f * (3 - 2 * f) + hash(k + 1) * spec.jitter;
-    const kind = spec.kinds[Math.floor(hash(k + 2) * spec.kinds.length)]!;
-    let t = rowTower(x, x + w, h, kind);
-    // Behind the tower column, nothing (spires included) rises over the cap.
-    if (t.x1 > -MID_SPAN && t.x0 < MID_SPAN && t.top > MID_CAP) {
-      h -= t.top - MID_CAP;
-      t = rowTower(x, x + w, h, kind);
-    }
-    out.push(t);
+    out.push(rowAt(spec, k, x, w));
     x += w * (0.97 + hash(k + 3) * 0.06);
+  }
+  // On past the left end, laid leftward (appended, so the towers above keep their windows).
+  x = -CORE;
+  for (let i = 0; x > -SPAN; i++) {
+    const k = spec.seed + 7001 + i * 3.1;
+    const w = spec.minW + hash(k) * (spec.maxW - spec.minW);
+    x -= w * (0.97 + hash(k + 3) * 0.06);
+    out.push(rowAt(spec, k, x, w));
   }
   return out;
 }

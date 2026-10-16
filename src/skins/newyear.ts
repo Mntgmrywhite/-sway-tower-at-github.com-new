@@ -21,6 +21,7 @@ import {
   SKY_MID,
   SKY_TOP,
 } from "./newyear/colors";
+import { SEASON_END } from "./newyear/countdown";
 import { decoRail } from "./newyear/front";
 import { partyTerrace } from "./newyear/ground";
 import {
@@ -42,16 +43,19 @@ import { decoMoon, newYearSky } from "./newyear/sky";
 // New Year's Eve, 1920s Manhattan, Gatsby glamour: Art Deco in black and gold, drawn in the
 // bright cartoon style. A midnight-navy night (blue, never purple) with a pale-gold moon,
 // fireworks bursting over the skyline (thicker as you climb), confetti and flapper's plumes
-// drifting down. Manhattan is the hero (city.ts, landmarks.ts): gold searchlights sweeping up
-// behind three depths of our-own Deco towers — a hazy back row, a middle row with gilded
-// stepped crowns, and five black-lacquer towers rimmed in gold with lit window grids and gilded
-// crowns: the Sunburst's fan and needle spire, and the Times Tower, whose clock counts down to
-// midnight while the New Year's ball slides down its mast as you climb, and whose marquee counts
-// down the last ten seconds with the song's crowd. Navy clouds with
-// moonlit silver tops pile at its feet. Across the bay, the Gatsby mansion throws its party with
-// the green light at the end of its dock; on our ivory-marble terrace, a gold-and-emerald
-// sunburst inlay, a champagne-coupe tower, a gramophone and a cream boat-tail roadster with a
-// boa on its door; in front, a black-and-gold Deco frieze of fans and chevrons.
+// drifting down the side lanes. Manhattan is the hero (city.ts, landmarks.ts): gold
+// searchlights sweeping up behind three depths of our-own Deco towers — a hazy back row, a
+// middle row with gilded stepped crowns, and five black-lacquer towers rimmed in gold with lit
+// window grids and gilded crowns: the Sunburst's fan and needle spire, and the Times Tower,
+// whose Deco screen over its clock always counts down to midnight (marquee.ts, countdown.ts:
+// the time left, the last ten seconds big, MIDNIGHT, then HAPPY and the coming year) while the
+// New Year's ball comes down its mast to land at midnight, in time with the song's crowd (or on
+// its own when the music is off). Navy clouds with moonlit silver tops pile at its feet. Across
+// the bay, the Gatsby mansion throws its party with the green light at the end of its dock; on
+// our ivory-marble terrace, a gold-and-emerald sunburst inlay, a champagne-coupe tower, a
+// gramophone and a cream boat-tail roadster with a boa on its door; in front, a black-and-gold
+// Deco frieze of fans and chevrons. Past the climb the night goes round forever (story.ts):
+// midnight, the grand finale, balloons let go, snow in the small hours, midnight again.
 
 /** Bar fills: jewel tones, warm and cool alternating so every seam reads. */
 const EMERALD_BAR = "#2fd396";
@@ -60,7 +64,7 @@ export const newYear: CartoonSkin = {
   id: "newyear",
   style: "cartoon",
   name: "New Year's",
-  dates: [{ from: [12, 28], to: [1, 6] }],
+  dates: [{ from: [12, 28], to: SEASON_END }],
   fonts: ["Limelight"],
   palette: {
     skyTop: SKY_TOP,
