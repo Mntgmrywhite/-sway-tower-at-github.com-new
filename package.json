@@ -13,12 +13,15 @@
     "lint": "eslint .",
     "check": "npm run typecheck && npm run lint && npm run test",
     "build:artifact": "npm run build && node scripts/build-artifact.mjs",
+    "ios": "npm run build && cap sync ios",
+    "ios:open": "cap open ios",
     "snap": "tsx scripts/preview.ts",
     "music": "tsx scripts/music/render.ts",
     "music:check": "tsx scripts/music/check.ts",
     "sfx": "tsx scripts/music/sfx.ts"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@eslint/js": "^10.0.1",
     "@napi-rs/canvas": "^1.0.11",
     "@types/node": "^26.6.5",
@@ -29,5 +32,11 @@
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/preferences": "^8.0.1"
   }
 }
