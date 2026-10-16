@@ -2,24 +2,11 @@ import { audio } from "./audio/engine";
 import { dropSounds } from "./audio/sounds";
 import { tuning } from "./config";
 import { BASE_FONTS, loadFonts } from "./fonts";
-import { drop, leanTarget, newGame, step, swayOffset, timeScale, top, windStrength, type GameState } from "./game";
-import { buzz } from "./haptics";
+import { drop, newGame, step, swayOffset, top, type GameState } from "./game";
+import { buzz, dropHaptic } from "./haptics";
 import { createOptions } from "./options";
 import { createPanel } from "./panel";
-import {
-  addFalling,
-  addFlash,
-  newView,
-  onDrop,
-  onSaved,
-  onWindZone,
-  render,
-  SLOWMO_EASE,
-  takeCues,
-  TOPPLE_ANIM_MS,
-  updateView,
-  type View,
-} from "./render";
+import { addFalling, addFlash, newView, render, updateView, type View } from "./render";
 import { resolveSkin } from "./skins";
 import type { Skin } from "./skins/skin";
 import { keepSaves } from "./storage";
@@ -31,11 +18,6 @@ const RESTART_GUARD_MS = 400;
 
 // In the iOS app, keep a copy of the saves where iOS won't purge them (restored if it did).
 void keepSaves();
-
-/** A fresh run with its own seed (gust timing and direction come from it). */
-function freshGame(): GameState {
-  return newGame(Math.floor(Math.random() * 2 ** 31));
-}
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game");
 if (!canvas) throw new Error("missing #game canvas");
@@ -58,12 +40,10 @@ function saveBest(n: number): void {
   }
 }
 
-let state: GameState = freshGame();
+let state: GameState = newGame();
 let view: View = newView();
 let best = loadBest();
 let overAt = 0;
-/** Game-clock multiplier: eases toward timeScale(state), e.g. slow motion while teetering. */
-let clock = 1;
 let cssW = 0;
 let cssH = 0;
 
@@ -83,9 +63,8 @@ function resize(): void {
 }
 
 function restart(): void {
-  state = freshGame();
+  state = newGame();
   view = newView();
-  clock = 1;
 }
 
 const panel = createPanel(restart);
@@ -95,30 +74,26 @@ const paused = () => panel.isOpen() || options.isOpen();
 
 function tap(): void {
   if (state.phase === "over") {
-    const guard = RESTART_GUARD_MS + (state.toppled ? TOPPLE_ANIM_MS : 0);
-    if (performance.now() - overAt < guard) return;
+    if (performance.now() - overAt < RESTART_GUARD_MS) return;
     restart();
     return;
   }
   const level = state.blocks.length;
   const under = top(state);
   const towerX = under.x + under.w / 2 + swayOffset(state, level - 1);
-  // Before/after the drop, for the lean arrow and the wind banner.
-  const leanBefore = leanTarget(state);
-  const windBefore = windStrength(state.score);
   const r = drop(state);
   if (!r) return;
+  const over = r.kind === "miss" && state.lives <= 0; // last life gone
   for (const cue of dropSounds(r, state.streak)) audio.play(cue.sound, cue);
-  if (r.kind === "perfect") addFlash(view, level);
+  const feel = dropHaptic(r.kind, state.streak, over);
+  if (feel) buzz(feel);
+  if (r.kind === "perfect") addFlash(view, level, state.streak);
   else addFalling(view, r.cut, level, towerX);
-  onDrop(view.fx, state, { result: r, level, leanBefore, leanAfter: leanTarget(state) });
-  if (r.kind === "sliced" && r.armed) buzz("armed");
-  if (windBefore === 0 && windStrength(state.score) > 0) onWindZone(view.fx);
   if (state.score > best) {
     best = state.score;
     saveBest(best);
   }
-  if (r.kind === "miss" && state.lives <= 0) overAt = performance.now(); // last life gone
+  if (over) overAt = performance.now();
 }
 
 canvas.addEventListener("pointerdown", (e) => {
@@ -153,7 +128,7 @@ function currentSkin(): Skin {
     skin = resolveSkin(tuning.skin, now);
     loadFonts(skin.fonts ?? []);
     document.documentElement.style.setProperty("--accent", skin.hud.ui);
-    // Each skin has its arrangement of the theme; the four Neon skins share one (and any skin
+    // Each skin has its arrangement of the theme; the Neon skins share one (and any skin
     // without a rendered arrangement plays Classic's).
     audio.setMusic(skin.style === "neon" ? "neon" : skin.id);
   }
@@ -166,26 +141,10 @@ function frame(now: number): void {
   last = now;
   // Paused while tuning, so values can be changed without losing the run.
   if (!paused()) {
-    clock += (timeScale(state) - clock) * (1 - Math.exp(-SLOWMO_EASE * dt));
-    const wasPlaying = state.phase === "playing";
-    const saves = state.saves;
-    step(state, dt * clock);
-    // SAVED!: the tower came back from the rail (the logic counts it in step()).
-    if (state.saves > saves) {
-      onSaved(view.fx, state);
-      buzz("saved");
-      audio.play("chime", { semitones: 12 });
-    }
-    updateView(view, state, dt * clock);
-    // Game over can come from a drop (last life) or from step() (a topple).
-    if (wasPlaying && state.phase === "over") {
-      overAt = performance.now();
-      if (state.toppled) {
-        buzz("topple");
-        audio.play("topple");
-      }
-    }
-    for (const cue of takeCues(view.fx)) buzz(cue);
+    step(state, dt);
+    updateView(view, state, dt);
+    // The music steps back while a run is played, and comes forward on the title and game over.
+    audio.setFocus(state.phase === "playing" && state.score > 0);
   }
   render(ctx!, cssW, cssH, state, view, best, currentSkin());
   requestAnimationFrame(frame);

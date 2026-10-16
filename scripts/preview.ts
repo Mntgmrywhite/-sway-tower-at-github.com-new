@@ -1,7 +1,7 @@
 // Renders a skin offscreen to PNGs so you can look at it without a browser.
-//   npm run preview -- <skinId> [width] [height]
+//   npm run snap -- <skinId> [width] [height]
 // Writes preview/<skin>-<shot>.png for every shot in src/preview/shots.ts (start, climb, high,
-// over, wobbly, lastChance, gust, toppled) and preview/<skin>-bars.png.
+// over) and preview/<skin>-bars.png.
 // Web fonts aren't available offline, so text uses fallback faces here.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createCanvas } from "@napi-rs/canvas";

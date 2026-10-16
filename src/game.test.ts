@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { LIVES, PERFECT_TOLERANCE, SLIDE_RANGE, resetTuning, tuning } from "./config";
+import { LIVES, PERFECT_TOLERANCE, SLIDE_RANGE, SWAY_KICK_MAX, resetTuning, tuning } from "./config";
 import { drop, kickAmplitude, newGame, sliderSpeed, step, swayOffset, top, type GameState } from "./game";
 
 afterEach(resetTuning);
@@ -100,7 +100,6 @@ describe("perfect drops win back length", () => {
   });
 
   it("each perfect wins back the next slice, newest first", () => {
-    tuning.regrowNeedsCalm = false; // tests the cut stack, not the calm gate
     const g = newGame();
     const base = top(g);
     aim(g, 6);
@@ -211,6 +210,19 @@ describe("sway", () => {
     expect(swayOffset(g, 10)).toBe(before);
     step(g, 0.1);
     expect(g.kick).toBeGreaterThan(0);
+  });
+
+  it("a kick past the swing cap trims speed only: a swinging tower never jumps", () => {
+    const g = newGame();
+    stack(g, 10);
+    g.kick = 25; // already swinging hard, near the cap
+    g.kickVel = 0;
+    const before = swayOffset(g, 10);
+    aim(g, 20); // a big overhang would push the swing past SWAY_KICK_MAX
+    drop(g);
+    expect(swayOffset(g, 10)).toBe(before);
+    expect(g.kick).toBe(25);
+    expect(kickAmplitude(g)).toBeCloseTo(SWAY_KICK_MAX);
   });
 
   it("the kick calms down after the chop", () => {

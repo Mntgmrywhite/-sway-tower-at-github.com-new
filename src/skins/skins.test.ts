@@ -31,6 +31,9 @@ describe("skin by date", () => {
     expect(resolveSkin("halloween", day(12, 24)).id).toBe("halloween");
     expect(resolveSkin("nope", day(12, 24)).id).toBe("classic");
     expect(resolveSkin("neon", day(12, 24)).id).toBe("neon");
+    // Retired neon skins show Synthwave.
+    expect(resolveSkin("neon-glow", day(12, 24)).id).toBe("neon");
+    expect(resolveSkin("neon-minimal", day(12, 24)).id).toBe("neon");
   });
 });
 

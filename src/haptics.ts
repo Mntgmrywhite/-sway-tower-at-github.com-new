@@ -1,61 +1,60 @@
 // Haptic cues. In the iOS app they play on the Taptic Engine through Capacitor's Haptics plugin
 // (navigator.vibrate does nothing there); in the browser they use navigator.vibrate where it
 // exists (Android), and are silent elsewhere.
+//
+// The owner's rule: it hits when you line the bars up perfectly. Positive feedback only, so an
+// ordinary landing and a miss are silent and the perfect stands out by contrast.
 
 import { Capacitor } from "@capacitor/core";
-import { Haptics, ImpactStyle } from "@capacitor/haptics";
-import type { Cue } from "./render";
+import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
 
-/** Vibration patterns, ms: on, off, on, … (navigator.vibrate's format). */
-export const HAPTICS: Record<Cue | "armed" | "saved" | "topple", number | number[]> = {
-  creak: 8,
-  whoa: [30, 40, 30],
-  teeter: [15, 90, 15],
-  armed: 60,
-  saved: [25, 70, 25],
-  topple: [90, 50, 180],
+/** A perfect; a perfect that completes a run of STREAK_STEP; the last life going. */
+export type Haptic = "perfect" | "streak" | "over";
+
+/** Every this many perfects in a row, the perfect lands with an extra heavy tap. */
+export const STREAK_STEP = 5;
+
+/** Browser vibration patterns, ms: on, off, on, … (navigator.vibrate's format). */
+export const VIBRATE: Record<Haptic, number | number[]> = {
+  perfect: [20, 40, 20],
+  streak: [20, 40, 20, 90, 60],
+  over: 60,
 };
-export type Haptic = keyof typeof HAPTICS;
 
-/** A taptic tap is instant, so a pulse's length picks how hard it hits: below this, light. */
-const LIGHT_BELOW_MS = 20;
-/** At or above this, heavy; in between, medium. */
-const HEAVY_FROM_MS = 60;
+/** One native step: iOS's Success notification (a crisp double-tap no impact can make), or an impact. */
+export type NativeStep = { at: number; success: true } | { at: number; impact: ImpactStyle };
 
-export interface Tap {
-  /** Delay from the start of the pattern, ms. */
-  at: number;
-  style: ImpactStyle;
-}
+export const NATIVE: Record<Haptic, NativeStep[]> = {
+  perfect: [{ at: 0, success: true }],
+  streak: [
+    { at: 0, success: true },
+    { at: 160, impact: ImpactStyle.Heavy },
+  ],
+  over: [{ at: 0, impact: ImpactStyle.Heavy }],
+};
 
-/** A vibration pattern as native taps: one impact at the start of each "on" pulse. */
-export function taps(pattern: number | number[]): Tap[] {
-  const steps = typeof pattern === "number" ? [pattern] : pattern;
-  const out: Tap[] = [];
-  let at = 0;
-  steps.forEach((ms, i) => {
-    if (i % 2 === 0 && ms > 0) {
-      const style = ms < LIGHT_BELOW_MS ? ImpactStyle.Light : ms < HEAVY_FROM_MS ? ImpactStyle.Medium : ImpactStyle.Heavy;
-      out.push({ at, style });
-    }
-    at += ms;
-  });
-  return out;
+/** The haptic for a drop, or null for none: `streak` is the run after the drop, `over` if it ended the game. */
+export function dropHaptic(kind: "perfect" | "sliced" | "miss", streak: number, over: boolean): Haptic | null {
+  if (over) return "over";
+  if (kind !== "perfect") return null;
+  return streak > 0 && streak % STREAK_STEP === 0 ? "streak" : "perfect";
 }
 
 const native = Capacitor.isNativePlatform();
 
 export function buzz(kind: Haptic): void {
   if (native) {
-    for (const t of taps(HAPTICS[kind])) {
-      setTimeout(() => void Haptics.impact({ style: t.style }).catch(() => {}), t.at);
+    for (const step of NATIVE[kind]) {
+      const play = () =>
+        "success" in step ? Haptics.notification({ type: NotificationType.Success }) : Haptics.impact({ style: step.impact });
+      setTimeout(() => void play().catch(() => {}), step.at);
     }
     return;
   }
   // Browsers refuse (and log) vibration before the first real tap.
   if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
   try {
-    navigator.vibrate?.(HAPTICS[kind]);
+    navigator.vibrate?.(VIBRATE[kind]);
   } catch {
     // Not allowed here (no user activation yet, or blocked); haptics are a bonus.
   }

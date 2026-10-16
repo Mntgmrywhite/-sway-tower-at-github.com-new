@@ -1,15 +1,17 @@
 import { BLOCK_HEIGHT } from "../config";
 import type { Block } from "../game";
 
-// Cosmetic falling pieces: sliced overhangs, and the bars that peel off a toppling tower.
+// Cosmetic falling pieces: the overhang a sloppy drop slices off (or a missed bar) tumbles away.
 // Renderer-only; the game never sees them.
 
 /** World units/sec^2; slow enough to watch the chop happen. */
 const GRAVITY = 55;
 /** Units/sec sideways, away from the tower. */
-export const FALL_DRIFT = 9;
+const FALL_DRIFT = 9;
 /** Radians/sec. */
-export const FALL_SPIN = 1.2;
+const FALL_SPIN = 1.2;
+/** Pieces this far (world units) below the camera are gone for good. */
+const FALL_OUT = 300;
 
 export interface Falling extends Block {
   /** World y of the piece's bottom. */
@@ -45,5 +47,5 @@ export function stepFalling(falling: Falling[], dt: number, cameraY: number): Fa
     f.x += f.vx * dt;
     f.angle += f.spin * dt;
   }
-  return falling.filter((f) => f.y > cameraY - 300);
+  return falling.filter((f) => f.y > cameraY - FALL_OUT);
 }

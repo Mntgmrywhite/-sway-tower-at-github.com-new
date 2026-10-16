@@ -75,21 +75,6 @@ for (let i = 0; i < 3; i++) save(`land${i}`, load(`kenney_impact-sounds/Audio/im
 }
 // Miss: a soft thud as the bar falls away.
 save("miss", load("kenney_impact-sounds/Audio/impactSoft_heavy_001.ogg"));
-// Topple: a cascade of heavy wooden hits, settling.
-{
-  const a = silence(1.6);
-  const hits: [string, number, number][] = [
-    ["impactWood_heavy_000", 0, 1],
-    ["impactWood_heavy_002", 0.12, 0.8],
-    ["impactPlank_medium_003", 0.24, 0.7],
-    ["impactWood_heavy_004", 0.38, 0.75],
-    ["impactWood_medium_003", 0.55, 0.5],
-    ["impactWood_light_001", 0.72, 0.35],
-    ["impactWood_light_004", 0.86, 0.25],
-  ];
-  for (const [f, t, g] of hits) mixIn(a, load(`kenney_impact-sounds/Audio/${f}.ogg`), t, g);
-  save("topple", a);
-}
 // UI click
 save("click", load("kenney_ui-audio/Audio/click3.ogg"));
 // Perfect: one glockenspiel strike (C6); the game raises its pitch along a streak.

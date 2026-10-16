@@ -12,12 +12,21 @@ const MUSIC = import.meta.glob("./music/*.mp4", { query: "?inline", import: "def
 const SFX = import.meta.glob("./sfx/*.mp4", { query: "?inline", import: "default", eager: true }) as Record<string, string>;
 const LOOPS = manifest as Record<string, LoopInfo>;
 
-export type Sound = "land" | "slice" | "miss" | "topple" | "click" | "chime";
+export type Sound = "land" | "slice" | "miss" | "click" | "chime";
 
 const SETTINGS_KEY = "sway-stack:audio";
 const MUSIC_LEVEL = 0.55;
 const SFX_LEVEL = 0.9;
 const CROSSFADE = 0.8; // seconds
+/**
+ * While playing, the music steps back behind the game: a gentle treble roll-off (it sounds a
+ * little further away) and a few dB down. The title and game-over screens get the full band.
+ */
+const PLAY_MUSIC_GAIN = 0.62; // about -4 dB
+const PLAY_MUSIC_TONE = 3200; // Hz, low-pass corner while playing
+const OPEN_TONE = 20000;
+const FOCUS_IN = 1.2; // seconds to step back when play starts
+const FOCUS_OUT = 0.8; // seconds to come forward at game over
 
 /** Every song name that has rendered music. */
 export const SONGS = Object.keys(MUSIC).map((p) => p.replace(/^.*\/|\.mp4$/g, ""));
@@ -47,6 +56,9 @@ function loadSettings(): Settings {
 class GameAudio {
   private ctx: AudioContext | null = null;
   private musicBus: GainNode | null = null;
+  private focusGain: GainNode | null = null;
+  private focusTone: BiquadFilterNode | null = null;
+  private playing = false;
   private sfxBus: GainNode | null = null;
   private buffers = new Map<string, Promise<AudioBuffer>>();
   private current: { name: string; src: AudioBufferSourceNode; gain: GainNode } | null = null;
@@ -69,7 +81,14 @@ class GameAudio {
       this.sfxBus = this.ctx.createGain();
       this.musicBus.gain.value = this.settings.music ? MUSIC_LEVEL : 0;
       this.sfxBus.gain.value = this.settings.sfx ? SFX_LEVEL : 0;
-      this.musicBus.connect(master);
+      // music -> focus (dip + tone) -> master
+      this.focusGain = this.ctx.createGain();
+      this.focusTone = this.ctx.createBiquadFilter();
+      this.focusTone.type = "lowpass";
+      this.focusTone.Q.value = 0.5;
+      this.focusGain.gain.value = this.playing ? PLAY_MUSIC_GAIN : 1;
+      this.focusTone.frequency.value = this.playing ? PLAY_MUSIC_TONE : OPEN_TONE;
+      this.musicBus.connect(this.focusGain).connect(this.focusTone).connect(master);
       this.sfxBus.connect(master);
       document.addEventListener("visibilitychange", () => {
         if (!this.ctx) return;
@@ -146,6 +165,24 @@ class GameAudio {
       src.connect(g).connect(bus);
       src.start();
     });
+  }
+
+  /** True while a run is being played (music steps back), false on the title and game over. */
+  setFocus(playing: boolean): void {
+    if (playing === this.playing) return;
+    this.playing = playing;
+    if (!this.ctx || !this.focusGain || !this.focusTone) return;
+    const now = this.ctx.currentTime;
+    const time = playing ? FOCUS_IN : FOCUS_OUT;
+    for (const [param, value] of [
+      [this.focusGain.gain, playing ? PLAY_MUSIC_GAIN : 1],
+      [this.focusTone.frequency, playing ? PLAY_MUSIC_TONE : OPEN_TONE],
+    ] as const) {
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      // Exponential ramps sound even for both gain and frequency.
+      param.exponentialRampToValueAtTime(value, now + time);
+    }
   }
 
   setMusicOn(on: boolean): void {

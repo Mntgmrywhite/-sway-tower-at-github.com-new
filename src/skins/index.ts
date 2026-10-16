@@ -3,14 +3,15 @@ import { classic } from "./classic";
 import { halloween } from "./halloween";
 import { neon } from "./neon";
 import { neonCyber } from "./neon-cyber";
-import { neonGlow } from "./neon-glow";
-import { neonMinimal } from "./neon-minimal";
 import { newYear } from "./newyear";
 import type { Skin } from "./skin";
 import { thanksgiving } from "./thanksgiving";
 
 /** Every skin, in picker order. Classic is always first and is the fallback. */
-export const SKINS: Skin[] = [classic, neon, neonCyber, neonGlow, neonMinimal, halloween, thanksgiving, christmas, newYear];
+export const SKINS: Skin[] = [classic, neon, neonCyber, halloween, thanksgiving, christmas, newYear];
+
+/** Skins that were retired, and the skin a saved choice of them now shows. */
+const RETIRED: Record<string, string> = { "neon-glow": "neon", "neon-minimal": "neon" };
 
 /** "auto" picks by date; anything else is a skin id. */
 export const AUTO = "auto";
@@ -36,5 +37,6 @@ export function skinForDate(date: Date): Skin {
 /** Resolve a picker choice ("auto" or an id) to a skin. Unknown ids fall back to Classic. */
 export function resolveSkin(choice: string, now: Date): Skin {
   if (choice === AUTO) return skinForDate(now);
-  return SKINS.find((s) => s.id === choice) ?? classic;
+  const id = RETIRED[choice] ?? choice;
+  return SKINS.find((s) => s.id === id) ?? classic;
 }
