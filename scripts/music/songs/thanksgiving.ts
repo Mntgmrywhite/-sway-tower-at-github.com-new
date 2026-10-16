@@ -31,7 +31,7 @@
 
 import { instrument, type InstrumentName } from "../instruments";
 import { midi } from "../sampler";
-import { euphonium, transpose, type Note, type Song, type Track } from "../song";
+import { euphonium, transpose, type Note, type SampledTrack, type Song, type Track } from "../song";
 import { CHORDS, EIGHTHS_PER_BAR, melody, THEME_BARS, type Quality } from "../theme";
 
 const BAR = EIGHTHS_PER_BAR;
@@ -135,7 +135,7 @@ function nudge(name: InstrumentName, vel: number, db: number): number {
  * per track, so notes are grouped by the correction they need in 3 dB steps (each group a track
  * with that much more or less gain) and the remainder is made up with velocity.
  */
-function leveled(track: Omit<Track, "notes">, notes: Note[]): Track[] {
+function leveled(track: Omit<SampledTrack, "notes">, notes: Note[]): Track[] {
   const held = (n: Note) => (instrument(track.inst).opts.oneShot ? 0.35 : (n.d * 60) / BPM);
   const level = (n: Note) => zoneDb(track.inst, n.n as number, n.v ?? 0.7, held(n));
   const sorted = notes.map(level).sort((a, b) => a - b);

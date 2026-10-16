@@ -9,15 +9,21 @@
 // bent pluck) are listed as "scattered" with their partials' median, and don't count. --round
 // plays every note at its whole pitch (what a song's own cents corrections would be without
 // them); --all lists every take and length, not only those off.
+//
+// Synth parts are heard the same way: each note rendered alone through its patch (its length,
+// its velocity to the nearest 0.1, which opens the filter), read on its harmonics, or on its
+// fundamental for a patch with inharmonic partials (a bell). Drums, noise and pitch sweeps
+// (risers) have no pitch to hold and are skipped. Synths are never featured: an off note is listed, not failed.
 
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { instrument, type InstrumentName } from "./instruments";
-import { heldFor, measureHeard, renderNote, type Instrument } from "./sampler";
-import { RATE, trackEvents, type Song } from "./song";
+import { heldFor, measureHeard, renderNote, type Instrument, type PitchKind } from "./sampler";
+import { RATE, trackEvents, type Song, type Track } from "./song";
+import { isSynth, renderSynth, SYNTHS, type Patch, type SynthName, type VoicePatch } from "./synth";
 
 const LIMIT = 5;
-const FEATURED = new Set<InstrumentName>(["piano", "sax", "saxShort", "sopranoSax", "sopranoSaxShort", "horn", "hornShort", "trombone", "tromboneShort", "tuba", "tubaShort"]);
+const FEATURED = new Set<string>(["piano", "sax", "saxShort", "sopranoSax", "sopranoSaxShort", "horn", "hornShort", "trombone", "tromboneShort", "tuba", "tubaShort"]);
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const noteName = (m: number) => `${NAMES[((Math.round(m) % 12) + 12) % 12]}${Math.floor(Math.round(m) / 12) - 1}`;
 /** Measuring needs the first ~0.8 s of a note; anything held longer is capped (and renders faster). */
@@ -25,7 +31,7 @@ const CAP = 1.2;
 
 interface Heard {
   part: string;
-  inst: InstrumentName;
+  inst: InstrumentName | SynthName;
   note: number;
   held: number;
   take: string;
@@ -34,16 +40,46 @@ interface Heard {
   usable: boolean;
 }
 
+/** A synth track's pitched patch, or null for drums, noise and pitch sweeps (a filter sweep keeps its pitch). */
+function pitchedPatch(track: Track & { inst: SynthName }): VoicePatch | null {
+  const p: Patch = track.patch ?? SYNTHS[track.inst];
+  if (p.kind !== "voice" || p.ramp?.pitch || p.osc.every((o) => o.wave === "noise")) return null;
+  return p;
+}
+
+/** Bells' partials are inharmonic: read their fundamental. Everything else on its harmonics. */
+const synthKind = (p: VoicePatch): PitchKind => (p.osc.some((o) => Math.abs((o.semi ?? 0) - Math.round(o.semi ?? 0)) > 0.05) ? "fundamental" : "harmonic");
+
 async function report(name: string, round: boolean, all: boolean): Promise<boolean> {
   const mod = (await import(pathToFileURL(join(process.cwd(), "scripts/music/songs", `${name}.ts`)).href)) as { default: Song };
   const song = mod.default;
-  for (const t of song.tracks) instrument(t.inst).resetRoundRobin();
+  for (const t of song.tracks) if (!isSynth(t.inst)) instrument(t.inst).resetRoundRobin();
   const cache = new Map<string, { cents: number; usable: boolean }>();
   const heard: Heard[] = [];
   song.tracks.forEach((track, ti) => {
+    const part = track.label ?? `${track.inst}${track.pan ? ` (pan ${track.pan})` : ""}`;
+    if (isSynth(track.inst)) {
+      const patch = pitchedPatch({ ...track, inst: track.inst });
+      if (!patch) return;
+      for (const ev of trackEvents(song, ti)) {
+        const note = round ? Math.round(ev.note) : ev.note;
+        const vel = Math.round(ev.vel * 10) / 10;
+        const held = Math.min(ev.dur, ev.ring ?? Infinity, CAP);
+        const key = `${track.inst}|${ti}|${note.toFixed(3)}|${vel}|${held.toFixed(3)}`;
+        let read = cache.get(key);
+        if (read === undefined) {
+          const L = new Float32Array(RATE * 3);
+          const R = new Float32Array(RATE * 3);
+          renderSynth(patch, [{ time: 0, dur: held, note, vel }], L, R, RATE, 1, 0);
+          read = measureHeard(L.map((v, i) => (v + R[i]!) / 2), RATE, Math.round(note), synthKind(patch));
+          cache.set(key, read);
+        }
+        heard.push({ part, inst: track.inst, note: Math.round(note), held, take: `synth v${vel.toFixed(1)}`, ...read });
+      }
+      return;
+    }
     const inst: Instrument = instrument(track.inst);
     if (inst.opts.fixedNote !== undefined) return;
-    const part = track.label ?? `${track.inst}${track.pan ? ` (pan ${track.pan})` : ""}`;
     for (const ev of trackEvents(song, ti)) {
       if (round) ev.note = Math.round(ev.note);
       // Pick the take exactly as the render would (round robins advance in song order).
@@ -62,7 +98,7 @@ async function report(name: string, round: boolean, all: boolean): Promise<boole
     }
   });
   // Measuring played the notes through the sampler: start its round robins over.
-  for (const t of song.tracks) instrument(t.inst).resetRoundRobin();
+  for (const t of song.tracks) if (!isSynth(t.inst)) instrument(t.inst).resetRoundRobin();
 
   let ok = true;
   console.log(`\n${name}${round ? " (whole pitches)" : ""}: cents heard, per part`);

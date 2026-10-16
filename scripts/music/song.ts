@@ -4,10 +4,16 @@
 // that rings past the end wraps to the start, and the reverb is run over two passes, so the
 // rendered loop is seamless. Pick tempos that give whole frames per bar at 48 kHz
 // (e.g. 96, 100, 120, 125, 150 bpm in 4/4).
+//
+// A track plays a recording (instruments.ts) or, for the Neon song, a synth patch (synth.ts).
+// Two effects serve the synths' genre and are loop-seamless like the reverb: sidechain pumping
+// (a track's `pump` ducks it at every note of the song's pump key, the kick) and a tempo-synced
+// delay bus (a track's `delay` send). A song that uses neither renders exactly as before.
 
 import { instrument, type InstrumentName } from "./instruments";
 import { loopReverb, type ReverbOptions } from "./reverb";
 import { midi, renderNotes, type NoteEvent } from "./sampler";
+import { beats, duck, isSynth, loopDelay, pumpEnvelope, renderSynth, type DelayOptions, type Patch, type SynthName } from "./synth";
 import type { Audio } from "./wav";
 
 export const RATE = 48000;
@@ -24,7 +30,13 @@ export interface Note {
 }
 
 export interface Track {
-  inst: InstrumentName;
+  /** A recording (instruments.ts) or a synth patch (synth.ts SYNTHS). */
+  inst: InstrumentName | SynthName;
+  /**
+   * Synth tracks only: play this patch instead of SYNTHS[inst], e.g. a copy with a few fields
+   * changed (a filter that opens over a build). `inst` still names the part in reports.
+   */
+  patch?: Patch;
   notes: Note[];
   /** Linear gain (default 1). */
   gain?: number;
@@ -55,6 +67,35 @@ export interface Track {
    */
   choke?: boolean;
   ring?: number;
+  /**
+   * Sidechain pumping, 0..1: how far the track ducks at each note of the song's pump key
+   * (Song.pump, the kick) before it swells back, as a compressor keyed by the kick would.
+   * Applied after lowpass/highpass and before the sends, so its reverb and delay pump too.
+   */
+  pump?: number;
+  /** Send 0..1 into the song's tempo-synced delay (Song.delay). Off by default. */
+  delay?: number;
+}
+
+/** A track that plays a recording (helpers that look into the recordings take these). */
+export type SampledTrack = Track & { inst: InstrumentName };
+
+/** The sidechain key: which notes duck the tracks that `pump`, and how they swell back. */
+export interface Pump {
+  /** The track(s) whose notes are the kick: every track with this label, or one track index. */
+  from: string | number;
+  /** Beats to swell back after each hit (default 0.75: full again by the beat's last sixteenth). */
+  release?: number;
+  /** Recovery shape: 1 linear, 2 (default) quick at first then easing in, the classic pump. */
+  curve?: number;
+}
+
+/** The delay bus, beside the reverb: a loop-seamless echo synced to the tempo. */
+export interface Delay extends Omit<DelayOptions, "time"> {
+  /** Beats between echoes (0.75: a dotted eighth; 0.5: an eighth). */
+  time: number;
+  /** Return level (default 1). */
+  level?: number;
 }
 
 export interface Song {
@@ -66,6 +107,10 @@ export interface Song {
   swing?: number;
   tracks: Track[];
   reverb?: ReverbOptions & { level?: number };
+  /** The pump key, for tracks with `pump`. */
+  pump?: Pump;
+  /** The delay bus, for tracks with a `delay` send. */
+  delay?: Delay;
 }
 
 /** Deterministic pseudo-random for humanizing (same song renders identically every time). */
@@ -115,21 +160,50 @@ export function trackEvents(song: Song, ti: number): NoteEvent[] {
   return events;
 }
 
-/** Render one seamless loop of the song (before mastering). */
-export function renderLoop(song: Song): Audio {
+/** Note start times (seconds, as played) of the song's pump key. */
+function pumpTimes(song: Song): number[] {
+  const from = song.pump?.from;
+  if (from === undefined) throw new Error(`${song.name}: a track pumps, but the song has no pump key (Song.pump)`);
+  const keys = song.tracks.map((_, i) => i).filter((i) => (typeof from === "number" ? i === from : song.tracks[i]!.label === from));
+  if (!keys.length) throw new Error(`${song.name}: no track ${typeof from === "number" ? `#${from}` : `labelled "${from}"`} for the pump key`);
+  return keys.flatMap((i) => trackEvents(song, i).map((e) => e.time));
+}
+
+/**
+ * Render one seamless loop of the song (before mastering). `only` renders just those tracks
+ * (by index) as they sound in the full song: humanized as there, pumped by its kick.
+ */
+export function renderLoop(song: Song, only?: ReadonlySet<number>): Audio {
   const frames = loopFrames(song);
   const dryL = new Float32Array(frames);
   const dryR = new Float32Array(frames);
   const sendL = new Float32Array(frames);
   const sendR = new Float32Array(frames);
+  const delays = song.tracks.some((t, ti) => (t.delay ?? 0) > 0 && (!only || only.has(ti)));
+  const echoL = delays ? new Float32Array(frames) : null;
+  const echoR = delays ? new Float32Array(frames) : null;
   // Round robins restart with every render, so a song sounds the same whatever rendered before.
-  for (const track of song.tracks) instrument(track.inst).resetRoundRobin();
+  for (const track of song.tracks) if (!isSynth(track.inst)) instrument(track.inst).resetRoundRobin();
+  // One gain curve per pump depth, keyed by the kick's notes.
+  let kicks: number[] | null = null;
+  const curves = new Map<number, Float32Array>();
+  const pumpCurve = (depth: number): Float32Array => {
+    let c = curves.get(depth);
+    if (!c) {
+      kicks ??= pumpTimes(song);
+      const p = song.pump!;
+      c = pumpEnvelope(frames, RATE, kicks, { depth, release: beats(song.bpm, p.release ?? 0.75), curve: p.curve });
+      curves.set(depth, c);
+    }
+    return c;
+  };
   song.tracks.forEach((track, ti) => {
-    const inst = instrument(track.inst);
+    if (only && !only.has(ti)) return;
     const events = trackEvents(song, ti);
     const tL = new Float32Array(frames);
     const tR = new Float32Array(frames);
-    renderNotes(inst, events, tL, tR, RATE, track.gain ?? 1, track.pan ?? 0);
+    if (isSynth(track.inst)) renderSynth(track.patch ?? track.inst, events, tL, tR, RATE, track.gain ?? 1, track.pan ?? 0);
+    else renderNotes(instrument(track.inst), events, tL, tR, RATE, track.gain ?? 1, track.pan ?? 0);
     if (track.lowpass) {
       for (const ch of [tL, tR]) for (let pass = 0; pass < 2; pass++) onePoleLoop(ch, track.lowpass, RATE);
     }
@@ -142,6 +216,7 @@ export function renderLoop(song: Song): Audio {
         }
       }
     }
+    if (track.pump) duck(tL, tR, pumpCurve(track.pump));
     const send = track.reverb ?? 0.25;
     for (let f = 0; f < frames; f++) {
       dryL[f] = dryL[f]! + tL[f]!;
@@ -149,12 +224,28 @@ export function renderLoop(song: Song): Audio {
       sendL[f] = sendL[f]! + tL[f]! * send;
       sendR[f] = sendR[f]! + tR[f]! * send;
     }
+    const echo = track.delay ?? 0;
+    if (echo > 0 && echoL && echoR) {
+      for (let f = 0; f < frames; f++) {
+        echoL[f] = echoL[f]! + tL[f]! * echo;
+        echoR[f] = echoR[f]! + tR[f]! * echo;
+      }
+    }
   });
   const [wetL, wetR] = loopReverb(sendL, sendR, RATE, song.reverb);
   const level = song.reverb?.level ?? 1;
   for (let f = 0; f < frames; f++) {
     dryL[f] = dryL[f]! + wetL[f]! * level;
     dryR[f] = dryR[f]! + wetR[f]! * level;
+  }
+  if (echoL && echoR) {
+    if (!song.delay) throw new Error(`${song.name}: a track sends to the delay, but the song has no delay bus (Song.delay)`);
+    const { time, level: back = 1, ...opts } = song.delay;
+    const [dL, dR] = loopDelay(echoL, echoR, RATE, { ...opts, time: beats(song.bpm, time) });
+    for (let f = 0; f < frames; f++) {
+      dryL[f] = dryL[f]! + dL[f]! * back;
+      dryR[f] = dryR[f]! + dR[f]! * back;
+    }
   }
   return { rate: RATE, left: dryL, right: dryR };
 }

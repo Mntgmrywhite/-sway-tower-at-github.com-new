@@ -32,7 +32,7 @@
 
 import { instrument, type InstrumentName } from "../instruments";
 import { midi } from "../sampler";
-import { euphonium, type Note, type Song, type Track } from "../song";
+import { euphonium, type Note, type SampledTrack, type Song, type Track } from "../song";
 import { chordNotes, EIGHTHS_PER_BAR, harmony, melody, THEME_BARS, THEME_BPM, type Quality } from "../theme";
 
 const KEY = 5; // C major -> F major
@@ -151,7 +151,7 @@ const num = (n: Note) => (typeof n.n === "number" ? n.n : midi(n.n));
  * recording to `db` (as recordingDb() measures it): for sets whose recordings differ in loudness
  * by more than a velocity layer's range can even out.
  */
-function evenTracks(track: Track, db: number): Track[] {
+function evenTracks(track: SampledTrack, db: number): Track[] {
   const byZone = new Map<number, Note[]>();
   for (const n of track.notes) {
     const z = instrument(track.inst).zoneFor(num(n), n.v ?? 0.7).note;
