@@ -21,7 +21,7 @@ interface Bldg {
   /** Sideways lean of the walls, and how far off center the peak sits (fraction of width). */
   lean: number;
   skew: number;
-  /** Chimney position as a fraction of the width, or 0 for none. */
+  /** Chimney: 0 for none, under 0.5 on the left roof slope, else on the right (see `chimSpot`). */
   chim: number;
   /** True when this building shares a wall with the one to its left. */
   joined: boolean;
@@ -78,7 +78,7 @@ const MIDDLE: Bldg[] = [
   house(0.5, 0.56, 0.05, 0.035, 0.01, 0, true, 8),
 ];
 
-/** Random houses out to either side, for screens wider than a phone. */
+/** Hashed (deterministic) houses out to either side, for screens wider than a phone. */
 function filler(dir: 1 | -1, start: number, neighbor: Bldg): Bldg[] {
   const out: Bldg[] = [];
   let edge = start;
@@ -160,12 +160,20 @@ function grow(x: number, y: number, ang: number, len: number, depth: number, see
 grow(0, 0, -0.06, 0.05, 4, 1);
 const TREE_X = -0.155;
 const TREE_WIDTH = [0.011, 0.006, 0.0032];
+const TREE_GLOW = alpha(VIOLET, 0.16);
 
 // ---------------------------------------------------------------- drawing
 
-/** Chimney poking up through a roof slope from (ax, ay) to (bx, by), centered at x = c. */
-function chimney(ctx: Ctx, ax: number, ay: number, bx: number, by: number, c: number, u: number): void {
+/** How far along its slope (eave to peak, or peak to eave) a chimney sits, kept off the ends. */
+function chimSpot(chim: number): number {
+  const f = chim < 0.5 ? chim * 2 : (chim - 0.5) * 2;
+  return Math.min(0.7, Math.max(0.3, f));
+}
+
+/** Chimney poking up through a roof slope from (ax, ay) to (bx, by), `f` of the way along it. */
+function chimney(ctx: Ctx, ax: number, ay: number, bx: number, by: number, f: number, u: number): void {
   const w = u * 0.014;
+  const c = ax + (bx - ax) * f;
   const xa = c - w / 2;
   const xb = c + w / 2;
   if (xa <= Math.min(ax, bx) || xb >= Math.max(ax, bx)) return;
@@ -194,9 +202,9 @@ function profile(ctx: Ctx, b: Bldg, cx: number, base: number, u: number): void {
     const eaveY = top + eave * 0.4;
     ctx.lineTo(lx, top);
     ctx.lineTo(lx - eave, eaveY);
-    if (b.chim > 0 && b.chim < 0.5) chimney(ctx, lx - eave, eaveY, peakX, peakY, x0 + w * b.chim, u);
+    if (b.chim > 0 && b.chim < 0.5) chimney(ctx, lx - eave, eaveY, peakX, peakY, chimSpot(b.chim), u);
     ctx.lineTo(peakX, peakY);
-    if (b.chim >= 0.5) chimney(ctx, peakX, peakY, rx + eave, eaveY, x0 + w * b.chim, u);
+    if (b.chim >= 0.5) chimney(ctx, peakX, peakY, rx + eave, eaveY, chimSpot(b.chim), u);
     ctx.lineTo(rx + eave, eaveY);
     ctx.lineTo(rx, top);
     return;
@@ -254,12 +262,17 @@ function profile(ctx: Ctx, b: Bldg, cx: number, base: number, u: number): void {
   ctx.lineTo(x1, top);
 }
 
+/** Each window goes dark for a while now and then. */
+function lit(w: Win, t: number): boolean {
+  return Math.sin(t * 0.45 + w.seed * 2.7) >= -0.75;
+}
+
 /** Lit window panes (or their glow, when `grow` > 0) for one color, as one path. */
 function windowRects(ctx: Ctx, cx: number, base: number, s: Scene, green: boolean, grow: number): void {
   const u = s.u;
   ctx.beginPath();
   for (const w of WINDOWS) {
-    if (w.green !== green || Math.sin(s.t * 0.45 + w.seed * 2.7) < -0.75) continue;
+    if (w.green !== green || !lit(w, s.t)) continue;
     const x = cx + w.x * u;
     if (x < -u * 0.05 || x > s.cssW + u * 0.05) continue;
     const ww = w.w * u;
@@ -282,12 +295,9 @@ export function town(ctx: Ctx, s: Scene): void {
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (const [extra, color] of [
-    [rim * 4, alpha(VIOLET, 0.16)],
-    [rim * 2, VIOLET],
-    [0, INK],
-  ] as const) {
-    ctx.strokeStyle = color;
+  for (let pass = 0; pass < 3; pass++) {
+    const extra = pass === 0 ? rim * 4 : pass === 1 ? rim * 2 : 0;
+    ctx.strokeStyle = pass === 0 ? TREE_GLOW : pass === 1 ? VIOLET : INK;
     for (let level = 0; level < 3; level++) {
       ctx.beginPath();
       for (const sg of TREE) {
@@ -301,7 +311,9 @@ export function town(ctx: Ctx, s: Scene): void {
   }
   ctx.restore();
 
-  // Skyline: one outline per run of joined buildings, closed along the horizon.
+  // Skyline: one outline per run of joined buildings, closed along the horizon. The rim goes
+  // down first and the dark fill on top, so only its outer half shows: a clean outline around
+  // each run, with no seams inside where joined (differently leaning) houses overlap.
   ctx.beginPath();
   let open = false;
   let lastX = 0;
@@ -328,9 +340,9 @@ export function town(ctx: Ctx, s: Scene): void {
   const fill = ctx.createLinearGradient(0, hy - u * 0.3, 0, hy);
   fill.addColorStop(0, "#170a2a");
   fill.addColorStop(1, INK);
+  neonStroke(ctx, VIOLET, rim * 2, 1.5);
   ctx.fillStyle = fill;
   ctx.fill();
-  neonStroke(ctx, VIOLET, rim, 3);
 
   // Cross on the church spire
   const sx = cx + (CHURCH_X + 0.024) * u;
@@ -344,7 +356,8 @@ export function town(ctx: Ctx, s: Scene): void {
 
   // Lit windows: a warm glow, the pane, then dark mullions. Some go dark for a while.
   const flick = 0.82 + 0.18 * Math.sin(t * 7.3) * Math.sin(t * 3.1);
-  for (const green of [false, true]) {
+  for (let g = 0; g < 2; g++) {
+    const green = g === 1;
     const color = green ? GREEN : AMBER;
     windowRects(ctx, cx, base, s, green, u * 0.007);
     ctx.fillStyle = alpha(color, 0.22 * flick);
@@ -356,7 +369,7 @@ export function town(ctx: Ctx, s: Scene): void {
   ctx.beginPath();
   for (const w of WINDOWS) {
     const x = cx + w.x * u;
-    if (x < -u * 0.05 || x > s.cssW + u * 0.05 || w.w < 0.015) continue;
+    if (x < -u * 0.05 || x > s.cssW + u * 0.05 || w.w < 0.015 || !lit(w, t)) continue;
     const y = base - w.y * u;
     ctx.moveTo(x, y);
     ctx.lineTo(x, y - w.h * u);

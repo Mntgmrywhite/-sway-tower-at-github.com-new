@@ -1,10 +1,10 @@
 import { alpha, circle, hash, mix, neonShape, neonStroke, oval, type Ctx } from "../../neon/draw";
 import { altitude01 } from "../../neon/world";
 import type { Scene } from "../skin";
-import { addLeaf } from "./leaves";
+import { addLeaf, LEAF_COLORS, LEAF_FILLS } from "./leaves";
 
-// Harvest night sky: a huge low harvest moon cut by synthwave bands, leaves tumbling down
-// from the edges of the screen, and now and then a V of geese crossing the moon.
+// Harvest night sky: a huge low harvest moon cut by synthwave bands, leaves blowing in and
+// tumbling down across the sky, and now and then a V of geese crossing the moon.
 
 const TAU = Math.PI * 2;
 
@@ -14,16 +14,21 @@ const MOON_LOW = "#ff4f1c";
 const MOON_RIM = "#ffc95a";
 const MOON_HALO = "#ff8a2a";
 
+/** Bright sky things stay below this fraction of the screen height (title, score, lives). */
+const HUD_BAND = 0.33;
+
 /** Where the moon is this frame; shared with the geese so they cross its face. */
-export const moon = { x: 0, y: 0, r: 0, a: 0 };
+const moon = { x: 0, y: 0, r: 0, a: 0 };
 
 /** Huge and low at the start; it climbs, shrinks and pales a little as the tower rises. */
-export function placeMoon(s: Scene): typeof moon {
+function placeMoon(s: Scene): typeof moon {
   const a = altitude01(s);
   moon.a = a;
   moon.r = s.u * (0.27 - 0.06 * a);
   moon.x = s.cssW * (0.63 + 0.06 * a);
   moon.y = s.horizonY - moon.r * (0.55 + 1.25 * a * a);
+  // On short screens, sink it behind the hills rather than rise into the HUD band.
+  moon.y = Math.max(moon.y, s.cssH * HUD_BAND + moon.r);
   return moon;
 }
 
@@ -98,20 +103,18 @@ export function harvestMoon(ctx: Ctx, s: Scene): void {
   ctx.restore();
 }
 
-// Leaves drifting down from the edges and curling inward on the wind. They stay out of the
-// top-center HUD band: they start near the sides and only reach the middle further down.
-const LEAF_COLORS = ["#ffb02e", "#ff6a1a", "#ff2e4a", "#ffd84a"] as const;
-const LEAF_FILLS = LEAF_COLORS.map((c) => mix(c, "#000000", 0.7));
+// Leaves blown in from the side edges below the title, curling inward on the wind as they
+// fall. They stay out of the top-center HUD band: they only reach the middle further down.
 
 /** Leaves in the air near the ground; more are swept up as the tower climbs into open sky. */
-const LEAVES_LOW = 16;
-const DRIFT = Array.from({ length: 26 }, (_, i) => {
+const LEAVES_LOW = 12;
+const DRIFT = Array.from({ length: 22 }, (_, i) => {
   const h = (k: number) => hash(i * 17 + k);
   return {
     side: i % 2 ? 1 : -1,
-    x0: 0.02 + h(1) * 0.12,
-    drift: 0.12 + h(2) * 0.26,
-    period: 11 + h(3) * 9,
+    x0: -0.05 + h(1) * 0.05,
+    drift: 0.18 + h(2) * 0.3,
+    period: 12 + h(3) * 10,
     off: h(4) * 40,
     size: 0.036 + h(5) * 0.026,
     color: Math.floor(h(6) * LEAF_COLORS.length) % LEAF_COLORS.length,
@@ -137,9 +140,14 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
       const p = (s.t + d.off) / d.period;
       const k = p - Math.floor(p);
       const size = d.size * s.u;
-      const y = (-0.05 + 1.1 * k) * s.cssH;
+      // Fall through the open sky: from below the title to just past the horizon.
+      const top = s.cssH * 0.19;
+      const y = top + k * (Math.max(s.horizonY, top) + size * 2 - top);
       if (y - size > s.horizonY) continue;
-      const fx = d.x0 + d.drift * k * k;
+      // Hug the edge beside the HUD, then sweep inward across the sky below it.
+      const band = s.cssH * 0.32;
+      const fx =
+        d.x0 + 0.12 * Math.min(1, (y - top) / (band - top)) + d.drift * Math.max(0, (y - band) / (s.cssH * 0.5));
       const x = (d.side < 0 ? fx : 1 - fx) * W + Math.sin(s.t * d.swayF + d.off) * d.sway * W;
       const angle = d.side * 0.5 + Math.sin(s.t * d.rockF + d.off * 3) * 0.75 + s.t * d.spin;
       const f = Math.cos(s.t * d.flipF + d.off);
@@ -165,7 +173,10 @@ export function geese(ctx: Ctx, s: Scene): void {
   const g = s.u * 0.056; // body length
   const span = s.cssW + g * 14;
   const lx = dir > 0 ? -g * 2 + k * span : s.cssW + g * 2 - k * span;
-  const ly = m.y - m.r * (0.3 + 0.3 * hash(cycle * 5 + 1)) + Math.sin(k * 5) * s.u * 0.008;
+  const ly = Math.max(
+    s.cssH * HUD_BAND + g * 2,
+    m.y - m.r * (0.3 + 0.3 * hash(cycle * 5 + 1)) + Math.sin(k * 5) * s.u * 0.008,
+  );
   if (ly > s.horizonY) return;
 
   ctx.beginPath();
@@ -207,30 +218,31 @@ function goose(ctx: Ctx, x: number, y: number, g: number, dir: number, flap: num
   ctx.lineTo(x - d * 0.38, y - g * 0.01);
   ctx.lineTo(x - d * 0.2, y - g * 0.04);
   ctx.closePath();
-  for (const [f, k] of [
-    [far, 0.8],
-    [flap, 1],
-  ] as const) {
-    const lift = f * g * 0.5 * k;
-    const sweep = d * (0.16 + 0.08 * Math.abs(f)) * k;
-    const sx = x + d * 0.12; // shoulder
-    const sy = y - g * 0.02;
-    const tx = x - sweep; // wingtip
-    const ty = y - lift;
-    const rx = x - d * 0.16; // root of the trailing edge
-    const lx = x + d * 0.02; // leading-edge control
-    const ly = y - lift * 0.8;
-    const qx = x - sweep * 0.7; // trailing-edge control
-    const qy = y - lift * 0.4;
-    if (f > 0) {
-      ctx.moveTo(rx, y);
-      ctx.quadraticCurveTo(qx, qy, tx, ty);
-      ctx.quadraticCurveTo(lx, ly, sx, sy);
-    } else {
-      ctx.moveTo(sx, sy);
-      ctx.quadraticCurveTo(lx, ly, tx, ty);
-      ctx.quadraticCurveTo(qx, qy, rx, y);
-    }
-    ctx.closePath();
+  wing(ctx, x, y, g, d, far, 0.8);
+  wing(ctx, x, y, g, d, flap, 1);
+}
+
+/** One swept wing; `d` is the facing-signed body length, f the beat (-1 down .. 1 up). */
+function wing(ctx: Ctx, x: number, y: number, g: number, d: number, f: number, k: number): void {
+  const lift = f * g * 0.5 * k;
+  const sweep = d * (0.16 + 0.08 * Math.abs(f)) * k;
+  const sx = x + d * 0.12; // shoulder
+  const sy = y - g * 0.02;
+  const tx = x - sweep; // wingtip
+  const ty = y - lift;
+  const rx = x - d * 0.16; // root of the trailing edge
+  const lx = x + d * 0.02; // leading-edge control
+  const ly = y - lift * 0.8;
+  const qx = x - sweep * 0.7; // trailing-edge control
+  const qy = y - lift * 0.4;
+  if (f > 0) {
+    ctx.moveTo(rx, y);
+    ctx.quadraticCurveTo(qx, qy, tx, ty);
+    ctx.quadraticCurveTo(lx, ly, sx, sy);
+  } else {
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(lx, ly, tx, ty);
+    ctx.quadraticCurveTo(qx, qy, rx, y);
   }
+  ctx.closePath();
 }

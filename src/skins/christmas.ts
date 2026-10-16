@@ -1,3 +1,4 @@
+import { GOLD, GREEN, ICE, RED, WHITE } from "./christmas/colors";
 import { far } from "./christmas/far";
 import { foreground, ground } from "./christmas/ground";
 import {
@@ -21,12 +22,6 @@ import type { Skin } from "./skin";
 // Santa's sleigh crossing now and then, a snowy fir forest and a lit village on the
 // horizon, an ice-blue grid floor, and a decorated tree, presents, a snowman and candy
 // canes beside the tower. Northern lights come out as you climb.
-
-const RED = "#ff2d55";
-const GREEN = "#2dff7a";
-const GOLD = "#ffc93d";
-const ICE = "#5fe1ff";
-const WHITE = "#e6f0ff";
 
 export const christmas: Skin = {
   id: "christmas",

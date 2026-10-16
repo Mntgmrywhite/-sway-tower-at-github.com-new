@@ -1,6 +1,6 @@
 import { alpha, hash, mix, neonShape, neonStroke, oval, type Ctx } from "../../neon/draw";
 import type { Scene } from "../skin";
-import { addLeaf } from "./leaves";
+import { addLeaf, LEAF_COLORS, LEAF_FILLS } from "./leaves";
 
 // Harvest props on the neon floor, beside the tower: a scarecrow rising out of hay bales on
 // the left, corn shocks and a pile of pumpkins and gourds on the right. Props are placed by
@@ -16,6 +16,41 @@ const PUMPKIN = "#ff7a1a";
 const STEM = "#a8e04a";
 const LITTER = "#ff6a1a";
 const CORN_RIM = "#ffd24a";
+
+// Constant detail positions in prop units, hoisted so drawing allocates nothing per frame.
+const TWINE_X = [-0.045, 0.045] as const;
+/** Corn tassels: tip x, tip y, control x, control y (all from the tie). */
+const TASSELS = [
+  [-0.075, -0.33, -0.03, -0.4],
+  [-0.045, -0.4, -0.02, -0.42],
+  [0.0, -0.44, -0.006, -0.4],
+  [0.05, -0.41, 0.022, -0.43],
+  [0.08, -0.34, 0.035, -0.41],
+] as const;
+const STALKS = [-0.7, -0.35, 0, 0.35, 0.7] as const;
+/** Hanging corn leaves: root x, root y, side, length. */
+const HANGING = [
+  [-0.045, -0.2, -1, 0.09],
+  [0.04, -0.23, 1, 0.085],
+  [-0.072, -0.085, -1, 0.075],
+  [0.068, -0.1, 1, 0.08],
+] as const;
+const PLAID_X = [-0.11, -0.025, 0.025, 0.11] as const;
+const SIDES = [-1, 1] as const;
+const CUFF_FAN = [-0.5, 0, 0.5] as const;
+const ANKLE_FAN = [-0.4, 0.4] as const;
+const EYES_X = [-0.016, 0.016] as const;
+
+/** Dark silhouette fill for a neon rim color, memoized so frames don't re-mix colors. */
+const darkCache = new Map<string, string>();
+function dark(rim: string): string {
+  let d = darkCache.get(rim);
+  if (d === undefined) {
+    d = mix(rim, "#000000", 0.78);
+    darkCache.set(rim, d);
+  }
+  return d;
+}
 
 /** Screen position and scale of floor point X (u, from screen center, at the tower's depth) at depth z. */
 const at = { x: 0, y: 0, k: 1 };
@@ -70,7 +105,7 @@ function hayBale(ctx: Ctx, x: number, y: number, sc: number, lw: number, lean: n
   ctx.stroke();
 
   local(ctx, x, y, sc);
-  for (const tx of [-0.045, 0.045]) {
+  for (const tx of TWINE_X) {
     ctx.moveTo(tx, 0);
     ctx.lineTo(tx, -h);
     ctx.lineTo(tx + dx, -h - d);
@@ -86,7 +121,7 @@ function pumpkin(ctx: Ctx, x: number, y: number, sc: number, lw: number, r: numb
   ctx.rotate(tilt);
   oval(ctx, 0, -ry, r, ry);
   ctx.restore();
-  neonShape(ctx, mix(rim, "#000000", 0.78), rim, lw);
+  neonShape(ctx, dark(rim), rim, lw);
 
   local(ctx, x, y, sc);
   ctx.rotate(tilt);
@@ -107,9 +142,8 @@ function pumpkin(ctx: Ctx, x: number, y: number, sc: number, lw: number, r: numb
 }
 
 /** Crookneck squash standing up: a round bulb with a neck curling over at the top. */
-function gourd(ctx: Ctx, x: number, y: number, sc: number, lw: number, dir: number, rim: string): void {
+function gourd(ctx: Ctx, x: number, y: number, sc: number, lw: number, rim: string): void {
   local(ctx, x, y, sc);
-  ctx.scale(dir, 1);
   ctx.moveTo(-0.042, -0.03);
   ctx.bezierCurveTo(-0.046, 0.006, 0.046, 0.006, 0.042, -0.03);
   ctx.bezierCurveTo(0.04, -0.058, 0.014, -0.066, 0.013, -0.092);
@@ -119,9 +153,8 @@ function gourd(ctx: Ctx, x: number, y: number, sc: number, lw: number, dir: numb
   ctx.bezierCurveTo(-0.014, -0.066, -0.04, -0.058, -0.042, -0.03);
   ctx.closePath();
   ctx.restore();
-  neonShape(ctx, mix(rim, "#000000", 0.78), rim, lw * 0.85);
+  neonShape(ctx, dark(rim), rim, lw * 0.85);
   local(ctx, x, y, sc);
-  ctx.scale(dir, 1);
   ctx.moveTo(0.036, -0.134);
   ctx.lineTo(0.05, -0.142);
   ctx.restore();
@@ -133,13 +166,7 @@ function cornShock(ctx: Ctx, x: number, y: number, sc: number, lw: number, phase
   const stir = 0.006 * Math.sin(phase);
   // Tassels fountain out of the tie, behind the bundle.
   local(ctx, x, y, sc);
-  for (const [tx, ty, cx, cy] of [
-    [-0.075, -0.33, -0.03, -0.4],
-    [-0.045, -0.4, -0.02, -0.42],
-    [0.0, -0.44, -0.006, -0.4],
-    [0.05, -0.41, 0.022, -0.43],
-    [0.08, -0.34, 0.035, -0.41],
-  ] as const) {
+  for (const [tx, ty, cx, cy] of TASSELS) {
     ctx.moveTo(0, -0.29);
     ctx.quadraticCurveTo(cx, cy, tx + stir, ty);
   }
@@ -157,7 +184,7 @@ function cornShock(ctx: Ctx, x: number, y: number, sc: number, lw: number, phase
 
   // Stalks converging on the tie.
   local(ctx, x, y, sc);
-  for (const f of [-0.7, -0.35, 0, 0.35, 0.7]) {
+  for (const f of STALKS) {
     ctx.moveTo(f * 0.1, 0);
     ctx.quadraticCurveTo(f * 0.06, -0.16, f * 0.016, -0.3);
   }
@@ -168,12 +195,7 @@ function cornShock(ctx: Ctx, x: number, y: number, sc: number, lw: number, phase
 
   // Long dry leaves hanging off the sides, stirring in the wind.
   local(ctx, x, y, sc);
-  for (const [rx, ry, side, len] of [
-    [-0.045, -0.2, -1, 0.09],
-    [0.04, -0.23, 1, 0.085],
-    [-0.072, -0.085, -1, 0.075],
-    [0.068, -0.1, 1, 0.08],
-  ] as const) {
+  for (const [rx, ry, side, len] of HANGING) {
     const tx = rx + side * len + stir;
     const ty = ry + len * 0.75;
     ctx.moveTo(rx, ry);
@@ -191,13 +213,36 @@ function cornShock(ctx: Ctx, x: number, y: number, sc: number, lw: number, phase
   neonStroke(ctx, TWINE, lw * 0.9, 2.2);
 }
 
-/** Two ears of corn leaning on a shock. */
+/** Ears of corn leaning on a shock: center x, center y, half-width, half-length, lean. */
+const EARS = [
+  [-0.02, -0.045, 0.016, 0.05, -0.35],
+  [0.015, -0.042, 0.015, 0.046, 0.25],
+] as const;
+/** Kernel rows across each ear, as fractions of its half-length. */
+const KERNEL_ROWS = [-0.5, -0.1, 0.3] as const;
+
 function cornEars(ctx: Ctx, x: number, y: number, sc: number, lw: number): void {
   local(ctx, x, y, sc);
-  oval(ctx, -0.02, -0.045, 0.016, 0.05, -0.35);
-  oval(ctx, 0.015, -0.042, 0.015, 0.046, 0.25);
+  for (const [ex, ey, rx, ry, rot] of EARS) oval(ctx, ex, ey, rx, ry, rot);
   ctx.restore();
   neonShape(ctx, "#2e2105", "#ffe04a", lw * 0.8);
+
+  local(ctx, x, y, sc);
+  for (const [ex, ey, rx, ry, rot] of EARS) {
+    const c = Math.cos(rot);
+    const sn = Math.sin(rot);
+    for (const f of KERNEL_ROWS) {
+      const half = rx * 0.8 * Math.sqrt(1 - f * f);
+      const px = ex - sn * f * ry;
+      const py = ey + c * f * ry;
+      ctx.moveTo(px - c * half, py - sn * half);
+      ctx.lineTo(px + c * half, py + sn * half);
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = alpha("#ffe04a", 0.55);
+  ctx.lineWidth = Math.max(0.6, lw * 0.5);
+  ctx.stroke();
 }
 
 /** Scarecrow on a post, base where the post enters the hay at (x, y). */
@@ -246,7 +291,7 @@ function scarecrow(ctx: Ctx, x: number, y: number, sc: number, lw: number, t: nu
 
   // Plaid hints and straw tufts at the cuffs, waist and ankles.
   local(ctx, x, y, sc);
-  for (const px of [-0.11, -0.025, 0.025, 0.11]) {
+  for (const px of PLAID_X) {
     ctx.moveTo(px, -0.312);
     ctx.lineTo(px, px * px > 0.005 ? -0.27 : -0.2);
   }
@@ -258,12 +303,12 @@ function scarecrow(ctx: Ctx, x: number, y: number, sc: number, lw: number, t: nu
   ctx.stroke();
 
   local(ctx, x, y, sc);
-  for (const side of [-1, 1]) {
-    for (const a of [-0.5, 0, 0.5]) {
+  for (const side of SIDES) {
+    for (const a of CUFF_FAN) {
       ctx.moveTo(side * 0.158, -0.29);
       ctx.lineTo(side * (0.158 + 0.024 * Math.cos(a)), -0.29 + 0.024 * Math.sin(a) + flutter);
     }
-    for (const a of [-0.4, 0.4]) {
+    for (const a of ANKLE_FAN) {
       ctx.moveTo(side * 0.032, -0.085);
       ctx.lineTo(side * 0.032 + 0.02 * Math.sin(a), -0.085 + 0.022 * Math.cos(a));
     }
@@ -277,7 +322,7 @@ function scarecrow(ctx: Ctx, x: number, y: number, sc: number, lw: number, t: nu
   ctx.restore();
   neonShape(ctx, "#2b1a0a", "#ffb35a", lw);
   local(ctx, x, y, sc);
-  for (const ex of [-0.016, 0.016]) {
+  for (const ex of EYES_X) {
     ctx.moveTo(ex - 0.008, -0.372);
     ctx.lineTo(ex + 0.008, -0.358);
     ctx.moveTo(ex + 0.008, -0.372);
@@ -320,8 +365,18 @@ function scarecrow(ctx: Ctx, x: number, y: number, sc: number, lw: number, t: nu
   neonShape(ctx, "#07040a", "#b07cff", lw * 0.6);
 }
 
-/** Low mound of fallen leaves the props are sunk into. */
-function mound(ctx: Ctx, x: number, y: number, sc: number, lw: number, w: number, seed: number): void {
+/** Low mound of fallen leaves (or straw) the props are sunk into. */
+function mound(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  sc: number,
+  lw: number,
+  w: number,
+  seed: number,
+  rim = LITTER,
+  fill = "#1c0705",
+): void {
   local(ctx, x, y, sc);
   ctx.moveTo(-w, 0.004);
   const n = 7;
@@ -332,7 +387,7 @@ function mound(ctx: Ctx, x: number, y: number, sc: number, lw: number, w: number
   }
   ctx.closePath();
   ctx.restore();
-  neonShape(ctx, "#1c0705", LITTER, lw * 0.8);
+  neonShape(ctx, fill, rim, lw * 0.8);
 }
 
 // Leaves scattered on the floor at the cluster bases: [X, z, angle, color, oak].
@@ -346,7 +401,6 @@ const LITTER_LEAVES = [
   [-0.12, 2.35, 2.6, 1, 0],
   [0.13, 2.4, -2.2, 1, 1],
 ] as const;
-const LEAF_COLORS = ["#ffb02e", "#ff6a1a", "#ff2e4a", "#ffd84a"] as const;
 
 function litter(ctx: Ctx, s: Scene, lw: number, list: readonly (readonly number[])[], size: number): void {
   for (let c = 0; c < LEAF_COLORS.length; c++) {
@@ -360,8 +414,7 @@ function litter(ctx: Ctx, s: Scene, lw: number, list: readonly (readonly number[
       addLeaf(ctx, oak === 1, p.x, p.y, s.u * size * p.k, ang! + rock, 1, 0.5);
       any = true;
     }
-    const col = LEAF_COLORS[c]!;
-    if (any) neonShape(ctx, mix(col, "#000000", 0.7), col, lw * 0.75);
+    if (any) neonShape(ctx, LEAF_FILLS[c]!, LEAF_COLORS[c]!, lw * 0.75);
   }
 }
 
@@ -375,9 +428,11 @@ export function harvest(ctx: Ctx, s: Scene): void {
   const lw = Math.max(1.1, s.u * 0.004);
   const sc = s.u * PROP;
 
-  // Left: a scarecrow on the tower's row, rising out of a pyramid of hay bales.
+  // Left: a scarecrow on the tower's row behind a pyramid of hay bales. The bales hide its
+  // foot at the start; as the floor spreads out on a climb, the straw heaped round it shows.
   let p = place(s, -0.39, 3);
   scarecrow(ctx, p.x, p.y, sc * p.k, lw, s.t);
+  mound(ctx, p.x, p.y, sc * p.k, lw, 0.055, 19, HAY_RIM, HAY_FILL);
   p = place(s, -0.39, 2.3);
   hayBale(ctx, p.x, p.y, sc * p.k, lw, 1);
   p = place(s, -0.272, 2.3);
@@ -405,7 +460,7 @@ export function harvest(ctx: Ctx, s: Scene): void {
   p = place(s, 0.19, 2.08);
   pumpkin(ctx, p.x, p.y, sc * p.k, lw, 0.042, "#ffe9c8", 0.1);
   p = place(s, 0.29, 2.04);
-  gourd(ctx, p.x, p.y, sc * p.k, lw, 1, "#ffe04a");
+  gourd(ctx, p.x, p.y, sc * p.k, lw, "#ffe04a");
   p = place(s, 0.4, 2.1);
   pumpkin(ctx, p.x, p.y, sc * p.k, lw, 0.04, "#a8e04a", 0.15);
 

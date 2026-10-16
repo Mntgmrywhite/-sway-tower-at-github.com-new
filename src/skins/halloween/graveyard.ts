@@ -13,6 +13,7 @@ const MOUND_TOP = "#2a1236";
 const MOUND_BOTTOM = "#0b0410";
 const STONE_LIT = "#33224a";
 const STONE_DARK = "#0e0718";
+const STONE_MID = mix(STONE_LIT, STONE_DARK, 0.45);
 
 // ---------------------------------------------------------------- dirt
 
@@ -38,10 +39,14 @@ function mound(ctx: Ctx, s: Scene, x: number, y: number, rx: number, seed: numbe
   moundTop(ctx, x, y, rx, ry, seed, 0, LUMPS);
   ctx.ellipse(x, y, rx, ry * 0.55, 0, 0, Math.PI);
   ctx.closePath();
-  const g = ctx.createLinearGradient(0, y - ry, 0, y + ry * 0.55);
-  g.addColorStop(0, MOUND_TOP);
-  g.addColorStop(1, MOUND_BOTTOM);
-  ctx.fillStyle = g;
+  ctx.fillStyle = MOUND_BOTTOM;
+  ctx.fill();
+  // Loose earth catching the light on top
+  ctx.beginPath();
+  moundTop(ctx, x, y, rx, ry, seed, 0, LUMPS);
+  ctx.ellipse(x, y - ry * 0.1, rx * 0.9, ry * 0.3, 0, 0, Math.PI);
+  ctx.closePath();
+  ctx.fillStyle = MOUND_TOP;
   ctx.fill();
 
   // Neon lip along the top only
@@ -51,7 +56,7 @@ function mound(ctx: Ctx, s: Scene, x: number, y: number, rx: number, seed: numbe
 
   // Dead grass tufts at both ends
   ctx.beginPath();
-  for (const side of [-1, 1]) {
+  for (let side = -1; side <= 1; side += 2) {
     const bx = x + side * rx * (0.62 + hash(seed + side) * 0.2);
     const by = y - ry * 0.35;
     for (let i = 0; i < 3; i++) {
@@ -131,7 +136,7 @@ function tombstone(ctx: Ctx, s: Scene, x: number, y: number, w: number, h: numbe
   // Moonlight comes from the upper left: lit left face, dark right face.
   const g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
   g.addColorStop(0, STONE_LIT);
-  g.addColorStop(0.35, mix(STONE_LIT, STONE_DARK, 0.45));
+  g.addColorStop(0.35, STONE_MID);
   g.addColorStop(1, STONE_DARK);
   ctx.fillStyle = g;
   ctx.fill();
@@ -187,7 +192,7 @@ function tombstone(ctx: Ctx, s: Scene, x: number, y: number, w: number, h: numbe
 /** Carved face as closed subpaths: two eyes, a nose, a jagged grin. */
 function face(ctx: Ctx, px: number, py: number, pr: number): void {
   ctx.beginPath();
-  for (const side of [-1, 1]) {
+  for (let side = -1; side <= 1; side += 2) {
     ctx.moveTo(px + side * pr * 0.58, py - pr * 0.02);
     ctx.lineTo(px + side * pr * 0.16, py - pr * 0.02);
     ctx.lineTo(px + side * pr * 0.4, py - pr * 0.44);
@@ -240,7 +245,7 @@ function jackOLantern(ctx: Ctx, s: Scene, px: number, bottom: number, pr: number
   ctx.beginPath();
   oval(ctx, px, py, pr * 1.18, pr);
   const body = ctx.createRadialGradient(px, py + pr * 0.15, pr * 0.1, px, py, pr * 1.2);
-  body.addColorStop(0, mix("#c4500c", "#ff8a2a", flicker - 0.6));
+  body.addColorStop(0, mix("#c4500c", "#ff8a2a", Math.max(0, flicker - 0.6)));
   body.addColorStop(0.55, "#6a2306");
   body.addColorStop(1, "#250902");
   ctx.fillStyle = body;
@@ -449,10 +454,10 @@ function bonyFeet(ctx: Ctx, s: Scene, x: number, y: number, len: number, up: num
   const edge = edgeW(s);
   aboveGround(ctx, x, y, len);
   for (let side = -1; side <= 1; side += 2) {
-    const fx = x + side * len * 0.2;
+    const fx = x + side * len * 0.27;
     const lean = side * 0.1 + Math.sin(t * 1.4 + side) * 0.05;
-    const ax = fx + Math.sin(lean) * len * 0.45 * up;
-    const ay = y - Math.cos(lean) * len * 0.45 * up;
+    const ax = fx + Math.sin(lean) * len * 0.4 * up;
+    const ay = y - Math.cos(lean) * len * 0.4 * up;
     // Shin
     ctx.beginPath();
     ctx.moveTo(fx, y + 2);
@@ -463,8 +468,10 @@ function bonyFeet(ctx: Ctx, s: Scene, x: number, y: number, len: number, up: num
     const r = lean * 1.8;
     const c = Math.cos(r) * len;
     const sn = Math.sin(r) * len;
-    const X = (lx: number, ly: number) => ax + side * lx * c - ly * sn;
-    const Y = (lx: number, ly: number) => ay + side * lx * sn + ly * c;
+    const kx = side * 1.75;
+    const ky = 1.35;
+    const X = (lx: number, ly: number) => ax + lx * kx * c - ly * ky * sn;
+    const Y = (lx: number, ly: number) => ay + lx * kx * sn + ly * ky * c;
     ctx.beginPath();
     ctx.moveTo(X(0, 0.02), Y(0, 0.02));
     for (const [c1x, c1y, c2x, c2y, ex, ey] of SOLE) {
@@ -489,7 +496,7 @@ function bonyFeet(ctx: Ctx, s: Scene, x: number, y: number, len: number, up: num
     for (let i = 0; i < TOES.length; i++) {
       const toe = TOES[i]!;
       const wig = Math.sin(t * 7 + i * 1.1 + side) * 0.018;
-      circle(ctx, X(toe[0], toe[1] + wig), Y(toe[0], toe[1] + wig), toe[2] * len);
+      circle(ctx, X(toe[0], toe[1] + wig), Y(toe[0], toe[1] + wig), toe[2] * len * 1.5);
     }
     ctx.fillStyle = BONE;
     ctx.fill();
@@ -505,72 +512,104 @@ function grow(z: number): number {
   return (3 / z) ** 0.6;
 }
 
-// Props from back (big z) to front. X is the sideways spot at the tower's depth, in u;
-// everything at or behind the tower line keeps clear of the tower's column.
-const STONES = [
-  { X: -0.62, z: 4.2, w: 0.06, h: 0.11, kind: "cross", seed: 5 },
-  { X: -0.36, z: 3.15, w: 0.085, h: 0.118, kind: "round", seed: 1 },
-  { X: 0.465, z: 3.0, w: 0.072, h: 0.092, kind: "slab", seed: 2 },
-  { X: -0.205, z: 1.45, w: 0.07, h: 0.085, kind: "round", seed: 3 },
-] as const;
+// Every prop, back (big z) to front, so nearer ones overlap farther ones. X is the sideways
+// spot at the tower's depth, in u; z = 3 is the tower's line. Props at or behind that line
+// keep clear of the tower's column; nearer ones sit on the floor below the tower's base.
+// Sizes are in u at the tower's depth; `period`/`offset` drive the rise-and-sink loop.
+type Prop =
+  | { kind: "stone"; X: number; z: number; w: number; h: number; stone: Stone; seed: number }
+  | { kind: "pumpkin"; X: number; z: number; size: number }
+  | { kind: "arm" | "skull" | "feet"; X: number; z: number; size: number; period: number; offset: number; seed: number };
 
-const PUMPKIN = { X: 0.4, z: 3.5, r: 0.05 };
+const PROPS: readonly Prop[] = [
+  { kind: "stone", X: -0.62, z: 4.2, w: 0.06, h: 0.11, stone: "cross", seed: 5 },
+  { kind: "pumpkin", X: 0.42, z: 3.7, size: 0.052 },
+  { kind: "stone", X: -0.36, z: 3.15, w: 0.085, h: 0.118, stone: "round", seed: 1 },
+  { kind: "stone", X: 0.465, z: 3.0, w: 0.072, h: 0.092, stone: "slab", seed: 2 },
+  { kind: "arm", X: 0.265, z: 2.3, size: 0.1, period: 7, offset: 1, seed: 2 },
+  { kind: "skull", X: -0.214, z: 2.0, size: 0.062, period: 9, offset: 0, seed: 0 },
+  { kind: "arm", X: 0.21, z: 1.75, size: 0.085, period: 8.5, offset: 0.2, seed: 1 },
+  { kind: "feet", X: -0.06, z: 1.6, size: 0.09, period: 10, offset: 0.5, seed: 0 },
+  { kind: "stone", X: -0.205, z: 1.45, w: 0.07, h: 0.085, stone: "round", seed: 3 },
+];
+const GROW = PROPS.map((p) => grow(p.z));
 
-export function graveyard(ctx: Ctx, s: Scene): void {
-  if (s.groundY - s.u * 0.3 > s.cssH) return;
+// Will-o'-wisps drifting low over the graves: floor spot, height above it (u), phase.
+const WISPS = [
+  { X: -0.44, z: 3.4, h: 0.13, phase: 0 },
+  { X: -0.27, z: 2.6, h: 0.09, phase: 2.2 },
+  { X: 0.17, z: 2.35, h: 0.035, phase: 1.7 },
+  { X: -0.08, z: 2.15, h: 0.05, phase: 3.1 },
+  { X: 0.12, z: 1.9, h: 0.06, phase: 4.4 },
+  { X: 0.36, z: 1.55, h: 0.08, phase: 5.3 },
+].map((w) => ({ ...w, k: grow(w.z) }));
+const WISP_PASSES = [
+  { scale: 2.8, color: alpha(GREEN, 0.09) },
+  { scale: 1.7, color: alpha(GREEN, 0.3) },
+  { scale: 1, color: mix(GREEN, "#ffffff", 0.7) },
+];
+
+/** The farthest floor row anything stands on: once it has sunk below the screen, so has the rest. */
+const FAR_Z = Math.max(...PROPS.map((p) => p.z), ...WISPS.map((w) => w.z));
+
+/** Soft green lights bobbing over the graveyard: a halo, a glow and a hot core, each one batch. */
+function wisps(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const t = s.t;
-  const visible = (y: number, h: number) => y - h < s.cssH && y + h > 0;
+  for (const pass of WISP_PASSES) {
+    ctx.beginPath();
+    for (const w of WISPS) {
+      const p = floor(s, w.X, w.z);
+      const x = p.x + Math.sin(t * 0.7 + w.phase) * u * 0.025 * w.k;
+      const y = p.y - w.h * u * w.k + Math.sin(t * 1.3 + w.phase * 2) * u * 0.015 * w.k;
+      if (y > s.cssH + 20 || y < -20) continue;
+      const r = u * 0.0065 * w.k * (0.85 + 0.15 * Math.sin(t * 5 + w.phase * 3));
+      circle(ctx, x, y, r * pass.scale);
+    }
+    ctx.fillStyle = pass.color;
+    ctx.fill();
+  }
+}
 
-  const stone = (i: number) => {
-    const g = STONES[i];
-    if (!g) return;
-    const p = floor(s, g.X, g.z);
-    const k = grow(g.z);
-    if (visible(p.y, g.h * u * k * 1.3)) tombstone(ctx, s, p.x, p.y, g.w * u * k, g.h * u * k, g.kind, g.seed);
-  };
-
-  stone(0);
-  {
-    const p = floor(s, PUMPKIN.X, PUMPKIN.z);
-    const r = PUMPKIN.r * u * grow(PUMPKIN.z);
-    if (visible(p.y, r * 3)) jackOLantern(ctx, s, p.x, p.y, r);
-  }
-  stone(1);
-  stone(2);
-
-  // Skeletons: [X, z, size, kind, period, offset]
-  {
-    const p = floor(s, 0.215, 2.4);
-    const len = 0.1 * u * grow(2.4);
-    if (visible(p.y, len * 1.5)) {
-      skeletonArm(ctx, s, p.x, p.y, len, emerge(t, 7, 1), 1);
-      mound(ctx, s, p.x, p.y + 2, len * 0.75, 21);
+export function graveyard(ctx: Ctx, s: Scene): void {
+  // The tallest thing on the back row (cross, pumpkin, a wisp) reaches under 0.2u above it.
+  if (floor(s, 0, FAR_Z).y - s.u * 0.2 > s.cssH) return;
+  const u = s.u;
+  const t = s.t;
+  for (let i = 0; i < PROPS.length; i++) {
+    const prop = PROPS[i]!;
+    const k = GROW[i]!;
+    const p = floor(s, prop.X, prop.z);
+    const x = p.x;
+    const y = p.y;
+    const tall = (prop.kind === "stone" ? prop.h : prop.size * 2.5) * u * k;
+    if (y - tall > s.cssH || y + tall < 0) continue;
+    switch (prop.kind) {
+      case "stone":
+        tombstone(ctx, s, x, y, prop.w * u * k, prop.h * u * k, prop.stone, prop.seed);
+        break;
+      case "pumpkin":
+        jackOLantern(ctx, s, x, y, prop.size * u * k);
+        break;
+      case "arm": {
+        const len = prop.size * u * k;
+        skeletonArm(ctx, s, x, y, len, emerge(t, prop.period, prop.offset), prop.seed);
+        mound(ctx, s, x, y + 2, len * 0.75, 21 + i);
+        break;
+      }
+      case "skull": {
+        const size = prop.size * u * k;
+        risingSkull(ctx, s, x, y, size, emerge(t, prop.period, prop.offset));
+        mound(ctx, s, x, y + 2, size * 1.45, 21 + i);
+        break;
+      }
+      case "feet": {
+        const len = prop.size * u * k;
+        bonyFeet(ctx, s, x, y, len, emerge(t, prop.period, prop.offset));
+        mound(ctx, s, x, y + 2, len * 0.8, 21 + i);
+        break;
+      }
     }
   }
-  {
-    const p = floor(s, -0.214, 2.0);
-    const size = 0.062 * u * grow(2.0);
-    if (visible(p.y, size * 2)) {
-      risingSkull(ctx, s, p.x, p.y, size, emerge(t, 9, 0));
-      mound(ctx, s, p.x, p.y + 2, size * 1.45, 22);
-    }
-  }
-  {
-    const p = floor(s, 0.235, 1.75);
-    const len = 0.085 * u * grow(1.75);
-    if (visible(p.y, len * 1.5)) {
-      skeletonArm(ctx, s, p.x, p.y, len, emerge(t, 8.5, 0.2), 2);
-      mound(ctx, s, p.x, p.y + 2, len * 0.75, 23);
-    }
-  }
-  {
-    const p = floor(s, -0.06, 1.6);
-    const len = 0.09 * u * grow(1.6);
-    if (visible(p.y, len * 1.5)) {
-      bonyFeet(ctx, s, p.x, p.y, len, emerge(t, 10, 0.5));
-      mound(ctx, s, p.x, p.y + 2, len * 0.8, 24);
-    }
-  }
-  stone(3);
+  wisps(ctx, s);
 }

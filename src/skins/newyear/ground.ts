@@ -1,4 +1,4 @@
-import { alpha, circle, hash, mix, neonStroke, neonText, roundRectPath, type Ctx } from "../../neon/draw";
+import { alpha, circle, hash, mix, neonStroke, neonText, oval, roundRectPath, type Ctx } from "../../neon/draw";
 import { layerGround } from "../../neon/world";
 import type { Scene } from "../skin";
 import { CHAMPAGNE, CYAN, GOLD, INK, MAGENTA, PARTY, SILVER, TAU, VIOLET, YEAR } from "./colors";
@@ -68,7 +68,19 @@ function pool(ctx: Ctx, x: number, y: number, rx: number, color: string): void {
 /* ---------------------------------------------------------------- champagne */
 
 const BOTTLE_TILT = -0.24;
+/**
+ * The cork and foam fly out steeper than the bottle leans: the mouth sits near the left edge
+ * of the screen, so along the bottle's own axis they would leave the screen at once.
+ */
+const FIRE_X = Math.sin(BOTTLE_TILT * 0.35);
+const FIRE_Y = -Math.cos(BOTTLE_TILT * 0.35);
 const POP_PERIOD = 4.6;
+/** Ice cubes poking over the bucket rim: x from the bucket center, height over the rim (u), turn. */
+const ICE: readonly (readonly [number, number, number])[] = [
+  [-0.036, 0.012, 0.4],
+  [0.042, 0.01, -0.3],
+  [0.016, 0.006, 0.9],
+];
 const DROPS = Array.from({ length: 20 }, (_, i) => ({
   birth: hash(i + 300) * 0.55,
   spread: (hash(i + 320) - 0.5) * 0.7,
@@ -142,12 +154,10 @@ function champagne(ctx: Ctx, s: Scene, x: number, y: number): void {
   ctx.fill();
   ctx.restore();
 
-  // Mouth of the bottle and the axis it fires along, in screen space.
+  // Mouth of the bottle, in screen space.
   const L = 0.278 * u;
-  const dirX = Math.sin(BOTTLE_TILT);
-  const dirY = -Math.cos(BOTTLE_TILT);
-  const mx = bx + dirX * L;
-  const my = by + dirY * L;
+  const mx = bx + Math.sin(BOTTLE_TILT) * L;
+  const my = by - Math.cos(BOTTLE_TILT) * L;
   const p = s.t % POP_PERIOD;
 
   // Foam spray right after the pop
@@ -158,8 +168,8 @@ function champagne(ctx: Ctx, s: Scene, x: number, y: number): void {
     if (age < 0 || age > 0.9) continue;
     const ca = Math.cos(d.spread);
     const sa = Math.sin(d.spread);
-    const vx = (dirX * ca - dirY * sa) * d.speed * u;
-    const vy = (dirX * sa + dirY * ca) * d.speed * u;
+    const vx = (FIRE_X * ca - FIRE_Y * sa) * d.speed * u;
+    const vy = (FIRE_X * sa + FIRE_Y * ca) * d.speed * u;
     const r = d.r * u * (1 - age * 0.6);
     circle(ctx, mx + vx * age, my + vy * age + 0.55 * u * age * age, r);
     anyDrop = true;
@@ -169,27 +179,26 @@ function champagne(ctx: Ctx, s: Scene, x: number, y: number): void {
     ctx.fill();
   }
 
-  // Cork flying up and away
-  if (p < 1.6) {
-    const v = 1.05 * u;
-    const cxp = mx + dirX * v * p - u * 0.06 * p;
-    const cyp = my + dirY * v * p + 0.7 * u * p * p;
-    if (cyp < s.cssH) {
-      ctx.save();
-      ctx.translate(cxp, cyp);
-      ctx.rotate(p * 9);
-      roundRectPath(ctx, -0.011 * u, -0.009 * u, 0.022 * u, 0.018 * u, 0.004 * u);
-      ctx.fillStyle = "#3a2410";
-      ctx.fill();
-      neonStroke(ctx, GOLD, Math.max(1, u * 0.003), 2.4);
-      ctx.restore();
-    }
+  // Cork shooting up, tumbling, and falling away off the left edge
+  if (p < 1.5) {
+    const v = 0.95 * u;
+    const cxp = mx + FIRE_X * v * p;
+    const cyp = my + FIRE_Y * v * p + 0.65 * u * p * p;
+    ctx.save();
+    ctx.translate(cxp, cyp);
+    ctx.rotate(p * 9);
+    roundRectPath(ctx, -0.011 * u, -0.009 * u, 0.022 * u, 0.018 * u, 0.004 * u);
+    ctx.fillStyle = "#3a2410";
+    ctx.fill();
+    neonStroke(ctx, GOLD, Math.max(1, u * 0.003), 2.4);
+    ctx.restore();
     // Pop flash at the mouth
     if (p < 0.25) {
       const k = p / 0.25;
+      const aim = Math.atan2(FIRE_Y, FIRE_X);
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
-        const a = Math.atan2(dirY, dirX) + (i - 2.5) * 0.35;
+        const a = aim + (i - 2.5) * 0.35;
         const r0 = u * (0.012 + k * 0.02);
         const r1 = u * (0.03 + k * 0.035);
         ctx.moveTo(mx + Math.cos(a) * r0, my + Math.sin(a) * r0);
@@ -215,11 +224,7 @@ function champagne(ctx: Ctx, s: Scene, x: number, y: number): void {
 
   // Ice cubes poking over the rim
   ctx.beginPath();
-  for (const [dx, dy, a] of [
-    [-0.036, 0.012, 0.4],
-    [0.042, 0.01, -0.3],
-    [0.016, 0.006, 0.9],
-  ] as const) {
+  for (const [dx, dy, a] of ICE) {
     const ix = x + dx * u;
     const iy = y - bucketH - dy * u;
     const r = 0.017 * u;
@@ -270,73 +275,85 @@ function champagne(ctx: Ctx, s: Scene, x: number, y: number): void {
 /* ---------------------------------------------------------------- party popper */
 
 const POPPER_PERIOD = 5.3;
-const POPPER_TILT = -0.5; // leaning left, away from the tower
+/** Streamers fire up and to the left, away from the tower. */
+const POPPER_AIM = Math.PI + 0.45;
+/** Paper bands around the cone, as fractions of the way from the narrow end to the mouth. */
+const POPPER_BANDS = [0.35, 0.65] as const;
 const STRANDS = Array.from({ length: 5 }, (_, i) => ({
-  spread: (i - 2) * 0.24 + (hash(i + 500) - 0.5) * 0.15,
+  spread: (i - 2) * 0.2 + (hash(i + 500) - 0.5) * 0.12,
   len: 0.13 + hash(i + 510) * 0.06,
   color: PARTY[i % PARTY.length]!,
   curl: 6 + hash(i + 520) * 4,
 }));
 
+/** A party popper lying on its side on the floor: narrow end at (x, y), mouth to the left. */
 function popper(ctx: Ctx, s: Scene, x: number, y: number): void {
   const u = s.u;
-  pool(ctx, x, y, u * 0.05, MAGENTA);
   const len = 0.1 * u;
-  const dirX = Math.sin(POPPER_TILT);
-  const dirY = -Math.cos(POPPER_TILT);
-  const mx = x + dirX * len;
-  const my = y + dirY * len;
+  const tip = 0.008 * u; // half-height at the narrow end
+  const bell = 0.03 * u; // half-height at the mouth
+  const mx = x - len;
+  const my = y - bell;
+  pool(ctx, x - len * 0.45, y, u * 0.075, MAGENTA);
 
-  // Streamers fly out after each pop, then droop and fade.
-  const p = (s.t + 2.8) % POPPER_PERIOD;
-  if (p < 2.4) {
-    const grow = Math.min(1, p / 0.45);
-    const e = 1 - (1 - grow) * (1 - grow);
-    const fade = p < 1.6 ? 1 : 1 - (p - 1.6) / 0.8;
-    ctx.globalAlpha = fade;
-    for (const st of STRANDS) {
-      const a = Math.atan2(dirY, dirX) + st.spread;
-      ctx.beginPath();
-      for (let k = 0; k <= 14; k++) {
-        const f = (k / 14) * e;
-        const d = f * st.len * u;
-        const wig = Math.sin(f * st.curl + s.t * 5) * u * 0.014 * Math.min(1, f * 2);
-        const px = mx + Math.cos(a) * d - Math.sin(a) * wig;
-        const py = my + Math.sin(a) * d + Math.cos(a) * wig + f * f * u * 0.05 * Math.min(1, p);
-        if (k === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      neonStroke(ctx, st.color, Math.max(1, u * 0.003), 2.4);
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  // Cone
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(POPPER_TILT);
+  // The cone's lower edge rests on the floor, so its axis tips up toward the mouth.
   ctx.beginPath();
-  ctx.moveTo(-0.007 * u, 0);
-  ctx.lineTo(-0.031 * u, -len);
-  ctx.lineTo(0.031 * u, -len);
-  ctx.lineTo(0.007 * u, 0);
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y - tip * 2);
+  ctx.lineTo(mx, y - bell * 2);
+  ctx.lineTo(mx, y);
   ctx.closePath();
   ctx.fillStyle = INK;
   ctx.fill();
   neonStroke(ctx, MAGENTA, Math.max(1.2, u * 0.004), 2.6);
   ctx.beginPath();
-  for (const f of [0.35, 0.65]) {
-    const w = 0.007 + 0.024 * f;
-    ctx.moveTo(-w * u, -len * f + 0.006 * u);
-    ctx.lineTo(w * u, -len * f - 0.006 * u);
+  for (const f of POPPER_BANDS) {
+    const bx = x - len * f;
+    const h = tip + (bell - tip) * f;
+    ctx.moveTo(bx + 0.006 * u, y);
+    ctx.lineTo(bx - 0.006 * u, y - h * 2);
   }
   ctx.strokeStyle = alpha(GOLD, 0.85);
   ctx.lineWidth = Math.max(1, u * 0.003);
   ctx.stroke();
-  ctx.restore();
+  // The open mouth
+  ctx.beginPath();
+  oval(ctx, mx, my, bell * 0.32, bell);
+  ctx.fillStyle = "#1a0830";
+  ctx.fill();
+  neonStroke(ctx, mix(MAGENTA, "#ffffff", 0.25), Math.max(1, u * 0.0032), 2.4);
+
+  // Streamers burst out of the mouth, arc over and settle on the floor, then fade.
+  const p = (s.t + 2.8) % POPPER_PERIOD;
+  if (p >= 2.4) return;
+  const grow = Math.min(1, p / 0.45);
+  const e = 1 - (1 - grow) * (1 - grow);
+  const fall = Math.min(1, p / 0.9);
+  ctx.globalAlpha = p < 1.6 ? 1 : 1 - (p - 1.6) / 0.8;
+  for (const st of STRANDS) {
+    const a = POPPER_AIM + st.spread;
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    ctx.beginPath();
+    for (let k = 0; k <= 14; k++) {
+      const f = (k / 14) * e;
+      const d = f * st.len * u;
+      const wig = Math.sin(f * st.curl + s.t * 5) * u * 0.014 * Math.min(1, f * 2);
+      const px = mx + ca * d - sa * wig;
+      const py = Math.min(y, my + sa * d + ca * wig + f * f * u * 0.16 * fall);
+      if (k === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    neonStroke(ctx, st.color, Math.max(1, u * 0.003), 2.4);
+  }
+  ctx.globalAlpha = 1;
 }
 
 /* ---------------------------------------------------------------- marquee + boxes */
+
+/** Bulb positions and on/off for the marquee border, reused every frame (x, y, lit). */
+const BULB_PTS: number[] = [];
+const YEAR_GOLD = mix(GOLD, "#ffffff", 0.3);
 
 function marquee(ctx: Ctx, s: Scene, x: number, gy: number): void {
   const u = s.u;
@@ -418,19 +435,22 @@ function marquee(ctx: Ctx, s: Scene, x: number, gy: number): void {
   ctx.fillStyle = alpha(GOLD, 0.35);
   ctx.fill();
 
-  // The year
-  const size = Math.round(0.056 * u);
+  // The year, shrunk if the face is wide so it stays inside the inner frame.
+  let size = Math.round(0.056 * u);
   ctx.save();
   ctx.font = `700 ${size}px ${MARQUEE_FONT}`;
+  const room = w - 0.07 * u;
+  const tw = ctx.measureText(YEAR).width;
+  if (tw > room) {
+    size = Math.floor((size * room) / tw);
+    ctx.font = `700 ${size}px ${MARQUEE_FONT}`;
+  }
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const pulse = 0.85 + 0.15 * Math.sin(s.t * 4);
-  ctx.globalAlpha = pulse;
-  neonText(ctx, YEAR, x, top + h / 2 + size * 0.04, CHAMPAGNE, MAGENTA, Math.max(2, size * 0.16));
+  ctx.globalAlpha = 0.85 + 0.15 * Math.sin(s.t * 4);
+  neonText(ctx, YEAR, x, top + h / 2 + size * 0.04, YEAR_GOLD, MAGENTA, Math.max(2, size * 0.12));
   ctx.restore();
 }
-
-const BULB_PTS: number[] = [];
 
 function box(ctx: Ctx, u: number, x: number, bottom: number, w: number, h: number, rim: string, ribbon: string): void {
   const top = bottom - h;
@@ -474,5 +494,5 @@ export function partyFloor(ctx: Ctx, s: Scene): void {
   marquee(ctx, s, cx + 0.37 * u, gy);
   champagne(ctx, s, cx - 0.37 * u, gy + 0.03 * u);
   partyBoxes(ctx, s, cx + 0.355 * u, gy + 0.2 * u);
-  popper(ctx, s, cx - 0.22 * u, gy + 0.22 * u);
+  popper(ctx, s, cx - 0.23 * u, gy + 0.22 * u);
 }

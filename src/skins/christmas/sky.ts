@@ -10,15 +10,18 @@ import { drawSleigh } from "./sleigh";
 
 // ---------------------------------------------------------------- moon
 
-/** The moon sits right of the tower, below the HUD, at a fixed spot on screen. */
-export function moonX(s: Scene): number {
-  return s.cssW / 2 + s.u * 0.3;
+/**
+ * The moon sits right of the tower, below the HUD, at a fixed spot on screen: its disc and
+ * rim stay clear of the column above the base bar, so bar edges never sit on bright moon.
+ */
+function moonX(s: Scene): number {
+  return s.cssW / 2 + s.u * 0.35;
 }
-export function moonY(s: Scene): number {
+function moonY(s: Scene): number {
   return s.cssH * 0.37;
 }
 function moonR(s: Scene): number {
-  return s.u * 0.095;
+  return s.u * 0.09;
 }
 
 /** Craters as (x, y, r) fractions of the moon's radius. */
@@ -30,6 +33,7 @@ const CRATERS = [
   [-0.5, 0.2, 0.09],
 ] as const;
 
+/** A big neon-rimmed moon with craters, a cold halo and a twinkling sparkle on its rim. */
 export function celestial(ctx: Ctx, s: Scene): void {
   const x = moonX(s);
   const y = moonY(s);
@@ -65,19 +69,31 @@ export function celestial(ctx: Ctx, s: Scene): void {
   circle(ctx, x, y, r);
   neonStroke(ctx, ICE, Math.max(1.2, s.u * 0.0045), 3.4);
 
-  // A slow glint on the rim.
+  // A slow sparkle on the rim: a four-point star with long faint rays. It sits on the
+  // upper right, so its rays reach neither the tower column nor the HUD.
   const tw = 0.5 + 0.5 * Math.sin(s.t * 1.3);
-  const gx = x - r * 0.72;
+  const gx = x + r * 0.72;
   const gy = y - r * 0.72;
-  const len = r * (0.35 + 0.25 * tw);
+  const len = r * (0.26 + 0.14 * tw);
   ctx.beginPath();
-  ctx.moveTo(gx - len, gy);
-  ctx.lineTo(gx + len, gy);
-  ctx.moveTo(gx, gy - len);
-  ctx.lineTo(gx, gy + len);
-  ctx.strokeStyle = alpha("#ffffff", 0.5 + 0.4 * tw);
-  ctx.lineWidth = Math.max(1, s.u * 0.003);
+  ctx.moveTo(gx - len * 1.7, gy);
+  ctx.lineTo(gx + len * 1.7, gy);
+  ctx.moveTo(gx, gy - len * 1.7);
+  ctx.lineTo(gx, gy + len * 1.7);
+  ctx.strokeStyle = alpha("#ffffff", 0.25 + 0.25 * tw);
+  ctx.lineWidth = Math.max(1, s.u * 0.0025);
   ctx.stroke();
+  const k = len * 0.18;
+  ctx.beginPath();
+  ctx.moveTo(gx, gy - len);
+  ctx.quadraticCurveTo(gx, gy, gx + len, gy);
+  ctx.quadraticCurveTo(gx, gy, gx, gy + len);
+  ctx.quadraticCurveTo(gx, gy, gx - len, gy);
+  ctx.quadraticCurveTo(gx, gy, gx, gy - len);
+  ctx.closePath();
+  circle(ctx, gx, gy, k);
+  ctx.fillStyle = alpha("#ffffff", 0.75 + 0.25 * tw);
+  ctx.fill();
 }
 
 // ---------------------------------------------------------------- snow
@@ -98,7 +114,7 @@ function flakes(n: number, seed: number, zMin: number, zMax: number): Flake[] {
   }));
 }
 
-/** Small distant flakes (drawn as squares) and fewer large near ones (round, with a halo). */
+/** Small distant flakes (drawn as squares) and fewer, larger, brighter near ones (round). */
 const FAR_FLAKES = flakes(110, 4000, 0, 0.6);
 const NEAR_FLAKES = flakes(36, 6000, 0.6, 1);
 
@@ -138,8 +154,8 @@ export function snow(ctx: Ctx, s: Scene, yMin: number, yMax: number): void {
 // ---------------------------------------------------------------- aurora
 
 const AURORA = [
-  { color: GREEN, y: 0.5, amp: 0.05, freq: 1.6, speed: 0.25, height: 0.2, phase: 0 },
-  { color: "#b45cff", y: 0.6, amp: 0.035, freq: 2.3, speed: -0.18, height: 0.14, phase: 2.1 },
+  { color: GREEN, y: 0.52, amp: 0.05, freq: 1.6, speed: 0.25, height: 0.24, phase: 0 },
+  { color: "#b45cff", y: 0.62, amp: 0.035, freq: 2.3, speed: -0.18, height: 0.16, phase: 2.1 },
 ] as const;
 
 /** Northern lights: soft curtains that fade in as the tower climbs into the dark. */
@@ -155,10 +171,13 @@ function aurora(ctx: Ctx, s: Scene): void {
       base +
       Math.sin(fx * band.freq * Math.PI + s.t * band.speed + band.phase) * amp +
       Math.sin(fx * 7 + s.t * band.speed * 2.3) * s.u * 0.012;
-    const g = ctx.createLinearGradient(0, base - amp - h, 0, base + amp);
+    // The fade reaches zero at the lowest the curtain's top edge ever gets, so the top
+    // never shows a hard line however the hem waves.
+    const low = base + amp + s.u * 0.012;
+    const g = ctx.createLinearGradient(0, low - h, 0, low);
     g.addColorStop(0, alpha(band.color, 0));
-    g.addColorStop(0.7, alpha(band.color, 0.1 * a));
-    g.addColorStop(1, alpha(band.color, 0.22 * a));
+    g.addColorStop(0.6, alpha(band.color, 0.12 * a));
+    g.addColorStop(1, alpha(band.color, 0.3 * a));
 
     // Curtain: brightest along its lower hem, fading upward.
     ctx.beginPath();
@@ -206,10 +225,11 @@ function aurora(ctx: Ctx, s: Scene): void {
 
 // ---------------------------------------------------------------- sleigh
 
-const SLEIGH_PERIOD = 20; // seconds between passes
+const SLEIGH_PERIOD = 26; // seconds between passes
 const SLEIGH_TIME = 8; // seconds on screen
-const SLEIGH_OFFSET = 1.4;
+const SLEIGH_OFFSET = 1.6;
 
+/** Santa's sleigh: crosses every SLEIGH_PERIOD seconds, passing in front of the moon. */
 function sleigh(ctx: Ctx, s: Scene): void {
   const p = (((s.t + SLEIGH_OFFSET) % SLEIGH_PERIOD) + SLEIGH_PERIOD) % SLEIGH_PERIOD;
   if (p > SLEIGH_TIME) return;
@@ -222,6 +242,7 @@ function sleigh(ctx: Ctx, s: Scene): void {
   drawSleigh(ctx, x, y, s.u * 0.0085, Math.atan(slope) + Math.sin(s.t * 2.2 + 1) * 0.03, s.t);
 }
 
+/** Sky layer: northern lights (up high), snow down to the horizon, and the sleigh. */
 export function skyLayer(ctx: Ctx, s: Scene): void {
   aurora(ctx, s);
   snow(ctx, s, -s.u, s.horizonY);

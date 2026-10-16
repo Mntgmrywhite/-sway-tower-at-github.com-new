@@ -13,6 +13,11 @@ function dot(ctx: Ctx, x: number, y: number, s: number): void {
   ctx.lineTo(x + s * 0.012, y);
 }
 
+const BURST_DIRS = Array.from({ length: 8 }, (_, i) => {
+  const a = -Math.PI / 2 + (i * TAU) / 8 + 0.2;
+  return [Math.cos(a), Math.sin(a), i % 2 === 0] as const;
+});
+
 /** Firework: streaking rays with a spark at each tip. */
 export const burst: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
@@ -25,11 +30,6 @@ export const burst: Icon = (ctx, cx, cy, s) => {
   }
   ctx.stroke();
 };
-
-const BURST_DIRS = Array.from({ length: 8 }, (_, i) => {
-  const a = -Math.PI / 2 + (i * TAU) / 8 + 0.2;
-  return [Math.cos(a), Math.sin(a), i % 2 === 0] as const;
-});
 
 // Two flutes clinking, in unit space: each flute is tilted toward the other and the paths
 // are baked once at load so drawing is plain moveTo/lineTo/quadraticCurveTo calls.
@@ -93,15 +93,17 @@ export const cheers: Icon = (ctx, cx, cy, s) => {
   ctx.fill();
 };
 
+// Five to midnight: the minute hand on the 11, the hour hand just shy of the 12.
+const MINUTE_HAND = [Math.cos(-Math.PI / 2 - TAU / 12), Math.sin(-Math.PI / 2 - TAU / 12)] as const;
+const HOUR_HAND = [Math.cos(-Math.PI / 2 - TAU / 144), Math.sin(-Math.PI / 2 - TAU / 144)] as const;
+
 /** Clock face at five to midnight. */
 export const clock: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
   circle(ctx, cx, cy, s * 0.43);
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx, cy - s * 0.3);
-  ctx.moveTo(cx, cy);
-  const a = -Math.PI / 2 - TAU / 12 / 2.4;
-  ctx.lineTo(cx + Math.cos(a - 0.5) * s * 0.21, cy + Math.sin(a - 0.5) * s * 0.21);
+  ctx.moveTo(cx + MINUTE_HAND[0] * s * 0.31, cy + MINUTE_HAND[1] * s * 0.31);
+  ctx.lineTo(cx, cy);
+  ctx.lineTo(cx + HOUR_HAND[0] * s * 0.22, cy + HOUR_HAND[1] * s * 0.22);
   dot(ctx, cx + s * 0.33, cy, s);
   dot(ctx, cx - s * 0.33, cy, s);
   dot(ctx, cx, cy + s * 0.33, s);

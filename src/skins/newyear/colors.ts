@@ -1,4 +1,5 @@
-// Shared New Year's colors: black-and-gold party with magenta, cyan, silver and violet neon.
+// Shared New Year's colors (a black-and-gold party with magenta, cyan, silver and violet
+// neon), plus the year on the marquee and two small math helpers the layers share.
 
 export const GOLD = "#ffc93d";
 export const CHAMPAGNE = "#fff1b8";

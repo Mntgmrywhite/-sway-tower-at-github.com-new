@@ -1,4 +1,4 @@
-import type { Ctx } from "../../neon/draw";
+import { mix, type Ctx } from "../../neon/draw";
 
 // Leaf outlines shared by the sky drift, the leaf litter on the floor and the maple-leaf bar icon.
 // Unit space: about 1 tall, centered, tip up (-y), stem down (+y). Flat [x, y, x, y, ...] arrays,
@@ -58,6 +58,10 @@ function oakOutline(): number[] {
   }
   return out;
 }
+
+/** Autumn neons shared by the drifting leaves and the leaf litter, with their dark silhouette fills. */
+export const LEAF_COLORS = ["#ffb02e", "#ff6a1a", "#ff2e4a", "#ffd84a"] as const;
+export const LEAF_FILLS = LEAF_COLORS.map((c) => mix(c, "#000000", 0.7));
 
 export const MAPLE = mapleOutline();
 export const OAK = oakOutline();

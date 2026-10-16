@@ -19,8 +19,9 @@ import {
 import { mirrorBall, newYearSky } from "./newyear/sky";
 
 // New Year's: a midnight city celebration in neon. Black-and-violet night, a mirror ball
-// setting where the synthwave sun would be, fireworks that get busier as you climb, a
-// skyline with a clock tower creeping toward twelve, and champagne on a gold grid.
+// rising over the skyline where the synthwave sun would be, fireworks that get busier as you
+// climb, a clock tower creeping toward twelve while the ball drops down its mast, and
+// champagne, a party popper, gifts and a bulb-lit marquee on the cyan grid.
 
 export const newYear: Skin = {
   id: "newyear",

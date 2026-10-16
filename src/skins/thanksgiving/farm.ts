@@ -16,6 +16,9 @@ const CREAM = "#ffe2b0";
 const GOLD = "#ffc23a";
 const AMBER = "#ffa62b";
 const WINDOW = "#ffcf5c";
+const WINDOW_HOT = mix(WINDOW, "#ffffff", 0.5);
+/** Weathered amber for the windmill lattice and tail vane. */
+const LATTICE = mix(AMBER, "#5a1a10", 0.25);
 
 /** Hill heights in units of u at fraction fx of the screen width. Low in the middle, where the moon rises. */
 function backHill(fx: number): number {
@@ -28,15 +31,17 @@ function frontHill(fx: number): number {
   return 0.016 + 0.045 * side * side + 0.01 * Math.sin(fx * 13 + 2.1);
 }
 
+/** Plowed rows on the near hills, as fractions of the ridge height. */
+const ROWS = [0.66, 0.36] as const;
 const HILL_STEPS = 40;
 
-function hillPath(ctx: Ctx, s: Scene, h: (fx: number) => number, scale: number): void {
+function hillPath(ctx: Ctx, s: Scene, h: (fx: number) => number): void {
   const hy = s.horizonY;
   ctx.beginPath();
   ctx.moveTo(-4, hy + 1);
   for (let i = 0; i <= HILL_STEPS; i++) {
     const fx = i / HILL_STEPS;
-    ctx.lineTo(fx * s.cssW, hy - h(fx) * s.u * scale);
+    ctx.lineTo(fx * s.cssW, hy - h(fx) * s.u);
   }
   ctx.lineTo(s.cssW + 4, hy + 1);
   ctx.closePath();
@@ -44,15 +49,15 @@ function hillPath(ctx: Ctx, s: Scene, h: (fx: number) => number, scale: number):
 
 function hills(ctx: Ctx, s: Scene): void {
   const lw = Math.max(1, s.u * 0.0032);
-  hillPath(ctx, s, backHill, 1);
+  hillPath(ctx, s, backHill);
   neonShape(ctx, HILL_BACK_FILL, HILL_BACK_RIM, lw * 0.9);
 
-  hillPath(ctx, s, frontHill, 1);
+  hillPath(ctx, s, frontHill);
   neonShape(ctx, HILL_FRONT_FILL, HILL_FRONT_RIM, lw);
 
   // Plowed rows following the near ridge, fading toward the horizon.
   ctx.beginPath();
-  for (const f of [0.66, 0.36]) {
+  for (const f of ROWS) {
     for (let i = 0; i <= HILL_STEPS; i++) {
       const fx = i / HILL_STEPS;
       const y = s.horizonY - frontHill(fx) * s.u * f;
@@ -73,7 +78,7 @@ function litWindow(ctx: Ctx, x: number, y: number, w: number, h: number, lw: num
   ctx.strokeStyle = alpha(WINDOW, 0.28);
   ctx.lineWidth = lw * 3.5;
   ctx.stroke();
-  ctx.strokeStyle = mix(WINDOW, "#ffffff", 0.5);
+  ctx.strokeStyle = WINDOW_HOT;
   ctx.lineWidth = Math.max(0.6, lw * 0.5);
   ctx.stroke();
 }
@@ -167,21 +172,20 @@ function windmill(ctx: Ctx, s: Scene, x: number, lw: number): void {
     ctx.moveTo(x - widthAt(f1), y1);
     ctx.lineTo(x + widthAt(f1), y1);
   }
-  neonStroke(ctx, mix(AMBER, "#5a1a10", 0.25), lw * 0.75, 2.6);
+  neonStroke(ctx, LATTICE, lw * 0.75, 2.6);
 
-  // Tail vane behind the wheel.
+  // Tail vane behind the wheel: a plate on a boom, widening away from the rim it hangs off.
   const cy = by - H - s.u * 0.006;
   const R = s.u * 0.082;
   ctx.beginPath();
-  ctx.moveTo(x, cy);
-  ctx.lineTo(x + R * 1.12, cy - R * 0.06);
-  ctx.moveTo(x + R * 1.08, cy - R * 0.06);
-  ctx.lineTo(x + R * 1.12, cy - R * 0.3);
-  ctx.lineTo(x + R * 1.45, cy - R * 0.24);
-  ctx.lineTo(x + R * 1.45, cy + R * 0.06);
-  ctx.lineTo(x + R * 1.12, cy + R * 0.02);
+  ctx.moveTo(x + R * 1.04, cy - R * 0.05);
+  ctx.lineTo(x + R * 1.5, cy - R * 0.3);
+  ctx.lineTo(x + R * 1.5, cy + R * 0.12);
+  ctx.lineTo(x + R * 1.04, cy + R * 0.05);
   ctx.closePath();
-  neonShape(ctx, "#1d0c06", mix(AMBER, "#5a1a10", 0.25), lw * 0.7);
+  ctx.moveTo(x + R * 0.9, cy);
+  ctx.lineTo(x + R * 1.5, cy - R * 0.09);
+  neonShape(ctx, "#1d0c06", LATTICE, lw * 0.7);
 
   // Fan: blades as thin wedges, so they read as slats with sky between them.
   const spin = s.t * 1.3;

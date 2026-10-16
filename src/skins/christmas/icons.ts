@@ -26,6 +26,9 @@ export const snowflake: Icon = (ctx, cx, cy, s) => {
   ctx.stroke();
 };
 
+/** Reused dash pattern for the candy cane's stripes. */
+const CANE_DASH = [0, 0];
+
 export const candyCane: Icon = (ctx, cx, cy, s) => {
   const x = cx + s * 0.13;
   const r = s * 0.2;
@@ -38,11 +41,13 @@ export const candyCane: Icon = (ctx, cx, cy, s) => {
   // A thicker tube, dim underneath with bright stripes on top.
   ctx.save();
   ctx.lineWidth *= 1.6;
-  ctx.globalAlpha *= 0.4;
+  ctx.globalAlpha *= 0.5;
   ctx.stroke();
-  ctx.globalAlpha /= 0.4;
+  ctx.globalAlpha /= 0.5;
   ctx.lineCap = "butt";
-  ctx.setLineDash([s * 0.13, s * 0.1]);
+  CANE_DASH[0] = s * 0.15;
+  CANE_DASH[1] = s * 0.11;
+  ctx.setLineDash(CANE_DASH);
   ctx.stroke();
   ctx.restore();
 };

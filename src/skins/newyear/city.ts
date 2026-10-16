@@ -201,12 +201,14 @@ function beacons(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = s.cssW / 2;
   ctx.beginPath();
-  for (const [i, b] of FRONT.entries()) {
+  for (let i = 0; i < FRONT.length; i++) {
+    const b = FRONT[i]!;
     if (b.roof !== 3) continue;
     if (Math.sin(s.t * 2.4 + i * 1.3) < 0.2) continue;
     circle(ctx, cx + (b.x + b.w / 2) * u, s.horizonY - b.h * u - u * 0.06, Math.max(1.2, u * 0.005));
   }
-  for (const [i, b] of BACK.entries()) {
+  for (let i = 0; i < BACK.length; i++) {
+    const b = BACK[i]!;
     if (b.roof !== 3) continue;
     if (Math.sin(s.t * 2.1 + i * 1.7) < 0.2) continue;
     circle(ctx, cx + (b.x + b.w / 2) * u, s.horizonY - b.h * u - u * 0.06, Math.max(1.2, u * 0.005));
@@ -215,35 +217,33 @@ function beacons(ctx: Ctx, s: Scene): void {
   ctx.fill();
 }
 
+/** Clock tower silhouette: x from its center and height over the horizon, in u. */
+const CLOCK_OUTLINE: readonly (readonly [number, number])[] = [
+  [-0.034, 0],
+  [-0.034, 0.3],
+  [-0.044, 0.3],
+  [-0.044, 0.398],
+  [-0.036, 0.398],
+  [-0.036, 0.44],
+  [-0.042, 0.44],
+  [0, 0.565],
+  [0.042, 0.44],
+  [0.036, 0.44],
+  [0.036, 0.398],
+  [0.044, 0.398],
+  [0.044, 0.3],
+  [0.034, 0.3],
+  [0.034, 0],
+];
+
 /** Gothic clock tower; the hands reach midnight as the tower reaches the sky. */
 function clockTower(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const hy = s.horizonY;
   const X = s.cssW / 2 + CLOCK_X * u;
   const P = (dx: number, dy: number): [number, number] => [X + dx * u, hy - dy * u];
-  const outline: [number, number][] = [
-    [-0.034, 0],
-    [-0.034, 0.3],
-    [-0.044, 0.3],
-    [-0.044, 0.398],
-    [-0.036, 0.398],
-    [-0.036, 0.44],
-    [-0.042, 0.44],
-    [0, 0.565],
-    [0.042, 0.44],
-    [0.036, 0.44],
-    [0.036, 0.398],
-    [0.044, 0.398],
-    [0.044, 0.3],
-    [0.034, 0.3],
-    [0.034, 0],
-  ];
   ctx.beginPath();
-  for (const [i, [dx, dy]] of outline.entries()) {
-    const [x, y] = P(dx, dy);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
+  for (const [dx, dy] of CLOCK_OUTLINE) ctx.lineTo(X + dx * u, hy - dy * u);
   ctx.fillStyle = INK;
   ctx.fill();
   neonStroke(ctx, GOLD, Math.max(1.2, u * 0.0042), 2.8);

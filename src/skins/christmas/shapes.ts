@@ -1,10 +1,26 @@
-import { alpha, circle, neonStroke, type Ctx } from "../../neon/draw";
+import { alpha, circle, mix, neonStroke, type Ctx } from "../../neon/draw";
 import { LIGHTS, SNOW_LIT, SNOW_SHADE, WHITE } from "./colors";
 
 // Path builders and small drawing routines shared by the Christmas layers.
 // Path builders only add subpaths (no beginPath), so callers can batch several shapes.
 
 export const TAU = Math.PI * 2;
+
+/**
+ * A lighter neon rim for small, distant shapes: soft glow and a slightly whitened core,
+ * without the separate hot center (too thin to see at this size, and one stroke cheaper).
+ */
+export function thinRim(ctx: Ctx, color: string, width: number): void {
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = alpha(color, 0.22);
+  ctx.lineWidth = width * 3;
+  ctx.stroke();
+  ctx.strokeStyle = mix(color, "#ffffff", 0.3);
+  ctx.lineWidth = width;
+  ctx.stroke();
+  ctx.restore();
+}
 
 /** A five-point star as its own subpath. */
 export function starPath(ctx: Ctx, x: number, y: number, r: number, inner = 0.42): void {
@@ -52,10 +68,11 @@ export function firOutline(tiers: Tier[], trunk: number): [number, number][] {
 }
 
 /** Add a precomputed fir outline at (x, base), `h` pixels tall, as its own subpath. */
-export function firPath(ctx: Ctx, pts: [number, number][], x: number, base: number, h: number, w = 1): void {
-  for (const [i, [px, py]] of pts.entries()) {
-    if (i === 0) ctx.moveTo(x + px * h * w, base + py * h);
-    else ctx.lineTo(x + px * h * w, base + py * h);
+export function firPath(ctx: Ctx, pts: readonly [number, number][], x: number, base: number, h: number): void {
+  for (let i = 0; i < pts.length; i++) {
+    const [px, py] = pts[i]!;
+    if (i === 0) ctx.moveTo(x + px * h, base + py * h);
+    else ctx.lineTo(x + px * h, base + py * h);
   }
   ctx.closePath();
 }
@@ -68,7 +85,7 @@ function moundTop(ctx: Ctx, x: number, y: number, w: number, h: number): void {
 }
 
 /** Snow drift outline: an uneven hump `h` tall whose feet sit at y, with a slight belly below. */
-export function moundPath(ctx: Ctx, x: number, y: number, w: number, h: number): void {
+function moundPath(ctx: Ctx, x: number, y: number, w: number, h: number): void {
   ctx.moveTo(x - w / 2, y);
   moundTop(ctx, x, y, w, h);
   ctx.quadraticCurveTo(x, y + h * 0.45, x - w / 2, y);

@@ -181,16 +181,16 @@ export const skull: Icon = (ctx, cx, cy, s) => {
 };
 
 export const fangs: Icon = (ctx, cx, cy, s) => {
-  // Vampire bite: an open mouth with two long fangs hanging from the upper lip.
+  // Vampire grin: a wide smile with two long fangs hanging from it.
   ctx.beginPath();
-  ctx.moveTo(cx - s * 0.56, cy - s * 0.12);
-  ctx.quadraticCurveTo(cx, cy - s * 0.44, cx + s * 0.56, cy - s * 0.12);
-  ctx.quadraticCurveTo(cx, cy + s * 0.52, cx - s * 0.56, cy - s * 0.12);
-  ctx.closePath();
+  ctx.moveTo(cx - s * 0.56, cy - s * 0.36);
+  ctx.quadraticCurveTo(cx - s * 0.5, cy - s * 0.26, cx - s * 0.46, cy - s * 0.28);
+  ctx.quadraticCurveTo(cx, cy + s * 0.06, cx + s * 0.46, cy - s * 0.28);
+  ctx.quadraticCurveTo(cx + s * 0.5, cy - s * 0.26, cx + s * 0.56, cy - s * 0.36);
   ctx.stroke();
   ctx.beginPath();
-  eyeTriangle(ctx, cx - s * 0.21, cy - s * 0.26, s * 0.1, -s * 0.44);
-  eyeTriangle(ctx, cx + s * 0.21, cy - s * 0.26, s * 0.1, -s * 0.44);
+  eyeTriangle(ctx, cx - s * 0.2, cy - s * 0.15, s * 0.11, -s * 0.52);
+  eyeTriangle(ctx, cx + s * 0.2, cy - s * 0.15, s * 0.11, -s * 0.52);
   ctx.fill();
 };
 

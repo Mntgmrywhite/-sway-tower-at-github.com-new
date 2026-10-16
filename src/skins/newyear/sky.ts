@@ -3,8 +3,53 @@ import { altitude01 } from "../../neon/world";
 import type { Scene } from "../skin";
 import { CHAMPAGNE, clamp01, GOLD, MAGENTA, PARTY, TAU, VIOLET } from "./colors";
 
-// Sky for New Year's: a giant mirror ball setting on the horizon where the retro sun would
+// Sky for New Year's: a giant mirror ball rising over the skyline where the retro sun would
 // be, neon fireworks that come faster the higher you climb, and the odd confetti shower.
+
+/* ---------------------------------------------------------------- HUD keep-out */
+
+// render.ts puts the score (or the title) on a baseline at cssH * 0.14, with best, lives and
+// the perfect counter below it. The top-center of the screen stays dark for all of that. On
+// the start screen the title is nearly as wide as the screen, so its row is kept clear too;
+// that only matters before the camera starts to climb, so the row is released as it rises.
+const HUD_BOTTOM = 0.32; // of cssH
+const TITLE_Y = 0.14; // of cssH
+
+interface Keepout {
+  hudBottom: number;
+  titleTop: number;
+  titleBottom: number;
+  /** 1 while the start-screen title row is protected, fading to 0 as the camera climbs. */
+  titleOn: number;
+}
+
+function keepout(s: Scene): Keepout {
+  return {
+    hudBottom: s.cssH * HUD_BOTTOM,
+    titleTop: s.cssH * TITLE_Y - s.u * 0.11,
+    titleBottom: s.cssH * TITLE_Y + s.u * 0.03,
+    titleOn: 1 - clamp01(s.rise / (s.u * 0.3)),
+  };
+}
+
+/** Distance from (x, y) to a box, in units of r: 0 inside it, 1 or more when clear of it. */
+function clearance(x: number, y: number, r: number, x0: number, x1: number, y0: number, y1: number): number {
+  const dx = x < x0 ? x0 - x : x > x1 ? x - x1 : 0;
+  const dy = y < y0 ? y0 - y : y > y1 ? y - y1 : 0;
+  return Math.hypot(dx, dy) / r;
+}
+
+/** Brightness from a clearance: full when clear, easing down to 0.3 at the center. */
+function dimFor(c: number): number {
+  return c >= 1 ? 1 : 0.3 + 0.7 * c * c;
+}
+
+/** Brightness for something of radius r at (x, y): 1 when clear of the HUD, down to 0.3. */
+function hudDim(s: Scene, k: Keepout, x: number, y: number, r: number): number {
+  const hud = dimFor(clearance(x, y, r, s.cssW * 0.2, s.cssW * 0.8, -1e4, k.hudBottom));
+  const title = dimFor(clearance(x, y, r, s.cssW * 0.03, s.cssW * 0.97, k.titleTop, k.titleBottom));
+  return Math.min(hud, 1 - k.titleOn * (1 - title));
+}
 
 /* ---------------------------------------------------------------- mirror ball */
 
@@ -14,6 +59,14 @@ const BALL_ROWS = 16;
 const TILE_DARK: number[] = [];
 const TILE_LIGHT: number[] = [];
 const TILE_FLASH: number[] = [];
+
+/** Specks of light the ball throws into the sky: angle, distance in radii, size, tint. */
+const SPECKS = Array.from({ length: 26 }, (_, i) => ({
+  a: hash(i * 4.1 + 600) * TAU,
+  d: 1.2 + hash(i * 4.1 + 601) * 1.1,
+  size: 0.016 + hash(i * 4.1 + 602) * 0.018,
+  c: i % 3 === 0 ? 1 : 0,
+}));
 
 function fillTiles(ctx: Ctx, list: number[], gap: number, style: string): void {
   if (!list.length) return;
@@ -25,7 +78,7 @@ function fillTiles(ctx: Ctx, list: number[], gap: number, style: string): void {
   ctx.fill();
 }
 
-/** The mirror ball sits on the horizon like the synthwave sun, spinning slowly. */
+/** The mirror ball sits over the horizon like the synthwave sun, spinning slowly. */
 export function mirrorBall(ctx: Ctx, s: Scene): void {
   const r = s.u * 0.2;
   const cx = s.cssW / 2;
@@ -108,7 +161,7 @@ export function mirrorBall(ctx: Ctx, s: Scene): void {
   neonStroke(ctx, mix(GOLD, MAGENTA, 0.45), Math.max(1.4, s.u * 0.005), 3);
 
   // Reflections: specks of light thrown into the sky, turning with the ball.
-  const hudBottom = s.cssH * 0.32;
+  const hudBottom = s.cssH * HUD_BOTTOM;
   for (let pass = 0; pass < 2; pass++) {
     ctx.beginPath();
     for (const sp of SPECKS) {
@@ -154,13 +207,6 @@ export function mirrorBall(ctx: Ctx, s: Scene): void {
   ctx.fill();
 }
 
-const SPECKS = Array.from({ length: 26 }, (_, i) => ({
-  a: hash(i * 4.1 + 600) * TAU,
-  d: 1.2 + hash(i * 4.1 + 601) * 1.1,
-  size: 0.016 + hash(i * 4.1 + 602) * 0.018,
-  c: i % 3 === 0 ? 1 : 0,
-}));
-
 /* ---------------------------------------------------------------- fireworks */
 
 interface Slot {
@@ -172,8 +218,14 @@ interface Slot {
 
 const SLOTS: Slot[] = Array.from({ length: 11 }, (_, i) => {
   const period = 3.1 + hash(i * 5.31 + 1) * 1.6;
-  // Golden-ratio stagger so launchers never all rest at once.
-  return { period, offset: ((i * 0.618034) % 1) * period + hash(i * 5.31 + 2) * 0.4, need: i < 3 ? -1 : 0.08 + ((i - 3) / 8) * 0.8 };
+  return {
+    period,
+    // Golden-ratio stagger so launchers never all rest at once; the constant phase puts
+    // a few bursts in the air within the first seconds.
+    offset: ((i * 0.618034) % 1) * period + hash(i * 5.31 + 2) * 0.4 + 2.95,
+    // Four always fire; the rest join in as the tower climbs.
+    need: i < 4 ? -1 : 0.1 + ((i - 4) / 7) * 0.75,
+  };
 });
 
 const SPARKS = 28;
@@ -195,12 +247,14 @@ function cubicOut(x: number): number {
 
 function fireworks(ctx: Ctx, s: Scene): void {
   const a = altitude01(s);
-  const hudBottom = s.cssH * 0.32;
+  const k0 = keepout(s);
+  const hudBottom = k0.hudBottom;
   const top = s.cssH * 0.05;
   const bottom = s.horizonY - s.u * 0.26;
   const w = Math.max(1, s.u * 0.0042);
 
-  for (const [i, slot] of SLOTS.entries()) {
+  for (let i = 0; i < SLOTS.length; i++) {
+    const slot = SLOTS[i]!;
     const on = clamp01((a - slot.need) / 0.1);
     if (on <= 0) continue;
     const tt = s.t + slot.offset;
@@ -223,7 +277,10 @@ function fireworks(ctx: Ctx, s: Scene): void {
           : 0.34 + ((side - half * 2) / mid) * 0.32;
     const bx0 = fx * s.cssW;
     const central = bx0 > s.cssW * 0.2 && bx0 < s.cssW * 0.8;
-    const lo = central ? Math.max(top, hudBottom + R0 * 0.6) : top + R0 * 0.5;
+    // Side bursts stay below the start-screen title while it is up.
+    const lo = central
+      ? Math.max(top, hudBottom + R0 * 0.6)
+      : Math.max(top + R0 * 0.5, (k0.titleBottom + R0 * 1.1) * k0.titleOn);
     const hi = Math.max(lo, bottom - R0 * 0.4);
     let by = lo + hash(seed + 2) * (hi - lo);
     let R = R0;
@@ -235,10 +292,7 @@ function fireworks(ctx: Ctx, s: Scene): void {
       by = Math.max(by, top + R * 0.6);
     }
     // Dim anything that still reaches into the score/title zone.
-    const nx = Math.max(s.cssW * 0.2, Math.min(s.cssW * 0.8, bx));
-    const ny = Math.min(hudBottom, by);
-    const reach = Math.hypot(bx - nx, by - ny) / R;
-    const dim = reach >= 1 ? 1 : 0.3 + 0.7 * reach * reach;
+    const dim = hudDim(s, k0, bx, by, R);
 
     const ci = Math.floor(hash(seed + 4) * PARTY.length);
     const c1 = PARTY[ci]!;
@@ -367,19 +421,24 @@ const STREAMERS = Array.from({ length: 4 }, (_, i) => ({
 function confettiShower(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const floorY = s.horizonY - u * 0.02;
-  const hudBottom = s.cssH * 0.32;
+  const k0 = keepout(s);
+  const hudBottom = k0.hudBottom;
+  const titleRow = k0.titleOn > 0.5;
   for (let pass = 0; pass < 2; pass++) {
     // pass 0: everything outside the HUD zone at full strength; pass 1: inside it, dimmed.
     for (let c = 0; c < PARTY.length; c++) {
       ctx.beginPath();
       let any = false;
-      for (const [i, p] of CONFETTI.entries()) {
+      for (let i = 0; i < CONFETTI.length; i++) {
+        const p = CONFETTI[i]!;
         if (p.color !== c) continue;
         const local = (((s.t - p.delay) % SHOWER) + SHOWER) % SHOWER;
         const y = -u * 0.03 + local * p.speed * u;
         if (y > floorY) continue;
         const x = p.x * s.cssW + Math.sin(s.t * 1.7 + i) * p.sway * u;
-        const inHud = y < hudBottom && x > s.cssW * 0.2 && x < s.cssW * 0.8;
+        const inHud =
+          (y < hudBottom && x > s.cssW * 0.2 && x < s.cssW * 0.8) ||
+          (titleRow && y > k0.titleTop && y < k0.titleBottom);
         if (inHud !== (pass === 1)) continue;
         const flip = Math.cos(s.t * p.spin + i);
         const pw = p.size * u * Math.abs(flip) + 0.6;
@@ -401,6 +460,9 @@ function confettiShower(ctx: Ctx, s: Scene): void {
     const x = st.x * s.cssW + Math.sin(s.t * 0.9 + st.delay) * u * 0.02;
     const len = u * st.len;
     const amp = u * st.amp;
+    // The streamers fall down the screen edges, past the ends of the start-screen title.
+    const overTitle = y < k0.titleBottom && y + len > k0.titleTop;
+    ctx.globalAlpha = overTitle ? 1 - 0.7 * k0.titleOn : 1;
     ctx.beginPath();
     // A coiled ribbon: a helix seen from the side draws a row of loops.
     for (let k = 0; k <= 28; k++) {
@@ -413,6 +475,7 @@ function confettiShower(ctx: Ctx, s: Scene): void {
     }
     neonStroke(ctx, st.color, Math.max(1, u * 0.0035), 2.6);
   }
+  ctx.globalAlpha = 1;
 }
 
 /** Everything in the New Year's sky between the mirror ball and the skyline. */

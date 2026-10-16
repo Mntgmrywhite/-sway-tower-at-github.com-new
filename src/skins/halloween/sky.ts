@@ -9,6 +9,7 @@ import { GREEN, INK } from "./common";
 const TAU = Math.PI * 2;
 const MOON_RIM = "#e58cff";
 const MOON_HALO = "#b46bff";
+const WITCH_GLOW = alpha(GREEN, 0.16);
 
 // Moon surface, in fractions of the radius.
 const MARIA = [
@@ -139,7 +140,7 @@ function witchLimbs(ctx: Ctx): void {
  * A witch silhouette with a neon rim around the whole outline (not every part): the shape is
  * stroked fat in the rim color first, then filled dark on top.
  */
-function witch(ctx: Ctx, x: number, y: number, size: number, dir: 1 | -1, t: number, rim: string, rimPx: number): void {
+function witch(ctx: Ctx, x: number, y: number, size: number, dir: 1 | -1, t: number, rim: string, glow: string, rimPx: number): void {
   const flap = Math.sin(t * 9) * 0.12;
   const e = rimPx / size;
   const limb = 0.08;
@@ -149,11 +150,9 @@ function witch(ctx: Ctx, x: number, y: number, size: number, dir: 1 | -1, t: num
   ctx.rotate(-0.08);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  for (const [width, color] of [
-    [e * 6, alpha(rim, 0.16)],
-    [e * 2, rim],
-    [0, INK],
-  ] as const) {
+  for (let pass = 0; pass < 3; pass++) {
+    const width = pass === 0 ? e * 6 : pass === 1 ? e * 2 : 0;
+    const color = pass === 0 ? glow : pass === 1 ? rim : INK;
     ctx.strokeStyle = color;
     witchSolid(ctx, flap);
     if (width > 0) {
@@ -245,15 +244,19 @@ export function flyers(ctx: Ctx, s: Scene): void {
     const wspan = s.cssW + u * 0.4;
     const x = s.cssW + u * 0.2 - p * wspan;
     const y = s.cssH * 0.455 + Math.sin(p * TAU * 2) * u * 0.015;
-    witch(ctx, x, y, u * 0.03, -1, t + 1.3, GREEN, 0.9);
+    if (x > -u * 0.1 && x < s.cssW + u * 0.1) witch(ctx, x, y, u * 0.03, -1, t + 1.3, GREEN, WITCH_GLOW, 0.9);
   }
-  // The big witch: her path runs across the face of the moon, then dips away from the HUD.
+  // The big witch: her path runs across the face of the moon, then dips away from the HUD,
+  // leveling off above the rooftops (on wide screens the town sits close under the moon).
   {
     const period = 16;
     const p = ((((t + 1.9) % period) + period) % period) / period;
     const wspan = s.cssW + u * 0.6;
     const x = p * wspan - u * 0.3;
-    const y = moonY(s) + Math.max(0, x - moonX(s)) * 0.2 + Math.sin(p * TAU * 2) * u * 0.012;
-    witch(ctx, x, y, u * 0.052, 1, t, GREEN, 1.2);
+    const my = moonY(s);
+    const dip = Math.min(u * 0.2, s.horizonY - my - u * 0.22);
+    const dx = Math.max(0, x - moonX(s));
+    const y = my + (dip > 0 ? dip * Math.tanh((dx * 0.2) / dip) : 0) + Math.sin(p * TAU * 2) * u * 0.012;
+    if (x > -u * 0.15 && x < s.cssW + u * 0.15) witch(ctx, x, y, u * 0.052, 1, t, GREEN, WITCH_GLOW, 1.2);
   }
 }
