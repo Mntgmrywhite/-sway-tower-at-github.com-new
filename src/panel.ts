@@ -25,6 +25,30 @@ const SLIDERS: Slider[] = [
   { key: "perfectCalm", label: "Perfect calm", min: 0, max: 1, step: 0.1, unit: "" },
 ];
 
+/** Balance mechanic: lean, topple, rebuild-when-calm, gusts. */
+const BALANCE_SLIDERS: Slider[] = [
+  { key: "leanGain", label: "Lean per drift", min: 0, max: 4, step: 0.1, unit: "×" },
+  { key: "leanSway", label: "Lean adds sway", min: 0, max: 2, step: 0.1, unit: "×" },
+  { key: "toppleLimit", label: "Topple limit", min: 10, max: 60, step: 1, unit: "" },
+  { key: "thinTippy", label: "Thin tops tippier", min: 0, max: 0.9, step: 0.05, unit: "" },
+  { key: "teeterTime", label: "Teeter time", min: 0.1, max: 2, step: 0.05, unit: "s" },
+  { key: "teeterSlowmo", label: "Teeter slow-mo", min: 0.2, max: 1, step: 0.05, unit: "×" },
+  { key: "perfectSteady", label: "Perfect steadies", min: 0, max: 1, step: 0.1, unit: "" },
+  { key: "perfectBrace", label: "Perfect catch", min: 0, max: 1, step: 0.1, unit: "" },
+  { key: "regrowCalm", label: "Calm enough to rebuild", min: 0, max: 15, step: 0.5, unit: "" },
+  { key: "gustPush", label: "Gust strength", min: 0, max: 20, step: 1, unit: "" },
+];
+const ALL_SLIDERS = [...SLIDERS, ...BALANCE_SLIDERS];
+
+type BoolKey = { [K in keyof Tuning]: Tuning[K] extends boolean ? K : never }[keyof Tuning];
+const BALANCE_SWITCHES: { key: BoolKey; label: string }[] = [
+  { key: "leanOn", label: "Lean" },
+  { key: "toppleOn", label: "Topple" },
+  { key: "lastChance", label: "Last chance" },
+  { key: "regrowNeedsCalm", label: "Rebuild needs calm" },
+  { key: "gustsOn", label: "Gusts" },
+];
+
 function load(): void {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -48,7 +72,16 @@ export function saveTuning(): void {
 }
 
 function format(v: number, s: Slider): string {
-  return (s.step < 1 ? v.toFixed(1) : String(v)) + s.unit;
+  const digits = s.step < 0.1 ? 2 : s.step < 1 ? 1 : 0;
+  return v.toFixed(digits) + s.unit;
+}
+
+function sliderRow(s: Slider): string {
+  return `
+      <label>
+        <span class="row"><span>${s.label}</span><span class="val" data-val="${s.key}"></span></span>
+        <input type="range" data-key="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" />
+      </label>`;
 }
 
 export interface Panel {
@@ -80,21 +113,19 @@ export function createPanel(onRestart: () => void): Panel {
       </select>
     </label>
     <label class="check"><input type="checkbox" data-key="swayOn" /> Sway on</label>
-    ${SLIDERS.map(
-      (s) => `
-      <label>
-        <span class="row"><span>${s.label}</span><span class="val" data-val="${s.key}"></span></span>
-        <input type="range" data-key="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" />
-      </label>`,
-    ).join("")}
+    ${SLIDERS.map(sliderRow).join("")}
+    <h3>Balance</h3>
+    <div class="checks">
+      ${BALANCE_SWITCHES.map((b) => `<label class="check"><input type="checkbox" data-key="${b.key}" /> ${b.label}</label>`).join("")}
+    </div>
+    ${BALANCE_SLIDERS.map(sliderRow).join("")}
     <div class="buttons">
       <button type="button" data-action="reset">Defaults</button>
       <button type="button" data-action="copy">Copy</button>
       <button type="button" class="primary" data-action="restart">Restart</button>
     </div>`;
 
-  type BoolKey = "swayOn";
-  const boxes = (["swayOn"] as BoolKey[]).map(
+  const boxes = (["swayOn", ...BALANCE_SWITCHES.map((b) => b.key)] as BoolKey[]).map(
     (key) => [key, panel.querySelector<HTMLInputElement>(`input[data-key="${key}"]`)!] as const,
   );
 
@@ -103,7 +134,7 @@ export function createPanel(onRestart: () => void): Panel {
   const sync = () => {
     skinPick.value = tuning.skin;
     for (const [key, box] of boxes) box.checked = tuning[key];
-    for (const s of SLIDERS) {
+    for (const s of ALL_SLIDERS) {
       panel.querySelector<HTMLInputElement>(`input[data-key="${s.key}"]`)!.value = String(tuning[s.key]);
       panel.querySelector(`[data-val="${s.key}"]`)!.textContent = format(tuning[s.key], s);
     }
@@ -119,7 +150,7 @@ export function createPanel(onRestart: () => void): Panel {
       saveTuning();
     });
   }
-  for (const s of SLIDERS) {
+  for (const s of ALL_SLIDERS) {
     const input = panel.querySelector<HTMLInputElement>(`input[data-key="${s.key}"]`)!;
     input.addEventListener("input", () => {
       tuning[s.key] = Number(input.value);

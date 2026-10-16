@@ -100,6 +100,7 @@ describe("perfect drops win back length", () => {
   });
 
   it("each perfect wins back the next slice, newest first", () => {
+    tuning.regrowNeedsCalm = false; // tests the cut stack, not the calm gate
     const g = newGame();
     const base = top(g);
     aim(g, 6);

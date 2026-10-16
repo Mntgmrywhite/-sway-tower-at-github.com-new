@@ -6,6 +6,8 @@ import { horizonFor } from "./base/world";
 import type { Scene, Skin } from "./skins/skin";
 
 export const GAME_NAME = "Sway Tower";
+/** Length of the topple animation; restart waits for it. */
+export const TOPPLE_ANIM_MS = 1400;
 
 
 /** World units visible horizontally; a little wider than the slider's travel. */

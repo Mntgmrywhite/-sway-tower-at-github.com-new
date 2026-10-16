@@ -128,3 +128,19 @@
   font: inherit;
   font-weight: 500;
 }
+
+#tuning h3 {
+  margin: 18px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent) 60%, white);
+}
+
+#tuning .checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}

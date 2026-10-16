@@ -1,8 +1,8 @@
 import { tuning } from "./config";
-import { drop, newGame, step, swayOffset, top, type GameState } from "./game";
+import { drop, newGame, step, swayOffset, timeScale, top, type GameState } from "./game";
 import { createOptions } from "./options";
 import { createPanel } from "./panel";
-import { addFalling, addFlash, newView, render, updateView, type View } from "./render";
+import { addFalling, addFlash, newView, render, TOPPLE_ANIM_MS, updateView, type View } from "./render";
 import { resolveSkin } from "./skins";
 import type { Skin } from "./skins/skin";
 
@@ -10,6 +10,13 @@ import type { Skin } from "./skins/skin";
 const BEST_KEY = "sway-stack:best";
 /** Ignore taps for this long after game over so a mistap doesn't instantly restart. */
 const RESTART_GUARD_MS = 400;
+/** How fast the game clock eases into and out of slow motion, per second. */
+const SLOWMO_EASE = 10;
+
+/** A fresh run with its own seed (gust timing and direction come from it). */
+function freshGame(): GameState {
+  return newGame(Math.floor(Math.random() * 2 ** 31));
+}
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game");
 if (!canvas) throw new Error("missing #game canvas");
@@ -32,10 +39,12 @@ function saveBest(n: number): void {
   }
 }
 
-let state: GameState = newGame();
+let state: GameState = freshGame();
 let view: View = newView();
 let best = loadBest();
 let overAt = 0;
+/** Game-clock multiplier: eases toward timeScale(state), e.g. slow motion while teetering. */
+let clock = 1;
 let cssW = 0;
 let cssH = 0;
 
@@ -49,8 +58,9 @@ function resize(): void {
 }
 
 function restart(): void {
-  state = newGame();
+  state = freshGame();
   view = newView();
+  clock = 1;
 }
 
 const panel = createPanel(restart);
@@ -60,7 +70,8 @@ const paused = () => panel.isOpen() || options.isOpen();
 
 function tap(): void {
   if (state.phase === "over") {
-    if (performance.now() - overAt < RESTART_GUARD_MS) return;
+    const guard = RESTART_GUARD_MS + (state.toppled ? TOPPLE_ANIM_MS : 0);
+    if (performance.now() - overAt < guard) return;
     restart();
     return;
   }
@@ -75,7 +86,7 @@ function tap(): void {
     best = state.score;
     saveBest(best);
   }
-  if (r.kind === "miss" && state.lives <= 0) overAt = performance.now();
+  if (r.kind === "miss" && state.lives <= 0) overAt = performance.now(); // last life gone
 }
 
 canvas.addEventListener("pointerdown", (e) => {
@@ -136,8 +147,12 @@ function frame(now: number): void {
   last = now;
   // Paused while tuning, so values can be changed without losing the run.
   if (!paused()) {
-    step(state, dt);
-    updateView(view, state, dt);
+    clock += (timeScale(state) - clock) * (1 - Math.exp(-SLOWMO_EASE * dt));
+    const wasPlaying = state.phase === "playing";
+    step(state, dt * clock);
+    updateView(view, state, dt * clock);
+    // Game over can come from a drop (last life) or from step() (a topple).
+    if (wasPlaying && state.phase === "over") overAt = performance.now();
   }
   render(ctx!, cssW, cssH, state, view, best, currentSkin());
   requestAnimationFrame(frame);
