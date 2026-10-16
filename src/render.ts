@@ -220,8 +220,7 @@ export function render(
   if (state.score === 0) {
     // Start screen: the name instead of a zero.
     ctx.font = `400 ${Math.round(u * 0.15)}px ${theme.hud.display}`;
-    ctx.fillStyle = theme.hud.score;
-    ctx.fillText("Sway Stack", cssW / 2, top);
+    outlinedText(ctx, "Sway Stack", cssW / 2, top, theme.hud.score, u * 0.016);
   } else {
     ctx.font = `700 ${Math.round(u * 0.14)}px system-ui, sans-serif`;
     ctx.fillStyle = theme.hud.score;
@@ -291,9 +290,9 @@ function drawGameOver(
 
   const cx = cssW / 2;
   ctx.textAlign = "center";
-  ctx.fillStyle = theme.hud.score;
   ctx.font = `400 ${Math.round(u * 0.1)}px ${theme.hud.display}`;
-  ctx.fillText("Game Over", cx, y + h * 0.22);
+  outlinedText(ctx, "Game Over", cx, y + h * 0.22, theme.hud.score, u * 0.012);
+  ctx.fillStyle = theme.hud.score;
 
   ctx.font = `700 ${Math.round(u * 0.16)}px system-ui, sans-serif`;
   ctx.fillText(String(state.score), cx, y + h * 0.53);
@@ -308,4 +307,17 @@ function drawGameOver(
   ctx.font = `600 ${Math.round(u * 0.05)}px system-ui, sans-serif`;
   ctx.fillStyle = theme.hud.score;
   ctx.fillText("tap to play again", cx, y + h + u * 0.1);
+}
+
+/** Text with a solid black outline behind the fill. */
+function outlinedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, fill: string, width: number): void {
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(3, width);
+  ctx.strokeStyle = "#000000";
+  ctx.strokeText(text, x, y);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
+  ctx.restore();
 }

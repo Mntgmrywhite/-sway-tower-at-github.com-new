@@ -276,7 +276,15 @@ function cloud(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, f
 }
 
 /** A weathered headstone: leaning, chipped, cracked, mossy, with worn lettering and a neon rim. */
-function tombstone(ctx: CanvasRenderingContext2D, x: number, groundY: number, w: number, h: number, seed: number): void {
+function tombstone(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  groundY: number,
+  w: number,
+  h: number,
+  seed: number,
+  soil: string,
+): void {
   const tilt = (hash(seed) - 0.5) * 0.16;
   const r = w / 2;
   ctx.save();
@@ -288,13 +296,15 @@ function tombstone(ctx: CanvasRenderingContext2D, x: number, groundY: number, w:
   const a0 = Math.PI + chipAt * Math.PI - 0.22;
   const a1 = a0 + 0.44;
   const cy = -h + r;
+  // The stone runs on below the soil line, so a lean never lifts a corner into the air.
+  const sunk = w * 0.35;
   ctx.beginPath();
-  ctx.moveTo(-r, 2);
+  ctx.moveTo(-r, sunk);
   ctx.lineTo(-r, cy);
   ctx.arc(0, cy, r, Math.PI, a0);
   ctx.lineTo(Math.cos((a0 + a1) / 2) * r * 0.72, cy + Math.sin((a0 + a1) / 2) * r * 0.72);
   ctx.arc(0, cy, r, a1, 0);
-  ctx.lineTo(r, 2);
+  ctx.lineTo(r, sunk);
   ctx.closePath();
   const g = ctx.createLinearGradient(-r, -h, r, 0);
   g.addColorStop(0, "#6e6488");
@@ -342,9 +352,35 @@ function tombstone(ctx: CanvasRenderingContext2D, x: number, groundY: number, w:
   ctx.textAlign = "center";
   ctx.fillText("RIP", 0, -h * 0.52);
   ctx.restore();
+
+  // Heaped earth and a few blades of grass around the base.
+  const bx = x + r;
+  ctx.fillStyle = soil;
+  ctx.beginPath();
+  ctx.ellipse(bx, groundY + w * 0.06, r * 1.5, w * 0.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(190, 160, 240, 0.28)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(bx, groundY + w * 0.06, r * 1.5, w * 0.2, 0, Math.PI * 1.1, Math.PI * 1.9);
+  ctx.stroke();
+  ctx.strokeStyle = soil;
+  ctx.lineWidth = Math.max(1.2, w * 0.03);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (let i = 0; i < 7; i++) {
+    const gx = bx - r * 1.3 + (i / 6) * r * 2.6;
+    const len = w * (0.08 + hash(seed + 70 + i) * 0.1);
+    ctx.moveTo(gx, groundY - w * 0.08);
+    ctx.lineTo(gx + (hash(seed + 80 + i) - 0.5) * len, groundY - w * 0.08 - len);
+  }
+  ctx.stroke();
+  ctx.lineCap = "butt";
 }
 
 const SILHOUETTE = "#07040b";
+const GROUND_TOP = "#2c1c3e";
+const GROUND_BOTTOM = "#130b1d";
 const BONE = "#e9e1c9";
 const DIRT = "#2b1b26";
 
@@ -634,8 +670,8 @@ function ground(ctx: CanvasRenderingContext2D, s: Scene): void {
 
   // Ground, lit from the moon along its edge.
   const g = ctx.createLinearGradient(0, gy - u * 0.03, 0, gy + u * 0.6);
-  g.addColorStop(0, "#2c1c3e");
-  g.addColorStop(1, "#130b1d");
+  g.addColorStop(0, GROUND_TOP);
+  g.addColorStop(1, GROUND_BOTTOM);
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.moveTo(0, gy + u * 0.04);
@@ -653,8 +689,9 @@ function ground(ctx: CanvasRenderingContext2D, s: Scene): void {
 
   // Graves beside the tower, and a jack-o'-lantern keeping watch behind it.
   const tw = u * 0.09;
-  tombstone(ctx, s.baseX - tw * 1.9, gy + u * 0.02, tw, tw * 1.35, 1);
-  tombstone(ctx, s.baseX + s.baseW + tw * 1.35, gy + u * 0.025, tw * 0.85, tw * 1.15, 2);
+  const soilAt = (y: number) => mix(GROUND_TOP, GROUND_BOTTOM, Math.min(1, Math.max(0, (y - gy) / (u * 0.6))));
+  tombstone(ctx, s.baseX - tw * 1.9, gy + u * 0.02, tw, tw * 1.35, 1, soilAt(gy + u * 0.02));
+  tombstone(ctx, s.baseX + s.baseW + tw * 1.35, gy + u * 0.025, tw * 0.85, tw * 1.15, 2, soilAt(gy + u * 0.025));
   jackOLantern(ctx, s.baseX + s.baseW + tw * 0.62, gy + u * 0.02, u * 0.035, s.t);
 
   // Lower graveyard: skeletons coming up out of the ground. Only the bones glow.
@@ -662,7 +699,7 @@ function ground(ctx: CanvasRenderingContext2D, s: Scene): void {
 
   const kx = s.cssW * 0.2;
   const ky = gy + u * 0.24;
-  tombstone(ctx, kx - tw * 0.45, ky - u * 0.05, tw * 0.9, tw * 1.1, 3);
+  tombstone(ctx, kx - tw * 0.45, ky - u * 0.02, tw * 0.9, tw * 1.1, 3, soilAt(ky - u * 0.02));
   bones(() => risingSkull(ctx, kx, ky, u * 0.07, emerge(s.t, 9, 0), s.t));
   dirtMound(ctx, kx, ky + 2, u * 0.1);
 
@@ -743,33 +780,47 @@ function jackOLantern(ctx: CanvasRenderingContext2D, px: number, bottom: number,
   ctx.fill();
 }
 
-/** Drawn in front of the tower: a low grassy rise that drops away faster than the tower. */
+/** Drawn in front of the tower: a nearer rise of the same ground, dropping away faster as you climb. */
 export function foreground(ctx: CanvasRenderingContext2D, s: Scene): void {
-  const top = layerGround(s, 1.6) + s.u * 0.32;
-  if (top - s.u * 0.06 > s.cssH) return;
-  ctx.fillStyle = "#0b0612";
+  const top = layerGround(s, 1.6) + s.u * 0.34;
+  if (top - s.u * 0.08 > s.cssH) return;
+  // Gentle rolling edge, a little higher at the sides to frame the tower.
+  const edge = (x: number) => {
+    const t01 = x / s.cssW;
+    const side = (t01 - 0.5) * 2;
+    return top - s.u * (0.035 * side * side + 0.012 * Math.sin(t01 * 9 + 1) + 0.008 * Math.sin(t01 * 23));
+  };
+  const near = "#1d1229";
+  const g = ctx.createLinearGradient(0, top - s.u * 0.05, 0, top + s.u * 0.4);
+  g.addColorStop(0, near);
+  g.addColorStop(1, "#0d0715");
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.moveTo(0, top - s.u * 0.03);
-  ctx.quadraticCurveTo(s.cssW * 0.25, top + s.u * 0.04, s.cssW * 0.55, top + s.u * 0.03);
-  ctx.quadraticCurveTo(s.cssW * 0.85, top + s.u * 0.01, s.cssW, top - s.u * 0.04);
+  ctx.moveTo(0, s.cssH + 10);
+  for (let x = 0; x <= s.cssW; x += 6) ctx.lineTo(x, edge(x));
+  ctx.lineTo(s.cssW, edge(s.cssW));
   ctx.lineTo(s.cssW, s.cssH + 10);
-  ctx.lineTo(0, s.cssH + 10);
   ctx.closePath();
   ctx.fill();
-
-  // Grass and weeds along the edge, taller at the sides to frame the tower.
-  ctx.strokeStyle = "#0b0612";
-  ctx.lineCap = "round";
+  ctx.strokeStyle = "rgba(190, 160, 240, 0.3)";
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  for (let i = 0; i < 70; i++) {
-    const gx = (i / 70) * s.cssW + hash(i) * 6;
-    const t01 = gx / s.cssW;
-    const edge = top + s.u * (0.035 * Math.sin(t01 * Math.PI) - 0.02);
-    const side = Math.abs(t01 - 0.5) * 2; // 0 center, 1 edges
-    const len = s.u * (0.015 + hash(i + 50) * 0.03 + side * side * 0.06);
-    ctx.lineWidth = Math.max(1.5, s.u * 0.006);
-    ctx.moveTo(gx, edge + 3);
-    ctx.quadraticCurveTo(gx, edge - len * 0.6, gx + (hash(i + 7) - 0.5) * len, edge - len);
+  for (let x = 0; x <= s.cssW; x += 6) (x === 0 ? ctx.moveTo : ctx.lineTo).call(ctx, x, edge(x));
+  ctx.stroke();
+
+  // Grass in the same tone, sparse in the middle, thicker toward the sides.
+  ctx.strokeStyle = near;
+  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1.5, s.u * 0.006);
+  ctx.beginPath();
+  for (let i = 0; i < 60; i++) {
+    const gx = (i / 60) * s.cssW + hash(i) * 6;
+    const side = Math.abs(gx / s.cssW - 0.5) * 2;
+    if (hash(i + 30) > 0.35 + side * 0.65) continue;
+    const ey = edge(gx);
+    const len = s.u * (0.012 + hash(i + 50) * 0.02 + side * side * 0.035);
+    ctx.moveTo(gx, ey + 2);
+    ctx.quadraticCurveTo(gx, ey - len * 0.6, gx + (hash(i + 7) - 0.5) * len, ey - len);
   }
   ctx.stroke();
   ctx.lineCap = "butt";
