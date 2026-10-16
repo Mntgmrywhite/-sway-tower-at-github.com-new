@@ -5,7 +5,7 @@ import type { Scene } from "../skin";
 import { hoverCar } from "./car";
 import { AMBER, BLUE, CYAN, GREEN_LIGHT, LEAF, LEAF_DARK, MAGENTA, NEAR, NEAR_EDGE, PINK, PURPLE, RED } from "./colors";
 import { holoBillboard, verticalSign, boardSign } from "./signs";
-import type { Tone } from "./tone";
+import { LOOP, LOOP_FROM, type Tone } from "./tone";
 import { tint, tube } from "./tube";
 
 // The air traffic of the megacity, in a lane down each side of the screen: a hover taxi idling
@@ -16,7 +16,8 @@ import { tint, tube } from "./tube";
 // camera climbs (one parallax depth for both lanes), and only ever moves gently in place:
 // nothing crosses the tower's column or touches a side of the screen. Things in a lane are
 // spaced so they never overlap, and the right lane (where the moon comes out above the smog)
-// carries only wisps by the time the moon shows.
+// carries only wisps by the time the moon shows. Past the night the lanes run the height
+// story's loop, forever (see below).
 
 export type Kind = "car" | "dock" | "holo" | "banner" | "drones" | "ship" | "garden" | "sat" | "wisp";
 
@@ -63,9 +64,31 @@ const LEFT: Spec[] = [
   ["holo", 1140],
 ];
 
-/** After the authored story: a calm, sparse night, generated up to here. */
-const TOP = 420 * BLOCK_HEIGHT;
+/** After the authored story: a calm, sparse night, generated up to the loop. */
 const NIGHT_GAP = 250;
+
+// Then the height story's loop (tone.ts), one lane's worth per loop, repeating every LOOP levels
+// from LOOP_FROM on: an airship in the night, a satellite as the thin smog layer closes in, a
+// wisp inside it, delivery drones coming out of it, another airship in the clear night; the
+// moon's lane only drifts wisps. Heights here are from the loop's start, within one loop.
+const RIGHT_LOOP: Spec[] = [
+  ["wisp", 120],
+  ["wisp", 380],
+  ["wisp", 560],
+  ["wisp", 760],
+];
+const LEFT_LOOP: Spec[] = [
+  ["ship", 60],
+  ["sat", 270],
+  ["wisp", 430],
+  ["drones", 620],
+  ["ship", 800],
+];
+/** Where the loop's lanes start and how tall one loop is, in world units. */
+const LOOP_AT = LOOP_FROM * BLOCK_HEIGHT;
+const SPAN = LOOP * BLOCK_HEIGHT;
+/** Items in a lane are at least this far apart where the story, the night and the loop meet. */
+const MIN_GAP = 200;
 
 function drifter(kind: Kind, at: number, side: number, k: number, x?: number): Drifter {
   const h = (n: number) => hash(k * 17 + side * 59 + n + 4000);
@@ -80,12 +103,25 @@ function drifter(kind: Kind, at: number, side: number, k: number, x?: number): D
   };
 }
 
-/** A lane: its story, then the night (the right lane only drifts wisps there). */
-function lane(side: number, story: Spec[], night: boolean): Drifter[] {
+interface Lane {
+  /** The story and the night after it, lowest first. */
+  story: readonly Drifter[];
+  /** One loop's items, lowest first. Their `at` is set to where they are each time they are
+   *  drawn: a loop is taller than any screen, so each shows at most once at a time. */
+  loop: Drifter[];
+  /** Heights from the loop's start, per loop item. */
+  offsets: readonly number[];
+  /** The lowest height a loop item may have (clear of the night's last item). */
+  from: number;
+}
+
+/** A lane: its story, then the night up to the loop (the right lane only drifts wisps there), then the loop. */
+function lane(side: number, story: Spec[], night: boolean, loop: Spec[]): Lane {
   const items = story.map(([kind, at, x], k) => drifter(kind, at, side, k, x));
   let at = story[story.length - 1]![1];
-  for (let k = story.length; at < TOP; k++) {
+  for (let k = story.length; ; k++) {
     at += NIGHT_GAP * (0.85 + hash(k * 5 + side * 3) * 0.4);
+    if (at > LOOP_AT - MIN_GAP) break;
     const r = hash(k * 13 + side * 101 + 7);
     if (!night) {
       if (r < 0.45) items.push(drifter("wisp", at, side, k));
@@ -96,11 +132,16 @@ function lane(side: number, story: Spec[], night: boolean): Drifter[] {
     else if (r < 0.6) items.push(drifter("sat", at, side, k));
     else if (r < 0.7) items.push(drifter("drones", at, side, k));
   }
-  return items;
+  return {
+    story: items,
+    loop: loop.map(([kind, at], k) => drifter(kind, LOOP_AT + at, side, 100 + k)),
+    offsets: loop.map(([, at]) => at),
+    from: items[items.length - 1]!.at + MIN_GAP,
+  };
 }
 
-/** Right lane, then left lane; each runs up from its lowest item. */
-const LANES: readonly (readonly Drifter[])[] = [lane(1, RIGHT, false), lane(-1, LEFT, true)];
+/** Right lane, then left lane. */
+const LANES: readonly Lane[] = [lane(1, RIGHT, false, RIGHT_LOOP), lane(-1, LEFT, true, LEFT_LOOP)];
 
 /** Calls `draw` for every item on screen (or close to it), lowest first, lane by lane. */
 export function eachVisible(s: Scene, draw: (d: Drifter, lane: number) => void): void {
@@ -108,13 +149,26 @@ export function eachVisible(s: Scene, draw: (d: Drifter, lane: number) => void):
   const margin = s.u * 0.16;
   const base = layerGround(s, LANE_P);
   const unit = s.scale * LANE_P;
+  // Heights on screen or close to it: y = base - at * unit within [-margin, cssH + margin].
+  const lo = (base - s.cssH - margin) / unit;
+  const hi = (base + margin) / unit;
   for (let l = 0; l < LANES.length; l++) {
-    for (const d of LANES[l]!) {
-      // Items run up the lane, so once one is above the screen the rest are too.
-      const y = base - d.at * unit;
-      if (y > s.cssH + margin) continue;
-      if (y < -margin) break;
+    const lane = LANES[l]!;
+    // Items run up the lane, so once one is above the screen the rest are too.
+    for (const d of lane.story) {
+      if (d.at < lo) continue;
+      if (d.at > hi) break;
       draw(d, l);
+    }
+    for (let k = Math.max(0, Math.floor((lo - LOOP_AT) / SPAN)); LOOP_AT + k * SPAN <= hi; k++) {
+      for (let j = 0; j < lane.loop.length; j++) {
+        const at = LOOP_AT + k * SPAN + lane.offsets[j]!;
+        if (at < lo || at < lane.from) continue;
+        if (at > hi) break;
+        const d = lane.loop[j]!;
+        d.at = at;
+        draw(d, l);
+      }
     }
   }
 }

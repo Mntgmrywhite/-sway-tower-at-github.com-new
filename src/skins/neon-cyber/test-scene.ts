@@ -15,17 +15,23 @@ export const SIZES = [
   [375, 667],
 ] as const;
 
-/** The scene at a tower level, with render.ts's camera (view 1.5 playfields wide, top at 38%, ground held at 70%). */
-export function sceneAt(W: number, H: number, lvl: number, t: number): Scene {
+/**
+ * The scene at a tower level, with render.ts's camera (view 1.5 playfields wide, top at 38%,
+ * ground held at 70%). With `zoom` < 1 it is Hard mode's zoomed-out camera: the scene for a
+ * screen 1/zoom as wide and tall at the phone's u and scale (drawn scaled down by `zoom`).
+ */
+export function sceneAt(W: number, H: number, lvl: number, t: number, zoom = 1): Scene {
   const u = Math.min(W, H * 0.6);
   const scale = u / (WORLD_WIDTH * 1.5);
-  const offsetX = (W - WORLD_WIDTH * scale) / 2;
-  const cameraY = Math.max((lvl + 1) * BLOCK_HEIGHT, ((0.7 - 0.38) * H) / scale);
-  const groundY = H * 0.38 + cameraY * scale;
-  const rise = Math.max(0, groundY - H * 0.7);
+  const cssW = W / zoom;
+  const cssH = H / zoom;
+  const offsetX = (cssW - WORLD_WIDTH * scale) / 2;
+  const cameraY = Math.max((lvl + 1) * BLOCK_HEIGHT, ((0.7 - 0.38) * cssH) / scale);
+  const groundY = cssH * 0.38 + cameraY * scale;
+  const rise = Math.max(0, groundY - cssH * 0.7);
   return {
-    cssW: W,
-    cssH: H,
+    cssW,
+    cssH,
     u,
     scale,
     t,

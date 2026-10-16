@@ -2,7 +2,7 @@ import type { Ctx } from "../../base/draw";
 import { TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
 import { drawArcade, type ArcadeSpot } from "./arcade";
-import { drawCar } from "./car";
+import { carAt, drawCar } from "./car";
 import { deck } from "./deck";
 import { drifters } from "./drift";
 import { drawPalm, RIM, type Palm } from "./palms";
@@ -11,13 +11,14 @@ import { toneOf } from "./tone";
 // The floor around the tower, then what you climb into. Two tall palms frame the sunset at the
 // screen edges, their crowns up beside the tower top at the start, so you rise past them; a
 // roadside arcade stands under the left one, and the chrome car cruises down the right-hand
-// lane under the other. All of it stays outside the tower's column. As you climb, the floor
-// drops away, a bank of night cloud rolls in over the grid (deck.ts), and things drift past in
-// the side lanes (drift.ts).
+// lane under the other (driving off into the distance on the music's drop, car.ts). All of it
+// stays outside the tower's column. As you climb, the floor drops away, a bank of night cloud
+// rolls in over the grid (deck.ts), and things drift past in the side lanes (drift.ts).
 //
 // The palms and the arcade share one depth so they slide down together as the camera climbs
 // (props at different depths would drift into each other); only the car is nearer, and it
-// sits below them, so it only ever drifts further away.
+// sits below them, so it only ever drifts further away. Driving off, it passes beyond them on
+// its way to the horizon, and is drawn behind them from there.
 
 /** Depth of the side props. */
 const SIDE_Z = 2;
@@ -69,15 +70,18 @@ export const WIDE_PALMS: readonly Palm[] = [-0.78, 0.8, -1.12, 1.15, -1.46, 1.5,
 /** Half the width a wide palm needs, crown included (u at the tower's depth). */
 const WIDE_REACH = 0.15;
 
-/** The props planted on the floor: the arcade, the palms, the car. */
+/** The props planted on the floor: the arcade, the palms, the car (behind them once it has
+ *  driven off further than they stand). */
 export function floorProps(ctx: Ctx, s: Scene): void {
+  const far = carAt(s).z > SIDE_Z;
+  if (far) drawCar(ctx, s);
   drawArcade(ctx, s, ARCADE);
   const room = s.cssW / 2 / s.u;
   for (const p of WIDE_PALMS) {
     if (Math.abs(p.x) + WIDE_REACH * (TOWER_DEPTH / p.z) < room) drawPalm(ctx, s, p, RIM);
   }
   for (const p of PALMS) drawPalm(ctx, s, p, RIM);
-  drawCar(ctx, s);
+  if (!far) drawCar(ctx, s);
 }
 
 /** The ground hook: floor props, the cloud bank over them, then the side lanes in front. */

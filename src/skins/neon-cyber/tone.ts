@@ -11,6 +11,14 @@ import { GREEN_LIGHT, HAZE, LEAF, LEAF_DARK, MAGENTA, PURPLE, SLAB, SLAB_EDGE } 
 // sky clears to a deep night with stars and a crisp moon.
 // Everything that changes with height is precomputed here in half-level steps, so drawing never
 // mixes colors per frame.
+//
+// Then it loops, forever: from LOOP_FROM on, every LOOP levels you climb through a high, thin
+// layer of smog (the sky pales to the violet it had coming out of the smog, a soft murk closes
+// in, strata slide down past you, the stars fade and the moon dims to a glow) and come out into
+// the clear night again. The loop runs the sky story back down to LAYER and up again
+// (`storyLevel`), easing in and out at both ends, so it starts and ends on the night the first
+// pass ended on: no seam. What happened once and for good (the rain stopped, the searchlights
+// and the ceiling's banks were left below, the sea settled over the city) stays done.
 
 /** Where each stage of the climb peaks, in levels (camera altitude / BLOCK_HEIGHT). */
 const STREET = 0;
@@ -22,9 +30,33 @@ const SMOG_OUT = 54;
 const CLEAR = 68;
 const HIGH = 105;
 
+/** The loop: it starts here (the night is settled, the city has sunk out of view), and repeats every LOOP levels. */
+export const LOOP_FROM = 150;
+export const LOOP = 120;
+/** How far back down the story the loop's smog layer reaches: just over the smog's top. */
+const LAYER = SMOG_OUT - 2;
+/** The layer, as fractions of the loop: closing in from IN, at its thickest between them, clearing by OUT. */
+const LAYER_IN = [0.15, 0.45] as const;
+const LAYER_OUT = [0.6, 0.85] as const;
+/** At its thickest the loop's layer is this murky (the smog you climbed out of reached 0.92). */
+const LAYER_MURK = 0.55;
+const LAYER_GLOW = 0.4;
+
 /** Camera altitude in tower levels. */
 export function level(s: Scene): number {
   return s.altitude / BLOCK_HEIGHT;
+}
+
+/** 0..1..0 over the loop: how deep in its smog layer you are at this many levels into a loop. */
+export function layer(intoLoop: number): number {
+  const f = (((intoLoop % LOOP) + LOOP) % LOOP) / LOOP;
+  return smooth(LAYER_IN[0], LAYER_IN[1], f) * (1 - smooth(LAYER_OUT[0], LAYER_OUT[1], f));
+}
+
+/** The story level whose sky shows at `lvl`: the level itself on the first pass, then the loop's. */
+export function storyLevel(lvl: number): number {
+  if (lvl < LOOP_FROM) return lvl;
+  return HIGH - (HIGH - LAYER) * layer(lvl - LOOP_FROM);
 }
 
 function clamp01(x: number): number {
@@ -118,7 +150,10 @@ function keyAt(lvl: number): Key {
 }
 
 function toneAt(lvl: number): Tone {
-  const k = keyAt(lvl);
+  // The sky's colors, the stars and the moon follow the story (looping); the rest is done for good.
+  const st = storyLevel(lvl);
+  const loop = lvl < LOOP_FROM ? 0 : layer(lvl - LOOP_FROM);
+  const k = keyAt(st);
   // How deep in the smog: thickest where you pass through it. The dense part is short (about
   // L38 to L48); the strata you rise through show over a wider stretch around it.
   const into = smooth(SMOG_IN + 1, SMOG_SWITCH - 1, lvl) * (1 - smooth(SMOG_SWITCH + 1, SMOG_OUT - 2, lvl));
@@ -144,15 +179,15 @@ function toneAt(lvl: number): Tone {
     leaf: mix(mix(LEAF, GREEN_LIGHT, 0.2), murk, 0.25),
     leafShade: mix(LEAF_DARK, slab, 0.3),
     murk,
-    murkA: 0.92 * into,
-    strata: layers,
+    murkA: lvl < LOOP_FROM ? 0.92 * into : LAYER_MURK * loop * loop,
+    strata: lvl < LOOP_FROM ? layers : loop,
     strataBody: mix(mix(k.haze, PURPLE, 0.25), "#ffffff", 0.06),
     strataLit: mix(MAGENTA, PURPLE, 0.35),
     rain: 1 - smooth(FACADES - 2, SMOG_IN + 6, lvl),
     beams: 1 - smooth(SMOG_IN - 6, SMOG_SWITCH - 3, lvl),
-    stars: smooth(SMOG_OUT - 4, CLEAR, lvl),
-    moon: smooth(SMOG_OUT, CLEAR - 4, lvl),
-    moonGlow: 0.45 * (1 - smooth(SMOG_IN - 4, SMOG_IN + 6, lvl)),
+    stars: smooth(SMOG_OUT - 4, CLEAR, st),
+    moon: smooth(SMOG_OUT, CLEAR - 4, st),
+    moonGlow: lvl < LOOP_FROM ? 0.45 * (1 - smooth(SMOG_IN - 4, SMOG_IN + 6, lvl)) : LAYER_GLOW * loop,
     seaRise: smooth(SMOG_SWITCH, SMOG_OUT + 4, lvl),
     seaTop: mix(k.sky[3], "#b48cff", 0.22),
     sea: mix("#120a24", k.sky[3], 0.45),
@@ -160,13 +195,16 @@ function toneAt(lvl: number): Tone {
   };
 }
 
-/** Tones in half-level steps, from the street to high in the night. */
+/** Tones in half-level steps: the first pass up to the loop, then one loop (indices FIRST on). */
 const STEP = 0.5;
-const TONES: Tone[] = Array.from({ length: Math.ceil((HIGH + 4) / STEP) + 1 }, (_, i) => toneAt(i * STEP));
+const FIRST = Math.round(LOOP_FROM / STEP);
+const PER_LOOP = Math.round(LOOP / STEP);
+const TONES: Tone[] = Array.from({ length: FIRST + PER_LOOP }, (_, i) => toneAt(i * STEP));
 
-/** Index of the scene's tone step (for caching things built from a tone). */
+/** Index of the scene's tone step (for caching things built from a tone): the same at L and L + LOOP past LOOP_FROM. */
 export function toneIndex(s: Scene): number {
-  return Math.max(0, Math.min(TONES.length - 1, Math.round(level(s) / STEP)));
+  const i = Math.max(0, Math.round(level(s) / STEP));
+  return i < FIRST ? i : FIRST + ((i - FIRST) % PER_LOOP);
 }
 
 /** The light at the scene's altitude. */

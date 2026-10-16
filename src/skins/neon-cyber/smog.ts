@@ -3,7 +3,7 @@ import { layerGround } from "../../base/world";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
 import { AMBER, CYAN, MAGENTA } from "./colors";
-import type { Tone } from "./tone";
+import { LOOP, LOOP_FROM, type Tone } from "./tone";
 import { tint } from "./tube";
 
 // The smog sea: once you have climbed through the smog it lies below you, from the horizon down,
@@ -130,29 +130,57 @@ const STRATA = Array.from({ length: 19 }, (_, i) => ({
   th: 0.01 + hash(i + 1530) * 0.014,
 }));
 
+/** The height story's loop (tone.ts): where it starts and how tall one loop is, world units. */
+const LOOP_AT = LOOP_FROM * BLOCK_HEIGHT;
+const LOOP_SPAN = LOOP * BLOCK_HEIGHT;
+/** The loop's thin smog layer: strata from a quarter of the way into each loop to past its
+ *  three quarters (heights from the loop's start), lowest first. */
+const LOOP_STRATA = Array.from({ length: 16 }, (_, i) => ({
+  at: (26 + i * 4.4 + hash(i + 1540) * 1.6) * BLOCK_HEIGHT,
+  x: (hash(i + 1550) - 0.5) * 0.8,
+  w: 0.42 + hash(i + 1560) * 0.4,
+  th: 0.01 + hash(i + 1570) * 0.014,
+}));
+
+/** One stratum's body (pass 0) or lit underside (pass 1), as a subpath. */
+function stratum(ctx: Ctx, s: Scene, b: (typeof STRATA)[number], y: number, pass: number): void {
+  const u = s.u;
+  const cx = s.cssW / 2;
+  const th = b.th * u;
+  if (pass === 0) oval(ctx, cx + b.x * u, y, b.w * u, th);
+  else oval(ctx, cx + (b.x - b.w * 0.08) * u, y + th * 0.7, b.w * u * 0.75, th * 0.55);
+}
+
 /**
  * Strata of denser smog you rise through: long thin lenses at fixed heights, each a pale body
- * with its underside lit by the neon below. They show only on the way through the smog and
- * slide down past you as the camera climbs; in time they hold still.
+ * with its underside lit by the neon below. They show only on the way through the smog (and
+ * through the loop's thin layer, every loop) and slide down past you as the camera climbs; in
+ * time they hold still.
  */
 export function strata(ctx: Ctx, s: Scene, tone: Tone): void {
   if (tone.strata <= 0.01) return;
   const u = s.u;
-  const cx = s.cssW / 2;
   const base = layerGround(s, STRATA_P);
   const unit = s.scale * STRATA_P;
   const margin = u * 0.06;
+  // Heights on screen: y = base - at * unit within [-margin, cssH + margin].
+  const lo = (base - s.cssH - margin) / unit;
+  const hi = (base + margin) / unit;
   // The bodies, then their lit undersides.
   for (let pass = 0; pass < 2; pass++) {
     ctx.beginPath();
     for (const b of STRATA) {
-      const y = base - b.at * unit;
-      if (y > s.cssH + margin) continue;
-      if (y < -margin) break;
-      const th = b.th * u;
-      if (pass === 0) {
-        oval(ctx, cx + b.x * u, y, b.w * u, th);
-      } else oval(ctx, cx + (b.x - b.w * 0.08) * u, y + th * 0.7, b.w * u * 0.75, th * 0.55);
+      if (b.at < lo) continue;
+      if (b.at > hi) break;
+      stratum(ctx, s, b, base - b.at * unit, pass);
+    }
+    for (let k = Math.max(0, Math.floor((lo - LOOP_AT) / LOOP_SPAN)); LOOP_AT + k * LOOP_SPAN <= hi; k++) {
+      for (const b of LOOP_STRATA) {
+        const at = LOOP_AT + k * LOOP_SPAN + b.at;
+        if (at < lo) continue;
+        if (at > hi) break;
+        stratum(ctx, s, b, base - at * unit, pass);
+      }
     }
     ctx.globalAlpha = tone.strata * (pass === 0 ? 0.36 : 0.26);
     ctx.fillStyle = pass === 0 ? tone.strataBody : tone.strataLit;

@@ -2,16 +2,20 @@ import { describe, expect, it } from "vitest";
 import { drawDrifter, eachVisible, type Drifter } from "./lanes";
 import { moonAt } from "./sky";
 import { mask, overlap, sceneAt, SIZES } from "./test-scene";
-import { toneOf } from "./tone";
+import { LOOP, LOOP_FROM, toneOf } from "./tone";
 
-// Everything hanging in the side lanes, all the way up, on a tall and a short phone: nothing
-// enters the tower's column or touches a side of the screen, nothing overlaps, and once the
-// moon is out above the smog only wisps of smog pass in front of it.
+// Everything hanging in the side lanes, all the way up (through the story and two rounds of its
+// loop), on a tall and a short phone: nothing enters the tower's column or touches a side of the
+// screen, nothing overlaps, and once the moon is out above the smog only wisps of smog pass in
+// front of it.
 
-const LEVELS = Array.from({ length: 111 }, (_, i) => i * 2);
+/** Every other level from the street through the story and two full loops of it (tone.ts). */
+const LEVELS = Array.from({ length: Math.ceil((LOOP_FROM + 2 * LOOP + 30) / 2) + 1 }, (_, i) => i * 2);
 const TIMES = [0, 5.3] as const;
 /** Masks are drawn at half size to keep this quick. */
 const K = 0.5;
+/** These walk every other level through two loops: give them time on a busy machine (ms). */
+const SLOW = 60_000;
 
 /** Pixels of a mask inside a circle (in full-size coordinates). */
 function inCircle(m: Uint8Array, w: number, cx: number, cy: number, r: number): number {
@@ -60,5 +64,5 @@ describe("neon cyberpunk lanes", () => {
       });
     }
     expect(seen, "the lanes carry something").toBeGreaterThan(100);
-  });
+  }, SLOW);
 });

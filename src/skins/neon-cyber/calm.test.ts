@@ -11,7 +11,8 @@ import { context, sceneAt, SIZES } from "./test-scene";
 // flickering signs and holograms, the searchlights, the lane traffic and the twinkling stars all
 // keep clear. The scenery around the tower is the only thing these frames differ in.
 
-const LEVELS = [0, 4, 10, 16, 22, 28, 34, 40, 43, 46, 52, 60, 70, 85, 100, 130, 170] as const;
+/** From the street up through the smog to the night, then through two rounds of the loop (tone.ts: from 150, every 120). */
+const LEVELS = [0, 4, 10, 16, 22, 28, 34, 40, 43, 46, 52, 60, 70, 85, 100, 130, 170, 195, 210, 230, 300, 330, 350, 420] as const;
 /** Moments compared with the first: spread over blinks, flickers, the rain and the lanes' sway. */
 const TIMES = [0, 0.37, 1.7, 4.4, 8.3, 13.1] as const;
 

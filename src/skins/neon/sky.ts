@@ -1,6 +1,6 @@
 import { alpha, circle, hash, mix, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { CYAN, GOLD, MAGENTA, NIGHT_DISC, ORANGE, PINK, VIOLET, window01 } from "./colors";
+import { CYAN, GOLD, HOT, MAGENTA, NIGHT_DISC, ORANGE, PINK, VIOLET, window01 } from "./colors";
 import { toneIndex, toneOf, type Tone } from "./tone";
 import { rimTube } from "./tube";
 
@@ -8,7 +8,9 @@ import { rimTube } from "./tube";
 // as you climb it sinks into the horizon and its halo fades. Then the night things come out in
 // the side lanes, clear of the tower's column and below the HUD: a wireframe moon turning
 // slowly on the right, a ringed planet (striped like the sun that set) rising on the left high
-// up, neon constellations, and shooting stars that streak out toward the screen edges.
+// up, neon constellations, and shooting stars that streak out toward the screen edges. In the
+// height story's loop (tone.ts) they fade in an afterglow rising from under the screen, and
+// come out again.
 // Celestial things are far away: flat fills and thin tubes, no blur.
 
 // ---------------------------------------------------------------- the sun
@@ -236,10 +238,40 @@ function planet(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.globalAlpha = 1;
 }
 
-/** Everything behind the sky layer: the sun, then the moon and the planet. */
+// ---------------------------------------------------------------- the loop's afterglow
+
+/** How high up the screen the afterglow reaches (fraction of the height), and its colors. */
+const GLOW_REACH = 0.55;
+const GLOW_LOW = alpha(mix(HOT, ORANGE, 0.35), 0.4);
+const GLOW_MID = alpha(mix(HOT, MAGENTA, 0.5), 0.14);
+const GLOW_CLEAR = alpha(MAGENTA, 0);
+const glowCache = { ctx: null as Ctx | null, h: -1, fill: null as CanvasGradient | null };
+
+/** The loop's afterglow: a warm light rising from under the screen, as if the sun were coming
+ *  back below the cloud sea. Behind everything else in the sky; one flat gradient. */
+function afterglowSky(ctx: Ctx, s: Scene, tone: Tone): void {
+  if (tone.glow <= 0.004) return;
+  const top = s.cssH * (1 - GLOW_REACH);
+  if (glowCache.ctx !== ctx || glowCache.h !== s.cssH || !glowCache.fill) {
+    const g = ctx.createLinearGradient(0, s.cssH, 0, top);
+    g.addColorStop(0, GLOW_LOW);
+    g.addColorStop(0.4, GLOW_MID);
+    g.addColorStop(1, GLOW_CLEAR);
+    glowCache.ctx = ctx;
+    glowCache.h = s.cssH;
+    glowCache.fill = g;
+  }
+  ctx.globalAlpha = tone.glow;
+  ctx.fillStyle = glowCache.fill;
+  ctx.fillRect(0, top, s.cssW, s.cssH - top);
+  ctx.globalAlpha = 1;
+}
+
+/** Everything behind the sky layer: the sun (or the loop's afterglow), then the moon and the planet. */
 export function celestial(ctx: Ctx, s: Scene): void {
   const tone = toneOf(s);
   sun(ctx, s, tone);
+  afterglowSky(ctx, s, tone);
   moon(ctx, s, tone);
   planet(ctx, s, tone);
 }

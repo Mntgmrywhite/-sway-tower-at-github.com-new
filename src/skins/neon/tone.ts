@@ -8,6 +8,14 @@ import { CYAN, HOT, MAGENTA, ORANGE, PINK, VIOLET } from "./colors";
 // hour of neon clouds while a bank of night cloud rolls in over the grid; then the starry synth
 // sky, with a wireframe moon and, high up, a ringed planet. Every color that changes with the
 // height is precomputed here in half-level steps, so drawing never mixes colors per frame.
+//
+// Then it loops, forever: from LOOP_FROM on, every LOOP levels the synth night warms into an
+// afterglow (the planet, the moon and the constellations fade, the clouds light up pink from
+// below as at sunset, a warm glow rises from under the screen), turns back through a violet
+// dusk, and the starry night with its moon and planet comes out again. The loop runs the sky
+// story back down to AFTERGLOW and up again (`storyLevel`), easing in and out at both ends, so
+// it starts and ends on the night the first pass ended on: no seam. What happened once and for
+// good (the sun set, the cloud bank rolled in and rose, the city's lights came on) stays done.
 
 /** Where the stages sit, in levels (camera altitude / BLOCK_HEIGHT; the start view is ~11-13). */
 const SUNSET = 14;
@@ -16,9 +24,31 @@ const DUSK = 54;
 const NIGHT = 84;
 const HIGH = 104;
 
+/** The loop: it starts here (the night is settled), and repeats every LOOP levels. */
+export const LOOP_FROM = 120;
+export const LOOP = 120;
+/** How far back down the story the loop's afterglow reaches: just after the sun went down. */
+const AFTERGLOW = 46;
+/** The loop's afterglow, as fractions of it: warming from WARM_IN to its peak, cooling back down
+ *  from WARM_OUT to the night (which holds across the loop's seam). */
+const WARM_IN = [0.1, 0.45] as const;
+const WARM_OUT = [0.55, 0.9] as const;
+
 /** Camera altitude in tower levels. */
 export function level(s: Scene): number {
   return s.altitude / BLOCK_HEIGHT;
+}
+
+/** 0..1..0 over the loop: how far into the afterglow it is at this many levels into a loop. */
+export function afterglow(intoLoop: number): number {
+  const f = (((intoLoop % LOOP) + LOOP) % LOOP) / LOOP;
+  return smooth(WARM_IN[0], WARM_IN[1], f) * (1 - smooth(WARM_OUT[0], WARM_OUT[1], f));
+}
+
+/** The story level whose sky shows at `lvl`: the level itself on the first pass, then the loop's. */
+export function storyLevel(lvl: number): number {
+  if (lvl < LOOP_FROM) return lvl;
+  return HIGH - (HIGH - AFTERGLOW) * afterglow(lvl - LOOP_FROM);
 }
 
 function clamp01(x: number): number {
@@ -124,10 +154,14 @@ export interface Tone {
   planet: number;
   /** Shooting stars per lane slot unlocked at this height (0..4). */
   meteors: number;
+  /** The loop's afterglow (0 on the first pass): a warm glow rising from under the screen. */
+  glow: number;
 }
 
 function toneAt(lvl: number): Tone {
-  const k = keyAt(lvl);
+  // The sky's colors and the night things follow the story (looping); the rest is done for good.
+  const st = storyLevel(lvl);
+  const k = keyAt(st);
   const set = smooth(SUNSET + 2, SUN_DOWN, lvl);
   const haloA = 0.3 * (1 - set);
   const haloC = mix(HOT, MAGENTA, set * 0.6);
@@ -146,20 +180,24 @@ function toneAt(lvl: number): Tone {
     ridge: k.ridge,
     ridgeMesh: alpha(k.ridge, 0.36),
     lights: smooth(SUNSET + 4, DUSK, lvl),
-    stars: smooth(DUSK, NIGHT, lvl),
-    moon: smooth(SUN_DOWN, DUSK + 6, lvl),
-    planet: smooth(NIGHT, HIGH - 2, lvl),
-    meteors: lvl < SUNSET + 6 ? 0 : lvl < SUN_DOWN ? 1 : lvl < DUSK + 10 ? 2 : lvl < NIGHT ? 3 : 4,
+    stars: smooth(DUSK, NIGHT, st),
+    moon: smooth(SUN_DOWN, DUSK + 6, st),
+    planet: smooth(NIGHT, HIGH - 2, st),
+    meteors: st < SUNSET + 6 ? 0 : st < SUN_DOWN ? 1 : st < DUSK + 10 ? 2 : st < NIGHT ? 3 : 4,
+    glow: lvl < LOOP_FROM ? 0 : afterglow(lvl - LOOP_FROM),
   };
 }
 
-/** Tones in half-level steps, from the ground to past the planet. */
+/** Tones in half-level steps: the first pass up to the loop, then one loop (indices FIRST on). */
 const STEP = 0.5;
-const TONES: Tone[] = Array.from({ length: Math.ceil((HIGH + 8) / STEP) + 1 }, (_, i) => toneAt(i * STEP));
+const FIRST = Math.round(LOOP_FROM / STEP);
+const PER_LOOP = Math.round(LOOP / STEP);
+const TONES: Tone[] = Array.from({ length: FIRST + PER_LOOP }, (_, i) => toneAt(i * STEP));
 
-/** Index of the scene's tone step (for caches built from a tone). */
+/** Index of the scene's tone step (for caches built from a tone): the same at L and L + LOOP past LOOP_FROM. */
 export function toneIndex(s: Scene): number {
-  return Math.max(0, Math.min(TONES.length - 1, Math.round(level(s) / STEP)));
+  const i = Math.max(0, Math.round(level(s) / STEP));
+  return i < FIRST ? i : FIRST + ((i - FIRST) % PER_LOOP);
 }
 
 /** The light at the scene's altitude. */

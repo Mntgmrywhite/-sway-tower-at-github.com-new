@@ -9,15 +9,19 @@ import type { NeonSkin } from "./skin";
 // Neon Synthwave: an 80s sunset drive, and then up into the stars. At the start, the striped
 // gold-to-pink sun sits on the horizon behind wireframe mountains and a sunset city skyline,
 // the cyan grid streams toward you, two tall palms frame the scene, a roadside arcade glows
-// under one and a chrome wedge coupe (our own design) cruises down the lane under the other.
-// As you climb you rise past the palm crowns, the sun sinks into the horizon, sunset cloud
-// streaks and a line of neon flamingos drift by in the side lanes, and a bank of night cloud
-// rolls in over the grid. Then the violet hour: neon clouds with glowing bases, shooting stars
-// and a wireframe moon. High up the cloud bank swallows the skyline and a ringed planet,
-// striped like the sun that set, rises over a starry synth sky with neon constellations.
+// under one and a chrome wedge coupe (our own design) cruises down the lane under the other;
+// on the song's first drop it floors it and drives off into the distance, and eight bars later
+// it comes back round from behind us (neon/car.ts). As you climb you rise past the palm crowns
+// (the grid keeps its pattern as the floor sinks away), the sun sinks into the horizon, sunset
+// cloud streaks and a line of neon flamingos drift by in the side lanes, and a bank of night
+// cloud rolls in over the grid. Then the violet hour: neon clouds with glowing bases, shooting
+// stars and a wireframe moon. High up the cloud bank swallows the skyline and a ringed planet,
+// striped like the sun that set, rises over a starry synth sky with neon constellations. From
+// there the sky story loops for as long as you climb: an afterglow rises from below, the clouds
+// light up pink, flamingos cross a violet dusk, and the starry night comes out again.
 // Props are dark silhouettes with thin neon rims so the glowing bars stay the brightest thing
 // on screen, and nothing lives in the tower's column. Scenery lives in src/skins/neon/; the
-// height story's colors are in neon/tone.ts.
+// height story's colors (and its loop) are in neon/tone.ts.
 
 export const neon: NeonSkin = {
   id: "neon",

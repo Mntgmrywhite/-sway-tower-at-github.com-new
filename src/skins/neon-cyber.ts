@@ -21,7 +21,9 @@ import { farRain, nearRain } from "./neon-cyber/weather";
 // rain thins, you rise through the smog (a deep violet murk, strata of denser smog lit from
 // below sliding down past you), and come out above it: the smog lies below as a sea of
 // cloud tops glowing with the city's light, the far skyline's spires poke through, and the sky
-// clears to a deep night with stars and a crisp moon.
+// clears to a deep night with stars and a crisp moon. From there the story loops for as long as
+// you climb: you rise through a thin, high layer of smog (strata sliding past, the moon dimmed
+// to a glow) and out into the clear night again (neon-cyber/tone.ts).
 // Calm by design: life keeps to the sides of the screen, and behind the tower nothing moves.
 //
 // The altitude story needs every layer of the backdrop, so the skin paints all of it in one

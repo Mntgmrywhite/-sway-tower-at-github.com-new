@@ -13,10 +13,17 @@ const STARS = Array.from({ length: 80 }, (_, i) => ({
   sparkle: hash(i + 300) > 0.88,
 }));
 
+/**
+ * The sky's gradient runs from the top of the screen down to the horizon, until the horizon has
+ * sunk this many screen heights below the top (hundreds of levels up): from there it holds, so
+ * the sky stops creeping darker and a skin's looping height story repeats exactly.
+ */
+const SKY_REACH = 2;
+
 function sky(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   const a = altitude01(s);
   const p = skin.palette;
-  const g = ctx.createLinearGradient(0, 0, 0, Math.max(1, s.horizonY));
+  const g = ctx.createLinearGradient(0, 0, 0, Math.max(1, Math.min(s.horizonY, s.cssH * SKY_REACH)));
   g.addColorStop(0, mix(p.skyTop, "#000000", a * 0.4));
   g.addColorStop(0.6, mix(p.skyMid, p.skyTop, a * 0.6));
   g.addColorStop(1, mix(p.skyBottom, p.skyMid, a * 0.5));
@@ -129,10 +136,71 @@ function horizonGlow(ctx: Ctx, s: Scene, color: string): void {
   ctx.fillRect(0, hy - s.u * 0.22, s.cssW, s.u * 0.22);
 }
 
-/** Perspective neon grid from the horizon to the bottom of the screen, scrolling toward you. */
-/** Closest the floor's vertical grid lines may get at the screen's bottom edge, px. */
-const MIN_LINE_GAP = 3;
+/** The floor's depth scale (world.ts's TOWER_DEPTH): the tower stands on the line at depth 3. */
+const ZT = 3;
+/**
+ * Deepest the floor may be at the screen's bottom edge (in the projection's depth units; about 1
+ * at the start, where the bottom edge is a little nearer than the tower's line).
+ *
+ * As you climb, the ground drops away below the screen while the horizon sinks only slowly, so
+ * in a true projection the visible strip of floor lies ever further off: its cells shrink, the
+ * lines crowd into a fine mesh with a bare band under the horizon, and high up the floor is a
+ * sliver holding thousands of converging lines (frames of several seconds, near level 160). So
+ * the floor follows the true projection only until its bottom edge is this deep, and from there
+ * on keeps that perspective: the same grid, the same number of lines, squeezed into whatever
+ * strip of floor still shows. (By then the props planted on it stand at the bottom edge; they
+ * keep the true projection, so they slide off the screen over the steady grid a few levels on.)
+ */
+const FLOOR_Z_MAX = 1.6;
 
+/** Depth between the floor's cross lines, how fast they stream toward you (depth per second),
+ *  and the farthest one drawn. */
+const ROW_SPACING = 0.5;
+const ROW_SPEED = 0.35;
+const ROW_FAR = 80;
+/** Grid cell width at the tower's depth (u). */
+const CELL = 0.12;
+
+/** Scratch result of `floorGrid` (no per-frame allocation): room for every cross line up to ROW_FAR. */
+const GRID = {
+  /** Screen y of each cross line, near to far, and how many there are. */
+  rows: new Float64Array(Math.ceil(ROW_FAR / ROW_SPACING) + 2),
+  count: 0,
+  /** Spacing of the lines running to the vanishing point, at the bottom edge (px), and how many
+   *  there are each side of the middle one. */
+  xStep: 0,
+  cols: 0,
+  /** Depth at the bottom edge. */
+  zNear: 0,
+};
+
+/** The floor grid's lines for a scene (empty when the floor is below the screen). */
+export function floorGrid(s: Scene): typeof GRID {
+  const hy = s.horizonY;
+  GRID.count = 0;
+  GRID.cols = 0;
+  if (hy >= s.cssH) return GRID;
+  // Projection: a floor line at depth z sits at  hy + H / z.  The tower stands at depth ZT,
+  // so H grows as the ground drops below the horizon while you climb (lines spread out), up to
+  // where the bottom edge is FLOOR_Z_MAX deep.
+  const band = s.cssH - hy;
+  const H = Math.min(Math.max(s.u * 0.05, (s.groundY - hy) * ZT), FLOOR_Z_MAX * band);
+  const zNear = H / band;
+  const scroll = (s.t * ROW_SPEED) % ROW_SPACING;
+  for (let z = Math.ceil(zNear / ROW_SPACING) * ROW_SPACING - scroll; z < ROW_FAR; z += ROW_SPACING) {
+    if (z <= zNear * 0.98) continue;
+    const y = hy + H / z;
+    if (y - hy < 1.5) break;
+    GRID.rows[GRID.count++] = y;
+  }
+  // Spacing of the lines to the vanishing point at the bottom edge: at least CELL * ZT / FLOOR_Z_MAX.
+  GRID.xStep = (CELL * s.u * ZT) / zNear;
+  GRID.cols = Math.ceil(s.cssW / 2 / GRID.xStep) + 2;
+  GRID.zNear = zNear;
+  return GRID;
+}
+
+/** Perspective neon grid from the horizon to the bottom of the screen, scrolling toward you. */
 function floor(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   const hy = s.horizonY;
   if (hy >= s.cssH) return;
@@ -143,34 +211,16 @@ function floor(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   ctx.fillStyle = fill;
   ctx.fillRect(0, hy, s.cssW, s.cssH - hy);
 
-  // Projection: a floor line at depth z sits at  hy + H / z.  The tower stands at depth ZT,
-  // so H grows as the ground drops below the horizon while you climb (lines spread out).
-  const ZT = 3;
-  const H = Math.max(s.u * 0.05, (s.groundY - hy) * ZT);
+  const grid = floorGrid(s);
   const vx = s.cssW / 2;
-  const cell = s.u * 0.12; // grid cell width at the tower's depth
-  const zNear = H / Math.max(1, s.cssH - hy);
-  const spacing = 0.5;
-  const scroll = (s.t * 0.35) % spacing;
-
   ctx.beginPath();
-  for (let z = Math.ceil(zNear / spacing) * spacing - scroll; z < 80; z += spacing) {
-    if (z <= zNear * 0.98) continue;
-    const y = hy + H / z;
-    if (y - hy < 1.5) break;
-    ctx.moveTo(0, y);
-    ctx.lineTo(s.cssW, y);
+  for (let i = 0; i < grid.count; i++) {
+    ctx.moveTo(0, grid.rows[i]!);
+    ctx.lineTo(s.cssW, grid.rows[i]!);
   }
-  const yBottom = s.cssH;
-  const zBottom = H / Math.max(1, yBottom - hy);
-  // Spacing of vertical lines at the bottom edge. High in the climb the floor is a sliver at
-  // the bottom of the screen and this spacing shrinks toward zero: thousands of lines (frames
-  // of several seconds). Lines closer than this can't be told apart anyway.
-  const xStep = Math.max(MIN_LINE_GAP, (cell * ZT) / zBottom);
-  const count = Math.ceil(s.cssW / 2 / xStep) + 2;
-  for (let j = -count; j <= count; j++) {
+  for (let j = -grid.cols; j <= grid.cols; j++) {
     ctx.moveTo(vx, hy);
-    ctx.lineTo(vx + j * xStep, yBottom);
+    ctx.lineTo(vx + j * grid.xStep, s.cssH);
   }
   const lines = ctx.createLinearGradient(0, hy, 0, s.cssH);
   lines.addColorStop(0, alpha(p.grid, 0.15));
@@ -209,7 +259,6 @@ export function drawNeonForeground(ctx: Ctx, s: Scene, skin: NeonSkin): void {
 }
 
 /** Scanlines and a vignette over the whole scene (under the HUD). */
-/** Scanlines and a vignette over the whole screen. */
 function paintPost(ctx: Ctx | OffscreenCanvasRenderingContext2D, w: number, h: number): void {
   ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
   for (let y = 0; y < h; y += 3) ctx.fillRect(0, y, w, 1);
@@ -231,9 +280,13 @@ export function drawNeonPost(ctx: Ctx, s: Scene): void {
     return;
   }
   const scale = ctx.getTransform().a;
-  const key = `${s.cssW}x${s.cssH}@${scale}`;
+  const dw = Math.max(1, Math.round(s.cssW * scale));
+  const dh = Math.max(1, Math.round(s.cssH * scale));
+  // Keyed by the device pixels it covers: Hard's zoom changes the virtual screen and the transform
+  // together every frame it eases, but not what lands on the screen.
+  const key = `${dw}x${dh}`;
   if (postCache?.key !== key) {
-    const image = new OffscreenCanvas(Math.max(1, Math.round(s.cssW * scale)), Math.max(1, Math.round(s.cssH * scale)));
+    const image = new OffscreenCanvas(dw, dh);
     const g = image.getContext("2d")!;
     g.scale(scale, scale);
     paintPost(g, s.cssW, s.cssH);

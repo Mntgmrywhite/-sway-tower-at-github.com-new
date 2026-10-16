@@ -7,22 +7,26 @@ import { drawDrifter, eachVisible, type Drifter } from "./drift";
 import { PALMS } from "./ground";
 import { drawPalm, RIM } from "./palms";
 import { COLUMN, hudBottom, meteorAt, moonAt, planetAt } from "./sky";
-import { toneOf } from "./tone";
+import { LOOP, LOOP_FROM, toneOf } from "./tone";
 
-// The side lanes all the way up, on a tall and a short phone: nothing drifting past enters
-// the tower's column or touches a side of the screen, nothing overlaps (each other, or the
-// palms while they are still in view), and only clouds ever pass in front of the moon or the
-// planet. The moon and the planet themselves stay in their lanes and below the HUD, and the
-// shooting stars streak out toward the edges without reaching them, the column, or either body.
+// The side lanes all the way up (through the story and two rounds of its loop), on a tall and a
+// short phone: nothing drifting past enters the tower's column or touches a side of the screen,
+// nothing overlaps (each other, or the palms while they are still in view), and only clouds ever
+// pass in front of the moon or the planet. The moon and the planet themselves stay in their
+// lanes and below the HUD, and the shooting stars streak out toward the edges without reaching
+// them, the column, or either body.
 
 const SIZES = [
   [390, 844],
   [375, 667],
 ] as const;
-const LEVELS = Array.from({ length: 111 }, (_, i) => i * 2);
+/** Every other level from the ground through the story and two full loops of it (tone.ts). */
+const LEVELS = Array.from({ length: Math.ceil((LOOP_FROM + 2 * LOOP + 30) / 2) + 1 }, (_, i) => i * 2);
 const TIMES = [0, 5.3] as const;
 /** Masks are drawn at half size to keep this quick. */
 const K = 0.5;
+/** These walk every other level through two loops: give them time on a busy machine (ms). */
+const SLOW = 60_000;
 
 /** The scene at a tower level, with render.ts's camera (view 1.5 playfields wide, top at 38%, ground held at 70%). */
 function sceneAt(W: number, H: number, lvl: number, t: number): Scene {
@@ -112,7 +116,7 @@ describe("synthwave lanes", () => {
         if (lane === 1 && tone.planet > 0) expect(inEllipse(m, w, planet.x, planet.y, planet.ring * 1.1, planet.r * 1.2), `${what} crosses the planet`).toBe(0);
       });
     }
-  });
+  }, SLOW);
 
   it.each(SIZES)("%ix%i: the moon, the planet and the shooting stars keep to the lanes", (W, H) => {
     for (const lvl of LEVELS) {
@@ -134,8 +138,8 @@ describe("synthwave lanes", () => {
         expect(planet.x - planet.ring, `level ${lvl}: planet off the left side`).toBeGreaterThan(1);
         expect(planet.y - planet.r * 1.2, `level ${lvl}: planet in the HUD`).toBeGreaterThan(hud);
       }
-      // Shooting stars: sample every slot through a minute, head and tail end.
-      for (let t = 0; t < 60; t += 0.05) {
+      // Shooting stars: every slot through a minute (each streak several times), head and tail end.
+      for (let t = 0; t < 60; t += 0.1) {
         const s = { ...s0, t };
         for (let i = 0; i < tone.meteors; i++) {
           const m = meteorAt(s, tone, i);
@@ -154,5 +158,5 @@ describe("synthwave lanes", () => {
         }
       }
     }
-  });
+  }, SLOW);
 });
