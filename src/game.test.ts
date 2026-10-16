@@ -72,6 +72,55 @@ describe("drop", () => {
   });
 });
 
+describe("perfect drops win back length", () => {
+  it("restores the most recent slice, on the side it was cut from", () => {
+    const g = newGame();
+    const base = top(g);
+    aim(g, 10); // slice 10 off the right
+    drop(g);
+    expect(top(g).w).toBeCloseTo(base.w - 10);
+    aim(g, 0);
+    const r = drop(g);
+    expect(r?.kind).toBe("perfect");
+    if (r?.kind === "perfect") expect(r.regained).toBeCloseTo(10);
+    expect(top(g).w).toBeCloseTo(base.w);
+    // Left edge stays put: the length came back on the right.
+    expect(top(g).x).toBeCloseTo(base.x + 10);
+  });
+
+  it("left-side slices come back on the left", () => {
+    const g = newGame();
+    const base = top(g);
+    aim(g, -8);
+    drop(g);
+    aim(g, 0);
+    drop(g);
+    expect(top(g).x).toBeCloseTo(base.x - 8);
+    expect(top(g).w).toBeCloseTo(base.w);
+  });
+
+  it("only the most recent slice, and only once", () => {
+    const g = newGame();
+    const base = top(g);
+    aim(g, 6);
+    drop(g);
+    aim(g, 4);
+    drop(g); // total lost 10, most recent 4
+    stack(g, 3);
+    expect(top(g).w).toBeCloseTo(base.w - 6);
+  });
+
+  it("a miss is not a slice and gives nothing back", () => {
+    const g = newGame();
+    const base = top(g);
+    aim(g, top(g).w + 1);
+    drop(g);
+    aim(g, 0);
+    drop(g);
+    expect(top(g).w).toBeCloseTo(base.w);
+  });
+});
+
 describe("misses and lives", () => {
   it("a miss costs a life but the game continues at the same level", () => {
     const g = newGame();

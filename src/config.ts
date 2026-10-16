@@ -58,7 +58,7 @@ export const DEFAULT_TUNING: Readonly<Tuning> = {
   swayPeriod: 2.6,
   kickPerUnit: 1.2,
   kickDecay: 0.6,
-  slideSpeed: 60,
+  slideSpeed: 48,
   perfectCalm: 0.6,
 };
 

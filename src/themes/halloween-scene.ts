@@ -19,6 +19,46 @@ function mix(a: string, b: string, t: number): string {
   return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
 }
 
+/** Closed circle as its own subpath, so several can share one fill without joining lines. */
+function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.moveTo(x + r, y);
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+}
+
+function oval(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, rot = 0): void {
+  ctx.moveTo(x + Math.cos(rot) * rx, y + Math.sin(rot) * rx);
+  ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+}
+
+/** Neon tube along the current path: a soft wide glow, then a crisp bright line. */
+function neonEdge(ctx: CanvasRenderingContext2D, color: string, width: number): void {
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.3;
+  ctx.lineWidth = width * 3;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = width;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Run `draw` with a neon glow around everything it paints (for detailed silhouettes). */
+function withGlow(ctx: CanvasRenderingContext2D, color: string, blur: number, draw: () => void): void {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  draw();
+  ctx.restore();
+}
+
+const NEON_PURPLE = "#c08bff";
+const NEON_CYAN = "#7ff3ff";
+const NEON_GREEN = "#8dff6a";
+const NEON_ORANGE = "#ffb347";
+const NEON_BONE = "#d6fbff";
+
 /** Deterministic 0..1 noise from an integer. */
 function hash(i: number): number {
   const v = Math.sin(i * 12.9898 + 4.1414) * 43758.5453;
@@ -90,8 +130,8 @@ function moon(ctx: CanvasRenderingContext2D, s: Scene): void {
   ctx.restore();
   ctx.fillStyle = "rgba(180, 160, 110, 0.35)";
   ctx.beginPath();
-  ctx.arc(mx - mr * 0.3, my - mr * 0.2, mr * 0.18, 0, Math.PI * 2);
-  ctx.arc(mx + mr * 0.35, my + mr * 0.3, mr * 0.12, 0, Math.PI * 2);
+  circle(ctx, mx - mr * 0.3, my - mr * 0.2, mr * 0.18);
+  circle(ctx, mx + mr * 0.35, my + mr * 0.3, mr * 0.12);
   ctx.fill();
 }
 
@@ -121,6 +161,24 @@ function farHills(ctx: CanvasRenderingContext2D, s: Scene): void {
   ctx.lineTo(hx + hw * 0.4, hb - hw * 1.37);
   ctx.lineTo(hx + hw * 0.52, hb - hw * 1.12);
   ctx.fill();
+  // Neon outline of the whole silhouette (the hill hides the bottom edge).
+  ctx.beginPath();
+  ctx.moveTo(hx - hw / 2, hb);
+  ctx.lineTo(hx - hw / 2, hb - hw * 0.62);
+  ctx.lineTo(hx - hw * 0.6, hb - hw * 0.62);
+  ctx.lineTo(hx, hb - hw * 1.02);
+  ctx.lineTo(hx + hw * 0.32, hb - hw * 0.78);
+  ctx.lineTo(hx + hw * 0.32, hb - hw * 1.12);
+  ctx.lineTo(hx + hw * 0.28, hb - hw * 1.12);
+  ctx.lineTo(hx + hw * 0.4, hb - hw * 1.37);
+  ctx.lineTo(hx + hw * 0.52, hb - hw * 1.12);
+  ctx.lineTo(hx + hw * 0.48, hb - hw * 1.12);
+  ctx.lineTo(hx + hw * 0.48, hb - hw * 0.66);
+  ctx.lineTo(hx + hw * 0.6, hb - hw * 0.62);
+  ctx.lineTo(hx + hw / 2, hb - hw * 0.62);
+  ctx.lineTo(hx + hw / 2, hb);
+  neonEdge(ctx, NEON_PURPLE, Math.max(1, hw * 0.02));
+
   ctx.fillStyle = "#ffd860";
   const win = hw * 0.1;
   for (const [fx, fy] of [
@@ -188,7 +246,7 @@ function midTrees(ctx: CanvasRenderingContext2D, s: Scene): void {
   ctx.lineCap = "butt";
 }
 
-/** Fog banks, clouds and ghosts at fixed heights: the scenery you climb past. */
+/** Fog banks and clouds at fixed heights: the scenery you climb past. */
 function heights(ctx: CanvasRenderingContext2D, s: Scene): void {
   const p = 0.6;
   const base = layerGround(s, p);
@@ -204,59 +262,91 @@ function heights(ctx: CanvasRenderingContext2D, s: Scene): void {
     const dir = k % 2 ? 1 : -1;
     const span = s.cssW + 300;
     const x = ((((hash(k) * span + dir * s.t * (6 + hash(k + 9) * 8)) % span) + span) % span) - 150;
-    if (k % 3 === 2) ghost(ctx, x, y + Math.sin(s.t * 1.3 + k) * 8, s.u * 0.06, s.t);
-    else cloud(ctx, x, y, s.u * (0.18 + hash(k + 3) * 0.14), k % 3 === 0);
+    cloud(ctx, x, y, s.u * (0.18 + hash(k + 3) * 0.14), k % 3 === 0);
   }
 }
 
 function cloud(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fog: boolean): void {
   ctx.fillStyle = fog ? "rgba(210, 190, 240, 0.16)" : "rgba(235, 220, 255, 0.22)";
   ctx.beginPath();
-  ctx.ellipse(x, y, r * (fog ? 2.4 : 1.2), r * 0.35, 0, 0, Math.PI * 2);
-  ctx.ellipse(x - r * 0.5, y - r * 0.15, r * 0.6, r * 0.32, 0, 0, Math.PI * 2);
-  ctx.ellipse(x + r * 0.45, y - r * 0.1, r * 0.55, r * 0.3, 0, 0, Math.PI * 2);
+  oval(ctx, x, y, r * (fog ? 2.4 : 1.2), r * 0.35);
+  oval(ctx, x - r * 0.5, y - r * 0.15, r * 0.6, r * 0.32);
+  oval(ctx, x + r * 0.45, y - r * 0.1, r * 0.55, r * 0.3);
   ctx.fill();
 }
 
-function ghost(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t: number): void {
-  ctx.fillStyle = "rgba(240, 240, 255, 0.75)";
+/** A weathered headstone: leaning, chipped, cracked, mossy, with worn lettering and a neon rim. */
+function tombstone(ctx: CanvasRenderingContext2D, x: number, groundY: number, w: number, h: number, seed: number): void {
+  const tilt = (hash(seed) - 0.5) * 0.16;
+  const r = w / 2;
+  ctx.save();
+  ctx.translate(x + r, groundY);
+  ctx.rotate(tilt);
+
+  // Outline with a chip knocked out of the top edge.
+  const chipAt = 0.25 + hash(seed + 1) * 0.5; // along the arch, 0..1 = left..right
+  const a0 = Math.PI + chipAt * Math.PI - 0.22;
+  const a1 = a0 + 0.44;
+  const cy = -h + r;
   ctx.beginPath();
-  ctx.arc(x, y, r, Math.PI, 0);
-  const bottom = y + r * 1.3;
-  ctx.lineTo(x + r, bottom);
-  for (let i = 0; i < 4; i++) {
-    const wx = x + r - (i + 1) * (r / 2);
-    ctx.quadraticCurveTo(wx + r / 4, bottom - r * 0.3 * (1 + Math.sin(t * 6 + i)), wx, bottom);
+  ctx.moveTo(-r, 2);
+  ctx.lineTo(-r, cy);
+  ctx.arc(0, cy, r, Math.PI, a0);
+  ctx.lineTo(Math.cos((a0 + a1) / 2) * r * 0.72, cy + Math.sin((a0 + a1) / 2) * r * 0.72);
+  ctx.arc(0, cy, r, a1, 0);
+  ctx.lineTo(r, 2);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(-r, -h, r, 0);
+  g.addColorStop(0, "#6e6488");
+  g.addColorStop(1, "#4a4262");
+  ctx.fillStyle = g;
+  ctx.fill();
+  neonEdge(ctx, NEON_PURPLE, Math.max(1, w * 0.035));
+
+  ctx.save();
+  ctx.clip();
+  // Stains running down
+  ctx.fillStyle = "rgba(20, 10, 30, 0.18)";
+  for (let i = 0; i < 3; i++) {
+    const sx = -r + hash(seed + 10 + i) * w;
+    ctx.fillRect(sx, -h, w * 0.06, h * (0.4 + hash(seed + 20 + i) * 0.5));
   }
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = "#1a1030";
+  // Moss creeping up from the soil
+  ctx.fillStyle = "rgba(90, 140, 70, 0.7)";
   ctx.beginPath();
-  ctx.ellipse(x - r * 0.35, y, r * 0.14, r * 0.2, 0, 0, Math.PI * 2);
-  ctx.ellipse(x + r * 0.35, y, r * 0.14, r * 0.2, 0, 0, Math.PI * 2);
-  ctx.ellipse(x, y + r * 0.5, r * 0.15, r * 0.2, 0, 0, Math.PI * 2);
+  for (let i = 0; i < 6; i++) {
+    const mx = -r + (i / 5) * w;
+    circle(ctx, mx, 0, w * (0.1 + hash(seed + 30 + i) * 0.12));
+  }
+  for (let i = 0; i < 3; i++) circle(ctx, -r + hash(seed + 40 + i) * w, -h * (0.2 + hash(seed + 50 + i) * 0.5), w * 0.04);
   ctx.fill();
-}
+  ctx.restore();
 
-function tombstone(ctx: CanvasRenderingContext2D, x: number, groundY: number, w: number, h: number): void {
+  // A crack from the top edge
+  ctx.strokeStyle = "rgba(25, 15, 35, 0.75)";
+  ctx.lineWidth = Math.max(1, w * 0.03);
   ctx.beginPath();
-  ctx.moveTo(x, groundY + 2);
-  ctx.lineTo(x, groundY - h + w / 2);
-  ctx.arc(x + w / 2, groundY - h + w / 2, w / 2, Math.PI, 0);
-  ctx.lineTo(x + w, groundY + 2);
-  ctx.closePath();
-  ctx.fillStyle = "#5a4f72";
-  ctx.fill();
-  ctx.fillStyle = "#3a3150";
-  ctx.font = `700 ${Math.round(w * 0.32)}px Georgia, serif`;
+  let cx = (hash(seed + 2) - 0.5) * r;
+  let ccy = -h + r - Math.sqrt(Math.max(0, r * r - cx * cx)) + 1;
+  ctx.moveTo(cx, ccy);
+  for (let i = 0; i < 4; i++) {
+    cx += (hash(seed + 60 + i) - 0.5) * w * 0.3;
+    ccy += h * 0.12;
+    ctx.lineTo(cx, ccy);
+  }
+  ctx.stroke();
+
+  // Worn engraving
+  ctx.fillStyle = "rgba(40, 30, 60, 0.6)";
+  ctx.font = `700 ${Math.round(w * 0.3)}px Georgia, serif`;
   ctx.textAlign = "center";
-  ctx.fillText("RIP", x + w / 2, groundY - h * 0.45);
+  ctx.fillText("RIP", 0, -h * 0.52);
+  ctx.restore();
 }
 
 const SILHOUETTE = "#07040b";
 const BONE = "#e9e1c9";
 const DIRT = "#2b1b26";
-const ZOMBIE_SKIN = "#86b35c";
 
 /** 0..1..0 envelope over a repeating cycle: rise, hold, sink, rest. */
 function emerge(t: number, period: number, offset: number): number {
@@ -297,6 +387,7 @@ function skeletonArm(ctx: CanvasRenderingContext2D, x: number, y: number, len: n
   const wx = ex + Math.sin(a * 1.6) * reach * 0.45;
   const wy = ey - Math.cos(a * 1.6) * reach * 0.45;
   ctx.strokeStyle = BONE;
+  ctx.fillStyle = BONE;
   ctx.lineCap = "round";
   ctx.lineWidth = Math.max(2, len * 0.09);
   ctx.beginPath();
@@ -304,10 +395,9 @@ function skeletonArm(ctx: CanvasRenderingContext2D, x: number, y: number, len: n
   ctx.lineTo(ex, ey);
   ctx.lineTo(wx, wy);
   ctx.stroke();
-  ctx.fillStyle = BONE;
   ctx.beginPath();
-  ctx.arc(ex, ey, len * 0.06, 0, Math.PI * 2); // elbow
-  ctx.arc(wx, wy, len * 0.08, 0, Math.PI * 2); // palm
+  circle(ctx, ex, ey, len * 0.06); // elbow
+  circle(ctx, wx, wy, len * 0.08); // palm
   ctx.fill();
   // Fingers curl open and shut.
   const curl = 0.5 + 0.5 * Math.sin(t * 3 + seed * 2);
@@ -322,7 +412,6 @@ function skeletonArm(ctx: CanvasRenderingContext2D, x: number, y: number, len: n
     ctx.lineTo(k1x, k1y);
     ctx.lineTo(k1x + Math.sin(fa2) * len * 0.1, k1y - Math.cos(fa2) * len * 0.1);
   }
-  // Thumb
   ctx.moveTo(wx, wy);
   ctx.lineTo(wx + Math.sin(a * 1.6 - 1.3) * len * 0.12, wy - Math.cos(a * 1.6 - 1.3) * len * 0.12);
   ctx.stroke();
@@ -330,86 +419,104 @@ function skeletonArm(ctx: CanvasRenderingContext2D, x: number, y: number, len: n
   ctx.lineCap = "butt";
 }
 
-/** A zombie pushing up out of its grave. `up` 0..1 is how far out it is. */
-function zombie(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, up: number, t: number): void {
+/** A skull pushing up out of the dirt, jaw chattering. */
+function risingSkull(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, up: number, t: number): void {
   if (up <= 0.01) return;
-  const lean = Math.sin(t * 1.4) * 0.08 * up;
   ctx.save();
   ctx.beginPath();
   ctx.rect(x - size * 2, y - size * 3, size * 4, size * 3);
   ctx.clip();
-  ctx.translate(x, y + (1 - up) * size * 1.9);
-  ctx.rotate(lean);
-
-  // Torso in a torn shirt
-  ctx.fillStyle = "#4b3d63";
+  const tilt = Math.sin(t * 1.3) * 0.15 * up;
+  ctx.translate(x, y + (1 - up) * size * 1.6);
+  ctx.rotate(tilt);
+  const cy = -size * 0.95;
+  // Cranium and cheekbones
+  ctx.fillStyle = BONE;
   ctx.beginPath();
-  ctx.moveTo(-size * 0.42, 0);
-  ctx.lineTo(-size * 0.38, -size * 0.95);
-  ctx.lineTo(size * 0.38, -size * 0.95);
-  ctx.lineTo(size * 0.42, 0);
-  ctx.lineTo(size * 0.2, -size * 0.15);
-  ctx.lineTo(0, 0);
-  ctx.lineTo(-size * 0.2, -size * 0.18);
+  ctx.moveTo(-size * 0.5, cy + size * 0.05);
+  ctx.arc(0, cy, size * 0.5, Math.PI * 0.95, Math.PI * 2.05);
+  ctx.quadraticCurveTo(size * 0.5, cy + size * 0.35, size * 0.3, cy + size * 0.42);
+  ctx.lineTo(-size * 0.3, cy + size * 0.42);
+  ctx.quadraticCurveTo(-size * 0.5, cy + size * 0.35, -size * 0.5, cy + size * 0.05);
   ctx.closePath();
   ctx.fill();
-
-  // Arms reaching forward, bobbing out of step.
-  ctx.strokeStyle = ZOMBIE_SKIN;
-  ctx.lineCap = "round";
-  ctx.lineWidth = size * 0.18;
-  for (const side of [-1, 1]) {
-    const bob = Math.sin(t * 2.6 + side) * size * 0.12;
-    ctx.beginPath();
-    ctx.moveTo(side * size * 0.32, -size * 0.85);
-    ctx.lineTo(side * size * 0.55 + size * 0.35, -size * 1.05 + bob);
-    ctx.lineTo(side * size * 0.45 + size * 0.85, -size * 1.0 + bob);
-    ctx.stroke();
-  }
-
-  // Head
-  const hy = -size * 1.25;
-  ctx.fillStyle = ZOMBIE_SKIN;
+  // Jaw, chattering
+  const chat = Math.max(0, Math.sin(t * 9)) * size * 0.08;
   ctx.beginPath();
-  ctx.ellipse(0, hy, size * 0.3, size * 0.34, 0, 0, Math.PI * 2);
+  ctx.moveTo(-size * 0.28, cy + size * 0.46 + chat);
+  ctx.lineTo(size * 0.28, cy + size * 0.46 + chat);
+  ctx.lineTo(size * 0.22, cy + size * 0.68 + chat);
+  ctx.lineTo(-size * 0.22, cy + size * 0.68 + chat);
+  ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = "#1d2a14";
+  // Sockets with a faint glow, nose, teeth
+  ctx.fillStyle = "#1a1030";
   ctx.beginPath();
-  ctx.arc(-size * 0.11, hy - size * 0.04, size * 0.07, 0, Math.PI * 2);
-  ctx.arc(size * 0.12, hy - size * 0.06, size * 0.06, 0, Math.PI * 2);
+  oval(ctx, -size * 0.19, cy + size * 0.05, size * 0.13, size * 0.15);
+  oval(ctx, size * 0.19, cy + size * 0.05, size * 0.13, size * 0.15);
+  ctx.moveTo(0, cy + size * 0.18);
+  ctx.lineTo(-size * 0.06, cy + size * 0.32);
+  ctx.lineTo(size * 0.06, cy + size * 0.32);
+  ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = "#ff5a3c";
-  ctx.fillRect(-size * 0.12, hy - size * 0.05, size * 0.025, size * 0.025);
-  ctx.fillRect(size * 0.11, hy - size * 0.07, size * 0.025, size * 0.025);
-  ctx.strokeStyle = "#1d2a14";
-  ctx.lineWidth = size * 0.04;
+  ctx.fillStyle = NEON_CYAN;
   ctx.beginPath();
-  ctx.moveTo(-size * 0.1, hy + size * 0.16);
-  ctx.lineTo(size * 0.12, hy + size * 0.13);
-  ctx.stroke();
-  // Scraggly hair
-  ctx.strokeStyle = "#20162a";
-  ctx.lineWidth = size * 0.05;
+  circle(ctx, -size * 0.19, cy + size * 0.07, size * 0.035);
+  circle(ctx, size * 0.19, cy + size * 0.07, size * 0.035);
+  ctx.fill();
+  ctx.strokeStyle = "#1a1030";
+  ctx.lineWidth = Math.max(1, size * 0.03);
   ctx.beginPath();
   for (let i = -2; i <= 2; i++) {
-    ctx.moveTo(i * size * 0.08, hy - size * 0.3);
-    ctx.lineTo(i * size * 0.1 + size * 0.03, hy - size * 0.45);
+    ctx.moveTo(i * size * 0.09, cy + size * 0.42);
+    ctx.lineTo(i * size * 0.09, cy + size * 0.52 + chat);
   }
   ctx.stroke();
   ctx.restore();
-  ctx.lineCap = "butt";
-
-  // Dirt flying while it claws out.
-  if (up < 0.98) {
-    ctx.fillStyle = DIRT;
-    for (let i = 0; i < 6; i++) {
-      const k = (t * 1.7 + i / 6) % 1;
-      const dx = (hash(i) - 0.5) * size * 1.6 * k;
-      const dy = -size * 0.9 * k + size * 1.4 * k * k;
-      ctx.fillRect(x + dx, y + dy - 2, size * 0.08, size * 0.08);
-    }
-  }
 }
+
+/** A pair of bony feet sticking up out of the dirt, toes wiggling. */
+function bonyFeet(ctx: CanvasRenderingContext2D, x: number, y: number, len: number, up: number, t: number): void {
+  if (up <= 0.01) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x - len * 2, y - len * 3, len * 4, len * 3);
+  ctx.clip();
+  ctx.strokeStyle = BONE;
+  ctx.fillStyle = BONE;
+  ctx.lineCap = "round";
+  for (const side of [-1, 1]) {
+    const fx = x + side * len * 0.22;
+    const top = y - len * 0.85 * up;
+    // Shin
+    ctx.lineWidth = Math.max(2, len * 0.1);
+    ctx.beginPath();
+    ctx.moveTo(fx, y + 2);
+    ctx.lineTo(fx, top);
+    ctx.stroke();
+    // Heel and sole pointing outward, toes curling
+    ctx.beginPath();
+    circle(ctx, fx, top, len * 0.08);
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.2, len * 0.05);
+    ctx.beginPath();
+    // Five toe bones fanning up and outward from the top of the shin.
+    for (let i = 0; i < 5; i++) {
+      const wig = Math.sin(t * 6 + i + side) * 0.12;
+      const ang = side * (0.15 + i * 0.22) + wig; // from vertical
+      const k1 = len * (0.2 - i * 0.015);
+      const kx = fx + Math.sin(ang) * k1;
+      const ky = top - Math.cos(ang) * k1;
+      ctx.moveTo(fx, top);
+      ctx.lineTo(kx, ky);
+      ctx.lineTo(kx + Math.sin(ang + side * 0.5) * len * 0.08, ky - Math.cos(ang + side * 0.5) * len * 0.08);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.lineCap = "butt";
+}
+
 
 function flyingWitch(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, dir: 1 | -1, t: number): void {
   ctx.save();
@@ -492,7 +599,7 @@ function witches(ctx: CanvasRenderingContext2D, s: Scene): void {
     const along = p * span - s.u * 0.2;
     const x = w.dir === 1 ? along : s.cssW - along;
     const y = s.cssH * w.y + Math.sin(p * Math.PI * 2) * s.u * 0.03;
-    flyingWitch(ctx, x, y, s.u * w.size, w.dir, s.t);
+    withGlow(ctx, NEON_GREEN, s.u * w.size * 0.45, () => flyingWitch(ctx, x, y, s.u * w.size, w.dir, s.t));
   }
 }
 
@@ -546,26 +653,32 @@ function ground(ctx: CanvasRenderingContext2D, s: Scene): void {
 
   // Graves beside the tower, and a jack-o'-lantern keeping watch behind it.
   const tw = u * 0.09;
-  tombstone(ctx, s.baseX - tw * 1.9, gy + u * 0.02, tw, tw * 1.35);
-  tombstone(ctx, s.baseX + s.baseW + tw * 1.35, gy + u * 0.025, tw * 0.85, tw * 1.15);
+  tombstone(ctx, s.baseX - tw * 1.9, gy + u * 0.02, tw, tw * 1.35, 1);
+  tombstone(ctx, s.baseX + s.baseW + tw * 1.35, gy + u * 0.025, tw * 0.85, tw * 1.15, 2);
   jackOLantern(ctx, s.baseX + s.baseW + tw * 0.62, gy + u * 0.02, u * 0.035, s.t);
 
-  // Lower graveyard: a zombie breaking out and skeleton arms clawing up.
-  const zx = s.cssW * 0.2;
-  const zy = gy + u * 0.24;
-  tombstone(ctx, zx - tw * 0.45, zy - u * 0.05, tw * 0.9, tw * 1.1);
-  zombie(ctx, zx, zy, u * 0.075, emerge(s.t, 9, 0), s.t);
-  dirtMound(ctx, zx, zy + 2, u * 0.11);
+  // Lower graveyard: skeletons coming up out of the ground. Only the bones glow.
+  const bones = (draw: () => void) => withGlow(ctx, NEON_BONE, u * 0.025, draw);
 
-  for (const [fx, dy, len, seed] of [
-    [0.78, 0.14, 0.11, 1],
-    [0.6, 0.26, 0.09, 2],
-    [0.9, 0.3, 0.08, 3],
+  const kx = s.cssW * 0.2;
+  const ky = gy + u * 0.24;
+  tombstone(ctx, kx - tw * 0.45, ky - u * 0.05, tw * 0.9, tw * 1.1, 3);
+  bones(() => risingSkull(ctx, kx, ky, u * 0.07, emerge(s.t, 9, 0), s.t));
+  dirtMound(ctx, kx, ky + 2, u * 0.1);
+
+  const fx = s.cssW * 0.58;
+  const fy = gy + u * 0.27;
+  bones(() => bonyFeet(ctx, fx, fy, u * 0.1, emerge(s.t, 10, 4), s.t));
+  dirtMound(ctx, fx, fy + 2, u * 0.09);
+
+  for (const [ax, dy, len, seed] of [
+    [0.8, 0.14, 0.11, 1],
+    [0.92, 0.3, 0.08, 3],
   ] as const) {
-    const ax = s.cssW * fx;
-    const ay = gy + u * dy;
-    skeletonArm(ctx, ax, ay, u * len, emerge(s.t, 7 + seed, seed * 2.3), s.t, seed);
-    dirtMound(ctx, ax, ay + 2, u * len * 0.7);
+    const x = s.cssW * ax;
+    const y = gy + u * dy;
+    bones(() => skeletonArm(ctx, x, y, u * len, emerge(s.t, 7 + seed, seed * 2.3), s.t, seed));
+    dirtMound(ctx, x, y + 2, u * len * 0.7);
   }
 }
 
@@ -583,7 +696,9 @@ export function background(ctx: CanvasRenderingContext2D, s: Scene): void {
     const speed = 28 + i * 11;
     const x = ((s.t * speed + i * 170) % span) - 60;
     const y = s.cssH * (0.2 + i * 0.09) + Math.sin(s.t * 1.7 + i * 2) * 10;
-    flyingBat(ctx, x, y, s.u * (0.035 - i * 0.006), s.t * (11 + i * 2));
+    withGlow(ctx, NEON_PURPLE, s.u * 0.015, () =>
+      flyingBat(ctx, x, y, s.u * (0.035 - i * 0.006), s.t * (11 + i * 2)),
+    );
   }
 
   midTrees(ctx, s);
@@ -601,6 +716,7 @@ function jackOLantern(ctx: CanvasRenderingContext2D, px: number, bottom: number,
   ctx.ellipse(px, py, pr * 1.15, pr, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+  neonEdge(ctx, NEON_ORANGE, Math.max(1, pr * 0.07));
   ctx.strokeStyle = "rgba(120, 40, 0, 0.45)";
   ctx.lineWidth = Math.max(1, pr * 0.08);
   ctx.beginPath();
