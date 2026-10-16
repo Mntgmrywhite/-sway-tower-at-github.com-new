@@ -32,14 +32,14 @@ import { capPath, strata, undersidePath, type Band } from "./shapes";
 
 /** Island proportions, in u. */
 const CAP_HW = 0.33;
-const CAP_H = 0.034;
-const UNDER_HW = 0.31;
-const UNDER_D = 0.18;
+export const CAP_H = 0.034;
+export const UNDER_HW = 0.31;
+export const UNDER_D = 0.18;
 /** How far the grass sits below the floor line (the plinth stands proud of it). */
-const GRASS_DROP = 0.016;
+export const GRASS_DROP = 0.016;
 const PLINTH_H = 0.028;
 
-const BANDS: Band[] = STRATA.map((b, i) => ({ ...b, at: [0, 0.2, 0.42, 0.63, 0.82][i]! }));
+export const BANDS: Band[] = STRATA.map((b, i) => ({ ...b, at: [0, 0.2, 0.42, 0.63, 0.82][i]! }));
 
 /** Roots: anchor (x in half widths, y in depths, inside the underside), length (u), bend (u), fork. */
 const ROOTS = [
@@ -76,7 +76,7 @@ function centerX(s: Scene): number {
 }
 
 /** Where things stand on the island's grass, in u from its center line. */
-const TREE_X = 0.29;
+export const TREE_X = 0.29;
 const STAKE_X = -0.3;
 
 export function homeIsland(ctx: Ctx, s: Scene): void {
@@ -128,7 +128,7 @@ export function kite(ctx: Ctx, s: Scene): void {
 
 // ---------------------------------------------------------------- island body
 
-function cap(ctx: Ctx, s: Scene, cx: number, top: number, lw: number): void {
+export function cap(ctx: Ctx, s: Scene, cx: number, top: number, lw: number): void {
   const u = s.u;
   const hw = u * CAP_HW;
   const h = u * CAP_H;
@@ -170,7 +170,7 @@ function rootPath(ctx: Ctx, x: number, y: number, len: number, w: number, bend: 
   ctx.closePath();
 }
 
-function roots(ctx: Ctx, s: Scene, cx: number, top: number, hw: number, d: number, lw: number): void {
+export function roots(ctx: Ctx, s: Scene, cx: number, top: number, hw: number, d: number, lw: number): void {
   const u = s.u;
   ctx.beginPath();
   for (let i = 0; i < ROOTS.length; i++) {
@@ -193,7 +193,7 @@ function roots(ctx: Ctx, s: Scene, cx: number, top: number, hw: number, d: numbe
   ctx.fill();
 }
 
-function vines(ctx: Ctx, s: Scene, cx: number, y: number, lw: number): void {
+export function vines(ctx: Ctx, s: Scene, cx: number, y: number, lw: number): void {
   const u = s.u;
   const hw = u * CAP_HW;
   const w = Math.max(1.5, u * 0.005);
@@ -232,7 +232,7 @@ function vines(ctx: Ctx, s: Scene, cx: number, y: number, lw: number): void {
 // ---------------------------------------------------------------- on top
 
 /** A low stone plinth under the base block, standing proud of the grass. */
-function plinth(ctx: Ctx, s: Scene, cx: number, lw: number): void {
+export function plinth(ctx: Ctx, s: Scene, cx: number, lw: number): void {
   const u = s.u;
   const w = (s.baseW > 0 ? s.baseW : u * 0.4) * 1.1;
   const h = u * PLINTH_H;
@@ -285,7 +285,7 @@ const CROWN = [
  * A little round tree: a short trunk under a three-ball crown. It stays lower than the base
  * block, so the slider's first pass and the first drops never sweep over it.
  */
-function tree(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
+export function tree(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
   const u = s.u;
   const tw = u * 0.008;
   const th = u * 0.026;
