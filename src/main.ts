@@ -1,6 +1,7 @@
 import { audio } from "./audio/engine";
 import { dropSounds } from "./audio/sounds";
 import { tuning } from "./config";
+import { BASE_FONTS, loadFonts } from "./fonts";
 import { drop, leanTarget, newGame, step, swayOffset, timeScale, top, windStrength, type GameState } from "./game";
 import { createOptions } from "./options";
 import { createPanel } from "./panel";
@@ -153,29 +154,9 @@ window.addEventListener("keydown", (e) => {
   }
 });
 window.addEventListener("resize", resize);
-// Canvas text only uses a web font once it's loaded; ask for the base faces up front.
-document.fonts?.load("700 40px Fredoka").catch(() => {});
-document.fonts?.load("600 40px Fredoka").catch(() => {});
-document.fonts?.load("40px Monoton").catch(() => {});
-document.fonts?.load("700 40px Orbitron").catch(() => {});
-document.fonts?.load("600 40px Orbitron").catch(() => {});
+// Canvas text only uses a web font once it's loaded; decode the base faces up front.
+loadFonts(BASE_FONTS);
 resize();
-
-/** Pull in a skin's Google Fonts the first time it is shown. */
-const loadedFonts = new Set<string>();
-function ensureFonts(skin: Skin): void {
-  for (const family of skin.fonts ?? []) {
-    if (loadedFonts.has(family)) continue;
-    loadedFonts.add(family);
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}&display=swap`;
-    document.head.append(link);
-    link.addEventListener("load", () => {
-      document.fonts?.load(`40px "${family.split(":")[0]}"`).catch(() => {});
-    });
-  }
-}
 
 /** The active skin, re-resolved when the choice or the day changes. */
 let skinKey = "";
@@ -186,7 +167,7 @@ function currentSkin(): Skin {
   if (key !== skinKey) {
     skinKey = key;
     skin = resolveSkin(tuning.skin, now);
-    ensureFonts(skin);
+    loadFonts(skin.fonts ?? []);
     document.documentElement.style.setProperty("--accent", skin.hud.ui);
     // Each skin has its arrangement of the theme; the four Neon skins share one (and any skin
     // without a rendered arrangement plays Classic's).

@@ -15,7 +15,6 @@ if (js.includes("</script")) throw new Error("bundle contains </script; cannot i
 const page = `<title>Sway Tower</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#14161f">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Monoton&family=Orbitron:wght@600;700&display=swap">
 <style>
 /* Single dark look: the game paints its own night scene on every host theme. */
 :root { --bg: #14161f; color-scheme: dark; }
