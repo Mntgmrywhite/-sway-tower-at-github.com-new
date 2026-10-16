@@ -1,19 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
-import { drifters } from "./drift";
-import { bridge, farTrees, floorTop, portals } from "./far";
+import { farDrifters, nearDrifters } from "./drift";
+import { bridge, castle, farTrees, launchPad, portals } from "./far";
 import { fort, inkW, lollipopTree, ringTree, windUpMouse } from "./fort";
 import { BLUE, GREEN, ORANGE, PURPLE, RED, YELLOW } from "./colors";
 import { blocksTop, front } from "./front";
+import { guards, rockingHorse, spinningTop } from "./meadow";
+import { seaTop } from "./place";
 import { sun } from "./sky";
 import { context, mask, overlap, SIZES, startScene } from "./test-scene";
-import { level, toneOf } from "./tone";
+import { toneOf } from "./tone";
 
 // The start view, on a tall and a short phone, at a few animation times: each prop is drawn
 // alone, and none touches a screen edge, the HUD at the top or the letter blocks in front, none
 // stands in the tower's column above its floor line, nothing beside the base block rises above
-// its top (the slider's first pass never sweeps over it), and no two overlap.
+// its top (the slider's first pass never sweeps over it), and no two overlap — except within the
+// far land, whose pieces stand in front of one another (the railway hills' trees and tunnel
+// mouths before the castle's foot), as hills do.
 
 const TIMES = [0, 1.3, 2.7, 4.1, 6.6, 9.4, 13.7] as const;
 
@@ -21,18 +25,35 @@ type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**
  * `above`: stands above the floor line (so must keep out of the tower's column). `beside`:
  * stands beside the base block, so must stay below its top, out of the slider's first lane.
+ * `land`: a piece of the far land (may overlap other pieces of it). `drifts`: comes down a sky
+ * lane, so at the start it may be anywhere above the screen (or not drawn at all) and may sit
+ * beside the HUD; but none is cut by the screen's top edge on the still title screen.
  */
-const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean }[] = [
-  { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), floorTop(s, level(s))), above: true },
-  { name: "balloons", draw: (ctx, s) => drifters(ctx, s, toneOf(s)), above: true },
-  { name: "far trees", draw: (ctx, s) => farTrees(ctx, s, toneOf(s)), above: true },
-  { name: "bridge", draw: (ctx, s) => bridge(ctx, s, toneOf(s)), above: true },
-  { name: "tunnels", draw: (ctx, s) => portals(ctx, s, toneOf(s)), above: true },
+interface Prop {
+  name: string;
+  draw: Draw;
+  above: boolean;
+  beside?: boolean;
+  land?: boolean;
+  drifts?: boolean;
+}
+const PROPS: Prop[] = [
+  { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), seaTop(s)), above: true },
+  { name: "far clouds", draw: (ctx, s) => farDrifters(ctx, s, toneOf(s)), above: true, drifts: true },
+  { name: "near lanes", draw: (ctx, s) => nearDrifters(ctx, s, toneOf(s)), above: true, drifts: true },
+  { name: "castle", draw: (ctx, s) => castle(ctx, s, toneOf(s)), above: true, land: true },
+  { name: "launch pad", draw: (ctx, s) => launchPad(ctx, s, toneOf(s)), above: true, land: true },
+  { name: "far trees", draw: (ctx, s) => farTrees(ctx, s, toneOf(s)), above: true, land: true },
+  { name: "bridge", draw: (ctx, s) => bridge(ctx, s, toneOf(s)), above: true, land: true },
+  { name: "tunnels", draw: (ctx, s) => portals(ctx, s, toneOf(s)), above: true, land: true },
+  { name: "rocking horse", draw: rockingHorse, above: true },
+  { name: "spinning top", draw: spinningTop, above: true },
   // The fort's plank is the tower's floor; its turret roofs rise beside the base block.
   { name: "fort", draw: fort, above: true, beside: true },
   { name: "lollipop tree", draw: lollipopTree, above: true, beside: true },
   { name: "ring tree", draw: ringTree, above: true, beside: true },
   { name: "wind-up mouse", draw: windUpMouse, above: true, beside: true },
+  { name: "guards", draw: guards, above: true, beside: true },
 ];
 
 describe("toy kingdom layout", () => {
@@ -47,6 +68,8 @@ describe("toy kingdom layout", () => {
     const hud = Math.round(H * 0.14 + s.u * 0.13);
     const shelf = Math.floor(blocksTop(s)) - 2;
     const baseTop = s.groundY - BLOCK_HEIGHT * s.scale;
+    // The slider's first lane (one bar above the base block): nothing further back stands in it either.
+    const lane0 = baseTop - BLOCK_HEIGHT * s.scale;
 
     PROPS.forEach((prop, i) => {
       const m = masks[i]!;
@@ -62,18 +85,19 @@ describe("toy kingdom layout", () => {
           drawn++;
           if (x === 0 || x === W - 1 || y === 0) edge++;
           if (prop.above && y < floor && x >= x0 && x <= x1) column++;
-          if (y < hud) top++;
+          if (y < hud && !prop.drifts) top++;
           if (y >= shelf) low++;
-          if (prop.beside && y < baseTop) lane++;
+          if (prop.beside ? y < baseTop : y > lane0 && y < baseTop) lane++;
         }
       }
-      expect(drawn, `${prop.name} is drawn`).toBeGreaterThan(50);
+      if (!prop.drifts) expect(drawn, `${prop.name} is drawn`).toBeGreaterThan(50);
       expect(edge, `${prop.name}: pixels on a screen edge`).toBe(0);
       expect(column, `${prop.name}: pixels in the tower's column above its floor`).toBe(0);
       expect(top, `${prop.name}: pixels in the HUD`).toBe(0);
       expect(low, `${prop.name}: pixels reaching the letter blocks`).toBe(0);
-      expect(lane, `${prop.name}: pixels above the base block (in the slider's first lane)`).toBe(0);
+      expect(lane, `${prop.name}: pixels in the slider's first lane`).toBe(0);
       for (let j = i + 1; j < PROPS.length; j++) {
+        if (prop.land && PROPS[j]!.land) continue;
         expect(overlap(m, masks[j]!), `${prop.name} overlaps ${PROPS[j]!.name}`).toBe(0);
       }
     });

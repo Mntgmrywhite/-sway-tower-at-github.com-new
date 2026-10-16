@@ -1,37 +1,56 @@
 import type { Ctx } from "../base/draw";
 import type { CartoonSkin, Scene } from "./skin";
 import { BLUE, GREEN, ORANGE, PALETTE, PINK, PURPLE, RED, TEAL, YELLOW } from "./toyblock/colors";
-import { drifters } from "./toyblock/drift";
-import { farLayer, floorTop, skyBottom } from "./toyblock/far";
+import { farDrifters, nearDrifters } from "./toyblock/drift";
+import { farLand, landSkyBottom } from "./toyblock/far";
 import { meadowProps } from "./toyblock/fort";
 import { front } from "./toyblock/front";
 import * as icon from "./toyblock/icons";
-import { moon, skyFill, stars, sun } from "./toyblock/sky";
-import { level, toneIndex, toneOf } from "./toyblock/tone";
+import { landShows, seaTop } from "./toyblock/place";
+import { SEA_SOLID, cloudSea } from "./toyblock/sea";
+import { constellations, moon, skyBands, skyFill, stars, sun } from "./toyblock/sky";
+import { toneIndex, toneOf } from "./toyblock/tone";
 
 // Toy Kingdom: the whole world is built from the same chunky toy blocks as the tower. The tower
 // stands on a toy fort (red pillars, a yellow arch gate, purple turrets under red cone roofs)
-// on a felt-green meadow, with a lollipop tree on its peg, a tree of stacked rings and a
-// wind-up mouse. Beyond, hills of stacked rounded blocks, a toy train running between two
-// tunnels and a block bridge over a pool, and in front a shelf of big letter blocks. Climb,
-// and block clouds gather into a floor below you; party balloons carry a block away, a loose
-// kite and a toy airship drift by, the sun sets, and at the top a calm night with a crescent
-// moon, little five-point stars and a toy rocket. Calm by design: flat fills, one ink weight
-// up close, faded silhouettes far away, and nothing moves behind the tower.
+// on a felt-green meadow, among lollipop trees, a tree of stacked rings, a wind-up mouse, a
+// rocking horse and a drummer of the fort's guard. Beyond lies the kingdom: block mountains, a
+// toy town, the King's castle flying its flag up the left lane and the toy rocket on its launch
+// tower up the right, a little train between two tunnels and a block bridge over a pool; in
+// front, a shelf of big letter blocks.
 //
-// The altitude story needs every layer of the backdrop, so Toy Kingdom paints all of it in one
-// pass (`backdrop`, in the ground hook). The celestial and far hooks are empty on purpose: they
+// Climb, and a sea of block clouds billows up and swallows the kingdom (the meadow's toys stand
+// in front of it), then falls away below you (place.ts). The day goes on up the sky (tone.ts):
+// toys drift down the right lane (a loose kite, flights of paper planes, a biplane trailing
+// bunting, a teddy in a hot-air balloon, the airship at dusk), the sun sets into the clouds up
+// the left lane, and a sleepy moon with a mobile of stars rises there for the night, when the
+// rocket flies past a ringed toy planet, a satellite and a flying saucer, and constellations in
+// toy shapes come out under the moon. Then dawn: a toy soldier parachutes down, party balloons
+// carry a block away, the sun comes back up, and the day goes round again, forever.
+// Calm by design: flat fills, one ink weight up close, faded and flat far away, and nothing
+// moves behind the tower.
+//
+// The story needs every layer of the backdrop, so Toy Kingdom paints all of it in one pass
+// (`backdrop`, in the ground hook). The celestial and far hooks are empty on purpose: they
 // switch off the base moon and skyline, which the backdrop would only paint over.
 
 function backdrop(ctx: Ctx, s: Scene): void {
   const tone = toneOf(s);
-  const floor = floorTop(s, level(s));
-  skyFill(ctx, s, tone, toneIndex(s), skyBottom(s, floor));
-  stars(ctx, s, tone);
-  moon(ctx, s, tone);
-  sun(ctx, s, tone, floor);
-  farLayer(ctx, s, tone, floor);
-  drifters(ctx, s, tone);
+  const step = toneIndex(s);
+  const top = seaTop(s);
+  const land = landShows(s, top);
+  const solid = top + s.u * SEA_SOLID;
+  const skyBottom = Math.min(s.cssH, land ? Math.min(landSkyBottom(s), solid) : solid);
+  const sky = skyBands(tone, step);
+  skyFill(ctx, s, sky, skyBottom);
+  stars(ctx, s, tone, top);
+  constellations(ctx, s, tone);
+  sun(ctx, s, tone, top);
+  moon(ctx, s, tone, top);
+  farDrifters(ctx, s, tone);
+  if (land) farLand(ctx, s, tone, Math.min(s.cssH, top + s.u * 0.12));
+  cloudSea(ctx, s, tone, top);
+  nearDrifters(ctx, s, tone);
   meadowProps(ctx, s);
 }
 
@@ -68,5 +87,6 @@ export const toyBlock: CartoonSkin = {
   celestial: none,
   far: none,
   ground: backdrop,
+  paintsBackdrop: true,
   foreground: front,
 };

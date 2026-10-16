@@ -1,6 +1,7 @@
 import { circle, ink, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { BLUE, DOORWAY, INK, LEAF, LIME, MEADOW_SHADE, ORANGE, PURPLE, RED, WOOD, YELLOW, type Shades } from "./colors";
+import { guards, rockingHorse, spinningTop } from "./meadow";
 import { block, inkedBlock } from "./shapes";
 
 // The toy fort the tower is built on, and what stands around it on the meadow. The fort is
@@ -21,7 +22,7 @@ export function inkW(s: Scene): number {
 }
 
 /** Center line of the fort: under the base block. */
-function centerX(s: Scene): number {
+export function centerX(s: Scene): number {
   return s.baseW > 0 ? s.baseX + s.baseW / 2 : s.cssW / 2;
 }
 
@@ -369,10 +370,18 @@ export function windUpMouse(ctx: Ctx, s: Scene): void {
   ctx.restore();
 }
 
-/** Everything on the meadow around the tower. */
+/**
+ * Everything on the meadow around the tower, back to front, in front of the cloud sea: the sea
+ * rolls in over the meadow's grass and the land beyond, never over a toy (none is ever left half
+ * covered); the toys go off the bottom of the screen with the tower.
+ */
 export function meadowProps(ctx: Ctx, s: Scene): void {
+  if (s.groundY - s.u * 0.25 > s.cssH) return;
+  rockingHorse(ctx, s);
+  spinningTop(ctx, s);
   lollipopTree(ctx, s);
   ringTree(ctx, s);
   fort(ctx, s);
   windUpMouse(ctx, s);
+  guards(ctx, s);
 }

@@ -117,7 +117,8 @@ export function front(ctx: Ctx, s: Scene): void {
   ctx.fillRect(0, shelf, s.cssW, u * 0.014);
   ctx.fillStyle = WOOD.shade;
   ctx.beginPath();
-  for (let k = 1; k <= 3; k++) ctx.rect(0, shelf + u * (0.02 + 0.07 * k), s.cssW, Math.max(1, u * 0.004));
+  // Plank seams down to the bottom of the screen (three on a phone; more on Hard's zoomed-out view).
+  for (let k = 1, y = shelf + u * 0.09; y < s.cssH; k++, y = shelf + u * (0.02 + 0.07 * k)) ctx.rect(0, y, s.cssW, Math.max(1, u * 0.004));
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(0, shelf);
