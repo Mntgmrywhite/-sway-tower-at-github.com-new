@@ -17,10 +17,14 @@ Node lives in `~/.local/node` (user install). If `node` is not on PATH: `export 
 - `npm run preview` — serve the built bundle
 - `npm run snap -- <skinId>` — render a skin offscreen to `preview/<skin>-{start,climb,high,over,wobbly,lastChance,gust,toppled,bars}.png` (fallback fonts; look at them with an image viewer). Use this to check visual work.
 - `npm run build:artifact` — build, then inline everything into `dist/sway-tower.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); republish that file to keep the same link
+- `npm run ios` — build, then copy the bundle into the iOS app (`cap sync ios`); build and run it from Xcode (`npm run ios:open`) or with `xcodebuild -project ios/App/App.xcodeproj -scheme App`
+- `npm run ios:art` — redraw the placeholder app icon and launch image (`scripts/ios-art.ts`)
 
 ## Stack
 
 Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runtime dependencies.
+
+**iOS app:** Capacitor 8 (`capacitor.config.ts`, native project in `ios/`, Swift Package Manager, no CocoaPods). The only runtime packages are Capacitor's (`@capacitor/core`, `haptics`, `preferences`), all bundled. The app is portrait-only and full screen: no status bar, home indicator hidden (`Info.plist`, SystemBars in `capacitor.config.ts`), bottom-edge swipes deferred to the game (`GameViewController` in `SceneDelegate.swift`). It must work offline: fonts (`src/fonts.ts`, Fontsource files inlined like the audio) and audio ship inside the bundle; never load anything from the network. The build stays one JS file (`codeSplitting: false`). `src/haptics.ts` plays the haptic cues on the Taptic Engine natively (navigator.vibrate on the web). Saves: `src/storage.ts` mirrors every `sway-stack:*` localStorage key to Preferences, and `GameViewController` puts lost keys back before the page loads, so iOS purging the web view's storage loses nothing (never `location.reload()` in the app: WKWebView then reports zero safe-area insets).
 
 ## Architecture
 
@@ -100,4 +104,4 @@ Evoke each reference's setting, era, mood, palette and motifs — never copy cop
 4. Tuning panel: sway on/off, base sway, period, kick strength, kick decay, slider speed — done → **playtest checkpoint**
 5. Feel: perfect-drop snap + streak, falling pieces, sound, haptics
 6. Mobile polish: orientation, best score persistence
-7. Later: Capacitor iOS wrap (needs Xcode + Apple Developer account)
+7. Capacitor iOS wrap — runs in the Simulator; device builds and the App Store need the owner's Apple Developer account

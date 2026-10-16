@@ -14,6 +14,10 @@ const config: CapacitorConfig = {
     scrollEnabled: false,
     allowsLinkPreview: false,
   },
+  plugins: {
+    // Full screen: no status bar, and the home indicator fades out while playing.
+    SystemBars: { hidden: true },
+  },
 };
 
 export default config;
