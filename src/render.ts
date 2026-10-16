@@ -191,7 +191,7 @@ export function render(
     ctx.textAlign = "center";
     ctx.lineJoin = "round";
     ctx.lineWidth = Math.max(3, size * 0.18);
-    ctx.strokeStyle = "rgba(20, 10, 30, 0.85)";
+    ctx.strokeStyle = theme.hud.outline;
     const label = f.streak >= 2 ? `PERFECT ×${f.streak}` : "PERFECT";
     ctx.strokeText(label, cx, y);
     ctx.fillStyle = theme.hud.streak;
@@ -204,12 +204,13 @@ export function render(
 
   theme.foreground?.(ctx, scene);
 
-  // HUD, with a soft shadow so it reads over any sky.
+  // HUD: rounded type with an ink outline, so it reads over any part of the scene.
   ctx.save();
-  ctx.shadowColor = "rgba(10, 5, 20, 0.6)";
-  ctx.shadowBlur = Math.round(u * 0.02);
   ctx.textAlign = "center";
+  const hud = theme.hud;
   const top = cssH * 0.14;
+  const text = (t: string, x: number, y: number, fill: string, outline: number) =>
+    outlinedText(ctx, t, x, y, fill, hud.outline, outline);
 
   if (state.phase === "over") {
     drawGameOver(ctx, cssW, cssH, u, state, best, theme);
@@ -219,44 +220,42 @@ export function render(
 
   if (state.score === 0) {
     // Start screen: the name instead of a zero.
-    ctx.font = `400 ${Math.round(u * 0.15)}px ${theme.hud.display}`;
-    outlinedText(ctx, "Sway Stack", cssW / 2, top, theme.hud.score, u * 0.016);
+    ctx.font = `400 ${Math.round(u * 0.15)}px ${hud.display}`;
+    text("Sway Stack", cssW / 2, top, hud.title, u * 0.018);
   } else {
-    ctx.font = `700 ${Math.round(u * 0.14)}px system-ui, sans-serif`;
-    ctx.fillStyle = theme.hud.score;
-    ctx.fillText(String(state.score), cssW / 2, top);
+    ctx.font = `700 ${Math.round(u * 0.14)}px ${hud.body}`;
+    text(String(state.score), cssW / 2, top, hud.score, u * 0.018);
   }
-  ctx.font = `500 ${Math.round(u * 0.04)}px system-ui, sans-serif`;
-  ctx.fillStyle = theme.hud.muted;
-  ctx.fillText(`best ${best}`, cssW / 2, top + u * 0.06);
+  ctx.font = `600 ${Math.round(u * 0.042)}px ${hud.body}`;
+  text(`best ${best}`, cssW / 2, top + u * 0.065, hud.muted, u * 0.01);
 
   // Lives
-  const r = u * 0.014;
+  const r = u * 0.016;
   for (let i = 0; i < LIVES; i++) {
     ctx.beginPath();
-    ctx.arc(cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, top + u * 0.1, r, 0, Math.PI * 2);
-    ctx.fillStyle = i < state.lives ? theme.hud.life : theme.hud.lifeLost;
+    ctx.arc(cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, top + u * 0.11, r, 0, Math.PI * 2);
+    ctx.fillStyle = i < state.lives ? hud.life : hud.lifeLost;
     ctx.fill();
+    ctx.lineWidth = Math.max(1.5, u * 0.005);
+    ctx.strokeStyle = hud.outline;
+    ctx.stroke();
   }
 
   // Perfect counter: total this game, plus the current run. Hidden until the first one.
   if (state.perfects > 0) {
-    const perfY = top + u * 0.17;
-    ctx.font = `700 ${Math.round(u * 0.045)}px system-ui, sans-serif`;
-    ctx.fillStyle = theme.hud.streak;
-    ctx.fillText(`★ ${state.perfects} perfect`, cssW / 2, perfY);
+    const perfY = top + u * 0.18;
+    ctx.font = `700 ${Math.round(u * 0.048)}px ${hud.body}`;
+    text(`★ ${state.perfects} perfect`, cssW / 2, perfY, hud.streak, u * 0.012);
     if (state.streak >= 2) {
-      ctx.font = `600 ${Math.round(u * 0.038)}px system-ui, sans-serif`;
-      ctx.fillStyle = theme.hud.muted;
-      ctx.fillText(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.05);
+      ctx.font = `600 ${Math.round(u * 0.04)}px ${hud.body}`;
+      text(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.052, hud.muted, u * 0.01);
     }
   }
 
   if (state.score === 0) {
-    ctx.font = `600 ${Math.round(u * 0.055)}px system-ui, sans-serif`;
-    ctx.fillStyle = theme.hud.score;
-    ctx.globalAlpha = 0.65 + 0.35 * Math.sin(view.t * 3);
-    ctx.fillText("tap to drop", cssW / 2, cssH * 0.9);
+    ctx.font = `600 ${Math.round(u * 0.058)}px ${hud.body}`;
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(view.t * 3);
+    text("tap to drop", cssW / 2, cssH * 0.9, hud.score, u * 0.014);
   }
   ctx.restore();
 }
@@ -270,53 +269,64 @@ function drawGameOver(
   best: number,
   theme: Theme,
 ): void {
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = "rgba(10, 5, 20, 0.55)";
+  const hud = theme.hud;
+  ctx.fillStyle = "rgba(10, 5, 20, 0.45)";
   ctx.fillRect(0, 0, cssW, cssH);
 
   const w = Math.min(cssW - 32, u * 0.82);
   const h = u * 0.62;
   const x = (cssW - w) / 2;
   const y = cssH * 0.42 - h / 2;
-  roundRectPath(ctx, x, y, w, h, u * 0.04);
-  ctx.fillStyle = "rgba(24, 14, 36, 0.94)";
+  // Card: drop shadow, body, light inner rim, ink border
+  roundRectPath(ctx, x + u * 0.012, y + u * 0.016, w, h, u * 0.045);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
   ctx.fill();
-  ctx.lineWidth = Math.max(4, u * 0.02);
-  ctx.strokeStyle = theme.hud.streak + "44";
-  ctx.stroke();
+  roundRectPath(ctx, x, y, w, h, u * 0.045);
+  ctx.fillStyle = "#3a3180";
+  ctx.fill();
+  roundRectPath(ctx, x + u * 0.012, y + u * 0.012, w - u * 0.024, h - u * 0.024, u * 0.035);
   ctx.lineWidth = Math.max(1.5, u * 0.006);
-  ctx.strokeStyle = theme.hud.streak;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+  ctx.stroke();
+  roundRectPath(ctx, x, y, w, h, u * 0.045);
+  ctx.lineWidth = Math.max(3, u * 0.012);
+  ctx.strokeStyle = hud.outline;
   ctx.stroke();
 
   const cx = cssW / 2;
+  const text = (t: string, ty: number, fill: string, outline: number) =>
+    outlinedText(ctx, t, cx, ty, fill, hud.outline, outline);
   ctx.textAlign = "center";
-  ctx.font = `400 ${Math.round(u * 0.1)}px ${theme.hud.display}`;
-  outlinedText(ctx, "Game Over", cx, y + h * 0.22, theme.hud.score, u * 0.012);
-  ctx.fillStyle = theme.hud.score;
+  ctx.font = `400 ${Math.round(u * 0.1)}px ${hud.display}`;
+  text("Game Over", y + h * 0.22, hud.title, u * 0.014);
 
-  ctx.font = `700 ${Math.round(u * 0.16)}px system-ui, sans-serif`;
-  ctx.fillText(String(state.score), cx, y + h * 0.53);
+  ctx.font = `700 ${Math.round(u * 0.16)}px ${hud.body}`;
+  text(String(state.score), y + h * 0.54, hud.score, u * 0.018);
 
   const newBest = state.score > 0 && state.score >= best;
-  ctx.font = `600 ${Math.round(u * 0.042)}px system-ui, sans-serif`;
-  ctx.fillStyle = newBest ? theme.hud.streak : theme.hud.muted;
-  ctx.fillText(newBest ? "New best!" : `best ${best}`, cx, y + h * 0.66);
-  ctx.fillStyle = theme.hud.streak;
-  ctx.fillText(`★ ${state.perfects} perfect`, cx, y + h * 0.78);
+  ctx.font = `600 ${Math.round(u * 0.045)}px ${hud.body}`;
+  text(newBest ? "New best!" : `best ${best}`, y + h * 0.68, newBest ? hud.streak : hud.muted, u * 0.01);
+  text(`★ ${state.perfects} perfect`, y + h * 0.8, hud.streak, u * 0.01);
 
-  ctx.font = `600 ${Math.round(u * 0.05)}px system-ui, sans-serif`;
-  ctx.fillStyle = theme.hud.score;
-  ctx.fillText("tap to play again", cx, y + h + u * 0.1);
+  ctx.font = `600 ${Math.round(u * 0.055)}px ${hud.body}`;
+  text("tap to play again", y + h + u * 0.1, hud.score, u * 0.014);
 }
 
-/** Text with a solid black outline behind the fill. */
-function outlinedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, fill: string, width: number): void {
+/** Text with a solid outline behind the fill. */
+function outlinedText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  fill: string,
+  outline: string,
+  width: number,
+): void {
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineWidth = Math.max(3, width);
-  ctx.strokeStyle = "#000000";
+  ctx.strokeStyle = outline;
   ctx.strokeText(text, x, y);
-  ctx.shadowBlur = 0;
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y);
   ctx.restore();

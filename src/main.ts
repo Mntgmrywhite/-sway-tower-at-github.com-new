@@ -85,6 +85,8 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("resize", resize);
 // Canvas text only uses a web font once it's loaded; ask for it up front.
 document.fonts?.load("40px Creepster").catch(() => {});
+document.fonts?.load("700 40px Fredoka").catch(() => {});
+document.fonts?.load("600 40px Fredoka").catch(() => {});
 resize();
 
 let last = performance.now();

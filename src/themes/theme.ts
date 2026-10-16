@@ -28,12 +28,30 @@ export interface Theme {
   hud: {
     /** Font family for titles and the PERFECT pop. */
     display: string;
+    /** Font family for score, labels and hints. */
+    body: string;
+    /** Title color. */
+    title: string;
+    /** Outline color behind HUD text. */
+    outline: string;
     score: string;
     muted: string;
     life: string;
     lifeLost: string;
     streak: string;
   };
+}
+
+/** Linear blend of two #rrggbb colors. */
+export function mix(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (shift: number) => {
+    const ca = (pa >> shift) & 255;
+    const cb = (pb >> shift) & 255;
+    return Math.round(ca + (cb - ca) * t);
+  };
+  return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
 }
 
 /** Rounded-rectangle path, radius clamped so tiny slivers still draw. */

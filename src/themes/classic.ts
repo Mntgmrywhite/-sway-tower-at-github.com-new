@@ -22,6 +22,9 @@ export const classic: Theme = {
 
   hud: {
     display: "system-ui, sans-serif",
+    body: "system-ui, sans-serif",
+    title: "#ffffff",
+    outline: "#000000",
     score: "#ffffff",
     muted: "rgba(255,255,255,0.6)",
     life: "#ff6b7a",
