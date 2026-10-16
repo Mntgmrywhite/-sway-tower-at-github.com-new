@@ -38,6 +38,8 @@ export interface GameState {
   slider: Slider;
   score: number;
   streak: number;
+  /** Total perfect drops this game. */
+  perfects: number;
   lives: number;
   /** Sway phase in radians; accumulated so changing the period mid-game doesn't jump. */
   swayAngle: number;
@@ -132,6 +134,7 @@ export function newGame(): GameState {
     slider: spawnSlider(base, 0),
     score: 0,
     streak: 0,
+    perfects: 0,
     lives: LIVES,
     swayAngle: 0,
     kick: 0,
@@ -194,6 +197,7 @@ export function drop(state: GameState): DropResult | null {
   if (Math.abs(s.x - underX) <= PERFECT_TOLERANCE) {
     // Perfect: sits square on the block below, adds no sway, and calms the tower.
     state.streak += 1;
+    state.perfects += 1;
     state.calmTimer = CALM_TIME;
     result = { kind: "perfect", placed: { x: under.x, w: under.w } };
   } else {

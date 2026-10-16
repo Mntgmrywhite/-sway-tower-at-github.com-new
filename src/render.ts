@@ -2,7 +2,7 @@ import { BLOCK_HEIGHT, LIVES, WORLD_WIDTH, tuning } from "./config";
 import { swayOffset, type Block, type GameState } from "./game";
 import { classic } from "./themes/classic";
 import { halloween } from "./themes/halloween";
-import { roundRectPath } from "./themes/theme";
+import { roundRectPath, type Scene } from "./themes/theme";
 
 /** World units visible horizontally; a little wider than the slider's travel. */
 const VIEW_WIDTH = WORLD_WIDTH * 1.5;
@@ -10,16 +10,19 @@ const VIEW_WIDTH = WORLD_WIDTH * 1.5;
 const TOP_ANCHOR = 0.38;
 const CAMERA_EASE = 6; // per second
 // Cosmetic falling pieces only; slow enough to watch the chop happen.
-const GRAVITY = 140; // world units/sec^2
-const FALL_DRIFT = 14; // units/sec sideways, away from the tower
-const FALL_SPIN = 2.2; // radians/sec
+const GRAVITY = 55; // world units/sec^2
+const FALL_DRIFT = 9; // units/sec sideways, away from the tower
+const FALL_SPIN = 1.2; // radians/sec
 /** Perfect-drop flash: light bursts along the seam and the block glows in the accent color. */
 const FLASH_TIME = 0.5; // seconds
+/** "PERFECT" text floats up and fades over this long. */
+const POP_TIME = 0.9; // seconds
 const SEAM_SPREAD = 0.6; // how far the seam light reaches past the block edges, in block widths
 
 interface Flash {
   level: number;
   age: number;
+  streak: number;
 }
 
 interface Falling extends Block {
@@ -58,14 +61,14 @@ export function addFalling(view: View, piece: Block, level: number, towerX: numb
 }
 
 /** Call after a perfect drop onto `level`. */
-export function addFlash(view: View, level: number): void {
-  view.flashes.push({ level, age: 0 });
+export function addFlash(view: View, level: number, streak: number): void {
+  view.flashes.push({ level, age: 0, streak });
 }
 
 export function updateView(view: View, state: GameState, dt: number): void {
   view.t += dt;
   for (const f of view.flashes) f.age += dt;
-  view.flashes = view.flashes.filter((f) => f.age < FLASH_TIME);
+  view.flashes = view.flashes.filter((f) => f.age < POP_TIME);
   const target = (state.blocks.length + 1) * BLOCK_HEIGHT;
   view.cameraY += (target - view.cameraY) * Math.min(1, CAMERA_EASE * dt);
   for (const f of view.falling) {
@@ -95,16 +98,19 @@ export function render(
 
   const theme = tuning.halloween ? halloween : classic;
   const base = state.blocks[0];
-  theme.background(ctx, {
+  const scene: Scene = {
     cssW,
     cssH,
     u,
     scale,
     t: view.t,
+    rise: Math.max(0, (view.cameraY - BLOCK_HEIGHT) * scale),
+    altitude: view.cameraY,
     groundY: sy(0),
     baseX: base ? sx(base.x) : 0,
     baseW: base ? base.w * scale : 0,
-  });
+  };
+  theme.background(ctx, scene);
 
   const h = BLOCK_HEIGHT * scale;
   /** Draw a block whose world left edge is `x`. */
@@ -122,6 +128,7 @@ export function render(
   for (const f of view.flashes) {
     const b = state.blocks[f.level];
     if (!b) continue;
+    if (f.age >= FLASH_TIME) continue;
     const k = f.age / FLASH_TIME; // 0 → 1
     const fade = 1 - k;
     const x = sx(b.x + swayOffset(state, f.level));
@@ -165,10 +172,37 @@ export function render(
     ctx.restore();
   }
 
+  // "PERFECT" pops up beside the placed block.
+  for (const f of view.flashes) {
+    const b = state.blocks[f.level];
+    if (!b) continue;
+    const k = f.age / POP_TIME;
+    const cx = sx(b.x + b.w / 2 + swayOffset(state, f.level));
+    const y = sy((f.level + 1) * BLOCK_HEIGHT) - h * 0.4 - k * h * 2;
+    const size = Math.round(u * 0.065 * (1 + 0.25 * Math.min(1, f.streak / 5)));
+    ctx.save();
+    ctx.globalAlpha = 1 - k * k;
+    ctx.font = `800 ${size}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(3, size * 0.18);
+    ctx.strokeStyle = "rgba(20, 10, 30, 0.85)";
+    const label = f.streak >= 2 ? `PERFECT ×${f.streak}` : "PERFECT";
+    ctx.strokeText(label, cx, y);
+    ctx.fillStyle = theme.hud.streak;
+    ctx.fillText(label, cx, y);
+    ctx.restore();
+  }
+
   // The slider is in world space: it does not sway.
   if (state.phase === "playing") drawBlock(state.slider.x, state.slider.w, state.blocks.length);
 
-  // HUD
+  theme.foreground?.(ctx, scene);
+
+  // HUD, with a soft shadow so it reads over any sky.
+  ctx.save();
+  ctx.shadowColor = "rgba(10, 5, 20, 0.6)";
+  ctx.shadowBlur = Math.round(u * 0.02);
   ctx.fillStyle = theme.hud.score;
   ctx.textAlign = "center";
   ctx.font = `700 ${Math.round(u * 0.14)}px system-ui, sans-serif`;
@@ -186,9 +220,15 @@ export function render(
     ctx.fill();
   }
 
-  if (state.streak >= 2 && state.phase === "playing") {
-    ctx.fillStyle = theme.hud.streak;
-    ctx.fillText(`perfect ×${state.streak}`, cssW / 2, cssH * 0.14 + u * 0.16);
+  // Perfect counter: total this game, plus the current run.
+  const perfY = cssH * 0.14 + u * 0.17;
+  ctx.font = `700 ${Math.round(u * 0.045)}px system-ui, sans-serif`;
+  ctx.fillStyle = theme.hud.streak;
+  ctx.fillText(`★ ${state.perfects} perfect`, cssW / 2, perfY);
+  if (state.streak >= 2) {
+    ctx.font = `600 ${Math.round(u * 0.038)}px system-ui, sans-serif`;
+    ctx.fillStyle = theme.hud.muted;
+    ctx.fillText(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.05);
   }
 
   const hint =
@@ -198,4 +238,5 @@ export function render(
     ctx.fillStyle = theme.hud.score;
     ctx.fillText(hint, cssW / 2, cssH * 0.9);
   }
+  ctx.restore();
 }

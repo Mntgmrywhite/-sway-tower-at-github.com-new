@@ -26,7 +26,10 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - `src/game.ts` — pure game logic: state, `step(state, dt)`, `drop(state)`. No DOM, no canvas, no randomness, no `Date.now()`. Everything deterministic so it can be unit-tested and driven by a bot.
 - `src/config.ts` — every tunable number lives here. Fixed values are `const`s; playtest knobs live in the mutable `tuning` object (defaults in `DEFAULT_TUNING`). Logic must read `tuning.*` at call time, never cache it. No magic numbers in logic or rendering.
 - `src/panel.ts` — on-screen tuning panel (⚙ top-right). Edits `tuning` live, persists to localStorage, pauses the game while open.
-- `src/themes/` — visual themes (`classic`, `halloween`) behind a small `Theme` interface: background scene, block drawer, HUD colors. Purely cosmetic; switched by `tuning.halloween`.
+- `src/themes/` — visual themes (`classic`, `halloween`) behind a small `Theme` interface: background, optional foreground (drawn in front of the tower), block drawer, HUD colors. Purely cosmetic; switched by `tuning.halloween`.
+  - `halloween.ts` — neon bars: dark tinted fill, glowing edge tube, bright end caps (edges must stay easy to read), a row of neon Halloween icons; 12 hues cycle so neighbors contrast.
+  - `halloween-icons.ts` — stroke-built neon icons (pumpkin, witch hat, candy corn, ghost, bat, tombstone, mummy, moon, skull, fangs, spider, house).
+  - `halloween-scene.ts` — parallax scenery: layer ground = `groundY - rise * (1 - p)`; far hills/mansion (p 0.12), dead trees (0.45), fog/clouds/ghosts at fixed heights (0.6), graveyard (1), foreground mound + jack-o'-lantern (1.6). Sky darkens and stars come out with altitude.
 - `src/render.ts` — draws a state to a canvas via the active theme. Cosmetic-only effects (falling sliced pieces, camera easing) live here, never in logic.
 - `src/main.ts` — wiring: canvas sizing, input, RAF loop, best score.
 - Tests sit next to code as `*.test.ts`. The bot test proves the game is beatable with perfect timing.

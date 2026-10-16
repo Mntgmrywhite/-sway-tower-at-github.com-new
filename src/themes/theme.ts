@@ -8,6 +8,10 @@ export interface Scene {
   scale: number;
   /** Seconds of animation time (pauses with the game). */
   t: number;
+  /** Pixels the camera has climbed since the start (0 at the ground). */
+  rise: number;
+  /** Camera height in world units; drives scenery that changes as you climb. */
+  altitude: number;
   /** Screen y of the ground line the base sits on. */
   groundY: number;
   /** Screen x and width of the base block. */
@@ -17,6 +21,8 @@ export interface Scene {
 
 export interface Theme {
   background(ctx: CanvasRenderingContext2D, scene: Scene): void;
+  /** Optional layer drawn in front of the tower (before the HUD). */
+  foreground?(ctx: CanvasRenderingContext2D, scene: Scene): void;
   /** Draw one block with its top-left at (x, y), w × h pixels. `level` picks its look. */
   block(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, level: number): void;
   hud: {

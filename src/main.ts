@@ -61,7 +61,7 @@ function tap(): void {
   const towerX = under.x + under.w / 2 + swayOffset(state, level - 1);
   const r = drop(state);
   if (!r) return;
-  if (r.kind === "perfect") addFlash(view, level);
+  if (r.kind === "perfect") addFlash(view, level, state.streak);
   else addFalling(view, r.cut, level, towerX);
   if (state.score > best) {
     best = state.score;

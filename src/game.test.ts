@@ -52,6 +52,17 @@ describe("drop", () => {
     if (r?.kind === "sliced") expect(r.cut).toEqual({ x: under.x - 12, w: 12 });
   });
 
+  it("counts perfect drops for the whole game, unlike the streak", () => {
+    const g = newGame();
+    stack(g, 3);
+    aim(g, 5);
+    drop(g);
+    stack(g, 2);
+    expect(g.perfects).toBe(5);
+    expect(g.streak).toBe(2);
+    expect(newGame().perfects).toBe(0);
+  });
+
   it("resets the streak on a non-perfect drop", () => {
     const g = newGame();
     stack(g, 1);
