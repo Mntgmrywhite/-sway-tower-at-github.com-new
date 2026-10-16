@@ -16,7 +16,7 @@ import {
   turkey,
   wheat,
 } from "./thanksgiving/icons";
-import { driftingLeaves, geese, moon, sun } from "./thanksgiving/sky";
+import { celestial, driftingLeaves, geese } from "./thanksgiving/sky";
 
 // Thanksgiving: a cozy small town in a hollow on a late-November afternoon, in a simple, warm
 // comic-strip spirit (gently wobbly ink lines, flat autumn colors, lots of open lawn). Lavender
@@ -24,7 +24,8 @@ import { driftingLeaves, geese, moon, sun } from "./thanksgiving/sky";
 // peeks over apricot clouds under a low comic-strip sun. In the backyard around the tower: the
 // farmhouse with its porch, a big orange tree letting go of its leaves, a Thanksgiving table
 // set outdoors with mismatched chairs and a pie, and friendly turkeys by their rail fence.
-// Climb, and the sun sets while a pale moon comes up and geese head south.
+// Climb, and the sun sets while a pale moon comes up and geese head south. Climb on past the
+// night, and the day comes round again and again: dawn, morning, afternoon, dusk (story.ts).
 
 export const thanksgiving: CartoonSkin = {
   id: "thanksgiving",
@@ -56,10 +57,7 @@ export const thanksgiving: CartoonSkin = {
     accent: "#ffc23a",
     life: "#ff7a1a",
   },
-  celestial(ctx, s) {
-    moon(ctx, s);
-    sun(ctx, s);
-  },
+  celestial,
   sky(ctx, s) {
     geese(ctx, s);
     driftingLeaves(ctx, s);

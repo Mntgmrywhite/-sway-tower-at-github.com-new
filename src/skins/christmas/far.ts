@@ -1,14 +1,17 @@
 import { alpha, circle, hash, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { FAR, FAR_BACK, FAR_BACK_SNOW, FAR_LIGHT, FAR_SNOW, FOG, SMOKE_FAR } from "./colors";
+import { FOG, SMOKE_FAR } from "./colors";
 import { pigeonFlock } from "./sky";
+import { toneOf, type Tone } from "./tone";
 
 // London on the horizon, as faded flat silhouettes in the fog (no outlines): a hazy back row
 // of rooftops bristling with chimney pots and a couple of thin spires, a fog veil, then two
 // landmarks of our own design: a great domed cathedral left of center and a tiered church
 // steeple right of center whose bell swings and rings out at dusk. Everything stands on
 // horizonY; the base cloud bank in front hides the feet as rolling fog.
-// Layout is in u from the screen center, y up from the horizon.
+// Layout is in u from the screen center, y up from the horizon. Their colors follow the
+// story's light (tone.ts): dusk lavender with lit windows, as on the street, until the loop's
+// morning fades them to daylight grey-blue with the windows dark.
 
 // ---------------------------------------------------------------- back row
 
@@ -59,7 +62,7 @@ const { ROOFLINE, POTS, BACK_WINDOWS, BACK_SMOKE } = (() => {
   return { ROOFLINE: line, POTS: pots, BACK_WINDOWS: wins, BACK_SMOKE: smoke };
 })();
 
-function backRow(ctx: Ctx, s: Scene, cx: number, hy: number): void {
+function backRow(ctx: Ctx, s: Scene, tone: Tone, cx: number, hy: number): void {
   const u = s.u;
   ctx.beginPath();
   ctx.moveTo(cx + ROOFLINE[0]! * u, hy + 1);
@@ -70,14 +73,14 @@ function backRow(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   const pw = u * 0.0045;
   const ph = u * 0.009;
   for (let i = 0; i + 1 < POTS.length; i += 2) ctx.rect(cx + POTS[i]! * u - pw / 2, hy - POTS[i + 1]! * u - ph, pw, ph + 1);
-  ctx.fillStyle = FAR_BACK;
+  ctx.fillStyle = tone.farBack;
   ctx.fill();
 
   // Snow along the roofs: a thin light line on every slope and flat.
   ctx.beginPath();
   ctx.moveTo(cx + ROOFLINE[2]! * u, hy - ROOFLINE[3]! * u);
   for (let i = 4; i + 1 < ROOFLINE.length - 2; i += 2) ctx.lineTo(cx + ROOFLINE[i]! * u, hy - ROOFLINE[i + 1]! * u);
-  ctx.strokeStyle = FAR_BACK_SNOW;
+  ctx.strokeStyle = tone.farBackSnow;
   ctx.lineWidth = Math.max(1, u * 0.003);
   ctx.lineJoin = "round";
   ctx.stroke();
@@ -89,7 +92,7 @@ function backRow(ctx: Ctx, s: Scene, cx: number, hy: number): void {
     if (Math.sin(s.t * 0.3 + i * 1.7) < -0.7) continue;
     ctx.rect(cx + BACK_WINDOWS[i]! * u - ww / 2, hy - BACK_WINDOWS[i + 1]! * u - ww * 0.6, ww, ww * 1.2);
   }
-  ctx.fillStyle = alpha(FAR_LIGHT, 0.7);
+  ctx.fillStyle = tone.farWindow;
   ctx.fill();
 
   // Thin smoke rising from some of the stacks.
@@ -153,7 +156,7 @@ const DOME_X = -0.15;
 const DOME_RIBS = [-0.6, -0.25, 0.25, 0.6] as const;
 
 /** The cathedral: a long body, a colonnaded drum, a ribbed dome, a lantern, ball and cross. */
-function dome(ctx: Ctx, s: Scene, cx: number, hy: number): void {
+function dome(ctx: Ctx, s: Scene, tone: Tone, cx: number, hy: number): void {
   const u = s.u;
   const x = cx + DOME_X * u;
   ox = x;
@@ -187,7 +190,7 @@ function dome(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   circle(ctx, x, Y(0.238), u * 0.0045);
   ctx.rect(X(-0.0018), Y(0.262), 0.0036 * u, 0.022 * u);
   ctx.rect(X(-0.008), Y(0.253), 0.016 * u, 0.0034 * u);
-  ctx.fillStyle = FAR;
+  ctx.fillStyle = tone.far;
   ctx.fill();
 
   // Snow: on the dome's crown, the ledges and the body's roof.
@@ -196,7 +199,7 @@ function dome(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   ctx.rect(X(-0.061), Y(0.124), 0.122 * u, 0.0045 * u);
   ctx.rect(X(-0.053), Y(0.14), 0.106 * u, 0.0045 * u);
   ctx.rect(X(-0.077), Y(0.09), 0.154 * u, 0.004 * u);
-  ctx.fillStyle = FAR_SNOW;
+  ctx.fillStyle = tone.farSnow;
   ctx.fill();
 
   // Lit slits between the columns, and the dome's ribs.
@@ -204,14 +207,14 @@ function dome(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   for (let i = 0; i < 7; i++) ctx.rect(X(-0.047 + i * 0.0155), Y(0.116), u * 0.0055, u * 0.02);
   for (let i = 0; i < 3; i++) ctx.rect(X(-0.088 + i * 0.012), Y(0.058), u * 0.006, u * 0.016);
   for (let i = 0; i < 3; i++) ctx.rect(X(0.064 + i * 0.012), Y(0.058), u * 0.006, u * 0.016);
-  ctx.fillStyle = FAR_LIGHT;
+  ctx.fillStyle = tone.farLight;
   ctx.fill();
   ctx.beginPath();
   for (const k of DOME_RIBS) {
     ctx.moveTo(X(k * 0.05), Y(0.14));
     ctx.quadraticCurveTo(X(k * 0.045), Y(0.185), x, Y(0.198));
   }
-  ctx.strokeStyle = FAR_SNOW;
+  ctx.strokeStyle = tone.farSnow;
   ctx.globalAlpha = 0.45;
   ctx.lineWidth = Math.max(1, u * 0.0028);
   ctx.stroke();
@@ -233,7 +236,7 @@ function bellSwing(t: number): void {
 }
 
 /** A tiered steeple: tower with a clock, an open belfry with a swinging bell, tiers, spire. */
-function steeple(ctx: Ctx, s: Scene, cx: number, hy: number): void {
+function steeple(ctx: Ctx, s: Scene, tone: Tone, cx: number, hy: number): void {
   const u = s.u;
   const x = cx + STEEPLE_X * u;
   ox = x;
@@ -254,7 +257,7 @@ function steeple(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   ctx.lineTo(X(0.008), Y(0.234));
   ctx.closePath();
   circle(ctx, x, Y(0.318), u * 0.004);
-  ctx.fillStyle = FAR;
+  ctx.fillStyle = tone.far;
   ctx.fill();
 
   // Inside the belfry: warm lamplight with the bell swinging in it.
@@ -263,7 +266,7 @@ function steeple(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   const openH = 0.038 * u;
   ctx.beginPath();
   ctx.rect(openX, openY, 0.024 * u, openH);
-  ctx.fillStyle = FAR_LIGHT;
+  ctx.fillStyle = tone.farLight;
   ctx.fill();
   bellSwing(s.t);
   const { on, angle } = BELL;
@@ -279,7 +282,7 @@ function steeple(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   ctx.quadraticCurveTo(0, -b * 0.15, -b * 0.55, b * 0.3);
   ctx.closePath();
   circle(ctx, 0, b * 2.2, b * 0.3);
-  ctx.fillStyle = FAR;
+  ctx.fillStyle = tone.far;
   ctx.fill();
   ctx.restore();
 
@@ -289,14 +292,14 @@ function steeple(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   circle(ctx, x, cy, u * 0.012);
   ctx.rect(X(-0.005), Y(0.085), u * 0.01, u * 0.024);
   ctx.rect(X(-0.005), Y(0.045), u * 0.01, u * 0.024);
-  ctx.fillStyle = FAR_LIGHT;
+  ctx.fillStyle = tone.farLight;
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(x, cy);
   ctx.lineTo(x, cy - u * 0.009);
   ctx.moveTo(x, cy);
   ctx.lineTo(x + u * 0.006, cy + u * 0.002);
-  ctx.strokeStyle = FAR;
+  ctx.strokeStyle = tone.far;
   ctx.lineWidth = Math.max(1, u * 0.0025);
   ctx.lineCap = "round";
   ctx.stroke();
@@ -307,7 +310,7 @@ function steeple(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   ctx.rect(X(-0.025), Y(0.2), 0.05 * u, 0.0045 * u);
   ctx.rect(X(-0.018), Y(0.22), 0.036 * u, 0.004 * u);
   ctx.rect(X(-0.013), Y(0.236), 0.026 * u, 0.004 * u);
-  ctx.fillStyle = FAR_SNOW;
+  ctx.fillStyle = tone.farSnow;
   ctx.fill();
 
   // While it swings, rings of sound spread from the belfry and fade.
@@ -339,10 +342,11 @@ export function far(ctx: Ctx, s: Scene): void {
   const hy = s.horizonY;
   const cx = s.cssW / 2;
   if (hy - s.u * 0.4 <= s.cssH) {
-    backRow(ctx, s, cx, hy);
+    const tone = toneOf(s);
+    backRow(ctx, s, tone, cx, hy);
     veil(ctx, s, hy);
-    dome(ctx, s, cx, hy);
-    steeple(ctx, s, cx, hy);
+    dome(ctx, s, tone, cx, hy);
+    steeple(ctx, s, tone, cx, hy);
   }
   pigeonFlock(ctx, s);
 }

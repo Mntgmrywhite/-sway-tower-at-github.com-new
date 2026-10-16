@@ -6,11 +6,12 @@ import { thanksgiving } from "../thanksgiving";
 import type { CartoonSkin, Scene } from "../skin";
 import { litter, PROPS } from "./ground";
 import { inkW } from "./pen";
+import { sceneAt, ZOOMED } from "./test-scene";
 
-// The backyard props at the start view, on a tall and a short phone, at a few animation
-// times: each prop is rendered alone, and none touches a screen edge or the brick band in
-// front, none stands in the tower's column above its floor line, no two props overlap, and no
-// prop covers the leaves lying on the lawn.
+// The backyard props at the start view, on a tall and a short phone and in Hard's zoomed-out
+// view, at a few animation times: each prop is rendered alone, and none touches a screen edge
+// or the brick band in front, none stands in the tower's column above its floor line, no two
+// props overlap, and no prop covers the leaves lying on the lawn.
 
 const SIZES = [
   [390, 844],
@@ -40,9 +41,15 @@ function mask(W: number, H: number, draw: (ctx: CanvasRenderingContext2D) => voi
   return out;
 }
 
+/** The start view on each phone, and zoomed out (a virtual screen 1/0.6 the tall phone's size at its u). */
+const CASES = [
+  ...SIZES.flatMap(([W, H]) => TIMES.map((t) => [W, H, t, "phone"] as const)),
+  ...TIMES.map((t) => [ZOOMED.W, ZOOMED.H, t, "zoomed out"] as const),
+];
+
 describe("thanksgiving layout", () => {
-  it.each(SIZES.flatMap(([W, H]) => TIMES.map((t) => [W, H, t] as const)))("%ix%i at t+%s: props stay clear", (W, H, t) => {
-    const s = startScene(W, H, t);
+  it.each(CASES)("%ix%i at t+%s (%s): props stay clear", (W, H, t, view) => {
+    const s = view === "phone" ? startScene(W, H, t) : sceneAt(W, H, 0, t, ZOOMED.u);
     const masks = PROPS.map((p) => mask(W, H, (ctx) => p.draw(ctx, s)));
     const leaves = mask(W, H, (ctx) => litter(ctx, s, inkW(s)));
     const x0 = Math.ceil(s.baseX - s.u * 0.05);

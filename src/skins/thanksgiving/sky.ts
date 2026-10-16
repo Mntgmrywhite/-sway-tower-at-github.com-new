@@ -3,15 +3,18 @@ import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
 import { INK, PALETTE } from "./colors";
 import { addLeaf, LEAF_BACKS, LEAF_COLORS } from "./leaves";
+import { level, LOOP_START, loopTone, moonDown, skyFloor, sunUp, type Tone } from "./story";
 
 // The afternoon sky over the hollow: a low comic-strip sun resting on the clouds at the right
 // (it sets as you climb, and a pale moon rises at the left into the dusk), leaves blowing in
-// and tumbling down, and now and then a faded V of geese heading south.
+// and tumbling down, and now and then a faded V of geese heading south. Past the first pass the
+// day comes round again (story.ts): the sky is repainted in the loop's light, the moon goes down
+// and comes back up the left lane, and the sun the right one.
 
 /** Bright sky things stay out of the top-center HUD zone: below this, or outside 0.2..0.8 of the width. */
-const HUD_BAND = 0.32;
-const HUD_RIGHT = 0.8;
-const HUD_LEFT = 0.2;
+export const HUD_BAND = 0.32;
+export const HUD_RIGHT = 0.8;
+export const HUD_LEFT = 0.2;
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const smooth = (x: number) => x * x * (3 - 2 * x);
@@ -22,19 +25,79 @@ const SUN_SHADE = "#ffc76a";
 const SUN_HALO = alpha("#fff3c4", 0.35);
 const RAYS = alpha("#fff0b8", 0.75);
 const RAY_N = 12;
+/** In the loop, the sun's day spot: this far down the screen, below the slider's run (and below the HUD band). */
+const SUN_DAY = 0.5;
+/**
+ * In the loop, the low ends of the sun's and the moon's lanes, this far down the screen: high in
+ * the sky there is no horizon to go down behind, so a body fades in at the low end of its lane as
+ * it starts up and fades out there as it comes back down, instead of being cut off by the screen's
+ * bottom edge. Short lanes keep the bodies about as slow as the scenery drifting past.
+ */
+const SUN_LOW = 0.8;
+const MOON_LOW = 0.5;
+/** The whole body stays at least this far (in u) above the bottom edge, whatever the screen's shape. */
+const LANE_ROOM = 0.02;
+/** A body is fully shown once it is this far up its lane (0 at the low end, 1 at the top). */
+const LANE_FADE = 0.35;
+
+/** Where a sky body is this frame: center, radius, how far its light reaches, its opacity, and whether it shows. */
+export interface Body {
+  x: number;
+  y: number;
+  r: number;
+  reach: number;
+  alpha: number;
+  on: boolean;
+}
+
+const SUN_AT: Body = { x: 0, y: 0, r: 0, reach: 0, alpha: 1, on: false };
+const MOON_AT: Body = { x: 0, y: 0, r: 0, reach: 0, alpha: 1, on: false };
+
+/** In the loop: the screen y of the low end of a body's lane (`low` down the screen, the whole body on it). */
+function laneLow(s: Scene, low: number, reach: number): number {
+  return Math.min(s.cssH * low, s.cssH - reach - s.u * LANE_ROOM);
+}
+
+/** How opaque a body is `up` of the way up its lane (0 at the low end). */
+function laneAlpha(up: number): number {
+  return smooth(clamp01(up / LANE_FADE));
+}
 
 /**
  * The sun sits low at the right, just outside the HUD's columns, resting on the cloud pile.
  * It sinks a little faster than the horizon as the camera climbs, so it sets behind the clouds.
+ * In the loop it fades in low in the same lane at dawn and comes up to its day spot,
+ * and at dusk goes back down and fades out. (Reused object: read it before the next call.)
  */
-export function sun(ctx: Ctx, s: Scene): void {
-  const r = s.u * 0.072;
-  const x = Math.max(s.cssW * HUD_RIGHT + r, s.cssW - r * 1.64);
+export function sunSpot(s: Scene): Body {
+  const b = SUN_AT;
+  b.r = s.u * 0.072;
+  b.x = Math.max(s.cssW * HUD_RIGHT + b.r, s.cssW - b.r * 1.64);
   // Where its rays reach into the HUD's columns (short screens), keep it below the HUD band.
-  const reach = r * 1.56;
-  let y = s.horizonY - s.u * 0.4 + s.rise * 0.2;
-  if (x - reach < s.cssW * HUD_RIGHT) y = Math.max(y, s.cssH * HUD_BAND + reach);
-  if (y - r * 1.6 > s.cssH) return;
+  b.reach = b.r * 1.56;
+  const inHud = b.x - b.reach < s.cssW * HUD_RIGHT;
+  const lvl = level(s);
+  if (lvl < LOOP_START) {
+    b.y = s.horizonY - s.u * 0.4 + s.rise * 0.2;
+    if (inHud) b.y = Math.max(b.y, s.cssH * HUD_BAND + b.reach);
+    b.alpha = 1;
+    b.on = b.y - b.r * 1.6 <= s.cssH;
+    return b;
+  }
+  const up = sunUp(lvl);
+  let day = s.cssH * SUN_DAY;
+  if (inHud) day = Math.max(day, s.cssH * HUD_BAND + b.reach);
+  const low = laneLow(s, SUN_LOW, b.reach);
+  b.y = low + (day - low) * up;
+  b.alpha = laneAlpha(up);
+  b.on = up > 0;
+  return b;
+}
+
+export function sun(ctx: Ctx, s: Scene): void {
+  const { x, y, r, reach, alpha, on } = sunSpot(s);
+  if (!on) return;
+  ctx.globalAlpha = alpha;
 
   // A soft flat halo, then short rays turning slowly: a comic-strip sun.
   ctx.fillStyle = SUN_HALO;
@@ -68,6 +131,7 @@ export function sun(ctx: Ctx, s: Scene): void {
   ctx.beginPath();
   oval(ctx, x - r * 0.34, y - r * 0.36, r * 0.32, r * 0.2, -0.6);
   ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 const MOON = "#fff3d2";
@@ -76,16 +140,37 @@ const MOON_HALO = alpha("#fff0c0", 0.13);
 
 /**
  * A pale moon rises at the left as the camera climbs into the dusk, always left of the HUD
- * columns. Hidden behind the clouds at the start.
+ * columns. Hidden behind the clouds at the start. In the loop it goes down the same lane at dawn,
+ * fading out at the low end of it, and at dusk fades in there and comes back up. (Reused object:
+ * read it before the next call.)
  */
-export function moon(ctx: Ctx, s: Scene): void {
-  const r = s.u * 0.05;
-  const x = Math.min(s.cssW * HUD_LEFT - r * 1.5, s.u * 0.1);
-  const up = smooth(clamp01(s.rise / (s.u * 2.2)));
-  const low = s.horizonY - s.u * 0.12;
+export function moonSpot(s: Scene): Body {
+  const b = MOON_AT;
+  b.r = s.u * 0.05;
+  b.reach = b.r * 1.22;
+  b.x = Math.min(s.cssW * HUD_LEFT - b.r * 1.5, s.u * 0.1);
   const high = s.cssH * 0.14;
-  const y = low + (high - low) * up;
-  if (y - r * 1.5 > s.cssH || up <= 0) return;
+  const lvl = level(s);
+  if (lvl < LOOP_START) {
+    const up = smooth(clamp01(s.rise / (s.u * 2.2)));
+    const low = s.horizonY - s.u * 0.12;
+    b.y = low + (high - low) * up;
+    b.alpha = 1;
+    b.on = b.y - b.r * 1.5 <= s.cssH && up > 0;
+    return b;
+  }
+  const up = 1 - moonDown(lvl);
+  const low = laneLow(s, MOON_LOW, b.reach);
+  b.y = low + (high - low) * up;
+  b.alpha = laneAlpha(up);
+  b.on = up > 0;
+  return b;
+}
+
+export function moon(ctx: Ctx, s: Scene): void {
+  const { x, y, r, alpha, on } = moonSpot(s);
+  if (!on) return;
+  ctx.globalAlpha = alpha;
   ctx.fillStyle = MOON_HALO;
   ctx.beginPath();
   circle(ctx, x, y, r * 1.22);
@@ -100,6 +185,61 @@ export function moon(ctx: Ctx, s: Scene): void {
   circle(ctx, x + r * 0.28, y + r * 0.3, r * 0.17);
   circle(ctx, x + r * 0.32, y - r * 0.36, r * 0.1);
   ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * The base sky's stars (src/base/world.ts), generated the same way, so the loop's sky can redraw
+ * them exactly where they were.
+ */
+const STARS = Array.from({ length: 60 }, (_, i) => ({
+  x: hash(i),
+  y: hash(i + 100) * 0.8,
+  r: 0.8 + hash(i + 200) * 1.2,
+  sparkle: hash(i + 300) > 0.85,
+}));
+/** A star fades over this much of the screen height as the line it shows above passes it. */
+const STAR_FADE = 0.05;
+
+/**
+ * In the loop, the sky in the loop's light: the base sky's gradient (top, 60%, the horizon or
+ * SKY_DEPTH screens down) and its twinkling stars, shown above the tone's star line. At the
+ * loop's night this is exactly the base sky it paints over.
+ */
+function loopSky(ctx: Ctx, s: Scene, tone: Tone): void {
+  const g = ctx.createLinearGradient(0, 0, 0, Math.max(1, skyFloor(s)));
+  g.addColorStop(0, tone.sky[0]);
+  g.addColorStop(0.6, tone.sky[1]);
+  g.addColorStop(1, tone.sky[2]);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s.cssW, s.cssH);
+
+  ctx.fillStyle = PALETTE.star;
+  const lowest = s.horizonY - s.u * 0.05;
+  for (let i = 0; i < STARS.length; i++) {
+    const st = STARS[i]!;
+    const y = st.y * s.cssH;
+    const shown = clamp01((tone.stars - st.y) / STAR_FADE);
+    if (y > lowest || shown <= 0) continue;
+    ctx.globalAlpha = (0.55 + 0.35 * Math.sin(s.t * 1.5 + i)) * shown;
+    const x = st.x * s.cssW;
+    if (st.sparkle) {
+      const r = st.r * 2.2;
+      ctx.fillRect(x - 0.6, y - r, 1.2, r * 2);
+      ctx.fillRect(x - r, y - 0.6, r * 2, 1.2);
+    } else {
+      ctx.fillRect(x, y, st.r, st.r);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** The skin's celestial layer: in the loop, its sky first; then the moon and the sun. */
+export function celestial(ctx: Ctx, s: Scene): void {
+  const tone = loopTone(s);
+  if (tone) loopSky(ctx, s, tone);
+  moon(ctx, s);
+  sun(ctx, s);
 }
 
 // Leaves blown in from the side edges below the title, curling inward on the wind as they
@@ -134,6 +274,8 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
   const count = LEAVES_LOW + Math.round((DRIFT.length - LEAVES_LOW) * altitude01(s));
   const top = s.cssH * 0.19;
   const band = s.cssH * HUD_BAND;
+  // Down to the horizon (held to a fixed depth in the loop, so the leaves keep their pace).
+  const floor = skyFloor(s);
   for (let i = 0; i < DRIFT.length; i++) {
     const d = DRIFT[i]!;
     const n = LEAF_NOW[i]!;
@@ -143,8 +285,8 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
     const k = p - Math.floor(p);
     n.size = d.size * s.u;
     // Fall through the open sky: from below the title to just past the horizon.
-    n.y = top + k * (Math.max(s.horizonY, top) + n.size * 2 - top);
-    if (n.y - n.size > s.horizonY) continue;
+    n.y = top + k * (Math.max(floor, top) + n.size * 2 - top);
+    if (n.y - n.size > floor) continue;
     // Hug the edge beside the HUD, then sweep inward across the sky below it.
     const fx =
       d.x0 + 0.1 * Math.min(1, (n.y - top) / (band - top)) + d.drift * Math.max(0, (n.y - band) / (s.cssH * 0.5));

@@ -20,6 +20,7 @@ import {
   SKY_BOTTOM,
   SKY_MID,
   SKY_TOP,
+  STAR,
   TEAL,
 } from "./christmas/colors";
 import { far } from "./christmas/far";
@@ -49,6 +50,9 @@ import type { CartoonSkin } from "./skin";
 // and the poulterer's with its prize goose, candlelit windows and wreaths, gas lamps, the
 // lamplighter at work, carolers singing by lantern light, pigeons on the snowy cobbles and a
 // carriage trotting by. A snowy kerb in front.
+// Climbing, the street falls away into the night; past that the story loops forever
+// (christmas/tone.ts): the night lifts into a clear, golden Christmas morning, a bright winter
+// day, a rosy dusk like the street's, and night again.
 
 export const christmas: CartoonSkin = {
   id: "christmas",
@@ -60,7 +64,7 @@ export const christmas: CartoonSkin = {
     skyTop: SKY_TOP,
     skyMid: SKY_MID,
     skyBottom: SKY_BOTTOM,
-    star: "#fff6e6",
+    star: STAR,
     moon: "#fff6df",
     cloudShadow: FOG_SHADE,
     cloudBase: FOG,

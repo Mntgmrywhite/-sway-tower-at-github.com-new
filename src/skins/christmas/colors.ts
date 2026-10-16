@@ -27,6 +27,8 @@ export const WHITE = "#ffffff";
 export const SKY_TOP = "#3b4799";
 export const SKY_MID = "#8a7ccc";
 export const SKY_BOTTOM = "#f5b7a6";
+/** Small stars in the sky (palette.star). */
+export const STAR = "#fff6e6";
 
 /** The fog bank (the base cloud bank): lavender shade, misty body, rosy-white caps. */
 export const FOG_SHADE = "#ab9dcb";
