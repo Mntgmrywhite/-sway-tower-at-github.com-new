@@ -50,6 +50,11 @@ export interface InstrumentOptions {
   match?: RegExp;
   /** Leave out files whose name matches (takes that can't be played in tune). */
   exclude?: RegExp;
+  /**
+   * Cut the room tone before each note (default true). Sound effects whose quiet lead-in is
+   * part of the sound (distant thunder rolling in, a crowd fading up) turn it off.
+   */
+  trim?: boolean;
   /** Fallback note for unpitched one-shots (drums), e.g. "C4". */
   fixedNote?: string;
   /**
@@ -209,11 +214,11 @@ function rms(audio: Audio, seconds: number): number {
   return Math.sqrt(sum / (2 * Math.max(1, n)));
 }
 
-/** Decode a FLAC through afconvert into a cached WAV. */
+/** Decode a FLAC, MP3 or AIFF through afconvert into a cached WAV. */
 function wavPath(file: string): string {
-  if (!/\.flac$/i.test(file)) return file;
+  if (!/\.(flac|mp3|aiff?)$/i.test(file)) return file;
   mkdirSync(CACHE, { recursive: true });
-  const out = join(CACHE, basename(file).replace(/\.flac$/i, "") + "-" + Buffer.from(file).toString("base64url").slice(-16) + ".wav");
+  const out = join(CACHE, basename(file).replace(/\.(flac|mp3|aiff?)$/i, "") + "-" + Buffer.from(file).toString("base64url").slice(-16) + ".wav");
   if (!existsSync(out)) execFileSync("afconvert", ["-f", "WAVE", "-d", "LEI16", file, out]);
   return out;
 }
@@ -224,9 +229,9 @@ export class Instrument {
   private rrCounter = new Map<number, number>();
 
   constructor(opts: InstrumentOptions) {
-    this.opts = { attack: 0.004, release: 0.25, oneShot: false, gain: 1, transpose: 0, cents: 0, autotune: false, harmonic: false, stretched: false, strictTuning: false, even: false, ...opts };
+    this.opts = { attack: 0.004, release: 0.25, oneShot: false, gain: 1, transpose: 0, cents: 0, autotune: false, harmonic: false, stretched: false, strictTuning: false, even: false, trim: true, ...opts };
     const dir = opts.dir.startsWith("/") ? opts.dir : join(SAMPLES, opts.dir);
-    const files = readdirSync(dir).filter((f) => /\.(wav|flac)$/i.test(f) && (!opts.match || opts.match.test(f)) && !opts.exclude?.test(f));
+    const files = readdirSync(dir).filter((f) => /\.(wav|flac|mp3|aiff?)$/i.test(f) && (!opts.match || opts.match.test(f)) && !opts.exclude?.test(f));
     for (const f of files.sort()) {
       const parsed = parseName(f);
       if (opts.fixedNote) parsed.note = midi(opts.fixedNote);
@@ -235,7 +240,8 @@ export class Instrument {
         if (i >= 0) parsed.layer = i + 1;
       }
       if (Number.isNaN(parsed.note)) continue;
-      const audio = trimLead(readWav(wavPath(join(dir, f))));
+      const raw = readWav(wavPath(join(dir, f)));
+      const audio = this.opts.trim ? trimLead(raw) : raw;
       if (!audio) {
         console.warn(`${dir}/${f}: skipped (silent, or more than ${MAX_LEAD} s before the note starts)`);
         continue;

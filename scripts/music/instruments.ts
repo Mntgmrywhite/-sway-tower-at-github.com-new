@@ -21,6 +21,7 @@ const OCT = 12;
 const VCSL = "VCSL";
 const VSCO = "VSCO-2-CE";
 const FP = "freepats";
+const BSB = "bigsoundbank";
 
 export const INSTRUMENTS = {
   // Keys
@@ -72,6 +73,16 @@ export const INSTRUMENTS = {
   sopranoSaxShort: { dir: `${VCSL}/Aerophones/Reed Aerophones/Saxello/Staccato`, oneShot: true, gain: 0.7, transpose: OCT, even: true, autotune: "heard", harmonic: true, strictTuning: true },
   harmonica: { dir: `${VCSL}/Aerophones/Free Aerophones/Harmonica-Hohner-Special20-C/Sustains/Normal`, attack: 0.02, release: 0.15, transpose: OCT, autotune: "heard", harmonic: true },
 
+  // Folk: a plucked psaltery stands in for the hammered dulcimer (Thanksgiving's old-time
+  // country); a button accordion and a soprano recorder (as the tin whistle) for the Irish
+  // session of St. Patrick's Day.
+  psaltery: { dir: `${VCSL}/Chordophones/Zithers/Psaltery, Bowed and Plucked/Pluck`, oneShot: true, transpose: OCT, autotune: "heard", stretched: true },
+  // Its files are named an octave above the pitch they sound (the set's own SFZ maps B3.flac
+  // to B2) and run 7-38 cents sharp; autotune takes out the cents.
+  accordion: { dir: `${FP}/Button Accordion HN SFZ+FLAC-20240329`, attack: 0.02, release: 0.15, gain: 0.8, transpose: -12, autotune: "heard", harmonic: true },
+  whistle: { dir: `${VCSL}/Aerophones/Edge-blown Aerophones/Baroque Soprano Recorder/Sustain`, attack: 0.02, release: 0.12, gain: 0.8, transpose: OCT, autotune: "heard", harmonic: true },
+  whistleShort: { dir: `${VCSL}/Aerophones/Edge-blown Aerophones/Baroque Soprano Recorder/Staccato`, oneShot: true, transpose: OCT, autotune: "heard", harmonic: true },
+
   // Mallets and bells
   glockenspiel: { dir: `${VCSL}/Idiophones/Struck Idiophones/Glockenspiel`, oneShot: true, gain: 0.7, transpose: OCT, autotune: true },
   vibraphone: { dir: `${VCSL}/Idiophones/Struck Idiophones/Vibraphone/Soft Mallets`, oneShot: true, transpose: OCT, autotune: "heard" },
@@ -108,6 +119,28 @@ export const INSTRUMENTS = {
   triangle: { dir: `${VCSL}/Idiophones/Struck Idiophones/Triangles`, match: /Triangle3_Hit_/, fixedNote: "C4", oneShot: true, gain: 0.5 },
   triangleMuted: { dir: `${VCSL}/Idiophones/Struck Idiophones/Triangles`, match: /Triangle3_HitFM_/i, fixedNote: "C4", oneShot: true, gain: 0.5 },
   timpani: { dir: `${VSCO}/Percussion/Timpani`, fixedNote: "C3", oneShot: true },
+
+  // Bodhran: the VCSL frame drum (large: open hit and muted; small: a higher tap).
+  bodhran: { dir: `${VCSL}/Membranophones/Struck Membranophones/Frame Drum`, match: /HDrumL_Hit_/, fixedNote: "D2", oneShot: true },
+  bodhranMuted: { dir: `${VCSL}/Membranophones/Struck Membranophones/Frame Drum`, match: /HDrumL_HitMuted_/, fixedNote: "D2", oneShot: true },
+  bodhranHigh: { dir: `${VCSL}/Membranophones/Struck Membranophones/Frame Drum`, match: /HDrumS_Hit_/, fixedNote: "A2", oneShot: true },
+
+  // Sound effects (BigSoundBank, CC0), played at their recorded pitch on C4. Long ones (the
+  // crowd, the clinking, thunder) ring through the loop: cap them with a track's `ring`.
+  // New Year's party:
+  crowd: { dir: BSB, match: /^3515-/, fixedNote: "C4", oneShot: true, trim: false },
+  cheer: { dir: BSB, match: /^023[67]-/, fixedNote: "C4", oneShot: true },
+  applause: { dir: BSB, match: /^2479-/, fixedNote: "C4", oneShot: true, trim: false },
+  applauseBig: { dir: BSB, match: /^0019-/, fixedNote: "C4", oneShot: true, trim: false },
+  clink: { dir: BSB, match: /^(1335|1337|2888)-/, fixedNote: "C4", oneShot: true },
+  clinking: { dir: BSB, match: /^0472-/, fixedNote: "C4", oneShot: true, trim: false },
+  cork: { dir: BSB, match: /^(0211|0648)-/, fixedNote: "C4", oneShot: true },
+  // Halloween:
+  creak: { dir: BSB, match: /^(3205|3207|0306)-/, fixedNote: "C4", oneShot: true },
+  thunder: { dir: BSB, match: /^(3114|3181)-/, fixedNote: "C4", oneShot: true, trim: false },
+  owl: { dir: BSB, match: /^(1763|0429)-/, fixedNote: "C4", oneShot: true },
+  cackle: { dir: BSB, match: /^0489-/, fixedNote: "C4", oneShot: true },
+  madLaugh: { dir: BSB, match: /^2103-/, fixedNote: "C4", oneShot: true },
 } satisfies Record<string, InstrumentOptions>;
 
 export type InstrumentName = keyof typeof INSTRUMENTS;
