@@ -94,7 +94,7 @@ Evoke each reference's setting, era, mood, palette and motifs — never copy cop
 - Real instruments, never synth-sounding: songs are rendered offline from CC0 recordings in `~/APP/samples` (`PROVENANCE.json` there lists every source). Only CC0/MIT audio ships: no CC BY, GPL or non-commercial samples (App Store).
 - One theme (`scripts/music/theme.ts`, a 6/8 waltz) with an arrangement per skin in `scripts/music/songs/<skin>.ts`; `npm run music -- <song>` renders `src/audio/music/<song>.mp4` + `manifest.json` (loop points). The theme must stay recognizable.
 - **The owner's favorite instruments: saxophone, French horn, euphonium, piano and drums.** Feature them wherever they fit a skin's world. There is no CC0 euphonium: use `euphonium()` from `song.ts` (trombone + tuba on the same notes, mellowed).
-- The owner hears tuning and harshness ("a little sharp"): every recording is tuned (`autotune`, per-instrument `cents`, or song-local corrections that say so), and bright leads get a `lowpass`. Check a mix with `npx tsx scripts/music/mix.ts <song>` (ranges, per-phrase levels) and `npm run music:check -- <song>` (peak, loudness, seam).
+- The owner hears tuning and harshness ("a little sharp"): every recording is tuned (`autotune`, or a per-instrument `cents`), and the sampler tunes each note as heard at the pitch and length it is played, so songs never correct pitch themselves; bright leads get a `lowpass`. Check a song with `npx tsx scripts/music/mix.ts <song>` (ranges, per-phrase levels), `npx tsx scripts/music/tuning.ts <song>` (every note's pitch as heard; fails past ±5 cents on a favorite) and `npm run music:check -- <song>` (peak, loudness, seam).
 
 ## Build order
 
