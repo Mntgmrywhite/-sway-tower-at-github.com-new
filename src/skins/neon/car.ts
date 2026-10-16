@@ -1,219 +1,192 @@
-import { alpha, circle, mix, neonStroke, type Ctx } from "../../base/draw";
+import { alpha, circle, mix, oval, type Ctx } from "../../base/draw";
 import { fieldY, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
-import { CYAN, PINK, RED, SHADOW, TAU } from "./colors";
-import { rimTube } from "./tube";
+import { CYAN, PINK, RED, SHADOW, SHADOW_MID, VIOLET } from "./colors";
+import { hotTube, rimTube } from "./tube";
 
-// A chrome wedge sports car of our own design (no real marque): long low hood, raked glass,
-// a short cabin, a ducktail with a small wing. Side view, cruising left to right along the
-// grid in front of the tower, taillights glowing and leaving light trails. It loops: crosses,
-// then the road stays empty for a few seconds. Profile points are in car lengths, y up from
-// the ground line.
+// A chrome wedge coupe of our own design (no real marque), seen from behind as it cruises down
+// the right-hand lane of the grid toward the sun at the same speed as us: it holds its place
+// while the grid streams past underneath, weaving a touch in its lane. Low and wide: a chrome
+// rear panel mirroring the sunset, a full-width taillight bar split by a small chrome chevron,
+// a raked cabin with a dark rear window and a cyan glint, a ducktail wing on two struts, and
+// the taillights' glow on the floor. Drawn in its own frame (width 1, origin at the ground
+// under its middle), so its gradient is built once.
 
-/** Depth on the floor (in front of the tower's line) and length (u at the tower's depth). */
-const CAR_Z = 1.62;
-const CAR_LEN = 0.185;
-/** Loop: seconds per cycle, seconds spent crossing, and the phase at t = 0. */
-const PERIOD = 12;
-const CROSS = 7.5;
-const PHASE = 0.9;
+/** Depth on the floor (nearer than the tower's line), lane center (u from the screen center),
+ *  and width (u at the tower's depth). */
+export const CAR_Z = 1.75;
+export const CAR_X = 0.325;
+const CAR_W = 0.105;
 
-const WHEEL_R = 0.072;
-const REAR_WHEEL = 0.2;
-const FRONT_WHEEL = 0.79;
-const WHEELS = [REAR_WHEEL, FRONT_WHEEL] as const;
-
-/** Body outline, rear bumper round to the nose and back along the sills (wheel arches are arcs). */
-const BODY: readonly (readonly [number, number])[] = [
-  [0.012, 0.07],
-  [0.0, 0.115],
-  [0.004, 0.19],
-  [0.05, 0.205],
-  [0.3, 0.2],
-  [0.425, 0.278],
-  [0.56, 0.283],
-  [0.69, 0.2],
-  [0.94, 0.148],
-  [1.0, 0.112],
-  [0.995, 0.078],
-  [0.94, 0.058],
+/** Rear panel, as [x, y] in car widths (y up is negative), clockwise from the bumper's left. */
+const PANEL: readonly (readonly [number, number])[] = [
+  [-0.33, -0.08],
+  [0.33, -0.08],
+  [0.36, -0.15],
+  [0.5, -0.17],
+  [0.5, -0.33],
+  [0.46, -0.385],
+  [-0.46, -0.385],
+  [-0.5, -0.33],
+  [-0.5, -0.17],
+  [-0.36, -0.15],
 ];
-/** Glass: rear quarter and door window, split by the pillar. */
-const GLASS: readonly (readonly [number, number])[] = [
-  [0.33, 0.205],
-  [0.43, 0.27],
-  [0.555, 0.274],
-  [0.665, 0.205],
+/** Cabin (roof and pillars) and the rear window inside it. */
+const CABIN: readonly (readonly [number, number])[] = [
+  [-0.38, -0.39],
+  [0.38, -0.39],
+  [0.27, -0.585],
+  [0.24, -0.6],
+  [-0.24, -0.6],
+  [-0.27, -0.585],
+];
+const WINDOW: readonly (readonly [number, number])[] = [
+  [-0.31, -0.415],
+  [0.31, -0.415],
+  [0.225, -0.565],
+  [-0.225, -0.565],
 ];
 
 const CHROME = [
-  [0, "#2a1d63"],
-  [0.3, "#7f9cf0"],
-  [0.5, "#e6e0ff"],
-  [0.53, "#3a0f4c"],
-  [0.78, "#a2348c"],
+  [0, "#7f9cf0"],
+  [0.34, "#e6e0ff"],
+  [0.4, "#3a0f4c"],
+  [0.72, "#a2348c"],
   [1, "#ff86b8"],
 ] as const;
-const GLASS_FILL = "#120a2c";
-const WING = "#3a2f7a";
-const TRAIL = mix(RED, PINK, 0.35);
-const GLOW = alpha(TRAIL, 0.22);
-const PILLAR = mix(GLASS_FILL, "#ffffff", 0.25);
+const CABIN_FILL = "#2a1d63";
+const GLASS = "#120a2c";
 const GLINT = alpha(CYAN, 0.6);
-const STRIPE = alpha(CYAN, 0.75);
-const SPOKES = alpha(CYAN, 0.45);
+const WING = "#3a2f7a";
+const PLATE = "#1a0b2e";
+const PLATE_RIM = alpha(CYAN, 0.7);
+const TAIL = mix(RED, PINK, 0.25);
+const SHADE = "rgba(0, 0, 0, 0.55)";
+const FLOOR_GLOW = alpha(TAIL, 0.2);
+const EXHAUST = mix(SHADOW_MID, "#ff8a2a", 0.35);
+const TYRE = mix(SHADOW, VIOLET, 0.12);
+const TYRE_RIM = alpha(VIOLET, 0.45);
 
-/** Screen x of the car's rear bumper at time t, or null while the road is empty. */
-function carX(s: Scene, L: number): number | null {
-  const tt = s.t + PHASE;
-  const p = tt - Math.floor(tt / PERIOD) * PERIOD;
-  if (p > CROSS) return null;
-  const from = -L * 1.15;
-  const to = s.cssW + L * 0.15;
-  return from + ((to - from) * p) / CROSS;
-}
+/** The chrome gradient, in the car's own frame (built once per context). */
+const cache = { ctx: null as Ctx | null, chrome: null as CanvasGradient | null };
 
-// The car's frame for this draw: rear bumper x, ground y, length (module scratch, no closures).
-let ox = 0;
-let oy = 0;
-let ol = 1;
-const X = (f: number) => ox + f * ol;
-const Y = (f: number) => oy - f * ol;
+/** Scratch result of `carAt`. */
+const CAR = { x: 0, y: 0, w: 0 };
 
-export function drawCar(ctx: Ctx, s: Scene): void {
+/** Where the car is now: its middle on the ground (x, y) and its width (px). */
+export function carAt(s: Scene): typeof CAR {
   const u = s.u;
   const k = TOWER_DEPTH / CAR_Z;
-  const gy = fieldY(s, CAR_Z);
-  const L = CAR_LEN * u * k;
-  if (gy - L * 0.3 > s.cssH) return;
-  const x0 = carX(s, L);
-  if (x0 === null) return;
-  ox = x0;
-  oy = gy;
-  ol = L;
+  CAR.w = CAR_W * u * k;
+  CAR.x = s.cssW / 2 + CAR_X * u + Math.sin(s.t * 0.37) * u * 0.006 * k;
+  CAR.y = fieldY(s, CAR_Z) + Math.sin(s.t * 3.1) * CAR.w * 0.004;
+  return CAR;
+}
 
-  // Shadow on the grid, and the glow of the trails reflected under it.
-  ctx.beginPath();
-  ctx.ellipse(X(0.5), gy + L * 0.008, L * 0.55, L * 0.035, 0, 0, TAU);
-  ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(X(0.12), oy + L * 0.012, L * 0.22, L * 0.022, 0, 0, TAU);
-  ctx.fillStyle = GLOW;
-  ctx.fill();
+function poly(ctx: Ctx, pts: readonly (readonly [number, number])[]): void {
+  ctx.moveTo(pts[0]![0], pts[0]![1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]![0], pts[i]![1]);
+  ctx.closePath();
+}
 
-  // Light trails behind the taillight: fading streaks, plus their reflection on the floor.
-  const trail = L * 1.05;
-  ctx.lineCap = "round";
-  for (let j = 0; j < 6; j++) {
-    const a0 = j / 6;
-    const a1 = (j + 1) / 6;
-    const fade = (1 - a0) * (1 - a0);
-    ctx.beginPath();
-    ctx.moveTo(X(0) - trail * a0, Y(0.172));
-    ctx.lineTo(X(0) - trail * a1, Y(0.172));
-    ctx.moveTo(X(0) - trail * a0 * 0.8, Y(0.142));
-    ctx.lineTo(X(0) - trail * a1 * 0.8, Y(0.142));
-    ctx.strokeStyle = TRAIL;
-    ctx.globalAlpha = 0.55 * fade;
-    ctx.lineWidth = Math.max(1, L * 0.014);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(X(0.02) - trail * a0 * 0.7, gy + L * 0.03);
-    ctx.lineTo(X(0.02) - trail * a1 * 0.7, gy + L * 0.03);
-    ctx.globalAlpha = 0.22 * fade;
-    ctx.lineWidth = Math.max(1, L * 0.02);
-    ctx.stroke();
+export function drawCar(ctx: Ctx, s: Scene): void {
+  const { x, y, w } = carAt(s);
+  if (y - w * 0.65 > s.cssH) return;
+  if (cache.ctx !== ctx || !cache.chrome) {
+    const g = ctx.createLinearGradient(0, -0.385, 0, -0.08);
+    for (const [stop, c] of CHROME) g.addColorStop(stop, c);
+    cache.ctx = ctx;
+    cache.chrome = g;
   }
-  ctx.globalAlpha = 1;
+  const px = 1 / w; // one pixel, in car widths
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(w, w);
 
-  // Chrome body.
+  // Shadow on the grid, and the taillights' glow spilling onto it.
   ctx.beginPath();
-  ctx.moveTo(X(BODY[0]![0]), Y(BODY[0]![1]));
-  for (let i = 1; i < BODY.length; i++) ctx.lineTo(X(BODY[i]![0]), Y(BODY[i]![1]));
-  ctx.lineTo(X(FRONT_WHEEL + WHEEL_R * 1.35), Y(0.058));
-  ctx.arc(X(FRONT_WHEEL), Y(WHEEL_R), WHEEL_R * 1.3 * L, 0.05 * Math.PI, 0.95 * Math.PI, true);
-  ctx.lineTo(X(REAR_WHEEL + WHEEL_R * 1.35), Y(0.058));
-  ctx.arc(X(REAR_WHEEL), Y(WHEEL_R), WHEEL_R * 1.3 * L, 0.05 * Math.PI, 0.95 * Math.PI, true);
-  ctx.closePath();
-  const chrome = ctx.createLinearGradient(0, Y(0.285), 0, Y(0.06));
-  for (const [stop, c] of CHROME) chrome.addColorStop(stop, c);
-  ctx.fillStyle = chrome;
-  ctx.fill();
-  rimTube(ctx, PINK, Math.max(0.8, L * 0.008));
-
-  // Glass, with a pillar and a cyan glint.
-  ctx.beginPath();
-  ctx.moveTo(X(GLASS[0]![0]), Y(GLASS[0]![1]));
-  for (let i = 1; i < GLASS.length; i++) ctx.lineTo(X(GLASS[i]![0]), Y(GLASS[i]![1]));
-  ctx.closePath();
-  ctx.fillStyle = GLASS_FILL;
+  oval(ctx, 0, 0.005, 0.56, 0.05);
+  ctx.fillStyle = SHADE;
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(X(0.495), Y(0.272));
-  ctx.lineTo(X(0.5), Y(0.205));
-  ctx.strokeStyle = PILLAR;
-  ctx.lineWidth = Math.max(1, L * 0.012);
+  oval(ctx, 0, 0.035, 0.5, 0.045);
+  ctx.fillStyle = FLOOR_GLOW;
+  ctx.fill();
+
+  // Tyres: dark rubber with a faint violet sheen, so they read on the dark floor.
+  ctx.beginPath();
+  ctx.rect(-0.48, -0.17, 0.14, 0.17);
+  ctx.rect(0.34, -0.17, 0.14, 0.17);
+  ctx.fillStyle = TYRE;
+  ctx.fill();
+  ctx.strokeStyle = TYRE_RIM;
+  ctx.lineWidth = Math.max(0.8 * px, 0.008);
   ctx.stroke();
+
+  // Cabin, rear window and its glint.
   ctx.beginPath();
-  ctx.moveTo(X(0.58), Y(0.262));
-  ctx.lineTo(X(0.63), Y(0.215));
+  poly(ctx, CABIN);
+  ctx.fillStyle = CABIN_FILL;
+  ctx.fill();
+  ctx.beginPath();
+  poly(ctx, WINDOW);
+  ctx.fillStyle = GLASS;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-0.16, -0.548);
+  ctx.lineTo(0.02, -0.548);
   ctx.strokeStyle = GLINT;
-  ctx.lineWidth = Math.max(1, L * 0.008);
+  ctx.lineWidth = Math.max(px, 0.012);
+  ctx.lineCap = "round";
   ctx.stroke();
 
-  // Wing on the ducktail.
+  // Chrome rear panel with a neon edge.
   ctx.beginPath();
-  ctx.moveTo(X(-0.005), Y(0.238));
-  ctx.lineTo(X(0.1), Y(0.236));
-  ctx.lineTo(X(0.1), Y(0.226));
-  ctx.lineTo(X(0.0), Y(0.226));
+  poly(ctx, PANEL);
+  ctx.fillStyle = cache.chrome;
+  ctx.fill();
+  rimTube(ctx, PINK, Math.max(0.8 * px, 0.008));
+
+  // Ducktail wing on two struts, just over the deck.
+  ctx.beginPath();
+  ctx.rect(-0.27, -0.44, 0.03, 0.06);
+  ctx.rect(0.24, -0.44, 0.03, 0.06);
+  ctx.moveTo(-0.48, -0.455);
+  ctx.lineTo(0.48, -0.455);
+  ctx.lineTo(0.47, -0.43);
+  ctx.lineTo(-0.47, -0.43);
   ctx.closePath();
-  ctx.rect(X(0.05), Y(0.226), Math.max(1, L * 0.012), L * 0.024);
   ctx.fillStyle = WING;
   ctx.fill();
-  rimTube(ctx, PINK, Math.max(0.6, L * 0.005));
+  rimTube(ctx, PINK, Math.max(0.6 * px, 0.006));
 
-  // Side stripe.
+  // Plate and exhausts.
   ctx.beginPath();
-  ctx.moveTo(X(0.04), Y(0.135));
-  ctx.lineTo(X(0.12), Y(0.135));
-  ctx.moveTo(X(0.29), Y(0.135));
-  ctx.lineTo(X(0.7), Y(0.128));
-  ctx.strokeStyle = STRIPE;
-  ctx.lineWidth = Math.max(1, L * 0.01);
-  ctx.stroke();
-
-  // Wheels: dark tyres, neon rims, turning spokes.
-  const spin = (x0 / (WHEEL_R * L)) % TAU; // rolling right turns the wheels clockwise
-  ctx.beginPath();
-  circle(ctx, X(REAR_WHEEL), Y(WHEEL_R), WHEEL_R * L);
-  circle(ctx, X(FRONT_WHEEL), Y(WHEEL_R), WHEEL_R * L);
-  ctx.fillStyle = SHADOW;
+  ctx.rect(-0.1, -0.21, 0.2, 0.075);
+  ctx.fillStyle = PLATE;
   ctx.fill();
-  ctx.beginPath();
-  circle(ctx, X(REAR_WHEEL), Y(WHEEL_R), WHEEL_R * L * 0.62);
-  circle(ctx, X(FRONT_WHEEL), Y(WHEEL_R), WHEEL_R * L * 0.62);
-  rimTube(ctx, CYAN, Math.max(0.8, L * 0.008));
-  ctx.beginPath();
-  for (const w of WHEELS) {
-    for (let i = 0; i < 5; i++) {
-      const a = spin + (i * TAU) / 5;
-      ctx.moveTo(X(w), Y(WHEEL_R));
-      ctx.lineTo(X(w) + Math.cos(a) * WHEEL_R * L * 0.55, Y(WHEEL_R) + Math.sin(a) * WHEEL_R * L * 0.55);
-    }
-  }
-  ctx.strokeStyle = SPOKES;
-  ctx.lineWidth = Math.max(0.8, L * 0.006);
+  ctx.strokeStyle = PLATE_RIM;
+  ctx.lineWidth = Math.max(0.8 * px, 0.008);
   ctx.stroke();
+  ctx.beginPath();
+  circle(ctx, -0.3, -0.115, 0.024);
+  circle(ctx, 0.3, -0.115, 0.024);
+  ctx.fillStyle = EXHAUST;
+  ctx.fill();
 
-  // Taillight and headlight.
+  // The taillight bar, split by a small chrome chevron in the middle.
   ctx.beginPath();
-  ctx.moveTo(X(0.004), Y(0.172));
-  ctx.lineTo(X(0.05), Y(0.172));
-  neonStroke(ctx, RED, Math.max(1.2, L * 0.022), 2.6);
+  ctx.moveTo(-0.43, -0.29);
+  ctx.lineTo(-0.07, -0.29);
+  ctx.moveTo(0.07, -0.29);
+  ctx.lineTo(0.43, -0.29);
+  hotTube(ctx, TAIL, Math.max(1.2 * px, 0.032), 2.6, 0.6 * px);
   ctx.beginPath();
-  ctx.moveTo(X(0.955), Y(0.128));
-  ctx.lineTo(X(0.99), Y(0.118));
-  neonStroke(ctx, CYAN, Math.max(1, L * 0.014), 2.2);
+  ctx.moveTo(-0.04, -0.31);
+  ctx.lineTo(0, -0.27);
+  ctx.lineTo(0.04, -0.31);
+  ctx.strokeStyle = "#e6e0ff";
+  ctx.lineWidth = Math.max(px, 0.014);
+  ctx.stroke();
+  ctx.restore();
 }

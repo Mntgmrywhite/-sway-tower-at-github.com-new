@@ -1,17 +1,23 @@
-import { bolt, chevron, cross, diamond, hexagon, ring, square, star, triangle, wave } from "./glyphs";
+import { bolt, chevron, diamond, hexagon, ring, star, triangle, wave } from "./glyphs";
 import { city } from "./neon/city";
 import { CYAN, GOLD, PINK, SKY_BOTTOM, SKY_MID, SKY_TOP } from "./neon/colors";
 import { ground } from "./neon/ground";
-import { palm, sunset } from "./neon/icons";
-import { sky, sun } from "./neon/sky";
+import { palm, peaks, planet, sunset } from "./neon/icons";
+import { celestial, sky } from "./neon/sky";
 import type { NeonSkin } from "./skin";
 
-// Neon Synthwave: an 80s sunset drive. A violet dusk sky with a striped gold-to-pink sun,
-// puffy dusk clouds lit pink from below and shooting stars; wireframe mountains and a sunset
-// city skyline on the horizon; a cyan grid floor with a roadside arcade, palm silhouettes
-// framing the scene and a chrome wedge car (our own design) cruising past, taillights trailing
-// light. Props are dark silhouettes with thin neon rims so the glowing bars stay the brightest
-// thing on screen. Scenery lives in src/skins/neon/.
+// Neon Synthwave: an 80s sunset drive, and then up into the stars. At the start, the striped
+// gold-to-pink sun sits on the horizon behind wireframe mountains and a sunset city skyline,
+// the cyan grid streams toward you, two tall palms frame the scene, a roadside arcade glows
+// under one and a chrome wedge coupe (our own design) cruises down the lane under the other.
+// As you climb you rise past the palm crowns, the sun sinks into the horizon, sunset cloud
+// streaks and a line of neon flamingos drift by in the side lanes, and a bank of night cloud
+// rolls in over the grid. Then the violet hour: neon clouds with glowing bases, shooting stars
+// and a wireframe moon. High up the cloud bank swallows the skyline and a ringed planet,
+// striped like the sun that set, rises over a starry synth sky with neon constellations.
+// Props are dark silhouettes with thin neon rims so the glowing bars stay the brightest thing
+// on screen, and nothing lives in the tower's column. Scenery lives in src/skins/neon/; the
+// height story's colors are in neon/tone.ts.
 
 export const neon: NeonSkin = {
   id: "neon",
@@ -34,15 +40,15 @@ export const neon: NeonSkin = {
     { color: "#ff2fa8", icon: triangle },
     { color: "#22e3ff", icon: ring },
     { color: "#ffd84a", icon: bolt },
-    { color: "#9b5cff", icon: diamond },
+    { color: "#9b5cff", icon: peaks },
     { color: "#ff8a2a", icon: sunset },
     { color: "#2f7bff", icon: star },
-    { color: "#ff3b5c", icon: cross },
+    { color: "#ff3b5c", icon: planet },
     { color: "#4dfff0", icon: wave },
-    { color: "#e04bff", icon: hexagon },
+    { color: "#e04bff", icon: diamond },
     { color: "#3dffa8", icon: chevron },
     { color: "#ff7ad9", icon: palm },
-    { color: "#7a8bff", icon: square },
+    { color: "#7a8bff", icon: hexagon },
   ],
   hud: {
     display: "Monoton, Audiowide, 'Arial Black', sans-serif",
@@ -51,7 +57,7 @@ export const neon: NeonSkin = {
     accent: "#ffe24d",
     life: "#ff2fa8",
   },
-  celestial: sun,
+  celestial,
   sky,
   far: city,
   ground,

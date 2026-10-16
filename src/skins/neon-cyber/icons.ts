@@ -302,20 +302,27 @@ export const satellite: Icon = (ctx, cx, cy, s) => {
   ctx.fill();
 };
 
-const WIFI_RINGS = [0.3, 0.55, 0.8] as const;
+const SCALLOPS = 3;
 
-/** Wireless: three widening arcs over a dot. */
-export const wifi: Icon = (ctx, cx, cy, s) => {
+/** An umbrella, the street's signature: a domed canopy with a scalloped rim, a shaft and a hooked handle. */
+export const umbrella: Icon = (ctx, cx, cy, s) => {
   const lw = thicken(ctx);
-  const oy = cy + s * 0.36;
-  const a0 = -Math.PI * 0.76;
-  const a1 = -Math.PI * 0.24;
+  const r = s * 0.58;
+  const top = cy - s * 0.46;
+  const rim = cy - s * 0.02;
   ctx.beginPath();
-  for (const r of WIFI_RINGS) {
-    ctx.moveTo(cx + Math.cos(a0) * r * s, oy + Math.sin(a0) * r * s);
-    ctx.arc(cx, oy, r * s, a0, a1);
+  ctx.moveTo(cx - r, rim);
+  ctx.quadraticCurveTo(cx - r * 0.95, top, cx, top);
+  ctx.quadraticCurveTo(cx + r * 0.95, top, cx + r, rim);
+  for (let i = SCALLOPS; i > 0; i--) {
+    const x0 = cx - r + (i / SCALLOPS) * r * 2;
+    const x1 = cx - r + ((i - 1) / SCALLOPS) * r * 2;
+    ctx.quadraticCurveTo((x0 + x1) / 2, rim - s * 0.13, x1, rim);
   }
-  dot(ctx, cx, oy, s * 0.11, ctx.lineWidth);
+  ctx.closePath();
+  ctx.moveTo(cx, rim);
+  ctx.lineTo(cx, cy + s * 0.36);
+  ctx.arc(cx - s * 0.11, cy + s * 0.36, s * 0.11, 0, Math.PI);
   ctx.stroke();
   ctx.lineWidth = lw;
 };

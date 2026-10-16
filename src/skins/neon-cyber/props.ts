@@ -1,13 +1,14 @@
 import { circle, mix, oval, type Ctx } from "../../base/draw";
 import { tint, tube, whiten } from "./tube";
 import type { Scene } from "../skin";
-import { AMBER, BLUE, CYAN, MAGENTA, NEAR, NEAR_EDGE, NEAR_FACE, PURPLE, RED, STEAM, STEAM_LIT } from "./colors";
+import { AMBER, CYAN, MAGENTA, NEAR, NEAR_EDGE, NEAR_FACE, PURPLE, RED, STEAM, STEAM_LIT } from "./colors";
 import { hoverCar } from "./car";
 import { boardSign, flickerOff } from "./signs";
 
 // Street props, each drawn standing at (x, y) on the floor at perspective size U (= u * k):
 // a street lamp throwing a cone of light into the rain, a pair of vending machines, a noodle
-// stall with lanterns and a glyph board, a pedestrian under a glowing umbrella and a steam vent.
+// stall with lanterns, a glyph board and a steaming flue, a pedestrian under a glowing
+// umbrella, a parked hover car and puddles.
 // Dark silhouettes with a dim edge, lit by a few neon tubes. Local coordinates are in U, with
 // the origin at the prop's foot.
 
@@ -328,28 +329,6 @@ export function steam(ctx: Ctx, t: number, x: number, y: number, rise: number, a
   ctx.globalAlpha = 1;
 }
 
-/** A street grate venting steam. */
-export function steamVent(ctx: Ctx, t: number, x: number, y: number, U: number): void {
-  ctx.beginPath();
-  oval(ctx, x, y, U * 0.05, U * 0.012);
-  ctx.fillStyle = "#020205";
-  ctx.fill();
-  ctx.beginPath();
-  for (let i = -2; i <= 2; i++) {
-    ctx.moveTo(x + i * U * 0.016, y - U * 0.009);
-    ctx.lineTo(x + i * U * 0.016, y + U * 0.009);
-  }
-  ctx.strokeStyle = tint(BLUE, 0.35);
-  ctx.lineWidth = Math.max(1, U * 0.003);
-  ctx.stroke();
-  // A warm glow under the grate
-  ctx.beginPath();
-  oval(ctx, x, y, U * 0.035, U * 0.007);
-  ctx.fillStyle = tint(MAGENTA, 0.25);
-  ctx.fill();
-  steam(ctx, t, x, y, U * 0.12, 0.2, 1.8, 2);
-}
-
 /** A hover car parked low over the wet floor, its underglow pooling under it. */
 export function parkedCar(ctx: Ctx, s: Scene, x: number, y: number, U: number): void {
   const L = U * 0.18;
@@ -360,7 +339,7 @@ export function parkedCar(ctx: Ctx, s: Scene, x: number, y: number, U: number): 
   ctx.globalAlpha = 0.16 + 0.04 * Math.sin(s.t * 1.6);
   ctx.fill();
   ctx.globalAlpha = 1;
-  hoverCar(ctx, x, y - L * 0.2 + bob, L, -1, MAGENTA, false);
+  hoverCar(ctx, x, y - L * 0.2 + bob, L, -1, MAGENTA);
 }
 
 /** A puddle: a dark pool whose far rim catches the skyline's glow. */

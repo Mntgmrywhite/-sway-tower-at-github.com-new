@@ -23,10 +23,8 @@ export interface Palm {
   phase: number;
 }
 
-/** Rim colors: the tall palms, and a softer one for the young palm. Both a step below the
- *  bars' neon so the tower stays the brightest thing on screen. */
+/** Rim color: a step below the bars' neon so the tower stays the brightest thing on screen. */
 export const RIM = mix(PINK, SKY_BOTTOM, 0.18);
-export const SOFT_RIM = mix(PINK, SKY_BOTTOM, 0.4);
 
 /** Faint trunk-ring color per rim color, built once. */
 const RINGS = new Map<string, string>();

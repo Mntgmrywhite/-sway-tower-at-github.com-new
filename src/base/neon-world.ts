@@ -130,6 +130,9 @@ function horizonGlow(ctx: Ctx, s: Scene, color: string): void {
 }
 
 /** Perspective neon grid from the horizon to the bottom of the screen, scrolling toward you. */
+/** Closest the floor's vertical grid lines may get at the screen's bottom edge, px. */
+const MIN_LINE_GAP = 3;
+
 function floor(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   const hy = s.horizonY;
   if (hy >= s.cssH) return;
@@ -160,7 +163,10 @@ function floor(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   }
   const yBottom = s.cssH;
   const zBottom = H / Math.max(1, yBottom - hy);
-  const xStep = (cell * ZT) / zBottom; // spacing of vertical lines at the bottom edge
+  // Spacing of vertical lines at the bottom edge. High in the climb the floor is a sliver at
+  // the bottom of the screen and this spacing shrinks toward zero: thousands of lines (frames
+  // of several seconds). Lines closer than this can't be told apart anyway.
+  const xStep = Math.max(MIN_LINE_GAP, (cell * ZT) / zBottom);
   const count = Math.ceil(s.cssW / 2 / xStep) + 2;
   for (let j = -count; j <= count; j++) {
     ctx.moveTo(vx, hy);

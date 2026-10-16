@@ -32,9 +32,8 @@ export const RED = "#ff3355";
 /** The first bar's color: the tower's base is always this bar, so its wet reflection is too. */
 export const BASE_BAR = MAGENTA;
 
-// Silhouettes, back to front: smog-lit haze, mid towers, the street canyon.
+// Silhouettes, back to front: the smog-lit far skyline, the megacity's towers, the street.
 export const HAZE = "#1f1a3a";
-export const HAZE_WIN = "#5a5c9c";
 export const SLAB = "#0f0d1c";
 export const SLAB_EDGE = "#2a2350";
 export const NEAR = "#09080f";
@@ -52,6 +51,11 @@ export const WINDOW_COLORS = [WIN_COOL, WIN_PURPLE, WIN_CYAN, WIN_WARM] as const
 export const RAIN = "#a9b8ff";
 export const STEAM = "#9a93b8";
 export const STEAM_LIT = mix(STEAM, MAGENTA, 0.18);
+
+// Roof gardens: leaves lit by the grow lights.
+export const LEAF = "#1f8a6e";
+export const LEAF_DARK = "#0c3a34";
+export const GREEN_LIGHT = "#39ffb0";
 
 // Moon
 export const MOON = "#c8cfee";

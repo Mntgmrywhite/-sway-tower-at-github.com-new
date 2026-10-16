@@ -1,7 +1,8 @@
-import { alpha, circle, mix, neonStroke, roundRectPath, type Ctx } from "../../base/draw";
+import { alpha, circle, mix, oval, roundRectPath, type Ctx } from "../../base/draw";
 import { fieldY, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
 import { CYAN, GOLD, MAGENTA, ORANGE, PINK, SHADOW, SHADOW_MID, VIOLET } from "./colors";
+import { hotTube } from "./tube";
 
 // A roadside video arcade of our own design: a low flat-roofed block, a glass front glowing
 // magenta with cabinet silhouettes inside (their screens flicker), a lit doorway, and a rooftop
@@ -46,6 +47,9 @@ const BULBS: readonly (readonly [number, number])[] = [
   ...Array.from({ length: BULBS_Y }, (_, i) => [0, 1 - (i + 1) / (BULBS_Y + 1)] as const),
 ];
 
+/** The glass gradient, in a unit box (built once per context). */
+const glassCache = { ctx: null as Ctx | null, fill: null as CanvasGradient | null };
+
 /** The marquee font, rebuilt only when its size changes (font strings are slow to parse). */
 let fontSize = -1;
 let font = "";
@@ -64,7 +68,7 @@ export function drawArcade(ctx: Ctx, s: Scene, spot: ArcadeSpot): void {
 
   // Light spilling from the glass onto the grid in front.
   ctx.beginPath();
-  ctx.ellipse(cx, by + H * 0.04, W * 0.54, H * 0.13, 0, 0, Math.PI * 2);
+  oval(ctx, cx, by + H * 0.04, W * 0.54, H * 0.13);
   ctx.fillStyle = SPILL;
   ctx.fill();
 
@@ -80,11 +84,20 @@ export function drawArcade(ctx: Ctx, s: Scene, spot: ArcadeSpot): void {
   const gy = top + H * 0.3;
   const gw = W * 0.86;
   const gh = H * 0.62;
-  const glass = ctx.createLinearGradient(0, gy, 0, gy + gh);
-  glass.addColorStop(0, GLASS_TOP);
-  glass.addColorStop(1, GLASS_BOTTOM);
-  ctx.fillStyle = glass;
-  ctx.fillRect(gx, gy, gw, gh);
+  if (glassCache.ctx !== ctx || !glassCache.fill) {
+    const g = ctx.createLinearGradient(0, 0, 0, 1);
+    g.addColorStop(0, GLASS_TOP);
+    g.addColorStop(1, GLASS_BOTTOM);
+    glassCache.ctx = ctx;
+    glassCache.fill = g;
+  }
+  // The gradient is built in a unit box: draw the glass scaled into place.
+  ctx.save();
+  ctx.translate(gx, gy);
+  ctx.scale(gw, gh);
+  ctx.fillStyle = glassCache.fill;
+  ctx.fillRect(0, 0, 1, 1);
+  ctx.restore();
 
   // Doorway in the middle, lit cyan.
   const dw = W * 0.16;
@@ -124,7 +137,7 @@ export function drawArcade(ctx: Ctx, s: Scene, spot: ArcadeSpot): void {
   ctx.beginPath();
   ctx.moveTo(x0 - W * 0.03, top - H * 0.06);
   ctx.lineTo(x0 + W * 1.03, top - H * 0.06);
-  neonStroke(ctx, CYAN, tube, 2.2);
+  hotTube(ctx, CYAN, tube, 2.2);
   ctx.beginPath();
   ctx.rect(gx, gy, gw, gh);
   ctx.strokeStyle = FRAME;
@@ -142,7 +155,7 @@ export function drawArcade(ctx: Ctx, s: Scene, spot: ArcadeSpot): void {
   roundRectPath(ctx, sx, sy, sw, sh, sh * 0.18);
   ctx.fillStyle = SHADOW;
   ctx.fill();
-  neonStroke(ctx, ORANGE, tube * 0.9, 2.2);
+  hotTube(ctx, ORANGE, tube * 0.9, 2.2);
 
   // Chaser bulbs round the board: every third one lit, running.
   const step = Math.floor(s.t * 6);

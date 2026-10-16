@@ -18,17 +18,20 @@ export const SHADOW = "#0c0316";
 export const SHADOW_MID = "#140624";
 export const SHADOW_FAR = "#1d0a33";
 
-/** Sky gradient stops (top to horizon) and the band of sunset cloud. */
-export const SKY_TOP = "#080217";
+/**
+ * Sky gradient stops (top to horizon). The base deepens them toward night as you climb (see
+ * src/base/neon-world.ts): a sunset glow low down at the start, a violet sky by mid-climb and a
+ * near-black starry violet high up.
+ */
+export const SKY_TOP = "#070219";
 export const SKY_MID = "#2a0a46";
 export const SKY_BOTTOM = "#7a1468";
-export const CLOUD = "#4a1660";
-export const CLOUD_LIT = mix(HOT, ORANGE, 0.25);
-
-export const TAU = Math.PI * 2;
 
 /** Smooth 0..1..0 window over [a, b], easing in and out over `edge` at each end. */
 export function window01(x: number, a: number, b: number, edge: number): number {
   if (x <= a || x >= b) return 0;
   return Math.min(1, (x - a) / edge, (b - x) / edge);
 }
+
+/** Night-sky fills behind the moon and the planet's shadow side (hide the stars behind them). */
+export const NIGHT_DISC = mix(SKY_TOP, SKY_MID, 0.45);

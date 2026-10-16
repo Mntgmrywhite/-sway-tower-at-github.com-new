@@ -1,13 +1,16 @@
-import { alpha, hash, mix, neonStroke, type Ctx } from "../../base/draw";
+import { alpha, hash, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { CYAN, GOLD, MAGENTA, ORANGE, PINK, RED, SHADOW_FAR, SKY_BOTTOM, VIOLET } from "./colors";
-import { rimTube } from "./tube";
+import { CYAN, GOLD, ORANGE, PINK, RED, SHADOW_FAR, SKY_BOTTOM, VIOLET } from "./colors";
+import { deckCover } from "./deck";
+import { toneOf, type Tone } from "./tone";
+import { hotTube, rimTube } from "./tube";
 
 // The far layer: wireframe mountains, then a sunset city skyline standing on the horizon in
 // front of them. Two rows of dark violet towers (the back row hazier), a few rooftops trimmed
-// with a thin neon tube, sparse lit windows, a needle tower and a spire with blinking beacons.
-// The middle stays low so the striped sun reads over it. Geometry is in u from the screen
-// center, heights up from the horizon.
+// with a thin neon tube, lit windows, a needle tower and a spire with blinking beacons. The
+// middle stays low so the striped sun reads over it. As the sun sets more windows come on and
+// the range's rim cools toward cyan; deep in the night the cloud bank swallows it all, and then
+// it is not drawn. Geometry is in u from the screen center, heights up from the horizon.
 
 interface Tower {
   x: number;
@@ -62,6 +65,8 @@ interface Win {
   y: number;
   c: number;
   seed: number;
+  /** Lit once the evening lights reach this far (0..1). */
+  on: number;
 }
 
 function windows(list: Tower[], seed: number, lit: number): Win[] {
@@ -76,15 +81,17 @@ function windows(list: Tower[], seed: number, lit: number): Win[] {
       for (let k = 0; k < cols; k++) {
         const id = seed + bi * 97 + r * 13 + k;
         if (hash(id) > lit) continue;
-        out.push({ x: b.x + pad + k * 0.016 + 0.004, y: 0.014 + r * 0.02, c, seed: id });
+        out.push({ x: b.x + pad + k * 0.016 + 0.004, y: 0.014 + r * 0.02, c, seed: id, on: hash(id + 0.5) });
       }
     }
   }
   return out;
 }
 
-const FRONT_WINS = [0, 1, 2].map((c) => windows(FRONT, 1900, 0.28).filter((w) => w.c === c));
-const BACK_WINS = windows(BACK, 2300, 0.18);
+const FRONT_WINS = [0, 1, 2].map((c) => windows(FRONT, 1900, 0.4).filter((w) => w.c === c));
+const BACK_WINS = windows(BACK, 2300, 0.26);
+/** Share of the windows lit at sunset; the rest come on as night falls. */
+const DUSK_LIT = 0.5;
 
 function towers(ctx: Ctx, list: Tower[], cx: number, hy: number, u: number, x0: number, x1: number): void {
   for (const b of list) {
@@ -199,11 +206,9 @@ const RIDGE: readonly (readonly [number, number])[] = (() => {
 const ROWS = [0.68, 0.36] as const;
 
 const RIDGE_FILL = mix(SKY_BOTTOM, "#000000", 0.66);
-const RIDGE_RIM = mix(VIOLET, MAGENTA, 0.3);
-const MESH_COLOR = alpha(RIDGE_RIM, 0.36);
 
 /** Wireframe mountains: a dark low-poly range with a neon rim and a triangle mesh. */
-function ridge(ctx: Ctx, s: Scene): void {
+function ridge(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
   const cx = s.cssW / 2;
   const hy = s.horizonY;
@@ -239,23 +244,30 @@ function ridge(ctx: Ctx, s: Scene): void {
   }
   ctx.lineWidth = 1;
   ctx.lineJoin = "bevel";
-  ctx.strokeStyle = MESH_COLOR;
+  ctx.strokeStyle = tone.ridgeMesh;
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(cx + RIDGE[i0]![0] * u, hy - RIDGE[i0]![1] * u);
   for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(cx + RIDGE[i]![0] * u, hy - RIDGE[i]![1] * u);
-  rimTube(ctx, RIDGE_RIM, Math.max(1.1, u * 0.0032));
+  rimTube(ctx, tone.ridge, Math.max(1.1, u * 0.0032));
 }
+
+/** Tallest point of the far layer over the horizon (u): the highest peak and its rim. */
+const FAR_TOP = 0.31;
 
 export function city(ctx: Ctx, s: Scene): void {
   const hy = s.horizonY;
-  if (hy - s.u * 0.3 > s.cssH) return;
+  if (hy - s.u * FAR_TOP > s.cssH) return;
+  const tone = toneOf(s);
+  // Swallowed by the cloud bank: nothing shows.
+  if (deckCover(s, tone) < hy - s.u * FAR_TOP) return;
   const u = s.u;
   const cx = s.cssW / 2;
   const x0 = -u * 0.1;
   const x1 = s.cssW + u * 0.1;
+  const lit = DUSK_LIT + (1 - DUSK_LIT) * tone.lights;
 
-  ridge(ctx, s);
+  ridge(ctx, s, tone);
 
   // Back row: hazy violet.
   ctx.beginPath();
@@ -265,7 +277,7 @@ export function city(ctx: Ctx, s: Scene): void {
   ctx.beginPath();
   for (const w of BACK_WINS) {
     const x = cx + w.x * u;
-    if (x < x0 || x > x1 || Math.sin(s.t * 0.4 + w.seed) < -0.5) continue;
+    if (w.on > lit || x < x0 || x > x1 || Math.sin(s.t * 0.4 + w.seed) < -0.5) continue;
     ctx.rect(x, hy - (w.y + 0.01) * u, u * 0.007, u * 0.009);
   }
   ctx.fillStyle = BACK_WIN;
@@ -279,11 +291,12 @@ export function city(ctx: Ctx, s: Scene): void {
   ctx.fillStyle = FRONT_FILL;
   ctx.fill();
 
-  for (const [c, list] of FRONT_WINS.entries()) {
+  // An index loop: entries() would allocate an iterator and a pair per color every frame.
+  for (let c = 0; c < FRONT_WINS.length; c++) {
     ctx.beginPath();
-    for (const w of list) {
+    for (const w of FRONT_WINS[c]!) {
       const x = cx + w.x * u;
-      if (x < x0 || x > x1 || Math.sin(s.t * 0.3 + w.seed * 1.3) < -0.6) continue;
+      if (w.on > lit || x < x0 || x > x1 || Math.sin(s.t * 0.3 + w.seed * 1.3) < -0.6) continue;
       ctx.rect(x, hy - (w.y + 0.01) * u, u * 0.007, u * 0.009);
     }
     ctx.fillStyle = WIN_COLORS[c]!;
@@ -311,14 +324,14 @@ export function city(ctx: Ctx, s: Scene): void {
   ctx.beginPath();
   ctx.moveTo(nx - u * 0.03, hy - NEEDLE_H * u * 0.74);
   ctx.lineTo(nx + u * 0.03, hy - NEEDLE_H * u * 0.74);
-  neonStroke(ctx, CYAN, tube, 2.2);
+  hotTube(ctx, CYAN, tube, 2.2);
   const sx = cx + SPIRE_X * u;
   const sh = SPIRE_H * u;
   ctx.beginPath();
   ctx.moveTo(sx - u * 0.0108, hy - sh * 0.8);
   ctx.lineTo(sx, hy - sh);
   ctx.lineTo(sx + u * 0.0108, hy - sh * 0.8);
-  neonStroke(ctx, PINK, tube, 2.2);
+  hotTube(ctx, PINK, tube, 2.2);
 
   // Beacons blinking on the needle and the spire.
   const blink = 0.5 + 0.5 * Math.sin(s.t * 3);

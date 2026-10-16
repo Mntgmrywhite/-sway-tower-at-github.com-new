@@ -1,7 +1,9 @@
+import { circle, oval } from "../../base/draw";
 import type { Icon } from "../skin";
 
-// Two synthwave glyphs that join the shared geometric set (src/skins/glyphs.ts) on the bars:
-// a sun setting on the horizon and a palm. Few bold strokes, so they read on thin bars.
+// Synthwave glyphs that join the shared geometric set (src/skins/glyphs.ts) on the bars: a sun
+// setting on the horizon, a palm, a ringed planet and wireframe peaks. Few bold strokes, so
+// they read on thin bars.
 
 /** Ray directions for the sunset glyph: straight up, the diagonals, and low either side. */
 const RAYS = [-Math.PI / 2, (-Math.PI * 3) / 4, -Math.PI / 4, -Math.PI * 0.94, -Math.PI * 0.06] as const;
@@ -39,5 +41,28 @@ export const palm: Icon = (ctx, cx, cy, s) => {
   ctx.quadraticCurveTo(tx - s * 0.12, ty - s * 0.28, tx - s * 0.26, ty - s * 0.24);
   ctx.moveTo(tx, ty);
   ctx.quadraticCurveTo(tx + s * 0.12, ty - s * 0.3, tx + s * 0.27, ty - s * 0.25);
+  ctx.stroke();
+};
+
+/** A ringed planet: a disc with a tilted ring crossing in front of it. */
+export const planet: Icon = (ctx, cx, cy, s) => {
+  ctx.beginPath();
+  circle(ctx, cx, cy, s * 0.26);
+  oval(ctx, cx, cy, s * 0.5, s * 0.13, -0.35);
+  ctx.stroke();
+};
+
+/** Wireframe peaks: two mountains on a horizon line, with a ridge line down the big one. */
+export const peaks: Icon = (ctx, cx, cy, s) => {
+  const by = cy + s * 0.3;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.5, by);
+  ctx.lineTo(cx - s * 0.12, cy - s * 0.32);
+  ctx.lineTo(cx + s * 0.1, cy - s * 0.04);
+  ctx.lineTo(cx + s * 0.24, cy - s * 0.16);
+  ctx.lineTo(cx + s * 0.5, by);
+  ctx.closePath();
+  ctx.moveTo(cx - s * 0.12, cy - s * 0.32);
+  ctx.lineTo(cx - s * 0.04, by);
   ctx.stroke();
 };
