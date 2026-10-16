@@ -7,16 +7,35 @@ import { dancer, HEAD, type DancerLook } from "./dancer";
 
 const DJ: DancerLook = { move: 4, phase: 0.1, paint: PINK, stick: GREEN };
 
+/**
+ * A drip as its own subpath: a strip of width w hanging from (x, y) to `end`, rounded at the
+ * bottom. It winds the same way as `circle()`, so where it overlaps a splat the nonzero fill
+ * keeps both instead of cutting a hole.
+ */
+export function dripPath(ctx: Ctx, x: number, y: number, w: number, end: number): void {
+  ctx.moveTo(x + w / 2, y);
+  ctx.lineTo(x + w / 2, end);
+  ctx.arc(x, end, w / 2, 0, Math.PI);
+  ctx.lineTo(x - w / 2, y);
+  ctx.closePath();
+}
+
+/** A rounded rectangle as its own clockwise subpath (unlike roundRectPath, it keeps the path). */
+function roundRectSub(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
 /** A drip of paint running down from (x, y): grows over its cycle, then a drop falls. */
 function drip(ctx: Ctx, t: number, x: number, y: number, w: number, len: number, period: number, offset: number, maxY: number): void {
   const c = (((t + offset) % period) + period) % period / period;
   const run = len * (0.45 + 0.55 * Math.min(1, c * 1.4));
   const end = Math.min(maxY - w, y + run);
-  ctx.moveTo(x - w / 2, y);
-  ctx.lineTo(x - w / 2, end);
-  ctx.arc(x, end, w / 2, Math.PI, 0, true);
-  ctx.lineTo(x + w / 2, y);
-  ctx.closePath();
+  dripPath(ctx, x, y, w, end);
   if (c > 0.72) {
     // A drop falls from the tip.
     const fy = end + w + (c - 0.72) * len * 2.2;
@@ -24,17 +43,21 @@ function drip(ctx: Ctx, t: number, x: number, y: number, w: number, len: number,
   }
 }
 
-/** A paint splat (blob, lobes, flecks) as clockwise subpaths of the current path. */
-export function splatPath(ctx: Ctx, x: number, y: number, r: number, seed: number): void {
-  circle(ctx, x, y, r * 0.62);
+/**
+ * A paint splat (blob, lobes, flecks) as clockwise subpaths of the current path. `q` squashes
+ * it vertically (a splat lying on the floor), without a transform.
+ */
+export function splatPath(ctx: Ctx, x: number, y: number, r: number, seed: number, q = 1): void {
+  oval(ctx, x, y, r * 0.62, r * 0.62 * q);
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2 + seed * 1.7;
     const far = r * (0.55 + ((i * 37 + seed * 11) % 7) * 0.05);
-    circle(ctx, x + Math.cos(a) * far, y + Math.sin(a) * far, r * (0.18 + ((i * 13 + seed * 5) % 5) * 0.035));
+    const lr = r * (0.18 + ((i * 13 + seed * 5) % 5) * 0.035);
+    oval(ctx, x + Math.cos(a) * far, y + Math.sin(a) * far * q, lr, lr * q);
   }
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2 + seed * 2.3 + 0.5;
-    circle(ctx, x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.05, r * 0.09);
+    oval(ctx, x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.05 * q, r * 0.09, r * 0.09 * q);
   }
 }
 
@@ -156,20 +179,27 @@ export function speakerStack(ctx: Ctx, t: number, x: number, y: number, b: numbe
   const cy1 = y - h1 / 2;
   const cy2 = y - h1 - h2 / 2;
 
-  // Cabinets and the horn, one fill and one neon rim.
+  // Cabinets, one fill and one neon rim.
   ctx.beginPath();
   ctx.rect(x - w1 / 2, y - h1, w1, h1);
   ctx.rect(x2 - w2 / 2, y - h1 - h2, w2, h2);
-  ctx.rect(x2 + w2 * 0.26, y - h1 - h2 * 0.7, w2 * 0.16, h2 * 0.4);
   ctx.fillStyle = SIL;
   ctx.fill();
   neonStroke(ctx, RIM, Math.max(1, b * 0.0028), 2.2);
 
-  // Woofer baskets.
+  // Woofer baskets, and the horn beside the top woofer: a wide mouth framing a narrow throat.
+  const mx0 = x2 + w2 * 0.13;
+  const mx1 = x2 + w2 * 0.45;
+  const my0 = cy2 - h2 * 0.24;
+  const my1 = cy2 + h2 * 0.24;
+  const tx0 = x2 + w2 * 0.22;
+  const tx1 = x2 + w2 * 0.36;
   ctx.beginPath();
   circle(ctx, c0x, cy1, r1);
   circle(ctx, c1x, cy1, r1);
   circle(ctx, c2x, cy2, r2);
+  roundRectSub(ctx, mx0, my0, mx1 - mx0, my1 - my0, h2 * 0.1);
+  roundRectSub(ctx, tx0, cy2 - h2 * 0.1, tx1 - tx0, h2 * 0.2, h2 * 0.06);
   ctx.fillStyle = "#14082c";
   ctx.fill();
   ctx.strokeStyle = UV;
@@ -182,8 +212,8 @@ export function speakerStack(ctx: Ctx, t: number, x: number, y: number, b: numbe
   circle(ctx, c1x, cy1, r1 * k);
   circle(ctx, c2x, cy2, r2 * k);
   // The horn's throat glows too.
-  ctx.moveTo(x2 + w2 * 0.3, y - h1 - h2 * 0.5);
-  ctx.lineTo(x2 + w2 * 0.38, y - h1 - h2 * 0.5);
+  ctx.moveTo(tx0 + h2 * 0.08, cy2);
+  ctx.lineTo(tx1 - h2 * 0.08, cy2);
   glowLine(ctx, mix(CYAN, WHITE, p * 0.4), Math.max(1, b * (0.002 + p * 0.0015)), 2.6);
   ctx.beginPath();
   circle(ctx, c0x, cy1, r1 * 0.16);
@@ -196,8 +226,8 @@ export function speakerStack(ctx: Ctx, t: number, x: number, y: number, b: numbe
 
   // Paint thrown on the boxes, dripping down their faces (kept inside each face).
   ctx.beginPath();
-  splatPath(ctx, x2 + w2 * 0.3, y - h1 - h2 * 0.24, b * 0.0055, 3);
-  drip(ctx, t, x2 + w2 * 0.28, y - h1 - h2 * 0.2, b * 0.003, h2 * 0.3, 5, 0.7, y - h1);
+  splatPath(ctx, x2 - w2 * 0.37, y - h1 - h2 * 0.76, b * 0.0055, 3);
+  drip(ctx, t, x2 - w2 * 0.39, y - h1 - h2 * 0.72, b * 0.003, h2 * 0.5, 5, 0.7, y - h1);
   ctx.fillStyle = YELLOW;
   ctx.fill();
   ctx.beginPath();

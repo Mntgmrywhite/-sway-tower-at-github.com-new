@@ -346,7 +346,14 @@ function faceChecker(ctx: Ctx, s: Scene, m: Mesa, a: number, b: number, uk: numb
   const i1 = Math.ceil((x1 - cx) / c);
   const lit = Math.max(1, c * 0.14);
   const sh = Math.max(1, c * 0.12);
-  for (let pass = 0; pass < 3; pass++) {
+  // The lowest point of the face's top (largest y): seams stay under it.
+  let low = -Infinity;
+  for (let X = a; ; X += STEP) {
+    const x = Math.min(X, b);
+    low = Math.max(low, base - mesaTop(m, x) * uk);
+    if (x >= b) break;
+  }
+  for (let pass = 0; pass < 2; pass++) {
     ctx.beginPath();
     for (let i = i0; i < i1; i++) {
       const l = Math.max(x0, cx + i * c);
@@ -356,18 +363,19 @@ function faceChecker(ctx: Ctx, s: Scene, m: Mesa, a: number, b: number, uk: numb
       for (let row = 0; base - row * c > top; row++) {
         const yb = base - row * c;
         const yt = yb - c;
-        if (pass === 2) {
-          if (row > 0 && row % STRATUM === 0 && yb - sh > top) ctx.rect(l, yb - sh / 2, r - l, sh);
-          continue;
-        }
         if (((i + row) & 1) !== 0) continue;
         if (pass === 0) ctx.rect(l, Math.max(top, yt), r - l, yb - Math.max(top, yt));
         else if (yt >= top) ctx.rect(l, yt, r - l, lit);
       }
     }
-    ctx.fillStyle = pass === 0 ? MESA_EARTH.light : pass === 1 ? MESA_EARTH.lit : MESA_EARTH.seam;
+    ctx.fillStyle = pass === 0 ? MESA_EARTH.light : MESA_EARTH.lit;
     ctx.fill();
   }
+  // Stratum seams: one strip across the whole face, wherever every column reaches above it.
+  ctx.beginPath();
+  for (let row = STRATUM; base - row * c - sh > low; row += STRATUM) ctx.rect(x0, base - row * c - sh / 2, x1 - x0, sh);
+  ctx.fillStyle = MESA_EARTH.seam;
+  ctx.fill();
 }
 
 function mesa(ctx: Ctx, s: Scene, m: Mesa): void {

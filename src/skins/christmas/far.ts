@@ -149,6 +149,8 @@ function Y(v: number): number {
 // ---------------------------------------------------------------- the dome
 
 const DOME_X = -0.15;
+/** Where the dome's ribs meet the drum, as fractions of its half width. */
+const DOME_RIBS = [-0.6, -0.25, 0.25, 0.6] as const;
 
 /** The cathedral: a long body, a colonnaded drum, a ribbed dome, a lantern, ball and cross. */
 function dome(ctx: Ctx, s: Scene, cx: number, hy: number): void {
@@ -205,7 +207,7 @@ function dome(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   ctx.fillStyle = FAR_LIGHT;
   ctx.fill();
   ctx.beginPath();
-  for (const k of [-0.6, -0.25, 0.25, 0.6]) {
+  for (const k of DOME_RIBS) {
     ctx.moveTo(X(k * 0.05), Y(0.14));
     ctx.quadraticCurveTo(X(k * 0.045), Y(0.185), x, Y(0.198));
   }
@@ -222,11 +224,12 @@ const STEEPLE_X = 0.17;
 const BELL_PERIOD = 7; // seconds per peal cycle
 const BELL_RING = 3.2; // seconds of each cycle the bell swings
 
-/** 0..1 swing envelope of the bell, and its angle. */
-function bellSwing(t: number): { on: number; angle: number } {
+/** The bell's 0..1 swing envelope and its angle, refilled every frame (no allocations). */
+const BELL = { on: 0, angle: 0 };
+function bellSwing(t: number): void {
   const p = ((t % BELL_PERIOD) + BELL_PERIOD) % BELL_PERIOD;
-  const on = p < BELL_RING ? Math.sin((p / BELL_RING) * Math.PI) : 0;
-  return { on, angle: Math.sin(p * 5.2) * 0.55 * on };
+  BELL.on = p < BELL_RING ? Math.sin((p / BELL_RING) * Math.PI) : 0;
+  BELL.angle = Math.sin(p * 5.2) * 0.55 * BELL.on;
 }
 
 /** A tiered steeple: tower with a clock, an open belfry with a swinging bell, tiers, spire. */
@@ -262,7 +265,8 @@ function steeple(ctx: Ctx, s: Scene, cx: number, hy: number): void {
   ctx.rect(openX, openY, 0.024 * u, openH);
   ctx.fillStyle = FAR_LIGHT;
   ctx.fill();
-  const { on, angle } = bellSwing(s.t);
+  bellSwing(s.t);
+  const { on, angle } = BELL;
   ctx.save();
   ctx.translate(x, openY + u * 0.003);
   ctx.rotate(angle);

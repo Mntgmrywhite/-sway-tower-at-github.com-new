@@ -7,10 +7,12 @@ import { street } from "./neon-cyber/street";
 import { nearRain } from "./neon-cyber/weather";
 
 // Neon Cyberpunk: tech noir in neon blue, electric purple and magenta on charcoal. A rainy
-// megacity at night: a hazy moon behind drifting smog, air traffic gliding in lanes between
-// the towers, layered skyscrapers with lit window grids, vertical glyph signs and a flickering
-// holographic billboard, and down on the wet asphalt, shimmering reflections, splashes and
-// rain. The scenery stays dark and calm so the glowing bars are the brightest thing on screen.
+// megacity at night: a hazy moon veiled by smog, searchlights, air traffic, drones and an
+// airship gliding between and above the towers; layered skyscrapers with lit window grids,
+// vertical glyph signs (our own abstract marks) and a flickering holographic billboard; and
+// down on the wet asphalt, shimmering reflections, splashes, a figure under a glowing umbrella
+// beneath a street lamp, a noodle stall, a steam vent, a parked hover car and vending machines.
+// The scenery stays dark and calm so the glowing bars are the brightest thing on screen.
 
 export const neonCyber: NeonSkin = {
   id: "neon-cyber",

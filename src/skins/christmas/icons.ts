@@ -81,15 +81,26 @@ function leaf(ctx: Ctx, bx: number, by: number, tx: number, ty: number, w: numbe
 }
 
 export const holly: Icon = (ctx, cx, cy, s) => {
-  // Two solid spiky leaves fanning up, three berries tucked below them.
+  // A sprig as on a pudding: two broad spiky leaves spreading out and a little down, and a
+  // cluster of three berries sitting on top where they meet (leaves up and berries below
+  // read as a bat at bar size).
   ctx.beginPath();
-  leaf(ctx, cx - s * 0.04, cy + s * 0.02, cx - s * 0.54, cy - s * 0.3, s * 0.21);
-  leaf(ctx, cx + s * 0.04, cy + s * 0.02, cx + s * 0.54, cy - s * 0.3, s * 0.21);
-  circle(ctx, cx - s * 0.13, cy + s * 0.3, s * 0.115);
-  circle(ctx, cx + s * 0.13, cy + s * 0.3, s * 0.115);
-  circle(ctx, cx, cy + s * 0.14, s * 0.115);
+  leaf(ctx, cx - s * 0.02, cy + s * 0.1, cx - s * 0.6, cy + s * 0.24, s * 0.22);
+  leaf(ctx, cx + s * 0.02, cy + s * 0.1, cx + s * 0.6, cy + s * 0.24, s * 0.22);
+  berry(ctx, cx, cy - s * 0.24, s * 0.12);
+  berry(ctx, cx - s * 0.13, cy - s * 0.04, s * 0.12);
+  berry(ctx, cx + s * 0.13, cy - s * 0.04, s * 0.12);
   ctx.fill();
 };
+
+/**
+ * A berry as its own subpath, wound the same way as `leaf` (counterclockwise on screen), so
+ * where it overlaps a leaf the nonzero fill stays solid instead of punching a hole.
+ */
+function berry(ctx: Ctx, x: number, y: number, r: number): void {
+  ctx.moveTo(x + r, y);
+  ctx.arc(x, y, r, 0, Math.PI * 2, true);
+}
 
 export const wreath: Icon = (ctx, cx, cy, s) => {
   const y = cy - s * 0.1;
@@ -165,46 +176,59 @@ export const topHat: Icon = (ctx, cx, cy, s) => {
 };
 
 export const plumPudding: Icon = (ctx, cx, cy, s) => {
-  // A round pudding on its plate, sauce dripping over the top, a holly sprig on the crown.
+  // A round pudding on its plate: a solid dark body with the white sauce cap left open (its
+  // drips cut into the body), and a holly sprig on the crown. A solid body keeps it from
+  // reading as an empty cloche at bar size.
   ctx.beginPath();
-  ctx.moveTo(cx - s * 0.38, cy + s * 0.32);
-  ctx.bezierCurveTo(cx - s * 0.5, cy - s * 0.12, cx - s * 0.22, cy - s * 0.26, cx, cy - s * 0.26);
-  ctx.bezierCurveTo(cx + s * 0.22, cy - s * 0.26, cx + s * 0.5, cy - s * 0.12, cx + s * 0.38, cy + s * 0.32);
-  ctx.closePath();
-  ctx.moveTo(cx - s * 0.52, cy + s * 0.42);
-  ctx.lineTo(cx + s * 0.52, cy + s * 0.42);
+  puddingBody(ctx, cx, cy, s);
+  ctx.moveTo(cx - s * 0.56, cy + s * 0.43);
+  ctx.lineTo(cx + s * 0.56, cy + s * 0.43);
   ctx.stroke();
   ctx.beginPath();
-  // Sauce cap with three drips
-  ctx.moveTo(cx - s * 0.36, cy - s * 0.04);
-  ctx.bezierCurveTo(cx - s * 0.3, cy - s * 0.24, cx + s * 0.3, cy - s * 0.24, cx + s * 0.36, cy - s * 0.04);
-  ctx.quadraticCurveTo(cx + s * 0.3, cy + s * 0.14, cx + s * 0.22, cy + s * 0.0);
-  ctx.quadraticCurveTo(cx + s * 0.1, cy + s * 0.04, cx + s * 0.04, cy + s * 0.0);
-  ctx.quadraticCurveTo(cx - s * 0.04, cy + s * 0.16, cx - s * 0.12, cy + s * 0.0);
-  ctx.quadraticCurveTo(cx - s * 0.24, cy + s * 0.06, cx - s * 0.36, cy - s * 0.04);
+  puddingBody(ctx, cx, cy, s);
+  // Sauce cap with three drips, cut out of the body
+  ctx.moveTo(cx - s * 0.4, cy - s * 0.02);
+  ctx.bezierCurveTo(cx - s * 0.34, cy - s * 0.27, cx + s * 0.34, cy - s * 0.27, cx + s * 0.4, cy - s * 0.02);
+  ctx.quadraticCurveTo(cx + s * 0.32, cy + s * 0.16, cx + s * 0.22, cy + s * 0.02);
+  ctx.quadraticCurveTo(cx + s * 0.1, cy + s * 0.06, cx + s * 0.04, cy + s * 0.02);
+  ctx.quadraticCurveTo(cx - s * 0.04, cy + s * 0.2, cx - s * 0.12, cy + s * 0.02);
+  ctx.quadraticCurveTo(cx - s * 0.26, cy + s * 0.08, cx - s * 0.4, cy - s * 0.02);
   ctx.closePath();
-  // Holly: two leaves and a berry
-  oval(ctx, cx - s * 0.13, cy - s * 0.37, s * 0.14, s * 0.065, -0.35);
-  oval(ctx, cx + s * 0.13, cy - s * 0.37, s * 0.14, s * 0.065, 0.35);
-  circle(ctx, cx, cy - s * 0.31, s * 0.08);
   ctx.fill("evenodd");
+  // Holly: two leaves and a berry on the crown
+  ctx.beginPath();
+  oval(ctx, cx - s * 0.14, cy - s * 0.4, s * 0.15, s * 0.07, -0.35);
+  oval(ctx, cx + s * 0.14, cy - s * 0.4, s * 0.15, s * 0.07, 0.35);
+  circle(ctx, cx, cy - s * 0.36, s * 0.09);
+  ctx.fill();
 };
 
+/** The pudding's rounded body, sitting on a flat base, as its own subpath. */
+function puddingBody(ctx: Ctx, cx: number, cy: number, s: number): void {
+  ctx.moveTo(cx - s * 0.36, cy + s * 0.34);
+  ctx.bezierCurveTo(cx - s * 0.54, cy + s * 0.1, cx - s * 0.36, cy - s * 0.3, cx, cy - s * 0.3);
+  ctx.bezierCurveTo(cx + s * 0.36, cy - s * 0.3, cx + s * 0.54, cy + s * 0.1, cx + s * 0.36, cy + s * 0.34);
+  ctx.closePath();
+}
+
 export const lantern: Icon = (ctx, cx, cy, s) => {
-  // Hanging ring, glass box with a center bar, flame, then a solid cap and base.
+  // A coach lantern: hanging ring, a broad peaked roof, a wide glass box with corner posts and
+  // a big flame, and a stepped base. Kept wide so it never shrinks to a battery at bar size.
   ctx.beginPath();
-  ctx.arc(cx, cy - s * 0.4, s * 0.09, Math.PI, 0);
-  ctx.rect(cx - s * 0.2, cy - s * 0.26, s * 0.4, s * 0.52);
+  ctx.arc(cx, cy - s * 0.44, s * 0.1, Math.PI * 0.95, Math.PI * 2.05);
+  ctx.rect(cx - s * 0.25, cy - s * 0.2, s * 0.5, s * 0.44);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(cx - s * 0.3, cy - s * 0.24);
-  ctx.lineTo(cx, cy - s * 0.4);
-  ctx.lineTo(cx + s * 0.3, cy - s * 0.24);
+  ctx.moveTo(cx - s * 0.38, cy - s * 0.18);
+  ctx.lineTo(cx - s * 0.12, cy - s * 0.4);
+  ctx.lineTo(cx + s * 0.12, cy - s * 0.4);
+  ctx.lineTo(cx + s * 0.38, cy - s * 0.18);
   ctx.closePath();
-  ctx.rect(cx - s * 0.26, cy + s * 0.26, s * 0.52, s * 0.12);
-  ctx.moveTo(cx, cy - s * 0.14);
-  ctx.quadraticCurveTo(cx + s * 0.11, cy + s * 0.04, cx, cy + s * 0.12);
-  ctx.quadraticCurveTo(cx - s * 0.11, cy + s * 0.04, cx, cy - s * 0.14);
+  ctx.rect(cx - s * 0.33, cy + s * 0.22, s * 0.66, s * 0.1);
+  ctx.rect(cx - s * 0.2, cy + s * 0.3, s * 0.4, s * 0.12);
+  ctx.moveTo(cx, cy - s * 0.15);
+  ctx.quadraticCurveTo(cx + s * 0.16, cy + s * 0.06, cx, cy + s * 0.15);
+  ctx.quadraticCurveTo(cx - s * 0.16, cy + s * 0.06, cx, cy - s * 0.15);
   ctx.closePath();
   ctx.fill();
 };

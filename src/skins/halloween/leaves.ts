@@ -1,7 +1,7 @@
 import { hash, mix, outlined, type Ctx } from "../../base/draw";
 import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
-import { DIRT, INK, inkW, LEAVES, spot } from "./common";
+import { INK, inkW, LEAVES, spot } from "./common";
 
 // Autumn leaves: a few blowing across the scene on the wind, tumbling and flipping over;
 // more lying scattered on the grass; and heaped piles on the foreground lip at the screen
@@ -9,7 +9,7 @@ import { DIRT, INK, inkW, LEAVES, spot } from "./common";
 // stroke in a deep shade of the same color (an ink line would swallow leaves this small).
 
 const TAU = Math.PI * 2;
-const EDGES = LEAVES.map((c) => mix(c, INK, 0.55));
+const EDGES = LEAVES.map((c) => mix(c, INK, 0.38));
 const FALLEN_FILL = LEAVES.map((c) => mix(c, INK, 0.1));
 
 /** Scratch geometry of one leaf, so drawing it twice (fill, ink) allocates nothing. */
@@ -19,7 +19,7 @@ function leafPath(ctx: Ctx, rib: boolean): void {
   const ca = Math.cos(L.a);
   const sa = Math.sin(L.a);
   const h = L.len / 2;
-  const w = L.len * 0.36 * L.flip;
+  const w = L.len * 0.4 * L.flip;
   const tx = L.x + ca * h;
   const ty = L.y + sa * h;
   const bx = L.x - ca * h;
@@ -32,6 +32,15 @@ function leafPath(ctx: Ctx, rib: boolean): void {
     ctx.moveTo(tx, ty);
     ctx.lineTo(bx - ca * L.len * 0.18, by - sa * L.len * 0.18);
   }
+}
+
+/** Just the midrib of the leaf in L, as a straight line out through its stem. */
+function ribPath(ctx: Ctx): void {
+  const ca = Math.cos(L.a);
+  const sa = Math.sin(L.a);
+  const h = L.len / 2;
+  ctx.moveTo(L.x + ca * h * 0.8, L.y + sa * h * 0.8);
+  ctx.lineTo(L.x - ca * h * 1.08, L.y - sa * h * 1.08);
 }
 
 // ---------------------------------------------------------------- blowing
@@ -63,9 +72,11 @@ function blowSpot(s: Scene, i: number): void {
   L.flip = f < 0 ? Math.min(-0.3, f) : Math.max(0.3, f);
 }
 
-/** The leaves on the wind (behind the tower, over everything else). */
+/**
+ * The leaves on the wind (behind the tower, over everything else). Their band is fixed on
+ * screen, so a few keep gusting past the tower however high it climbs.
+ */
 export function blowing(ctx: Ctx, s: Scene): void {
-  if (s.groundY + s.u * 0.26 < s.cssH * 0.35) return;
   ctx.lineWidth = Math.max(0.8, s.u * 0.0026);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
@@ -126,10 +137,10 @@ export function fallen(ctx: Ctx, s: Scene): void {
 // ---------------------------------------------------------------- piles
 
 /** Leaf piles on the foreground lip, as fractions of the screen width from the left. */
-const PILES = [0.075, 0.925] as const;
-const PILE_LEAVES = 8;
-const PILE = mix(LEAVES[3], DIRT, 0.35);
-const PILE_EDGE = mix(LEAVES[3], INK, 0.55);
+const PILES = [0.087, 0.913] as const;
+const PILE_LEAVES = 7;
+const PILE = mix(LEAVES[3], INK, 0.12);
+const PILE_EDGE = mix(LEAVES[3], INK, 0.4);
 
 export function piles(ctx: Ctx, s: Scene): void {
   const u = s.u;
@@ -139,21 +150,18 @@ export function piles(ctx: Ctx, s: Scene): void {
   const w = Math.min(u * 0.085, s.cssW * 0.07);
   const h = u * 0.045;
   const base = lip + u * 0.014;
-  // The heap: a lumpy dome of russet leaves, inked as one silhouette.
+  // The heap: a soft dome of russet leaves, inked as one silhouette.
   ctx.beginPath();
   for (const f of PILES) {
     const x = f * s.cssW;
     ctx.moveTo(x - w, base);
-    for (let i = 0; i <= 6; i++) {
-      const a = Math.PI + (i / 6) * Math.PI;
-      const r = 1 + 0.12 * Math.sin(i * 2.3 + f * 9);
-      ctx.lineTo(x + Math.cos(a) * w, base + Math.sin(a) * h * r);
-    }
+    ctx.bezierCurveTo(x - w * 0.9, base - h * 0.9, x - w * 0.35, base - h * 1.15, x + w * 0.05, base - h);
+    ctx.bezierCurveTo(x + w * 0.5, base - h * 0.95, x + w * 0.95, base - h * 0.7, x + w, base);
     ctx.closePath();
   }
   outlined(ctx, PILE, lw, INK);
-  // Bright leaves heaped on top, the top few lifting and settling in the wind; then one
-  // russet edge around all of them.
+  // Bright leaves heaped on top, the top few lifting and settling in the wind, then their
+  // midribs (straight strokes are cheap; outlining every curved leaf is not).
   for (let c = 0; c < LEAVES.length; c++) {
     ctx.beginPath();
     for (let pi = 0; pi < PILES.length; pi++) {
@@ -169,12 +177,12 @@ export function piles(ctx: Ctx, s: Scene): void {
   for (let pi = 0; pi < PILES.length; pi++) {
     for (let i = 0; i < PILE_LEAVES; i++) {
       pileSpot(s, pi, i, base, w, h);
-      leafPath(ctx, true);
+      ribPath(ctx);
     }
   }
   ctx.strokeStyle = PILE_EDGE;
-  ctx.lineWidth = Math.max(0.8, u * 0.0028);
-  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(0.7, u * 0.0022);
+  ctx.lineCap = "round";
   ctx.stroke();
 }
 
@@ -182,10 +190,10 @@ function pileSpot(s: Scene, pi: number, i: number, base: number, w: number, h: n
   const x = PILES[pi]! * s.cssW;
   const f = (i + 0.5) / PILE_LEAVES;
   const across = (f - 0.5) * 1.5;
-  const lift = i % 4 === 1 ? Math.max(0, Math.sin(s.t * 1.3 + pi * 2 + i)) * h * 0.35 : 0;
-  L.x = x + across * w * 0.85;
-  L.y = base - h * (0.35 + 0.5 * (1 - across * across)) * (0.8 + hash(i + pi * 40 + 900) * 0.3) - lift;
-  L.len = s.u * (0.032 + hash(i + pi * 40 + 910) * 0.01);
-  L.a = (hash(i + pi * 40 + 920) - 0.5) * 2;
-  L.flip = 1;
+  const lift = i % 3 === 1 ? Math.max(0, Math.sin(s.t * 1.3 + pi * 2 + i)) * h * 0.3 : 0;
+  L.x = x + across * w * 0.8;
+  L.y = base - h * (0.45 + 0.5 * (1 - across * across)) * (0.85 + hash(i + pi * 40 + 900) * 0.25) - lift;
+  L.len = s.u * (0.038 + hash(i + pi * 40 + 910) * 0.01);
+  L.a = (hash(i + pi * 40 + 920) - 0.5) * 2.2;
+  L.flip = 1.15;
 }

@@ -1,4 +1,5 @@
-import { alpha, circle, mix, neonStroke, oval, type Ctx } from "../../base/draw";
+import { circle, oval, type Ctx } from "../../base/draw";
+import { tint, tube, whiten } from "./tube";
 import { RED } from "./colors";
 
 // Our own hover car: a low wedge with a bubble canopy, two hover jets and a neon underglow,
@@ -44,7 +45,7 @@ function headBeam(ctx: Ctx, x: number, y: number, L: number, dir: number): void 
   ctx.lineTo(x + 1.6 * L * dir, y - 0.16 * L);
   ctx.lineTo(x + 1.6 * L * dir, y + 0.2 * L);
   ctx.closePath();
-  ctx.fillStyle = alpha(HEAD, 0.07);
+  ctx.fillStyle = tint(HEAD, 0.07);
   ctx.fill();
 }
 
@@ -62,19 +63,19 @@ export function hoverCar(ctx: Ctx, x: number, y: number, L: number, dir: number,
 
   ctx.beginPath();
   shape(ctx, CANOPY, x, y, L, dir);
-  ctx.fillStyle = alpha(GLASS, 0.45);
+  ctx.fillStyle = tint(GLASS, 0.45);
   ctx.fill();
 
   // Underglow
   ctx.beginPath();
   ctx.moveTo(x - 0.36 * L, y + 0.15 * L);
   ctx.lineTo(x + 0.36 * L, y + 0.15 * L);
-  neonStroke(ctx, glow, Math.max(0.8, L * 0.035), 2.6);
+  tube(ctx, glow, Math.max(0.8, L * 0.035), 2.6);
   // Hover jets: a hot glow at each end of the belly
   ctx.beginPath();
   oval(ctx, x - 0.27 * L * dir, y + 0.15 * L, 0.08 * L, 0.025 * L);
   oval(ctx, x + 0.27 * L * dir, y + 0.15 * L, 0.08 * L, 0.025 * L);
-  ctx.fillStyle = mix(glow, "#ffffff", 0.5);
+  ctx.fillStyle = whiten(glow, 0.5);
   ctx.fill();
 
   ctx.beginPath();
@@ -111,7 +112,7 @@ export function hoverCarFleet(ctx: Ctx, cars: readonly CarSlot[], n: number, glo
     ctx.lineTo(c.x + 1.6 * c.L * c.dir, c.y + 0.2 * c.L);
     ctx.closePath();
   }
-  ctx.fillStyle = alpha(HEAD, 0.07);
+  ctx.fillStyle = tint(HEAD, 0.07);
   ctx.fill();
 
   ctx.beginPath();
@@ -124,7 +125,7 @@ export function hoverCarFleet(ctx: Ctx, cars: readonly CarSlot[], n: number, glo
 
   ctx.beginPath();
   for (let i = 0; i < n; i++) shape(ctx, CANOPY, cars[i]!.x, cars[i]!.y, cars[i]!.L, cars[i]!.dir);
-  ctx.fillStyle = alpha(GLASS, 0.45);
+  ctx.fillStyle = tint(GLASS, 0.45);
   ctx.fill();
 
   ctx.lineCap = "round";
@@ -141,7 +142,7 @@ export function hoverCarFleet(ctx: Ctx, cars: readonly CarSlot[], n: number, glo
       L = Math.max(L, c.L);
     }
     if (!any) continue;
-    ctx.strokeStyle = alpha(glows[g]!, 0.25);
+    ctx.strokeStyle = tint(glows[g]!, 0.25);
     ctx.lineWidth = Math.max(2, L * 0.09);
     ctx.stroke();
     ctx.strokeStyle = glows[g]!;

@@ -49,20 +49,10 @@ export function mound(ctx: Ctx, x: number, y: number, rx: number, ry: number, se
   ctx.fill();
   moundPath(ctx, x, y, rx, ry, seed);
   ink(ctx, lw, INK);
-
-  ctx.fillStyle = DIRT_DARK;
-  ctx.beginPath();
-  for (let i = 0; i < 3; i++) {
-    const px = x + (hash(seed * 7 + i) - 0.5) * rx * 1.3;
-    const py = y - ry * (0.12 + hash(seed * 11 + i) * 0.22);
-    oval(ctx, px, py, rx * 0.05, rx * 0.03);
-  }
-  ctx.fill();
 }
 
-/** A tuft of cartoon grass blades standing at (x, y), `size` tall. */
-export function tuft(ctx: Ctx, x: number, y: number, size: number, seed: number, lw: number): void {
-  ctx.beginPath();
+/** A tuft of cartoon grass blades standing at (x, y), `size` tall, as a closed subpath. */
+function tuftPath(ctx: Ctx, x: number, y: number, size: number, seed: number): void {
   ctx.moveTo(x - size * 0.5, y);
   for (let i = 0; i < 3; i++) {
     const bx = x + (i - 1) * size * 0.32;
@@ -74,6 +64,28 @@ export function tuft(ctx: Ctx, x: number, y: number, size: number, seed: number,
   }
   ctx.lineTo(x + size * 0.5, y);
   ctx.closePath();
+}
+
+/**
+ * Tufts are queued while the churchyard is drawn and all drawn together at the end by
+ * `drawTufts` (one fill, one ink pass). They sit at the feet of mounds, clear of other props.
+ */
+const QUEUE: number[] = [];
+let queued = 0;
+
+export function tuft(x: number, y: number, size: number, seed: number): void {
+  const i = queued++ * 4;
+  QUEUE[i] = x;
+  QUEUE[i + 1] = y;
+  QUEUE[i + 2] = size;
+  QUEUE[i + 3] = seed;
+}
+
+export function drawTufts(ctx: Ctx, lw: number): void {
+  if (queued === 0) return;
+  ctx.beginPath();
+  for (let i = 0; i < queued * 4; i += 4) tuftPath(ctx, QUEUE[i]!, QUEUE[i + 1]!, QUEUE[i + 2]!, QUEUE[i + 3]!);
+  queued = 0;
   ctx.fillStyle = GRASS;
   ctx.fill();
   ink(ctx, Math.max(0.8, lw * 0.45), INK);

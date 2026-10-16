@@ -56,55 +56,61 @@ function icon(stroke: (ctx: Ctx) => void, fill?: (ctx: Ctx) => void, rotation = 
 const PI = Math.PI;
 
 /**
- * Turkey in profile, facing right: a scalloped tail fan arching behind a solid round body,
- * a solid neck and head with a beak and wattle, two legs.
+ * Turkey seen from the front, the classic harvest badge: a solid scalloped tail fan spread
+ * behind it, a pear-shaped body and head standing in a thin gap cut out of the fan (so the two
+ * read apart even at bar size), and two legs.
  */
-const FAN_CX = -0.1;
-const FAN_CY = 0.08;
-const FAN_R = 0.42;
-const FAN_N = 4;
-const FAN_A0 = PI * 0.96;
-const FAN_A1 = PI * 1.74;
+const FAN_CY = 0.16;
+const FAN_R = 0.5;
+const FAN_N = 5;
+const FAN_GAP = 0.08;
+/** The body-and-head pear: head top, neck, belly bottom. Its widest point sits on the fan's foot,
+ * so the fan arcs well clear above the little head. */
+const PEAR_TOP = -0.13;
+const PEAR_W = 0.2;
+const NECK_X = 0.065;
+const NECK_Y = 0.065;
+const PEAR_BOTTOM = 0.42;
+
+/** Upper pear, grown by g: from its widest point on one side over the head to the other side,
+ * `side` 1 starting on the right (counter-clockwise), -1 on the left (clockwise). */
+function pearTop(ctx: Ctx, g: number, side: number): void {
+  const k = side;
+  M(ctx, k * (PEAR_W + g), FAN_CY);
+  B(ctx, k * (PEAR_W + g), 0.1, k * (0.12 + g), NECK_Y + 0.015, k * (NECK_X + g), NECK_Y);
+  B(ctx, k * (0.14 + g), 0.03, k * (0.15 + g), PEAR_TOP - g, 0, PEAR_TOP - g);
+  B(ctx, -k * (0.15 + g), PEAR_TOP - g, -k * (0.14 + g), 0.03, -k * (NECK_X + g), NECK_Y);
+  B(ctx, -k * (0.12 + g), NECK_Y + 0.015, -k * (PEAR_W + g), 0.1, -k * (PEAR_W + g), FAN_CY);
+}
+
 export const turkey = icon(
   (ctx) => {
-    const step = (FAN_A1 - FAN_A0) / FAN_N;
-    const r0 = FAN_R * 0.5;
-    M(ctx, FAN_CX + Math.cos(FAN_A0) * r0, FAN_CY + Math.sin(FAN_A0) * r0);
-    L(ctx, FAN_CX + Math.cos(FAN_A0) * FAN_R, FAN_CY + Math.sin(FAN_A0) * FAN_R);
-    for (let i = 0; i < FAN_N; i++) {
-      const am = FAN_A0 + step * (i + 0.5);
-      const a1 = FAN_A0 + step * (i + 1);
-      Q(ctx, FAN_CX + Math.cos(am) * FAN_R * 1.2, FAN_CY + Math.sin(am) * FAN_R * 1.2, FAN_CX + Math.cos(a1) * FAN_R, FAN_CY + Math.sin(a1) * FAN_R);
-    }
-    // Feather lines between the scallops
-    for (let i = 1; i < FAN_N; i++) {
-      const a = FAN_A0 + step * i;
-      M(ctx, FAN_CX + Math.cos(a) * r0, FAN_CY + Math.sin(a) * r0);
-      L(ctx, FAN_CX + Math.cos(a) * FAN_R, FAN_CY + Math.sin(a) * FAN_R);
-    }
-    // Short legs with a toe each
-    M(ctx, -0.02, 0.3);
-    L(ctx, -0.04, 0.46);
-    L(ctx, 0.04, 0.47);
-    M(ctx, 0.12, 0.3);
-    L(ctx, 0.12, 0.46);
-    L(ctx, 0.2, 0.47);
+    // Legs with a toe each
+    M(ctx, -0.08, 0.42);
+    L(ctx, -0.1, 0.5);
+    L(ctx, -0.18, 0.52);
+    M(ctx, 0.08, 0.42);
+    L(ctx, 0.1, 0.5);
+    L(ctx, 0.18, 0.52);
   },
   (ctx) => {
-    OVAL(ctx, 0.04, 0.14, 0.24, 0.18);
-    CIRCLE(ctx, 0.3, -0.2, 0.1);
-    // Neck
-    M(ctx, 0.1, 0.02);
-    L(ctx, 0.24, -0.2);
-    L(ctx, 0.36, -0.16);
-    L(ctx, 0.25, 0.08);
+    // The fan, clockwise: scallops over the top, closed along its foot.
+    const step = PI / FAN_N;
+    M(ctx, -FAN_R, FAN_CY);
+    for (let i = 0; i < FAN_N; i++) {
+      const am = PI + step * (i + 0.5);
+      const a1 = PI + step * (i + 1);
+      Q(ctx, Math.cos(am) * FAN_R * 1.24, FAN_CY + Math.sin(am) * FAN_R * 1.24, Math.cos(a1) * FAN_R, FAN_CY + Math.sin(a1) * FAN_R);
+    }
     ctx.closePath();
-    // Beak and wattle
-    M(ctx, 0.37, -0.25);
-    L(ctx, 0.5, -0.19);
-    L(ctx, 0.38, -0.14);
+    // Cut the gap out of the fan (wound the other way, and only above its foot)...
+    pearTop(ctx, FAN_GAP, 1);
     ctx.closePath();
-    OVAL(ctx, 0.36, -0.07, 0.045, 0.08);
+    // ...then the bird, clockwise: over the head, then round the belly.
+    pearTop(ctx, 0, -1);
+    B(ctx, PEAR_W, 0.32, 0.12, PEAR_BOTTOM, 0, PEAR_BOTTOM);
+    B(ctx, -0.12, PEAR_BOTTOM, -PEAR_W, 0.32, -PEAR_W, FAN_CY);
+    ctx.closePath();
   },
 );
 
@@ -291,22 +297,27 @@ export const acorn = icon(
 );
 
 /**
- * Cornucopia, tilted: the open mouth up and to the right, the horn tapering down to the left
- * and curling up into a hook at its tip, and two fruits spilling from the mouth.
+ * Cornucopia: a solid horn swelling from a curled tip on the left to its open mouth on the
+ * right, with grapes and an apple spilling out of the mouth.
  */
 export const cornucopia = icon(
   (ctx) => {
-    M(ctx, 0.12, -0.3);
-    Q(ctx, -0.14, -0.22, -0.3, 0.12);
-    Q(ctx, -0.38, 0.36, -0.5, 0.2);
-    Q(ctx, -0.56, 0.06, -0.42, 0.02);
-    M(ctx, 0.14, 0.24);
-    Q(ctx, -0.12, 0.3, -0.3, 0.12);
-    OVAL(ctx, 0.13, -0.03, 0.09, 0.27);
+    // The rim of the mouth, and an apple with its stalk rolling out of it
+    OVAL(ctx, 0.12, 0.0, 0.1, 0.26);
+    CIRCLE(ctx, 0.36, 0.17, 0.13);
+    M(ctx, 0.37, 0.04);
+    L(ctx, 0.42, -0.04);
   },
   (ctx) => {
-    CIRCLE(ctx, 0.34, 0.12, 0.13);
-    CIRCLE(ctx, 0.32, -0.22, 0.1);
+    // A bunch of grapes spilling over the rim
+    CIRCLE(ctx, 0.28, -0.2, 0.075);
+    CIRCLE(ctx, 0.43, -0.19, 0.075);
+    CIRCLE(ctx, 0.355, -0.32, 0.075);
+    M(ctx, 0.12, -0.26);
+    Q(ctx, -0.2, -0.2, -0.34, 0.06);
+    Q(ctx, -0.4, 0.14, -0.5, 0.0);
+    Q(ctx, -0.52, 0.22, -0.34, 0.24);
+    Q(ctx, -0.12, 0.28, 0.12, 0.26);
+    ctx.closePath();
   },
-  -0.35,
 );

@@ -30,13 +30,14 @@ const CANOPY = [
   [0.1, -0.255, 0.045],
 ] as const;
 
-/** Leaves falling from the canopy: start x, start y, period, offset. */
+/** Leaves falling from the right of the canopy (clear of the turkey yard on the left): start
+ * x, start y, period, offset, drift. */
 const FALLING = Array.from({ length: 4 }, (_, i) => ({
-  x: (hash(i + 300) - 0.5) * 0.17,
+  x: 0.03 + hash(i + 300) * 0.06,
   y: -0.15 - hash(i + 310) * 0.012,
   period: 5 + hash(i + 320) * 4,
   off: hash(i + 330) * 20,
-  drift: (hash(i + 340) - 0.5) * 0.12,
+  drift: hash(i + 340) * 0.03,
   oak: hash(i + 350) > 0.6,
 }));
 

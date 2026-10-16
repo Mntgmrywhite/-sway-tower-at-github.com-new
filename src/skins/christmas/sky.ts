@@ -75,7 +75,8 @@ export function celestial(ctx: Ctx, s: Scene): void {
 
   const tw = 0.5 + 0.5 * Math.sin(s.t * 1.3);
   ctx.beginPath();
-  sparklePath(ctx, x - r * 0.85, y - r * 0.75, r * (0.22 + 0.12 * tw));
+  // On the outer (right) shoulder, so the twinkle never reaches into the HUD's column.
+  sparklePath(ctx, x + r * 0.85, y - r * 0.75, r * (0.22 + 0.12 * tw));
   ctx.fillStyle = "#ffffff";
   ctx.globalAlpha = 0.65 + 0.35 * tw;
   ctx.fill();

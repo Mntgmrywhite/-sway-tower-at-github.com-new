@@ -70,19 +70,21 @@ function castleHill(xu: number): number {
   return d * d < 1 ? 0.075 * (1 - d * d) : 0;
 }
 
-const STEP = 0.014; // sample spacing in u
+/** Sample spacing in u: fine for the plateaus' rounded shoulders, coarser for smooth hills. */
+const STEP = 0.014;
+const HILL_STEP = 0.025;
 
 /** A ridge's silhouette standing on the horizon, its top lowered by `drop` px (for a rim under it). */
-function ridgePath(ctx: Ctx, s: Scene, f: (xu: number) => number, drop: number): void {
+function ridgePath(ctx: Ctx, s: Scene, f: (xu: number) => number, drop: number, step = HILL_STEP): void {
   const u = s.u;
   const cx = s.cssW / 2;
   const base = s.horizonY + 2;
-  const x0 = -cx / u - STEP;
-  const x1 = cx / u + STEP;
+  const x0 = -cx / u - step;
+  const x1 = cx / u + step;
   ctx.beginPath();
   ctx.moveTo(cx + x0 * u, base);
-  for (let xu = x0; xu <= x1 + STEP; xu += STEP) ctx.lineTo(cx + xu * u, Math.min(base, s.horizonY - f(xu) * u + drop));
-  ctx.lineTo(cx + x1 * u + STEP * u, base);
+  for (let xu = x0; xu <= x1 + step; xu += step) ctx.lineTo(cx + xu * u, Math.min(base, s.horizonY - f(xu) * u + drop));
+  ctx.lineTo(cx + x1 * u + step * u, base);
   ctx.closePath();
 }
 
@@ -91,10 +93,10 @@ function plateaus(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = s.cssW / 2;
   const hy = s.horizonY;
-  ridgePath(ctx, s, plateau, 0);
+  ridgePath(ctx, s, plateau, 0, STEP);
   ctx.fillStyle = RIM;
   ctx.fill();
-  ridgePath(ctx, s, plateau, u * 0.012);
+  ridgePath(ctx, s, plateau, u * 0.012, STEP);
   ctx.fillStyle = BACK;
   ctx.fill();
   // Falls from each rim to the haze.

@@ -116,22 +116,27 @@ function stadium(ctx: CanvasRenderingContext2D, bx: number, by: number, dx: numb
   ctx.closePath();
 }
 
-/** A glow stick: a tilted tube with its cap past a thin gap, and two glints of light. */
+/**
+ * A glow stick: a long tilted tube, its cap past a thin gap, the lanyard loop on the cap, and
+ * glints of light. The stadiums wind anticlockwise, so the loop's outer edge does too (`hole`)
+ * and its inner edge is the clockwise `circle`, which leaves the loop open in the middle.
+ */
 export const glowStick: Icon = (ctx, cx, cy, s) => {
-  const dx = Math.cos(-1.05);
-  const dy = Math.sin(-1.05);
-  const w = s * 0.12;
-  const bx = cx - s * 0.1;
-  const by = cy + s * 0.02;
+  const dx = Math.cos(-1.0);
+  const dy = Math.sin(-1.0);
+  const w = s * 0.1;
   ctx.beginPath();
-  stadium(ctx, bx, by, dx, dy, w, -s * 0.34, s * 0.1);
-  stadium(ctx, bx, by, dx, dy, w * 0.8, s * 0.39, s * 0.44);
+  stadium(ctx, cx, cy, dx, dy, w, -s * 0.38, s * 0.18);
+  stadium(ctx, cx, cy, dx, dy, w * 1.12, s * 0.27, s * 0.31);
+  const lx = cx + dx * s * 0.47;
+  const ly = cy + dy * s * 0.47;
+  hole(ctx, lx, ly, s * 0.09);
+  circle(ctx, lx, ly, s * 0.045);
   ctx.fill();
   ctx.stroke();
-  // Glints beside it.
   ctx.beginPath();
-  twinkle(ctx, cx + s * 0.3, cy + s * 0.14, s * 0.17, 0.75);
-  twinkle(ctx, cx - s * 0.36, cy - s * 0.28, s * 0.12, 0.75);
+  twinkle(ctx, cx + s * 0.3, cy + s * 0.2, s * 0.17, 0.75);
+  twinkle(ctx, cx - s * 0.32, cy - s * 0.26, s * 0.12, 0.75);
   ctx.fill();
 };
 

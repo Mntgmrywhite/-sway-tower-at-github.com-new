@@ -4,7 +4,7 @@ import type { Scene } from "../skin";
 import { INK, PALETTE } from "./colors";
 
 // The saturated blue daytime sky above the valley: a smiling cartoon sun low on the left (out
-// of the HUD's way) with slowly turning rays and the scene's one soft glow, fluffy cel-shaded clouds
+// of the HUD's way) with slowly turning rays and a flat two-ring halo, fluffy cel-shaded clouds
 // drifting across below the title, a hawk circling on the right, and now and then a faded V of
 // birds crossing far off.
 
@@ -18,7 +18,8 @@ const SUN_SHADE = "#ffb02e";
 const SUN_BODY = "#ffd43f";
 const SUN_LIGHT = "#fff3a6";
 const SUN_RIM = "#f0921c";
-const SUN_HALO = alpha("#fff0a0", 0.9);
+const SUN_HALO = alpha("#fff6b8", 0.42);
+const SUN_HALO_OUTER = alpha("#fff6b8", 0.22);
 const CHEEK = alpha("#ff7a7a", 0.45);
 const SUN_FACE = "#c4641a";
 const RAYS = 12;
@@ -31,15 +32,15 @@ export function sun(ctx: Ctx, s: Scene): void {
   const y = Math.min(s.cssH * 0.25, s.horizonY - s.u * 0.3);
   if (y + r * 2 < 0) return;
 
-  // The one soft glow in the scene.
-  ctx.save();
-  ctx.shadowColor = SUN_HALO;
-  ctx.shadowBlur = r * 1.3;
-  ctx.fillStyle = SUN_LIGHT;
+  // A flat, cel-shaded halo in two soft rings (no blur: cheap on phones, and on style).
   ctx.beginPath();
-  circle(ctx, x, y, r * 1.02);
+  circle(ctx, x, y, r * 1.45);
+  ctx.fillStyle = SUN_HALO_OUTER;
   ctx.fill();
-  ctx.restore();
+  ctx.beginPath();
+  circle(ctx, x, y, r * 1.22);
+  ctx.fillStyle = SUN_HALO;
+  ctx.fill();
 
   // Rays: long and short, turning slowly and breathing a little.
   const spin = s.t * 0.1;

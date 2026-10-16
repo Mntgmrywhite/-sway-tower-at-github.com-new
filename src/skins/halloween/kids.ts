@@ -57,7 +57,7 @@ const KIDS: readonly Kid[] = [
   { costume: "cat", X: -0.44 * (3.42 / 3), z: 3.42, hand: 1, phase: 0.3 },
   { costume: "skeleton", X: -0.37 * (3.36 / 3), z: 3.36, hand: 1, phase: 4.0 },
   { costume: "witch", X: -0.3 * (3.3 / 3), z: 3.3, hand: -1, phase: 2.1 },
-  { costume: "hero", X: 0.445 * (3.42 / 3), z: 3.42, hand: -1, phase: 3.3 },
+  { costume: "hero", X: 0.44 * (3.42 / 3), z: 3.42, hand: -1, phase: 3.3 },
   { costume: "pumpkin", X: 0.376 * (3.36 / 3), z: 3.36, hand: 1, phase: 1.2 },
 ];
 
@@ -165,10 +165,6 @@ function bag(ctx: Ctx, kind: "pail" | "sack" | "paper" | "purple", hx: number, h
     ctx.beginPath();
     ovalK(ctx, bx, by + 0.05, 0.13, 0.11);
     outlined(ctx, ORANGE, K.lw * 0.8, INK);
-    ctx.fillStyle = ORANGE_LIGHT;
-    ctx.beginPath();
-    ovalK(ctx, bx - 0.05, by + 0.01, 0.04, 0.025, -0.4);
-    ctx.fill();
     ctx.fillStyle = CARVED;
     ctx.beginPath();
     for (let sd = -1; sd <= 1; sd += 2) {
@@ -453,25 +449,34 @@ function pumpkin(ctx: Ctx, _t: number, k: Kid, swing: number): void {
   inkedLine(ctx, STEM, 0.04 * K.h, K.lw * 0.6, INK);
 }
 
+/** The cape's trailing edge flapping in the wind. */
+function flutter(t: number, phase: number, i: number): number {
+  return 0.035 * Math.sin(t * 6 + phase + i * 1.4);
+}
+
 function hero(ctx: Ctx, t: number, k: Kid, swing: number): void {
   // Cape behind, streaming out to the side in the wind
-  const f = (i: number) => 0.035 * Math.sin(t * 6 + k.phase + i * 1.4);
-  const d = k.hand;
+  const f0 = flutter(t, k.phase, 0);
+  const f1 = flutter(t, k.phase, 1);
+  const f2 = flutter(t, k.phase, 2);
+  const f3 = flutter(t, k.phase, 3);
+  // It streams away from the tower, out toward the screen edge but well inside it.
+  const d = k.X < 0 ? -1 : 1;
   ctx.beginPath();
-  ctx.moveTo(X(-0.13 * d), Y(-0.58));
-  ctx.lineTo(X(0.13 * d), Y(-0.58));
-  ctx.quadraticCurveTo(X(0.26 * d), Y(-0.38), X((0.34 + f(0)) * d), Y(-0.2 + f(1)));
-  ctx.lineTo(X((0.21 + f(2)) * d), Y(-0.16));
-  ctx.lineTo(X(0.08 * d), Y(-0.2 + f(3)));
-  ctx.lineTo(X(-0.16 * d), Y(-0.2));
+  ctx.moveTo(X(-0.15 * d), Y(-0.6));
+  ctx.lineTo(X(0.15 * d), Y(-0.6));
+  ctx.quadraticCurveTo(X(0.24 * d), Y(-0.4), X((0.29 + f0) * d), Y(-0.2 + f1));
+  ctx.lineTo(X((0.18 + f2) * d), Y(-0.16));
+  ctx.lineTo(X(0.06 * d), Y(-0.2 + f3));
+  ctx.lineTo(X(-0.17 * d), Y(-0.2));
   ctx.closePath();
   outlined(ctx, CAPE, K.lw, INK);
   ctx.fillStyle = CAPE_DARK;
   ctx.beginPath();
-  ctx.moveTo(X(0.13 * d), Y(-0.56));
-  ctx.quadraticCurveTo(X(0.24 * d), Y(-0.38), X((0.31 + f(0)) * d), Y(-0.22 + f(1)));
-  ctx.lineTo(X((0.21 + f(2)) * d), Y(-0.18));
-  ctx.quadraticCurveTo(X(0.18 * d), Y(-0.36), X(0.1 * d), Y(-0.55));
+  ctx.moveTo(X(0.14 * d), Y(-0.57));
+  ctx.quadraticCurveTo(X(0.22 * d), Y(-0.4), X((0.26 + f0) * d), Y(-0.22 + f1));
+  ctx.lineTo(X((0.18 + f2) * d), Y(-0.18));
+  ctx.quadraticCurveTo(X(0.16 * d), Y(-0.36), X(0.1 * d), Y(-0.56));
   ctx.closePath();
   ctx.fill();
   legs(ctx, HERO, CAPE);
@@ -484,6 +489,14 @@ function hero(ctx: Ctx, t: number, k: Kid, swing: number): void {
   outlined(ctx, HERO, K.lw, INK);
   ctx.fillStyle = HERO_LIGHT;
   ctx.fillRect(X(-0.12), Y(-0.56), 0.05 * K.h, 0.28 * K.h);
+  // The cape's collar knotted at the shoulders
+  ctx.beginPath();
+  ctx.moveTo(X(-0.16), Y(-0.6));
+  ctx.quadraticCurveTo(X(0), Y(-0.52), X(0.16), Y(-0.6));
+  ctx.lineTo(X(0.12), Y(-0.55));
+  ctx.quadraticCurveTo(X(0), Y(-0.49), X(-0.12), Y(-0.55));
+  ctx.closePath();
+  outlined(ctx, CAPE, K.lw * 0.7, INK);
   // Belt and a five-point star on the chest
   ctx.beginPath();
   ctx.rect(X(-0.15), Y(-0.31), 0.3 * K.h, 0.05 * K.h);

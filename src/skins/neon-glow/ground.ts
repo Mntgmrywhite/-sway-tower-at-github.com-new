@@ -20,7 +20,7 @@ type Prop =
 const PROPS: readonly Prop[] = (
   [
     { kind: "dancer", X: -1.17, z: 8, h: 0.25, look: { move: 1, phase: 0.55, paint: YELLOW, stick: PINK } },
-    { kind: "dancer", X: -0.53, z: 5, h: 0.25, look: { move: 2, phase: 0.15, paint: CYAN, stick: PINK } },
+    { kind: "dancer", X: -0.66, z: 6, h: 0.25, look: { move: 2, phase: 0.15, paint: CYAN, stick: PINK } },
     { kind: "dancer", X: 1.09, z: 7.5, h: 0.25, look: { move: 2, phase: 0.3, paint: GREEN, stick: YELLOW } },
     { kind: "dancer", X: 0.57, z: 5.3, h: 0.25, look: { move: 3, phase: 0.8, paint: PINK, stick: GREEN } },
     { kind: "booth", X: -0.285, z: 2.25 },
@@ -49,6 +49,9 @@ const STICKS = Array.from({ length: 9 }, (_, i) => ({
 
 /** The farthest floor row anything stands on. */
 const FAR_Z = Math.max(...PROPS.map((p) => p.z));
+
+const TILE_COLORS = [GREEN, PINK, UV] as const;
+const SPLAT_COLORS = [GREEN, PINK, YELLOW, CYAN, ORANGE] as const;
 
 /** Lit dance-floor tiles, aligned with the base neon grid (same projection and scroll). */
 function tiles(ctx: Ctx, s: Scene): void {
@@ -98,7 +101,6 @@ function tiles(ctx: Ctx, s: Scene): void {
   ctx.globalAlpha = 1;
 }
 
-const TILE_COLORS = [GREEN, PINK, UV] as const;
 
 /** Splats and glow sticks lying flat on the floor, one fill or stroke per color. */
 function floorBits(ctx: Ctx, s: Scene): void {
@@ -112,12 +114,7 @@ function floorBits(ctx: Ctx, s: Scene): void {
       const { x, y, k } = spot(s, sp.X, sp.z);
       const r = sp.r * u * k;
       if (y - r > s.cssH) continue;
-      // The path keeps the squash: points are transformed as they are added.
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(1, floorSquash(s, sp.z));
-      splatPath(ctx, 0, 0, r, sp.seed);
-      ctx.restore();
+      splatPath(ctx, x, y, r, sp.seed, floorSquash(s, sp.z));
       any = true;
     }
     if (!any) continue;
@@ -146,7 +143,6 @@ function floorBits(ctx: Ctx, s: Scene): void {
   }
 }
 
-const SPLAT_COLORS = [GREEN, PINK, YELLOW, CYAN, ORANGE] as const;
 
 /** A paint can knocked over on its side, glow paint spilling out toward the tower. */
 function bucket(ctx: Ctx, s: Scene, x: number, y: number, b: number, z: number): void {
@@ -157,11 +153,7 @@ function bucket(ctx: Ctx, s: Scene, x: number, y: number, b: number, z: number):
   const x1 = x + len * 0.4;
   // Spill first (it lies on the floor in front of the opening).
   ctx.beginPath();
-  ctx.save();
-  ctx.translate(x1 + b * 0.03, y - r * 0.1);
-  ctx.scale(1, q);
-  splatPath(ctx, 0, 0, b * 0.022, 9);
-  ctx.restore();
+  splatPath(ctx, x1 + b * 0.03, y - r * 0.1, b * 0.022, 9, q);
   ctx.moveTo(x1, y - r * 0.6);
   ctx.lineTo(x1 + b * 0.02, y - r * 0.25);
   ctx.lineTo(x1 + b * 0.02, y + r * 0.1);
@@ -202,25 +194,31 @@ function bucket(ctx: Ctx, s: Scene, x: number, y: number, b: number, z: number):
   glowLine(ctx, GREEN, Math.max(1, b * 0.003), 2.4);
 }
 
+/**
+ * Bracelets tossed in a heap, bottom to top: offset across and along the floor (u), how far
+ * up the pile each sits (u), radius (u) and a little tilt, so they read as a pile, not a row.
+ */
 const RINGS = [
-  { dx: -0.026, dy: 0.004, r: 0.018, color: PINK },
-  { dx: 0.008, dy: -0.006, r: 0.017, color: YELLOW },
-  { dx: 0.03, dy: 0.006, r: 0.015, color: CYAN },
-  { dx: -0.006, dy: 0.012, r: 0.016, color: GREEN },
+  { dx: -0.013, dz: 0.006, lift: 0, r: 0.019, rot: 0.1, color: PINK },
+  { dx: 0.014, dz: 0.004, lift: 0.001, r: 0.018, rot: -0.14, color: CYAN },
+  { dx: 0.001, dz: -0.007, lift: 0.002, r: 0.017, rot: 0.05, color: YELLOW },
+  { dx: -0.004, dz: 0.003, lift: 0.006, r: 0.016, rot: -0.22, color: GREEN },
+  { dx: 0.007, dz: 0, lift: 0.01, r: 0.014, rot: 0.18, color: ORANGE },
 ] as const;
 
 /** A heap of glow-stick bracelets and a loose stick, lying on the floor. */
 function bracelets(ctx: Ctx, s: Scene, x: number, y: number, b: number, z: number): void {
   const q = floorSquash(s, z);
+  const width = Math.max(1, b * 0.0026);
   for (const ring of RINGS) {
     ctx.beginPath();
-    oval(ctx, x + ring.dx * b, y + ring.dy * b * q * 2, ring.r * b, ring.r * b * q);
-    glowLine(ctx, ring.color, Math.max(1, b * 0.0026), 2.4);
+    oval(ctx, x + ring.dx * b, y + (ring.dz * q * 2 - ring.lift) * b, ring.r * b, ring.r * b * q, ring.rot);
+    glowLine(ctx, ring.color, width, 2.4);
   }
   ctx.beginPath();
-  ctx.moveTo(x - b * 0.052, y - b * 0.012 * q);
-  ctx.lineTo(x - b * 0.022, y - b * 0.03 * q);
-  glowLine(ctx, ORANGE, Math.max(1.2, b * 0.004), 2.4);
+  ctx.moveTo(x - b * 0.058, y + b * 0.008 * q);
+  ctx.lineTo(x - b * 0.03, y - b * 0.014 * q);
+  glowLine(ctx, CYAN, Math.max(1.2, b * 0.004), 2.4);
 }
 
 export function partyGround(ctx: Ctx, s: Scene): void {

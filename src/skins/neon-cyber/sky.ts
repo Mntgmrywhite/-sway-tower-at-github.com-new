@@ -3,6 +3,7 @@ import { HORIZON_P } from "../../base/world";
 import type { Scene } from "../skin";
 import { BLUE, CYAN, MAGENTA, MOON, MOON_SHADE, PALETTE, PURPLE, RED } from "./colors";
 import { boardSign } from "./signs";
+import { tint } from "./tube";
 
 // The sky over the megacity: a small hazy moon veiled by smog, smog banks lit purple from
 // below, and air traffic: hover cars gliding along lanes stacked above the skyline, little
@@ -30,15 +31,16 @@ const MARIA = [
 const VEIL = mix(PALETTE.skyMid, "#000000", 0.2);
 
 // One cached halo: the moon only moves when the screen changes size.
+const HALO_R = 3.4;
 const HALO_AT = { x: NaN, y: NaN, r: NaN };
 let halo: CanvasGradient | null = null;
 
 export function hazyMoon(ctx: Ctx, s: Scene): void {
   const { x, y, r } = moonSpot(s);
-  if (y - r * 4 > s.cssH) return;
+  if (y - r * HALO_R > s.cssH) return;
 
   if (!halo || HALO_AT.x !== x || HALO_AT.y !== y || HALO_AT.r !== r) {
-    halo = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * 4.2);
+    halo = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * HALO_R);
     halo.addColorStop(0, alpha(mix(MOON, PURPLE, 0.4), 0.16));
     halo.addColorStop(0.45, alpha(PURPLE, 0.05));
     halo.addColorStop(1, alpha(PURPLE, 0));
@@ -46,8 +48,11 @@ export function hazyMoon(ctx: Ctx, s: Scene): void {
     HALO_AT.y = y;
     HALO_AT.r = r;
   }
+  // A disc, not a square: the gradient is clear past HALO_R anyway, and this paints less.
   ctx.fillStyle = halo;
-  ctx.fillRect(x - r * 4.2, y - r * 4.2, r * 8.4, r * 8.4);
+  ctx.beginPath();
+  circle(ctx, x, y, r * HALO_R);
+  ctx.fill();
 
   // A pale disc seen through smog: low contrast, never the brightest thing.
   ctx.globalAlpha = 0.42;
@@ -61,7 +66,12 @@ export function hazyMoon(ctx: Ctx, s: Scene): void {
   for (const m of MARIA) oval(ctx, x + m.x * r, y + m.y * r, m.rx * r, m.ry * r, m.rot);
   ctx.fill();
 
-  // Thin veils of smog sliding across its face.
+  // Thin veils of smog sliding across its face, seen only against the disc (past its rim
+  // they would be dark streaks hanging in the sky).
+  ctx.save();
+  ctx.beginPath();
+  circle(ctx, x, y, r);
+  ctx.clip();
   ctx.fillStyle = VEIL;
   ctx.beginPath();
   for (let i = 0; i < 2; i++) {
@@ -71,7 +81,7 @@ export function hazyMoon(ctx: Ctx, s: Scene): void {
   }
   ctx.globalAlpha = 0.6;
   ctx.fill();
-  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 // Smog banks lit from below: long thin bands at heights over the horizon (u), drifting.
@@ -273,7 +283,7 @@ function airships(ctx: Ctx, s: Scene): void {
     ctx.beginPath();
     circle(ctx, x + dir * L * 0.49, y, Math.max(1, u * 0.004));
     circle(ctx, x - dir * L * 0.55, y - L * 0.16, Math.max(1, u * 0.004));
-    ctx.fillStyle = alpha(RED, Math.sin(s.t * 2.4 + k) > 0 ? 0.95 : 0.35);
+    ctx.fillStyle = tint(RED, Math.sin(s.t * 2.4 + k) > 0 ? 0.95 : 0.35);
     ctx.fill();
     // Its belly lights the smog
     ctx.beginPath();
@@ -282,15 +292,15 @@ function airships(ctx: Ctx, s: Scene): void {
     ctx.lineTo(x + L * 0.2, y + L * 0.7);
     ctx.lineTo(x - L * 0.2, y + L * 0.7);
     ctx.closePath();
-    ctx.fillStyle = alpha(CYAN, 0.04);
+    ctx.fillStyle = tint(CYAN, 0.04);
     ctx.fill();
   }
 }
 
-// Two searchlights sweeping slowly up from the city into the smog: (x in u, phase, color).
+// Two searchlights sweeping slowly up from the city into the smog: (x in u, phase, beam fill).
 const BEAMS = [
-  { x: -0.36, phase: 0, color: BLUE },
-  { x: 0.3, phase: 2.4, color: PURPLE },
+  { x: -0.36, phase: 0, fill: alpha(BLUE, 0.05) },
+  { x: 0.3, phase: 2.4, fill: alpha(PURPLE, 0.05) },
 ] as const;
 
 /** Faint searchlight beams leaning out to the sides, never into the HUD column. */
@@ -303,18 +313,15 @@ function searchlights(ctx: Ctx, s: Scene): void {
     const a = side * (0.18 + 0.16 * (0.5 + 0.5 * Math.sin(s.t * 0.23 + b.phase)));
     const x0 = s.cssW / 2 + b.x * u;
     const y0 = hy - u * 0.12;
-    const len = u * 0.95;
+    const L = u * 0.95;
     const spread = 0.05;
-    for (let i = 0; i < 2; i++) {
-      const L = len * (i === 0 ? 1 : 0.6);
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x0 + Math.sin(a - spread) * L, y0 - Math.cos(a - spread) * L);
-      ctx.lineTo(x0 + Math.sin(a + spread) * L, y0 - Math.cos(a + spread) * L);
-      ctx.closePath();
-      ctx.fillStyle = alpha(b.color, 0.035);
-      ctx.fill();
-    }
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.sin(a - spread) * L, y0 - Math.cos(a - spread) * L);
+    ctx.lineTo(x0 + Math.sin(a + spread) * L, y0 - Math.cos(a + spread) * L);
+    ctx.closePath();
+    ctx.fillStyle = b.fill;
+    ctx.fill();
   }
 }
 

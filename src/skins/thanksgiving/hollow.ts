@@ -11,7 +11,7 @@ import { PALETTE } from "./colors";
 const FAR = PALETTE.far;
 /** The ridge behind, hazier still. */
 const FAR_BACK = mix(FAR, PALETTE.skyBottom, 0.42);
-/** Field patches on the far hills: pale grass and harvested gold, faded by distance. */
+/** Fields on the far hills: pale grass and harvested gold, faded by distance. */
 const PATCH = mix(FAR_BACK, "#ffffff", 0.2);
 const PATCH_GOLD = mix(FAR_BACK, "#f4c25a", 0.3);
 const CHURCH = mix(FAR, "#ffffff", 0.3);
@@ -19,10 +19,11 @@ const CHURCH = mix(FAR, "#ffffff", 0.3);
 const FAR_TREE = mix(FAR, "#e2773a", 0.3);
 const WINDOW = mix("#ffd768", FAR, 0.15);
 
-/** Ridge heights in u at fraction fx of the width: rolling, high at the sides (the hollow). */
+/** Ridge heights in u at fraction fx of the width: high at the sides (the hollow), rolling in
+ * soft humps as they climb. */
 function backHill(fx: number): number {
   const side = Math.abs(fx - 0.5) * 2;
-  return 0.14 + 0.31 * side * side + 0.032 * Math.sin(fx * 11 + 0.9) + 0.012 * Math.sin(fx * 23 + 2);
+  return 0.14 + 0.29 * side * side + side * (0.04 * Math.sin(fx * 15 + 0.6) + 0.014 * Math.sin(fx * 31 + 2));
 }
 
 function frontHill(fx: number): number {
@@ -30,61 +31,50 @@ function frontHill(fx: number): number {
   return 0.07 + 0.2 * side * side * side + 0.016 * Math.sin(fx * 9.1 + 1.7);
 }
 
-const HILL_STEPS = 40;
+const HILL_STEPS = 48;
 
-function hillPath(ctx: Ctx, s: Scene, h: (fx: number) => number): void {
-  const hy = s.horizonY;
-  ctx.beginPath();
-  ctx.moveTo(-4, hy + 2);
+/** The hill's ridge at `frac` of its height, as a path from the left edge to the right. */
+function ridge(ctx: Ctx, s: Scene, h: (fx: number) => number, frac: number, first: boolean): void {
   for (let i = 0; i <= HILL_STEPS; i++) {
     const fx = i / HILL_STEPS;
-    ctx.lineTo(fx * s.cssW, hy - h(fx) * s.u);
+    const y = s.horizonY - h(fx) * s.u * frac;
+    if (i === 0 && first) ctx.moveTo(-4, y);
+    else ctx.lineTo(i === HILL_STEPS ? s.cssW + 4 : fx * s.cssW, y);
   }
-  ctx.lineTo(s.cssW + 4, hy + 2);
+}
+
+function hillPath(ctx: Ctx, s: Scene, h: (fx: number) => number): void {
+  ctx.beginPath();
+  ctx.moveTo(-4, s.horizonY + 2);
+  ridge(ctx, s, h, 1, false);
+  ctx.lineTo(s.cssW + 4, s.horizonY + 2);
   ctx.closePath();
 }
 
-/** Field patches on the back hills, just under the ridge where they show over the clouds:
- * [fx from, fx to, ridge fraction top, bottom, gold]. */
-const PATCHES = [
-  [0.0, 0.1, 0.94, 0.78, 1],
-  [0.1, 0.22, 0.92, 0.8, 0],
-  [0.04, 0.17, 0.76, 0.62, 0],
-  [0.17, 0.3, 0.78, 0.64, 1],
-  [0.72, 0.84, 0.9, 0.76, 1],
-  [0.84, 0.95, 0.93, 0.79, 0],
-  [0.9, 1.0, 0.77, 0.62, 1],
+/** Fields on the far slopes: bands that follow the rolling ridge, [top, bottom] as fractions of
+ * its height, alternating harvested gold and pale grass. Only the high sides show over the
+ * clouds; in the middle they sink behind the town. */
+const BANDS = [
+  [0.9, 0.78],
+  [0.72, 0.6],
 ] as const;
 
 function hills(ctx: Ctx, s: Scene): void {
-  const u = s.u;
-  const hy = s.horizonY;
   hillPath(ctx, s, backHill);
   ctx.fillStyle = FAR_BACK;
   ctx.fill();
-
-  // Patchwork: fields following the slope, pale grass and harvested gold.
-  for (let gold = 0; gold < 2; gold++) {
+  for (let b = 0; b < BANDS.length; b++) {
+    const [top, bottom] = BANDS[b]!;
     ctx.beginPath();
-    for (const [a, b, top, bot, g] of PATCHES) {
-      if (g !== gold) continue;
-      const n = 8;
-      for (let i = 0; i <= n; i++) {
-        const fx = a + ((b - a) * i) / n;
-        const y = hy - backHill(fx) * u * top;
-        if (i === 0) ctx.moveTo(fx * s.cssW, y);
-        else ctx.lineTo(fx * s.cssW, y);
-      }
-      for (let i = n; i >= 0; i--) {
-        const fx = a + ((b - a) * i) / n;
-        ctx.lineTo(fx * s.cssW, hy - backHill(fx) * u * bot);
-      }
-      ctx.closePath();
+    ridge(ctx, s, backHill, top, true);
+    for (let i = HILL_STEPS; i >= 0; i--) {
+      const fx = i / HILL_STEPS;
+      ctx.lineTo(i === HILL_STEPS ? s.cssW + 4 : i === 0 ? -4 : fx * s.cssW, s.horizonY - backHill(fx) * s.u * bottom);
     }
-    ctx.fillStyle = gold ? PATCH_GOLD : PATCH;
+    ctx.closePath();
+    ctx.fillStyle = b ? PATCH : PATCH_GOLD;
     ctx.fill();
   }
-
   hillPath(ctx, s, frontHill);
   ctx.fillStyle = FAR;
   ctx.fill();
@@ -105,13 +95,13 @@ const CLUMPS = [
   [-0.195, 0.032, 0.09],
   [-0.31, 0.024, 0.1],
   [0.09, 0.022, 0.1],
-  [0.185, 0.03, 0.095],
+  [0.29, 0.03, 0.095],
   [0.38, 0.03, 0.1],
 ] as const;
 
 const CHURCH_X = -0.125;
-const BARN_X = 0.255;
-const SILO_X = 0.33;
+const BARN_X = 0.2;
+const SILO_X = 0.248;
 
 /** Lit windows: x, y (bottom), w, h. */
 const WINDOWS: readonly (readonly [number, number, number, number])[] = [

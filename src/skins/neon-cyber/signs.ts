@@ -1,4 +1,5 @@
-import { alpha, circle, hash, neonStroke, oval, type Ctx } from "../../base/draw";
+import { circle, hash, oval, type Ctx } from "../../base/draw";
+import { tint, tube } from "./tube";
 import { TAU } from "./colors";
 
 // Signage for the megacity: tall vertical neon signs stacked with abstract glyphs (our own
@@ -140,7 +141,7 @@ function glyphPanel(
     glyph(seed, i)(ctx, gx, gy, g);
   }
   ctx.globalAlpha = glow * (off ? 0.3 : 1);
-  neonStroke(ctx, color, Math.max(0.9, across * 0.065), 2.3);
+  tube(ctx, color, Math.max(0.9, across * 0.065), 2.3);
   ctx.globalAlpha = 1;
 }
 
@@ -268,11 +269,13 @@ export function holoBillboard(
     ctx.lineTo(x + w * 0.08, y + h);
     ctx.lineTo(x + w * 0.92, y + h);
     ctx.closePath();
-    ctx.fillStyle = alpha(color, 0.05 * flick);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.05 * flick;
     ctx.fill();
   }
 
-  ctx.fillStyle = alpha(color, 0.09 * flick);
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.09 * flick;
   ctx.fillRect(x, y, w, h);
   // Scanlines
   ctx.beginPath();
@@ -281,7 +284,8 @@ export function holoBillboard(
     ctx.moveTo(x, ly);
     ctx.lineTo(x + w, ly);
   }
-  ctx.strokeStyle = alpha(color, 0.14 * flick);
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.14 * flick;
   ctx.lineWidth = 1;
   ctx.stroke();
 
@@ -301,7 +305,7 @@ export function holoBillboard(
   ctx.lineTo(x, y + h);
   ctx.lineTo(x, y + h - c);
   ctx.globalAlpha = 0.85 * flick;
-  neonStroke(ctx, color, Math.max(1, Math.min(w, h) * 0.025), 2.2);
+  tube(ctx, color, Math.max(1, Math.min(w, h) * 0.025), 2.2);
 
   const kind = Math.floor(t / 4.5 + seed * 1.7) % 4;
   const cx = x + w / 2;
@@ -315,12 +319,12 @@ export function holoBillboard(
     ctx.strokeStyle = glitchColor;
     ctx.lineWidth = lw;
     ctx.stroke();
-    ctx.fillStyle = alpha(glitchColor, 0.25);
+    ctx.fillStyle = tint(glitchColor, 0.25);
     ctx.fillRect(x, y + h * hash(Math.floor(t * 6) + seed), w, h * 0.08);
   }
   ctx.beginPath();
   holoContent(ctx, kind, cx + (glitch ? w * 0.03 : 0), cy, w, h, t);
   ctx.globalAlpha = 0.8 * flick;
-  neonStroke(ctx, color, lw, 2.2);
+  tube(ctx, color, lw, 2.2);
   ctx.globalAlpha = 1;
 }

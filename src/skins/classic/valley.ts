@@ -101,8 +101,8 @@ const RIDGES = [
   [17, 0.36, 0.1, 1.3, 0.4],
   [11.5, 0.26, 0.085, 2.1, 2.3],
 ] as const;
-/** Contour bands down each hill's face, as fractions of the way from the crest to its foot. */
-const CONTOURS = [0.38, 0.68] as const;
+/** Where the darker bands start down each hill's face, as fractions of the way from the crest to its foot. */
+const CONTOURS = [0.45, 0.76] as const;
 const RIDGE_TONES = RIDGES.map(([z]) => {
   const fade = Math.min(1, (z - 6) / 14);
   const body = mix(LEAF[2], HAZE, 0.12 + fade * 0.38);
@@ -164,38 +164,20 @@ function ridge(ctx: Ctx, s: Scene, r: number): void {
     ctx.fillStyle = kind === 0 ? tone.tree : tone.palm;
     ctx.fill();
   }
-  // The ridge: body, a shaded foot, a lit crest.
-  ctx.beginPath();
-  ctx.moveTo(-step, base + 2);
-  for (let x = -step; x <= s.cssW + step; x += step) ctx.lineTo(x, base - ridgeH(r, (x - cx) / uk) * uk);
-  ctx.lineTo(s.cssW + step, base + 2);
-  ctx.closePath();
-  ctx.fillStyle = tone.body;
-  ctx.fill();
-  // Contour bands following the rolls down the face, then a lit crest.
-  ctx.beginPath();
-  for (const f of CONTOURS) {
-    for (let x = -step; x <= s.cssW + step; x += step) {
-      const y = base - ridgeH(r, (x - cx) / uk) * uk * (1 - f);
-      if (x < 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
+  // The hill, in fills only: the silhouette in the lit tone, the body a little lower so a lit
+  // rim shows along the crest, then bands lower down that follow the rolls, darker toward
+  // the foot (the striped look of a sunny platform-game hill).
+  for (let pass = 0; pass < 2 + CONTOURS.length; pass++) {
+    const drop = pass === 1 ? uk * 0.014 : 0;
+    const keep = pass < 2 ? 1 : 1 - CONTOURS[pass - 2]!;
+    ctx.beginPath();
+    ctx.moveTo(-step, base + 2);
+    for (let x = -step; x <= s.cssW + step; x += step) ctx.lineTo(x, base - ridgeH(r, (x - cx) / uk) * uk * keep + drop);
+    ctx.lineTo(s.cssW + step, base + 2);
+    ctx.closePath();
+    ctx.fillStyle = pass === 0 ? tone.light : pass === 1 ? tone.body : pass === 2 ? tone.band : tone.shade;
+    ctx.fill();
   }
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = tone.band;
-  ctx.lineWidth = Math.max(1.5, uk * 0.016);
-  ctx.stroke();
-  ctx.beginPath();
-  for (let x = -step; x <= s.cssW + step; x += step) {
-    const y = base - ridgeH(r, (x - cx) / uk) * uk;
-    if (x < 0) ctx.moveTo(x, y + uk * 0.008);
-    else ctx.lineTo(x, y + uk * 0.008);
-  }
-  ctx.strokeStyle = tone.light;
-  ctx.lineWidth = Math.max(1.5, uk * 0.014);
-  ctx.stroke();
-  ctx.fillStyle = tone.shade;
-  ctx.fillRect(0, base - uk * 0.03, s.cssW, uk * 0.03 + 2);
 }
 
 // ---------------------------------------------------------------- where the animals live
@@ -475,12 +457,12 @@ function pineLight(ctx: Ctx, x: number, y: number, r: number, sway: number): voi
 
 // ---------------------------------------------------------------- low clouds
 
-/** Flat wisps of cloud drifting low over the valley, below us: [z, start x (fraction), size (u), speed (px/s)]. */
-const WISPS = [
-  [14, 0.12, 0.024, 3.2],
-  [8.6, 0.78, 0.028, -2.6],
-] as const;
-/** Puffs of one wisp, in its size: x, y, r. Long and flat. */
+/** A flat wisp of cloud drifting low over the woods, below us: z, start x (fraction), size (u), speed (px/s). */
+const WISP_Z = 8.6;
+const WISP_X = 0.78;
+const WISP_SIZE = 0.028;
+const WISP_SPEED = -2.6;
+/** Puffs of the wisp, in its size: x, y, r. Long and flat. */
 const WISP_SHAPE = [
   [-2.3, 0.3, 0.55],
   [-1.3, 0.05, 0.8],
@@ -492,14 +474,13 @@ const WISP_SHAPE = [
 ] as const;
 const WISP_BUF = WISP_SHAPE.map(() => ({ x: 0, y: 0, r: 0 }));
 
-function wisp(ctx: Ctx, s: Scene, i: number): void {
-  const [z, fx, size, speed] = WISPS[i]!;
-  const y0 = fieldY(s, z);
+function wisp(ctx: Ctx, s: Scene): void {
+  const y0 = fieldY(s, WISP_Z);
   if (y0 > s.cssH + s.u * 0.1) return;
-  const r = s.u * size;
+  const r = s.u * WISP_SIZE;
   const span = s.cssW + r * 7;
-  const x = ((((fx * s.cssW + s.t * speed) % span) + span) % span) - r * 3.5;
-  const y = y0 - r * 0.9 + Math.sin(s.t * 0.4 + i) * r * 0.08;
+  const x = ((((WISP_X * s.cssW + s.t * WISP_SPEED) % span) + span) % span) - r * 3.5;
+  const y = y0 - r * 0.9 + Math.sin(s.t * 0.4 + 1) * r * 0.08;
   for (let k = 0; k < WISP_SHAPE.length; k++) {
     const [dx, dy, dr] = WISP_SHAPE[k]!;
     const b = WISP_BUF[k]!;
@@ -580,11 +561,9 @@ export function valley(ctx: Ctx, s: Scene): void {
   patchwork(ctx, s);
   ridge(ctx, s, 0);
   ridge(ctx, s, 1);
-  // A wisp drifting low along the foot of the hills, another over the woods.
-  wisp(ctx, s, 0);
-  forest(ctx, s, Infinity, WISPS[1][0]);
-  wisp(ctx, s, 1);
-  forest(ctx, s, WISPS[1][0], lakeFar);
+  forest(ctx, s, Infinity, WISP_Z);
+  wisp(ctx, s);
+  forest(ctx, s, WISP_Z, lakeFar);
   lake(ctx, s);
   mesas(ctx, s);
   forest(ctx, s, lakeFar, DUCK_Z);
@@ -598,4 +577,4 @@ export function valley(ctx: Ctx, s: Scene): void {
   forest(ctx, s, BUNNY_Z + 0.3, 0);
 }
 
-export const __parts = { patchwork, forest, lake, mesas, wisp, flowers, bunnies, ducks, deerAtWater };
+export const __parts = { patchwork, ridge, forest, lake, mesas, wisp, flowers, bunnies, ducks, deerAtWater };

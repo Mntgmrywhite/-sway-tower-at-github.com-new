@@ -1,7 +1,7 @@
 import { alpha, circle, hash, mix, neonStroke, roundRectPath, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { splatPath } from "./booth";
-import { beats, CYAN, GREEN, PINK, pulse, UV, WHITE, YELLOW } from "./common";
+import { dripPath, splatPath } from "./booth";
+import { beats, CYAN, GREEN, PINK, pulse, UV, WHITE } from "./common";
 import { emitter } from "./far";
 import { twinkle } from "./icons";
 
@@ -27,13 +27,15 @@ const SPECKS = Array.from({ length: 22 }, (_, i) => ({
   tw: hash(i + 880) * TAU,
 }));
 
+const BALL = { x: 0, y: 0, r: 0 };
+
+/** Where the ball hangs: top-left, clear of the HUD (written into BALL, no allocation). */
 function ballCenter(s: Scene): { x: number; y: number; r: number } {
   BALL.r = s.u * 0.056;
   BALL.x = s.cssW / 2 - s.u * 0.37;
   BALL.y = s.cssH * 0.262;
   return BALL;
 }
-const BALL = { x: 0, y: 0, r: 0 };
 
 /** The mirror ball, hanging top-left: in front of the lasers that sweep past it. */
 function mirrorBall(ctx: Ctx, s: Scene): void {
@@ -167,7 +169,7 @@ function specks(ctx: Ctx, s: Scene): void {
     const y = sp.y * s.cssH;
     if (y > top) continue;
     const x = ((sp.x + s.t * sp.speed) % 1) * s.cssW;
-    const hud = y < s.cssH * 0.32 && x > s.cssW * 0.18 && x < s.cssW * 0.82;
+    const hud = y < s.cssH * 0.32 && Math.abs(x - s.cssW / 2) < s.u * 0.32;
     if (hud || Math.sin(s.t * 2.2 + sp.tw) < -0.2) continue;
     circle(ctx, x, y, sp.r * s.u);
   }
@@ -200,11 +202,16 @@ function rectEntry(ox: number, oy: number, dx: number, dy: number, x0: number, x
   return tMin < tMax && tMax > 0 ? Math.max(0, tMin) : Infinity;
 }
 
-/** Where a beam first runs into the HUD: the top-center zone, or the wide title/score band. */
+/**
+ * Where a beam first runs into the HUD: the top-center zone, or the wide title/score band.
+ * Measured in u around the center (on a phone that is 0.2..0.8 and 0.05..0.95 of the width),
+ * so on a wide screen the beams still show out at the sides.
+ */
 function hudEntry(s: Scene, ox: number, oy: number, dx: number, dy: number): number {
+  const cx = s.cssW / 2;
   return Math.min(
-    rectEntry(ox, oy, dx, dy, s.cssW * 0.2, s.cssW * 0.8, s.cssH * 0.32),
-    rectEntry(ox, oy, dx, dy, s.cssW * 0.05, s.cssW * 0.95, s.cssH * 0.17),
+    rectEntry(ox, oy, dx, dy, cx - s.u * 0.3, cx + s.u * 0.3, s.cssH * 0.32),
+    rectEntry(ox, oy, dx, dy, cx - s.u * 0.45, cx + s.u * 0.45, s.cssH * 0.17),
   );
 }
 
@@ -277,12 +284,16 @@ function lasers(ctx: Ctx, s: Scene): void {
   }
 }
 
-/** Glow paint thrown on the hall's back wall, dripping: faint, out at the sides. H is height above the horizon, in u. */
+/**
+ * Glow paint thrown on the hall's back wall, dripping, out at the sides. H is height above the
+ * horizon, in u. The paint is dim but keeps its hue: a pigment darkened toward black, not a
+ * see-through wash (dim yellow and green over the violet wall read as olive mud).
+ */
 const WALL = [
-  { X: -0.34, H: 0.3, r: 0.046, color: PINK, seed: 2 },
-  { X: -0.3, H: 0.18, r: 0.022, color: CYAN, seed: 3 },
-  { X: 0.35, H: 0.22, r: 0.044, color: GREEN, seed: 5 },
-  { X: 0.4, H: 0.48, r: 0.026, color: YELLOW, seed: 6 },
+  { X: -0.34, H: 0.3, r: 0.046, color: mix(PINK, "#000000", 0.6), seed: 2 },
+  { X: -0.3, H: 0.18, r: 0.022, color: mix(CYAN, "#000000", 0.62), seed: 3 },
+  { X: 0.35, H: 0.22, r: 0.044, color: mix(GREEN, "#000000", 0.64), seed: 5 },
+  { X: 0.4, H: 0.48, r: 0.026, color: mix(UV, "#000000", 0.45), seed: 6 },
 ] as const;
 
 /**
@@ -302,16 +313,10 @@ export function wallPaint(ctx: Ctx, s: Scene): void {
       const dx = (i - 1) * r * 0.45 + r * 0.1 * w.seed;
       const run = r * (1.2 + hash(w.seed * 7 + i) * 1.6) * (0.9 + 0.1 * Math.sin(s.t * 0.4 + i + w.seed));
       const dw = r * (0.12 + hash(w.seed * 3 + i) * 0.08);
-      ctx.moveTo(x + dx - dw, y);
-      ctx.lineTo(x + dx - dw, y + run);
-      ctx.arc(x + dx, y + run, dw, Math.PI, 0, true);
-      ctx.lineTo(x + dx + dw, y);
-      ctx.closePath();
+      dripPath(ctx, x + dx, y, dw * 2, y + run);
     }
-    ctx.globalAlpha = 0.24;
     ctx.fillStyle = w.color;
     ctx.fill();
-    ctx.globalAlpha = 1;
   }
 }
 
@@ -335,7 +340,7 @@ function bubbles(ctx: Ctx, s: Scene): void {
       if (b.color !== c) continue;
       const y = s.horizonY - ((s.t * b.speed + b.phase) % 1) * span;
       const x = b.x * s.cssW + Math.sin(s.t * 1.1 + b.phase * 9) * u * 0.012;
-      if (y < s.cssH * 0.34 && x > s.cssW * 0.17 && x < s.cssW * 0.83) continue;
+      if (y < s.cssH * 0.34 && Math.abs(x - s.cssW / 2) < u * 0.33) continue;
       circle(ctx, x, y, b.r * u);
     }
     ctx.strokeStyle = BUBBLE_COLORS[c]!;

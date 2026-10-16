@@ -167,12 +167,11 @@ function horse(ctx: Ctx, hx: number, g: number, lw: number, t: number): void {
 
 /** The coach, the box seat and the coachman, its rear at x = cx. */
 function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: number): void {
-  // Wheels behind the body (far side), shafts to the horse
+  // The shafts to the horse, behind the body (the far wheels hide behind the near ones).
   ctx.beginPath();
   ctx.moveTo(cx + 0.11, Y(0.052 + bob));
   ctx.lineTo(cx + 0.175, Y(0.07 + bob));
   inkedLine(ctx, IRON, 0.004, lw * 0.4, INK);
-  wheel(ctx, cx + 0.03, 0.033, 0.033, a, lw);
   // Body: a rounded box on springs, with a lit window and a gold-trimmed door.
   const b = 0.034 + bob;
   ctx.beginPath();
@@ -284,7 +283,7 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
   ctx.fill();
   ink(ctx, lw * 0.6, INK);
   // Near wheels
-  wheel(ctx, cx + 0.03, 0.033, 0.033, a + 0.3, lw);
+  wheel(ctx, cx + 0.03, 0.033, 0.033, a, lw);
   wheel(ctx, cx + 0.098, 0.027, 0.027, a * 1.22, lw);
 }
 

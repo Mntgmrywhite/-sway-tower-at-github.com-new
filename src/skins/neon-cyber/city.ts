@@ -1,4 +1,5 @@
-import { alpha, circle, hash, mix, neonStroke, type Ctx } from "../../base/draw";
+import { circle, hash, mix, type Ctx } from "../../base/draw";
+import { tint, tube } from "./tube";
 import type { Scene } from "../skin";
 import {
   BLUE,
@@ -62,6 +63,15 @@ function row(seed: number, span: number, minW: number, maxW: number, low: number
 const HAZE_ROW = row(1300, 1.8, 0.05, 0.09, 0.2, 0.52, 0.12);
 const LOW_ROW = row(1700, 1.8, 0.05, 0.11, 0.035, 0.07, 0.05);
 
+/** The right-hand vertical sign hangs low: street blocks in front of it stay under its foot. */
+const SIGN_FOOT = { x0: 0.43, x1: 0.48, h: 0.065 };
+for (const b of LOW_ROW) {
+  if (b.x + b.w > SIGN_FOOT.x0 && b.x < SIGN_FOOT.x1) {
+    b.h = Math.min(b.h, SIGN_FOOT.h);
+    b.roof = "flat";
+  }
+}
+
 // Hand-placed mid towers across the phone screen; generated ones continue past it for wide
 // screens. Drawn in this order (later ones in front).
 const MID_HERO: Tower[] = [
@@ -78,6 +88,13 @@ const MID_HERO: Tower[] = [
 const MID_SIDES = row(1500, 1.8, 0.07, 0.12, 0.3, 0.5, 0.15).filter((b) => b.x > 0.52 || b.x + b.w < -0.52);
 for (const b of MID_SIDES) b.lights = hash(b.x * 99) > 0.5 ? "grid" : "strips";
 const MID: Tower[] = [...MID_SIDES, ...MID_HERO];
+
+/**
+ * Rim light, in px: a silhouette is filled in its edge color, then again in its body color
+ * nudged this far down and left, which leaves a lit line along its top and its moon-side
+ * (right) edge. Two fills cost much less than stroking every outline.
+ */
+const RIM = 1;
 
 /** Add a tower's silhouette to the current path. */
 function towerPath(ctx: Ctx, b: Tower, cx: number, hy: number, u: number): void {
@@ -222,7 +239,7 @@ function drawWindows(ctx: Ctx, s: Scene, list: Win[], color: string, a: number):
     if (!lit(w, s.t)) continue;
     ctx.rect(cx + w.x * u, s.horizonY - w.y * u, Math.max(1, w.w * u), Math.max(1, w.h * u));
   }
-  ctx.fillStyle = alpha(color, a);
+  ctx.fillStyle = tint(color, a);
   ctx.fill();
 }
 
@@ -231,7 +248,8 @@ function visible(b: Tower, s: Scene): boolean {
   return b.x < half && b.x + b.w > -half;
 }
 
-const STRIP_COLORS = [MAGENTA, CYAN, PURPLE, PINK] as const;
+/** Neon colors of the street blocks' strips and the signs (signs and strips name them by index). */
+export const STRIP_COLORS = [MAGENTA, CYAN, PURPLE, PINK] as const;
 
 /** Small neon strips on some of the low street blocks: x, width and height in u, color. */
 export const LOW_STRIPS = LOW_ROW.flatMap((b, i) =>
@@ -242,10 +260,10 @@ const LOW_EDGE = mix(NEAR, PURPLE, 0.25);
 // Signs and holos on the hero towers, in u. Exported so the street can paint their
 // reflections on the wet floor.
 export const SIGNS = [
-  { kind: "v" as const, x: -0.415, y: 0.58, w: 0.034, h: 0.27, color: MAGENTA, seed: 3 },
-  { kind: "v" as const, x: 0.44, y: 0.25, w: 0.03, h: 0.17, color: CYAN, seed: 8 },
-  { kind: "b" as const, x: -0.345, y: 0.33, w: 0.07, h: 0.024, color: PURPLE, seed: 5 },
-  { kind: "b" as const, x: 0.15, y: 0.25, w: 0.06, h: 0.02, color: PINK, seed: 11 },
+  { kind: "v" as const, x: -0.415, y: 0.58, w: 0.034, h: 0.27, c: 0, seed: 3 },
+  { kind: "v" as const, x: SIGN_FOOT.x0 + 0.01, y: 0.25, w: 0.03, h: 0.17, c: 1, seed: 8 },
+  { kind: "b" as const, x: -0.345, y: 0.33, w: 0.07, h: 0.024, c: 2, seed: 5 },
+  { kind: "b" as const, x: 0.15, y: 0.25, w: 0.06, h: 0.02, c: 3, seed: 11 },
 ];
 export const HOLO = { x: 0.235, y: 0.33, w: 0.15, h: 0.095, color: CYAN, glitch: MAGENTA, seed: 4, ex: 0.285, ey: 0.2 };
 
@@ -301,16 +319,17 @@ export function city(ctx: Ctx, s: Scene): void {
 
   laneCars(ctx, s);
 
-  // Mid row: dark slabs, each with a faint edge so overlapping towers separate.
-  ctx.lineWidth = 1;
+  // Mid row: dark slabs, each with a faint moonlit rim so overlapping towers separate.
   for (const b of MID) {
     if (!visible(b, s)) continue;
     ctx.beginPath();
     towerPath(ctx, b, cx, hy, u);
+    ctx.fillStyle = SLAB_EDGE;
+    ctx.fill();
+    ctx.beginPath();
+    towerPath(ctx, b, cx - RIM, hy + RIM, u);
     ctx.fillStyle = SLAB;
     ctx.fill();
-    ctx.strokeStyle = SLAB_EDGE;
-    ctx.stroke();
   }
   for (let i = 0; i < MID_WINS.length; i++) drawWindows(ctx, s, MID_WINS[i]!, WINDOW_COLORS[i]!, i === 3 ? 0.7 : 0.62);
 
@@ -323,7 +342,7 @@ export function city(ctx: Ctx, s: Scene): void {
   ctx.moveTo(cx + spire.x * u + 1, hy);
   ctx.lineTo(cx + spire.x * u + 1, hy - spire.h * u);
   ctx.globalAlpha = 0.55;
-  neonStroke(ctx, PURPLE, Math.max(1, u * 0.003), 2.4);
+  tube(ctx, PURPLE, Math.max(1, u * 0.003), 2.4);
   ctx.globalAlpha = 1;
 
   // Beacons
@@ -337,15 +356,16 @@ export function city(ctx: Ctx, s: Scene): void {
     if (y < s.cssH * 0.32 && x > s.cssW * 0.2 && x < s.cssW * 0.8) continue;
     circle(ctx, x, y, Math.max(1, u * (on ? 0.0045 : 0.003)));
   }
-  ctx.fillStyle = alpha(RED, on ? 0.95 : 0.45);
+  ctx.fillStyle = tint(RED, on ? 0.95 : 0.45);
   ctx.fill();
 
   // Signs
   for (const sg of SIGNS) {
     const x = cx + sg.x * u;
     const y = hy - sg.y * u;
-    if (sg.kind === "v") verticalSign(ctx, x, y, sg.w * u, sg.h * u, sg.color, sg.seed, s.t, 0.85);
-    else boardSign(ctx, x, y, sg.w * u, sg.h * u, sg.color, sg.seed, s.t, 0.85);
+    const color = STRIP_COLORS[sg.c]!;
+    if (sg.kind === "v") verticalSign(ctx, x, y, sg.w * u, sg.h * u, color, sg.seed, s.t, 0.85);
+    else boardSign(ctx, x, y, sg.w * u, sg.h * u, color, sg.seed, s.t, 0.85);
   }
   holoBillboard(
     ctx,
@@ -364,10 +384,12 @@ export function city(ctx: Ctx, s: Scene): void {
   // Low street blocks right on the horizon, with rooftop clutter and small neon strips.
   ctx.beginPath();
   for (const b of LOW_ROW) if (visible(b, s)) towerPath(ctx, b, cx, hy, u);
+  ctx.fillStyle = LOW_EDGE;
+  ctx.fill();
+  ctx.beginPath();
+  for (const b of LOW_ROW) if (visible(b, s)) towerPath(ctx, b, cx - RIM, hy + RIM, u);
   ctx.fillStyle = NEAR;
   ctx.fill();
-  ctx.strokeStyle = LOW_EDGE;
-  ctx.stroke();
   ctx.globalAlpha = 0.5;
   for (let c = 0; c < STRIP_COLORS.length; c++) {
     ctx.beginPath();
@@ -376,7 +398,10 @@ export function city(ctx: Ctx, s: Scene): void {
       ctx.moveTo(cx + st.x * u, hy - st.h * u);
       ctx.lineTo(cx + (st.x + st.w) * u, hy - st.h * u);
     }
-    neonStroke(ctx, STRIP_COLORS[c]!, Math.max(1, u * 0.004), 2.2);
+    tube(ctx, STRIP_COLORS[c]!, Math.max(1, u * 0.004), 2.2);
   }
   ctx.globalAlpha = 1;
+  // Hand the base its default line style back for the floor grid.
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
 }

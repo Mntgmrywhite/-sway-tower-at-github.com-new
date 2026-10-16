@@ -1,8 +1,8 @@
-import { alpha, circle, hash, ink, oval, type Ctx } from "../../base/draw";
+import { circle, hash, ink, oval, type Ctx } from "../../base/draw";
 import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
 import { BLOOMS, INK, inkW, STEM } from "./colors";
-import { checkerEarth, EARTH, grassCap } from "./terrain";
+import { checkerEarth, EARTH, EARTH_DEEP, grassCap } from "./terrain";
 
 // The near ledge we look over: a thick cap of bright grass hanging in round scallops over
 // checker-banded earth, the base band's stone replaced by warm soil. It drops away faster than
@@ -22,7 +22,6 @@ const FLOWERS = [
 ] as const;
 /** Head colors by kind: pink tulip, white daisy, violet tulip. */
 const HEADS = ["#ff4f7e", "#ffffff", "#b46cff"] as const;
-const DEEPEN = alpha(INK, 0.14);
 
 export function front(ctx: Ctx, s: Scene): void {
   const u = s.u;
@@ -34,10 +33,8 @@ export function front(ctx: Ctx, s: Scene): void {
   const capH = u * 0.04;
   const c = u * 0.068;
   const earthTop = capTop + capH * 0.6;
-  checkerEarth(ctx, 0, s.cssW, earthTop, s.cssH, c, cx - c / 2, EARTH);
-  // The earth darkens a little with depth, row by row.
-  ctx.fillStyle = DEEPEN;
-  ctx.fillRect(0, earthTop + c * 2, s.cssW, s.cssH - earthTop - c * 2);
+  // The earth darkens a little below its top stratum.
+  checkerEarth(ctx, 0, s.cssW, earthTop, s.cssH, c, cx - c / 2, EARTH, true, EARTH_DEEP);
   grassCap(ctx, 0, s.cssW, capTop, capH, u * 0.078, u * 0.012, cx - u * 0.039, lw);
   flowers(ctx, s, capTop + u * 0.012, lw);
 }
@@ -67,20 +64,24 @@ function flowers(ctx: Ctx, s: Scene, y: number, lw: number): void {
   ctx.fillStyle = STEM;
   ink(ctx, lw * 1.3, INK);
   ctx.fill();
-  // Heads: tulip cups in pink and violet, daisies white with gold hearts.
-  for (let kind = 0; kind < 3; kind++) {
+  // Heads: tulip cups in pink and violet, daisies white with gold hearts. Pass 3 inks every
+  // head in one stroke; passes 0..2 fill them by kind.
+  for (let kind = 3; kind >= 0; kind--) {
     ctx.beginPath();
     for (const [f, side, k, ph] of FLOWERS) {
+      if (kind < 3 && k !== kind) continue;
       const x = side < 0 ? f * s.cssW : s.cssW - f * s.cssW;
       const sway = Math.sin(s.t * 1.2 + ph) * h * 0.08;
       const hx = x + sway;
       const hy = y - h * (0.85 + 0.15 * hash(ph * 10));
-      if (k !== kind) continue;
-      if (kind === 1) daisy(ctx, hx, hy, h * 0.17);
+      if (k === 1) daisy(ctx, hx, hy, h * 0.17);
       else tulip(ctx, hx, hy, h * 0.17);
     }
+    if (kind === 3) {
+      ink(ctx, lw * 1.3, INK);
+      continue;
+    }
     ctx.fillStyle = HEADS[kind]!;
-    ink(ctx, lw * 1.3, INK);
     ctx.fill();
   }
   ctx.beginPath();

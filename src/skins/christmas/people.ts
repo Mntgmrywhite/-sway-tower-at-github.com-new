@@ -327,10 +327,13 @@ function child(ctx: Ctx, lw: number, t: number, phase: number, lx: number, ly: n
   mitten(ctx, hx, hyy, 0.0055, RED, lw);
 }
 
-/** Notes drifting up from the singers: [x offset, phase, size]. */
+/**
+ * Notes drifting up from the singers: [x offset, phase, size]. They rise on the right of the
+ * group, over the lady and the child, so they never drift across the poulterer's goose.
+ */
 const NOTES = [
-  [0.0, 0, 0.9],
-  [0.05, 0.5, 0.75],
+  [0.1, 0, 0.9],
+  [0.112, 0.5, 0.75],
 ] as const;
 
 function notes(ctx: Ctx, f: Frame, lw: number): void {

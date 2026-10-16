@@ -168,5 +168,5 @@ export function tombstone(ctx: Ctx, x: number, y: number, w: number, h: number, 
   ctx.restore();
 
   mound(ctx, x, y + w * 0.04, w * 0.9, w * 0.27, seed, lw);
-  tuft(ctx, x - w * 0.66, y + w * 0.08, w * 0.3, seed * 7, lw);
+  tuft(x - w * 0.66, y + w * 0.08, w * 0.3, seed * 7);
 }

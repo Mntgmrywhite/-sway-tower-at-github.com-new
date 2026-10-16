@@ -30,7 +30,10 @@ const RAY_N = 12;
 export function sun(ctx: Ctx, s: Scene): void {
   const r = s.u * 0.072;
   const x = Math.max(s.cssW * HUD_RIGHT + r, s.cssW - r * 1.64);
-  const y = s.horizonY - s.u * 0.4 + s.rise * 0.2;
+  // Where its rays reach into the HUD's columns (short screens), keep it below the HUD band.
+  const reach = r * 1.56;
+  let y = s.horizonY - s.u * 0.4 + s.rise * 0.2;
+  if (x - reach < s.cssW * HUD_RIGHT) y = Math.max(y, s.cssH * HUD_BAND + reach);
   if (y - r * 1.6 > s.cssH) return;
 
   // A soft flat halo, then short rays turning slowly: a comic-strip sun.
@@ -43,7 +46,7 @@ export function sun(ctx: Ctx, s: Scene): void {
   for (let i = 0; i < RAY_N; i++) {
     const a = spin + (i * Math.PI * 2) / RAY_N;
     const r0 = r * 1.18;
-    const r1 = r * (i % 2 ? 1.42 : 1.56);
+    const r1 = i % 2 ? r * 1.42 : reach;
     const w = 0.07;
     ctx.moveTo(x + Math.cos(a - w) * r0, y + Math.sin(a - w) * r0);
     ctx.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);

@@ -7,6 +7,8 @@ import { beats, FAR, FAR_RIM, GLOWS, GREEN, PINK, pulse, SIL_LIGHT } from "./com
 // horizon on either side of the tower, arms up, a few glow sticks waving on the beat. The
 // tower's own column stays clear so it reads against the calm grid.
 
+const SIDES = [-1, 1] as const;
+
 /** Light towers stand this far from the center, in u. */
 const LASER_X = 0.43;
 const TOWER_H = 0.3;
@@ -189,8 +191,6 @@ function crowd(ctx: Ctx, s: Scene): void {
     ctx.stroke();
   }
 }
-
-const SIDES = [-1, 1] as const;
 
 /** The far layer: light towers, then the crowd in front of them. */
 export function partyFar(ctx: Ctx, s: Scene): void {

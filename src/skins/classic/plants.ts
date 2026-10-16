@@ -144,13 +144,11 @@ export function palm(ctx: Ctx, x: number, y: number, r: number, lean: number, t:
   const top = palmTop(x, y, r, lean, sway);
   const tx = top.x;
   const ty = top.y;
-  // One ink pass for the whole silhouette, then the fills on top of it.
+  // The trunk, inked then filled, its rings; then the whole crown inked then filled over its
+  // top, so overlapping fronds merge into one silhouette. Each path is built once.
   ctx.beginPath();
   palmTrunk(ctx, x, y, r, lean, sway);
-  palmFronds(ctx, tx, ty, r, wave, true);
   ink(ctx, lw * 1.6, INK);
-  ctx.beginPath();
-  palmTrunk(ctx, x, y, r, lean, sway);
   ctx.fillStyle = TRUNK;
   ctx.fill();
   ctx.beginPath();
@@ -160,6 +158,7 @@ export function palm(ctx: Ctx, x: number, y: number, r: number, lean: number, t:
   ctx.stroke();
   ctx.beginPath();
   palmFronds(ctx, tx, ty, r, wave, true);
+  ink(ctx, lw * 1.6, INK);
   ctx.fillStyle = FROND;
   ctx.fill();
   ctx.beginPath();

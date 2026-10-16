@@ -10,7 +10,8 @@ import { C, cel, flat, L, len, line, M, O, pen, Q, S } from "./pen";
 const BODY = tone("#8b5a34", 0.3, 0.26);
 const BREAST = "#a8703e";
 const WING = tone("#6c4227", 0.25, 0.22);
-const BAR = "#f1dcae";
+/** Feather bars across the wing: a warm copper, soft enough not to read as bones. */
+const BAR = "#c9874e";
 const FAN_TIP = "#f4e0b4";
 const FAN_BAND = "#c4592e";
 const FAN_BRONZE = "#91582f";
@@ -122,7 +123,7 @@ export function turkey(ctx: Ctx, t: number, x: number, y: number, scale: number,
     M(ctx, bx - 0.02, -0.53 + bob + k * 0.04);
     Q(ctx, bx + 0.035, -0.44 + bob, bx - 0.03, -0.34 + bob);
   }
-  line(ctx, BAR, thin * 1.1);
+  line(ctx, BAR, thin);
 
   // Neck and head, dipping toward the lawn when it pecks
   const hx = HEAD_UP_X + (HEAD_DOWN_X - HEAD_UP_X) * peck;

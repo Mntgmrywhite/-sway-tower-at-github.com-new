@@ -16,6 +16,11 @@ const STRIDE = 1.7;
 const EMBER = mix(FLAME, "#ffffff", 0.25);
 const GLOW = alpha(FLAME, 0.2);
 
+/** A ripple for the tail and cape: amplitude 0.07, `rate` rad/s, phase `ph`. */
+function wave(t: number, rate: number, ph: number): number {
+  return 0.07 * Math.sin(t * rate + ph);
+}
+
 function leg(ctx: Ctx, x: number, y: number, a: number, ua: number, b: number, la: number): void {
   const kx = x + Math.sin(ua) * a;
   const ky = y + Math.cos(ua) * a;
@@ -63,13 +68,15 @@ export function horseman(ctx: Ctx, x: number, y: number, s: number, t: number, t
   ctx.rotate(pitch);
 
   // ---- tail, streaming back and rippling
-  const w = (k: number) => 0.07 * Math.sin(t * 12 + k * 1.3);
+  const w0 = wave(t, 12, 0);
+  const w1 = wave(t, 12, 1.3);
+  const w2 = wave(t, 12, 2.6);
   ctx.beginPath();
   ctx.moveTo(-0.78, -1.2);
-  ctx.quadraticCurveTo(-1.2, -1.44 + w(0), -1.75, -1.36 + w(1));
-  ctx.lineTo(-1.5, -1.24 + w(1) * 0.6);
-  ctx.lineTo(-1.8, -1.08 + w(2));
-  ctx.quadraticCurveTo(-1.3, -1.02 + w(2) * 0.5, -0.82, -0.98);
+  ctx.quadraticCurveTo(-1.2, -1.44 + w0, -1.75, -1.36 + w1);
+  ctx.lineTo(-1.5, -1.24 + w1 * 0.6);
+  ctx.lineTo(-1.8, -1.08 + w2);
+  ctx.quadraticCurveTo(-1.3, -1.02 + w2 * 0.5, -0.82, -0.98);
   ctx.closePath();
   ctx.fill();
 
@@ -121,16 +128,20 @@ export function horseman(ctx: Ctx, x: number, y: number, s: number, t: number, t
   ctx.fill();
 
   // ---- rider: the tattered cape first, billowing back over the horse's rump
-  const c = (k: number) => 0.07 * Math.sin(t * 10 + k * 1.4);
+  const c0 = wave(t, 10, 0);
+  const c1 = wave(t, 10, 1.4);
+  const c2 = wave(t, 10, 2.8);
+  const c3 = wave(t, 10, 4.2);
+  const c4 = wave(t, 10, 5.6);
   ctx.beginPath();
   ctx.moveTo(-0.06, -1.98);
-  ctx.quadraticCurveTo(-0.6, -2.08 + c(0), -1.3, -1.92 + c(1));
-  ctx.lineTo(-1.06, -1.8 + c(1));
-  ctx.lineTo(-1.4, -1.66 + c(2));
-  ctx.lineTo(-1.1, -1.56 + c(2));
-  ctx.lineTo(-1.26, -1.4 + c(3));
-  ctx.lineTo(-0.94, -1.4 + c(3));
-  ctx.lineTo(-0.98, -1.24 + c(4));
+  ctx.quadraticCurveTo(-0.6, -2.08 + c0, -1.3, -1.92 + c1);
+  ctx.lineTo(-1.06, -1.8 + c1);
+  ctx.lineTo(-1.4, -1.66 + c2);
+  ctx.lineTo(-1.1, -1.56 + c2);
+  ctx.lineTo(-1.26, -1.4 + c3);
+  ctx.lineTo(-0.94, -1.4 + c3);
+  ctx.lineTo(-0.98, -1.24 + c4);
   ctx.quadraticCurveTo(-0.5, -1.32, -0.12, -1.42);
   ctx.closePath();
   ctx.fill();
@@ -228,7 +239,7 @@ export function horseman(ctx: Ctx, x: number, y: number, s: number, t: number, t
   ctx.ellipse(hx, py, pr * 1.15, pr, 0, 0.15, Math.PI - 0.15);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = mix(CANDLE, FLAME_HOT, flick);
+  ctx.fillStyle = flick > 0.5 ? FLAME_HOT : CANDLE;
   ctx.beginPath();
   for (let side = -1; side <= 1; side += 2) {
     ctx.moveTo(hx + side * pr * 0.62, py - pr * 0.04);

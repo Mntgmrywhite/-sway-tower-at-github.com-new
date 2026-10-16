@@ -9,7 +9,8 @@ import { crowFly } from "./crow";
 // hollow, and a couple of bats. Everything up here is far away, so it is drawn as faded flat
 // silhouettes with no outline. No witches and no ghosts: the sky belongs to the Horseman.
 
-const FLYER_HIGH = mix(FLYER, "#140f3c", 0.55);
+/** Flyers deepen with the sky as you climb, in a few steps (precomputed, no per-frame colors). */
+const FLYER_STEPS = Array.from({ length: 9 }, (_, i) => mix(FLYER, "#140f3c", (0.55 * i) / 8));
 
 const MOON_SEA = mix(PALETTE.moon, "#d8a98a", 0.3);
 const MOON_CRATER = mix(PALETTE.moon, "#c8957a", 0.36);
@@ -148,7 +149,7 @@ export function flyers(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const t = s.t;
   const a = altitude01(s);
-  ctx.fillStyle = mix(FLYER, FLYER_HIGH, a);
+  ctx.fillStyle = FLYER_STEPS[Math.round(a * 8)]!;
 
   const crows = 3 + Math.floor(a * 2.99);
   const cx = s.cssW / 2;

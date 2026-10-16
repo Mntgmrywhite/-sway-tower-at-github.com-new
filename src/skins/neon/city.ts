@@ -194,23 +194,15 @@ const RIDGE: readonly (readonly [number, number])[] = (() => {
   });
 })();
 
-/** Two inner rows of the mesh, as fractions of the ridge height, with a little sideways jitter
- *  (u) so the triangles are uneven, like low-poly terrain. */
+/** The mesh's two inner rows, as fractions of the ridge height. They sit straight under the
+ *  ridge vertices, so the mesh stays inside the silhouette without a clip. */
 const ROWS = [0.68, 0.36] as const;
-const MESH: readonly (readonly [number, number, number, number])[] = RIDGE.map(([x, h], i) => [
-  x + (hash(i + 1700) - 0.5) * RIDGE_STEP * 0.5,
-  h * ROWS[0],
-  x + (hash(i + 2100) - 0.5) * RIDGE_STEP * 0.6,
-  h * ROWS[1],
-]);
 
 const RIDGE_FILL = mix(SKY_BOTTOM, "#000000", 0.66);
 const RIDGE_RIM = mix(VIOLET, MAGENTA, 0.3);
-const MESH_HIGH = alpha(RIDGE_RIM, 0.4);
-const MESH_LOW = alpha(RIDGE_RIM, 0.2);
+const MESH_COLOR = alpha(RIDGE_RIM, 0.36);
 
-/** Wireframe mountains: a dark low-poly range with a neon rim and a triangle mesh, brighter
- *  up near the ridge and fading toward the foot. */
+/** Wireframe mountains: a dark low-poly range with a neon rim and a triangle mesh. */
 function ridge(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = s.cssW / 2;
@@ -229,47 +221,26 @@ function ridge(ctx: Ctx, s: Scene): void {
   ctx.closePath();
   ctx.fillStyle = RIDGE_FILL;
   ctx.fill();
-  ctx.save();
-  ctx.clip();
-  ctx.lineWidth = 1;
-  // Upper mesh: a zigzag from the ridge to the first row (triangles), and the row itself.
+  // Mesh, one stroke: a zigzag from the ridge down to the first row (the triangles), then the
+  // two rows running along the range like terrain contours.
   ctx.beginPath();
   for (let i = i0; i <= i1; i++) {
     const [x, h] = RIDGE[i]!;
-    const [ax, ah] = MESH[i]!;
     if (i === i0) ctx.moveTo(cx + x * u, hy - h * u);
     else ctx.lineTo(cx + x * u, hy - h * u);
-    ctx.lineTo(cx + ax * u, hy - ah * u);
+    ctx.lineTo(cx + x * u, hy - h * ROWS[0] * u);
   }
-  for (let i = i0; i <= i1; i++) {
-    const [ax, ah] = MESH[i]!;
-    if (i === i0) ctx.moveTo(cx + ax * u, hy - ah * u);
-    else ctx.lineTo(cx + ax * u, hy - ah * u);
+  for (const f of ROWS) {
+    for (let i = i0; i <= i1; i++) {
+      const [x, h] = RIDGE[i]!;
+      if (i === i0) ctx.moveTo(cx + x * u, hy - h * f * u);
+      else ctx.lineTo(cx + x * u, hy - h * f * u);
+    }
   }
-  ctx.strokeStyle = MESH_HIGH;
+  ctx.lineWidth = 1;
+  ctx.lineJoin = "bevel";
+  ctx.strokeStyle = MESH_COLOR;
   ctx.stroke();
-  // Lower mesh: first row to the second, the second row, then zigzag down to the horizon.
-  ctx.beginPath();
-  for (let i = i0; i <= i1; i++) {
-    const [ax, ah, bx, bh] = MESH[i]!;
-    if (i === i0) ctx.moveTo(cx + ax * u, hy - ah * u);
-    else ctx.lineTo(cx + ax * u, hy - ah * u);
-    ctx.lineTo(cx + bx * u, hy - bh * u);
-  }
-  for (let i = i0; i <= i1; i++) {
-    const [, , bx, bh] = MESH[i]!;
-    if (i === i0) ctx.moveTo(cx + bx * u, hy - bh * u);
-    else ctx.lineTo(cx + bx * u, hy - bh * u);
-  }
-  for (let i = i0; i <= i1; i++) {
-    const [, , bx, bh] = MESH[i]!;
-    if (i === i0) ctx.moveTo(cx + bx * u, hy - bh * u);
-    else ctx.lineTo(cx + bx * u, hy - bh * u);
-    ctx.lineTo(cx + (bx + RIDGE_STEP * 0.5) * u, hy);
-  }
-  ctx.strokeStyle = MESH_LOW;
-  ctx.stroke();
-  ctx.restore();
   ctx.beginPath();
   ctx.moveTo(cx + RIDGE[i0]![0] * u, hy - RIDGE[i0]![1] * u);
   for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(cx + RIDGE[i]![0] * u, hy - RIDGE[i]![1] * u);

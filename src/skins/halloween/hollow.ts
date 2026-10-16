@@ -7,7 +7,7 @@ import { moonAt } from "./sky";
 
 // Beyond the town lies Sleepy Hollow, faded by distance and mist: a long hill under the moon
 // with dead trees on its crest, where the Headless Horseman gallops past the moon's face and
-// vanishes into the mist toward the old covered bridge; a giant gnarled tree; and the steeple
+// rides down into the old covered bridge; a giant gnarled tree; and the steeple
 // of the old church rising out of the fog on the right. The hill is farther than the horizon
 // (it drops more slowly as you climb); everything else stands on horizonY. Bases sink into
 // the cloud bank (the mist), which is drawn over this layer.
@@ -38,8 +38,8 @@ function gnarled(seed: number, lean: number, spread: number, depth: number): num
     const a = Math.max(-1.6, Math.min(1.6, ang));
     const x1 = x + Math.sin(a) * len;
     const y1 = y + Math.cos(a) * len;
-    const mx = (x + x1) / 2 + (hash(sd + 11) - 0.5) * len * 0.45;
-    const my = (y + y1) / 2 + (hash(sd + 13) - 0.5) * len * 0.15;
+    const mx = (x + x1) / 2 + (hash(sd + 11) - 0.5) * len * 0.6;
+    const my = (y + y1) / 2 + (hash(sd + 13) - 0.5) * len * 0.2;
     const level = Math.min(3, depth - d - (depth > 4 ? 1 : 0));
     out.push(x, y, mx, my, x1, y1, Math.max(0, level));
     if (d === 0) return;
@@ -49,7 +49,7 @@ function gnarled(seed: number, lean: number, spread: number, depth: number): num
       const sp = spread * (0.45 + hash(sd * 3 + i) * 0.5);
       const nl = len * (0.6 + hash(sd + i + 9) * 0.22);
       // Limbs droop and curl a little toward their ends.
-      const curl = d <= 1 ? (hash(sd + i + 21) - 0.5) * 0.9 : 0;
+      const curl = d <= 2 ? (hash(sd + i + 21) - 0.5) * (d <= 1 ? 1.1 : 0.6) : 0;
       grow(x1, y1, a + side * sp + curl + (hash(sd + 5) - 0.5) * 0.3, nl, d - 1, sd * 2 + i + 3);
     }
   };
@@ -172,9 +172,15 @@ function hill(ctx: Ctx, s: Scene): void {
 const RIDE_LOOP = 10;
 const RIDE_TIME = 5.6;
 const RIDE_SHIFT = 9.4;
-/** His ride, in u from the center: out of the mist on the left, past the moon, down to the bridge. */
+/**
+ * His ride, in u from the center: out of the mist on the left, past the moon, down the hill
+ * and into the covered bridge's portal (the bridge is drawn over him, so he rides in behind
+ * its gable end and fades there rather than on the open hillside).
+ */
 const RIDE_FROM = -0.47;
-const RIDE_TO = -0.06;
+const RIDE_TO = -0.035;
+/** His size unit, in u: about 3 long and 3.3 tall with the pumpkin raised. */
+const RIDER_SIZE = 0.046;
 
 function rider(ctx: Ctx, s: Scene): void {
   const p = ((((s.t + RIDE_SHIFT) % RIDE_LOOP) + RIDE_LOOP) % RIDE_LOOP) / RIDE_TIME;
@@ -183,8 +189,8 @@ function rider(ctx: Ctx, s: Scene): void {
   const y = crest(x);
   const d = s.u * 0.03;
   const tilt = Math.max(-0.4, Math.min(0.4, Math.atan2(crest(x + d) - crest(x - d), 2 * d)));
-  const vis = smooth(0, 0.14, p) * (1 - smooth(0.74, 0.98, p));
-  horseman(ctx, x, y + s.u * 0.003, s.u * 0.042, s.t, tilt, vis);
+  const vis = smooth(0.1, 0.24, p) * (1 - smooth(0.84, 0.99, p));
+  horseman(ctx, x, y + s.u * 0.003, s.u * RIDER_SIZE, s.t, tilt, vis);
 }
 
 // ---------------------------------------------------------------- covered bridge
@@ -274,12 +280,12 @@ function bridge(ctx: Ctx, s: Scene): void {
   ctx.lineTo(x0 + fw * 0.05, eave + u * 0.002);
   ctx.stroke();
   // A lantern hung by the portal
-  const lx = x0 + u * 0.006;
-  const ly = eave + u * 0.014;
+  const lx = x0 + u * 0.014;
+  const ly = eave + u * 0.016;
   const flick = 0.85 + 0.15 * Math.sin(s.t * 7) * Math.sin(s.t * 3.1);
   ctx.fillStyle = LANTERN_GLOW;
   ctx.beginPath();
-  circle(ctx, lx, ly, u * 0.026 * flick);
+  circle(ctx, lx, ly, u * 0.02 * flick);
   ctx.fill();
   ctx.fillStyle = LANTERN;
   ctx.beginPath();

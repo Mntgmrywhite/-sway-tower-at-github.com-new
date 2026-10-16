@@ -122,7 +122,7 @@ export function graveState(t: number, g: number): typeof STATE {
 export function grave(ctx: Ctx, t: number, x: number, y: number, rx: number, g: number, lw: number): void {
   const seed = 31 + g * 5;
   mound(ctx, x, y, rx, rx * GRAVE_RY, seed, lw);
-  tuft(ctx, x + rx * 0.84, y + rx * 0.02, rx * 0.34, seed * 3, lw);
+  tuft(x + rx * 0.84, y + rx * 0.02, rx * 0.34, seed * 3);
   const h = holeFor(x, y, rx);
   const { x: hx, y: hy, rx: hrx, ry: hry } = h;
   hole(ctx, hx, hy, hrx, hry, lw);

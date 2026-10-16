@@ -75,7 +75,6 @@ export const LAMP_CORE = "#fff3c0";
 
 /** Skin tones and the kids' costume colors. */
 export const SKIN = "#ffd2ad";
-export const SKIN_SHADE = "#f0ad8a";
 export const CHEEK = "#ff8f8f";
 export const WITCH = "#9a5fe0";
 export const WITCH_DARK = "#7440b8";

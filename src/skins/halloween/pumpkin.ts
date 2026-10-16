@@ -1,9 +1,12 @@
-import { alpha, ink, mix, oval, type Ctx } from "../../base/draw";
+import { alpha, ink, oval, type Ctx } from "../../base/draw";
 import { CANDLE, CANDLE_HOT, CARVED, INK, MOSS, ORANGE, ORANGE_DARK, ORANGE_LIGHT, STEM } from "./common";
 import { SHADOW } from "./dirt";
 
 // The jack-o'-lantern: a flat orange pumpkin with ribs, a light top and shaded bottom, an ink
 // outline, and a carved face lit from inside by a flickering candle.
+
+/** Warm light spilling on the grass around the pumpkin. */
+const POOL = alpha(CANDLE, 0.17);
 
 /** Carved face as closed subpaths: two eyes, a nose, a jagged grin. Nothing joins up. */
 function face(ctx: Ctx, px: number, py: number, pr: number): void {
@@ -34,10 +37,12 @@ export function jackOLantern(ctx: Ctx, t: number, px: number, bottom: number, pr
   const flicker = 0.5 + 0.5 * Math.sin(t * 9) * Math.sin(t * 5.3 + 1);
 
   // Warm light spilling on the grass, and a contact shadow
-  ctx.fillStyle = alpha(CANDLE, 0.12 + 0.05 * flicker);
+  ctx.fillStyle = POOL;
+  ctx.globalAlpha = 0.7 + 0.3 * flicker;
   ctx.beginPath();
   oval(ctx, px, bottom, pr * 1.45, pr * 0.36);
   ctx.fill();
+  ctx.globalAlpha = 1;
   ctx.fillStyle = SHADOW;
   ctx.beginPath();
   oval(ctx, px + pr * 0.1, bottom, pr * 1.15, pr * 0.24);
@@ -100,7 +105,7 @@ export function jackOLantern(ctx: Ctx, t: number, px: number, bottom: number, pr
   ctx.clip();
   ctx.translate(0, pr * 0.07);
   face(ctx, px, py, pr);
-  ctx.fillStyle = mix(CANDLE, CANDLE_HOT, flicker);
+  ctx.fillStyle = flicker > 0.5 ? CANDLE_HOT : CANDLE;
   ctx.fill();
   ctx.restore();
   face(ctx, px, py, pr);

@@ -95,8 +95,8 @@ export const BERRY = "#ff3b4e";
 export const COBBLE = "#8f8cb8";
 export const COBBLE_LIGHT = "#bdb8dc";
 
-/** Chimney smoke, near and far. */
-export const SMOKE = alpha("#e9e2f2", 0.55);
+/** Chimney smoke, near and far: a soft grey-lavender that shows against the dusk and the pale fog. */
+export const SMOKE = alpha(mix("#e9e2f2", FAR, 0.3), 0.72);
 export const SMOKE_FAR = alpha(mix(FAR_BACK, "#ffffff", 0.35), 0.5);
 
 /** Victorian clothes: coats, shawls, scarves, skin. */

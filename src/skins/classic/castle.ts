@@ -51,8 +51,9 @@ const BODY_TOP = PARAPET_H + CORBEL_H;
 
 const WALL_TOP = 0.2; // curtain wall merlon tops
 const WALL_CRENEL = 0.024;
-/** Bushes along the wall foot: their tops, u below the floor line. */
+/** Bushes along the wall foot: their tops, u below the floor line; the solid hedge band starts this far under them. */
 const BUSH_TOP = 0.272;
+const HEDGE_BAND = 0.03;
 
 /**
  * Round towers out along the walls: x (u), body top (u below the floor line), radius (u). The
@@ -282,38 +283,36 @@ function windows(ctx: Ctx, s: Scene, cx: number, y: number, lw: number): void {
       const flutter = Math.sin(s.t * 0.8 + phase) * 0.06;
       const lo = x - w / 2 - w * (0.55 + flutter);
       switch (pass) {
-        case 0: // shutters
+        case 0: // shutters and their rails
           ctx.rect(lo, y - h * 0.9, w * (0.55 + flutter), h * 0.9);
           ctx.rect(x + w / 2, y - h * 0.9, w * 0.55, h * 0.9);
-          break;
-        case 1: // shutter rails
           ctx.moveTo(lo, y - h * 0.45);
           ctx.lineTo(x - w / 2, y - h * 0.45);
           ctx.moveTo(x + w / 2, y - h * 0.45);
           ctx.lineTo(x + w / 2 + w * 0.55, y - h * 0.45);
           break;
-        case 2: // arch
+        case 1: // arch
           ctx.moveTo(x - w / 2, y);
           ctx.lineTo(x - w / 2, y - h + w / 2);
           ctx.arc(x, y - h + w / 2, w / 2, Math.PI, 0);
           ctx.lineTo(x + w / 2, y);
           ctx.closePath();
           break;
-        case 3: // leaves trailing under the box
+        case 2: // leaves trailing under the box
           for (let i = 0; i < 4; i++) {
             const lx = x - w * 0.62 + i * w * 0.42;
             oval(ctx, lx, y + u * 0.02 + (i % 2) * u * 0.006, u * 0.008, u * 0.0055, 1.2 + Math.sin(s.t * 1.5 + i + phase) * 0.2);
           }
           break;
-        case 4: // the box
+        case 3: // the box
           roundRectSub(ctx, x - w * 0.82, y - u * 0.002, w * 1.64, u * 0.018, u * 0.003);
           break;
-        case 5: // leaves in the box
+        case 4: // leaves in the box
           for (let i = 0; i < 5; i++) oval(ctx, x - w * 0.66 + i * w * 0.33, y - u * 0.004, u * 0.008, u * 0.005, 0.3 * (i - 2));
           break;
-        default: // blooms, alternating colors
+        default: // blooms: pass 5 inks them all, 6..8 fill them by color, alternating
           for (let i = 0; i < 5; i++) {
-            if ((i + (phase > 1 ? 1 : 0)) % 3 !== pass - 6) continue;
+            if (pass > 5 && (i + (phase > 1 ? 1 : 0)) % 3 !== pass - 6) continue;
             circle(ctx, x - w * 0.62 + i * w * 0.31, y - u * 0.009 - (i % 2) * u * 0.003, u * 0.0075);
           }
       }
@@ -325,31 +324,30 @@ function windows(ctx: Ctx, s: Scene, cx: number, y: number, lw: number): void {
         ink(ctx, lw * 0.8, INK);
         break;
       case 1:
-        ink(ctx, lw * 0.6, INK);
-        break;
-      case 2:
         ctx.fillStyle = HOLE;
         ctx.fill();
         ink(ctx, lw, INK);
         break;
-      case 3:
+      case 2:
         ink(ctx, lw * 1.3, INK);
         ctx.fillStyle = VINE;
         ctx.fill();
         break;
-      case 4:
+      case 3:
         ctx.fillStyle = WOOD;
         ctx.fill();
         ink(ctx, lw * 0.8, INK);
         break;
-      case 5:
+      case 4:
         ctx.fillStyle = VINE_DARK;
         ctx.fill();
+        break;
+      case 5:
+        ink(ctx, lw * 1.1, INK);
         break;
       default:
         ctx.fillStyle = BLOOMS[pass - 6]!;
         ctx.fill();
-        ink(ctx, lw * 0.55, INK);
     }
   }
 }
@@ -449,63 +447,51 @@ function swags(ctx: Ctx, s: Scene, cx: number, y0: number, lw: number): void {
     ctx.quadraticCurveTo(cx + x * u + u * 0.01, y0 + len * u * 0.5, cx + x * u - u * 0.004, y0 + len * u);
   }
   inkedLine(ctx, VINE_DARK, Math.max(1, u * 0.004), lw * 0.55, INK);
-  // Leaves along every stem.
-  for (let pass = 0; pass < 2; pass++) {
-    ctx.beginPath();
-    for (let w = 0; w < SWAGS.length; w++) {
-      const [x0, x1, sag] = SWAGS[w]!;
-      for (let i = 0; i <= SWAG_LEAVES; i++) {
-        const f = i / SWAG_LEAVES;
-        swagAt(cx, y0, u, x0, x1, sag, f);
-        const side = i % 2 ? 1 : -1;
-        const r = u * (0.0085 + 0.003 * hash(i + w * 20));
-        const rot = side * 0.9 + Math.sin(s.t * 1.8 + i + w) * 0.18;
-        const lx = PT.x;
-        const ly = PT.y + side * r * 0.6;
-        if (pass === 0) oval(ctx, lx, ly, r, r * 0.62, rot);
-        else oval(ctx, lx - r * 0.25, ly - r * 0.2, r * 0.4, r * 0.22, rot);
-      }
-    }
-    for (let k = 0; k < STRANDS.length; k++) {
-      const [x, len] = STRANDS[k]!;
-      for (let i = 1; i <= 4; i++) {
-        const f = i / 4;
-        const side = i % 2 ? 1 : -1;
-        const r = u * 0.008;
-        const lx = cx + x * u + side * r * 0.9 + Math.sin(f * 3) * u * 0.004;
-        const ly = y0 + len * u * f;
-        const rot = side * 0.8 + Math.sin(s.t * 1.8 + i + k * 3) * 0.2;
-        if (pass === 0) oval(ctx, lx, ly, r, r * 0.62, rot);
-        else oval(ctx, lx - r * 0.25, ly - r * 0.2, r * 0.4, r * 0.22, rot);
-      }
-    }
-    if (pass === 0) {
-      ink(ctx, lw * 1.3, INK);
-      ctx.fillStyle = VINE;
-      ctx.fill();
-    } else {
-      ctx.fillStyle = VINE_LIGHT;
-      ctx.fill();
+  // Leaves along every stem (too small at phone size for a lit spot of their own).
+  ctx.beginPath();
+  for (let w = 0; w < SWAGS.length; w++) {
+    const [x0, x1, sag] = SWAGS[w]!;
+    for (let i = 0; i <= SWAG_LEAVES; i++) {
+      swagAt(cx, y0, u, x0, x1, sag, i / SWAG_LEAVES);
+      const side = i % 2 ? 1 : -1;
+      const r = u * (0.0085 + 0.003 * hash(i + w * 20));
+      const rot = side * 0.9 + Math.sin(s.t * 1.8 + i + w) * 0.18;
+      oval(ctx, PT.x, PT.y + side * r * 0.6, r, r * 0.62, rot);
     }
   }
-  // Blooms: pink and white, a gold dot in each.
-  for (let c = 0; c < 2; c++) {
+  for (let k = 0; k < STRANDS.length; k++) {
+    const [x, len] = STRANDS[k]!;
+    for (let i = 1; i <= 4; i++) {
+      const f = i / 4;
+      const side = i % 2 ? 1 : -1;
+      const r = u * 0.008;
+      const rot = side * 0.8 + Math.sin(s.t * 1.8 + i + k * 3) * 0.2;
+      oval(ctx, cx + x * u + side * r * 0.9 + Math.sin(f * 3) * u * 0.004, y0 + len * u * f, r, r * 0.62, rot);
+    }
+  }
+  ink(ctx, lw * 1.3, INK);
+  ctx.fillStyle = VINE;
+  ctx.fill();
+  // Blooms, pink and white: all inked in one stroke (c = 2), then filled by color.
+  for (let c = 2; c >= 0; c--) {
     ctx.beginPath();
     for (let w = 0; w < SWAGS.length; w++) {
       const [x0, x1, sag] = SWAGS[w]!;
       for (let b = 0; b < SWAG_BLOOMS.length; b++) {
-        if ((b + w) % 2 !== c) continue;
+        if (c < 2 && (b + w) % 2 !== c) continue;
         swagAt(cx, y0, u, x0, x1, sag, SWAG_BLOOMS[b]!);
         circle(ctx, PT.x, PT.y + u * 0.004, u * 0.0085);
       }
     }
+    if (c === 2) {
+      ink(ctx, lw * 1.2, INK);
+      continue;
+    }
     ctx.fillStyle = BLOOMS[c]!;
     ctx.fill();
-    ink(ctx, lw * 0.6, INK);
   }
 }
 
-/** The heraldic banner hanging under the corbels: royal blue, gold trim, a crown, a swallowtail. */
 /** Sideways ripple of the banner cloth at fraction f down its length. */
 function ripple(t: number, u: number, f: number): number {
   return Math.sin(t * 1.7 - f * 2.6) * u * 0.009 * f;
@@ -530,6 +516,7 @@ function clothPath(ctx: Ctx, t: number, u: number, cx: number, y0: number, hw: n
   ctx.closePath();
 }
 
+/** The heraldic banner hanging under the corbels: royal blue, gold trim, a crown, a swallowtail. */
 function banner(ctx: Ctx, s: Scene, cx: number, y0: number, lw: number): void {
   const u = s.u;
   const hw = u * 0.052;
@@ -541,21 +528,29 @@ function banner(ctx: Ctx, s: Scene, cx: number, y0: number, lw: number): void {
   clothPath(ctx, t, u, cx, y0, hw, len, notch);
   ctx.fillStyle = ROYAL;
   ctx.fill();
-  ctx.save();
-  ctx.clip();
-  // A fold of shade down the right, swaying with the cloth.
+  // A fold of shade down the right, swaying with the cloth: from the fold line across to the
+  // cloth's right edge, ending on the swallowtail's slant (built inside the cloth, no clip).
+  const r1 = ripple(t, u, 1);
+  const nx = cx + r1 * 0.9;
+  const rx = cx + hw + r1 + u * 0.004;
   ctx.beginPath();
   ctx.moveTo(cx + hw * 0.35, y0);
   for (let i = 1; i <= STEPS; i++) {
     const f = i / STEPS;
-    ctx.lineTo(cx + hw * (0.35 + 0.2 * Math.sin(t * 1.7 - f * 2.6)) + ripple(t, u, f), y0 + len * f);
+    const fx = cx + hw * (0.35 + 0.2 * Math.sin(t * 1.7 - f * 2.6)) + ripple(t, u, f);
+    const g = i < STEPS ? 1 : Math.min(1, Math.max(0, (fx - nx) / (rx - nx)));
+    ctx.lineTo(fx, y0 + len * f - notch * (1 - g));
   }
-  ctx.lineTo(cx + hw * 2, y0 + len);
-  ctx.lineTo(cx + hw * 2, y0);
+  ctx.lineTo(rx, y0 + len);
+  for (let i = STEPS - 1; i >= 1; i--) {
+    const f = i / STEPS;
+    ctx.lineTo(cx + hw + ripple(t, u, f) + f * u * 0.004, y0 + len * f);
+  }
+  ctx.lineTo(cx + hw, y0);
   ctx.closePath();
   ctx.fillStyle = ROYAL_SHADE;
   ctx.fill();
-  // Gold trim down both edges and across the top.
+  // Gold trim down both edges (stopping above the swallowtail) and across the top.
   ctx.beginPath();
   for (const side of SIDES) {
     ctx.moveTo(cx + side * hw * 0.72, y0);
@@ -564,12 +559,11 @@ function banner(ctx: Ctx, s: Scene, cx: number, y0: number, lw: number): void {
       ctx.lineTo(cx + side * (hw * 0.72 + f * u * 0.004) + ripple(t, u, f), y0 + (len - notch * 0.6) * f);
     }
   }
-  ctx.moveTo(cx - hw, y0 + u * 0.016);
-  ctx.lineTo(cx + hw, y0 + u * 0.016);
+  ctx.moveTo(cx - hw * 0.96, y0 + u * 0.016);
+  ctx.lineTo(cx + hw * 0.96, y0 + u * 0.016);
   ctx.strokeStyle = GOLD;
   ctx.lineWidth = Math.max(1.2, u * 0.006);
   ctx.stroke();
-  ctx.restore();
   clothPath(ctx, t, u, cx, y0, hw, len, notch);
   ink(ctx, lw, INK);
 
@@ -831,7 +825,7 @@ function bushes(ctx: Ctx, s: Scene, stop: number): void {
       }
     }
     if (pass === 0) {
-      ctx.rect(-u * 0.05, y + u * 0.03, s.cssW + u * 0.1, stop - y);
+      ctx.rect(-u * 0.05, y + u * HEDGE_BAND, s.cssW + u * 0.1, stop - y);
       ink(ctx, lw * 2, INK);
       ctx.fillStyle = GRASS;
       ctx.fill();
@@ -843,20 +837,24 @@ function bushes(ctx: Ctx, s: Scene, stop: number): void {
       ctx.fill();
     }
   }
-  // A scatter of blooms on the bushes.
-  for (let c = 0; c < 3; c++) {
+  // A scatter of blooms on the bushes: every bloom inked in one stroke, then filled by color
+  // (c = 3 is the ink pass over all of them).
+  for (let c = 3; c >= 0; c--) {
     ctx.beginPath();
     for (const side of SIDES) {
-      for (let i = c; i < BUSHES.length; i += 3) {
+      for (let i = c === 3 ? 0 : c; i < BUSHES.length; i += c === 3 ? 1 : 3) {
         const [bx, br] = BUSHES[i]!;
         const x = cx + side * bx * u + (hash(i + 330 + side) - 0.5) * br * u;
         if (x < 0 || x > s.cssW) continue;
         circle(ctx, x + sway, y + br * u * (0.25 + hash(i + 340) * 0.5), u * 0.0075);
       }
     }
+    if (c === 3) {
+      ink(ctx, lw * 1.1, INK);
+      continue;
+    }
     ctx.fillStyle = BLOOMS[c === 2 ? 3 : c]!;
     ctx.fill();
-    ink(ctx, lw * 0.55, INK);
   }
 }
 
@@ -930,11 +928,13 @@ export function castle(ctx: Ctx, s: Scene): void {
   if (s.groundY - u * 0.12 > s.cssH) return;
   // Nothing shows under the near grass cap, so the masonry stops there.
   const stop = Math.min(s.cssH, layerGround(s, 1.6) + u * 0.34);
+  // The hedge's solid band hides the walls and towers below its top, so they stop there.
+  const foot = Math.min(stop, s.groundY + (BUSH_TOP + HEDGE_BAND) * u + 1);
   baileyTree(ctx, s);
-  walls(ctx, s, stop);
+  walls(ctx, s, foot);
   for (let i = 0; i < TOWERS.length; i++) {
     const [tx, top, r] = TOWERS[i]!;
-    tower(ctx, s, s.cssW / 2 + tx * u, s.groundY + top * u, r * u, stop, FLAGS[i]!, i * 1.7);
+    tower(ctx, s, s.cssW / 2 + tx * u, s.groundY + top * u, r * u, foot, FLAGS[i]!, i * 1.7);
   }
   bushes(ctx, s, stop);
   wallSquirrel(ctx, s);

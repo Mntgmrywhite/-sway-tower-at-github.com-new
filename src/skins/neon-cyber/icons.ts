@@ -6,7 +6,8 @@ import type { Icon } from "../skin";
 // tall where that reads better. The neon bar calls each icon twice (soft glow, then the hot
 // core) with the stroke and fill already set; icons only thicken the stroke a little and put
 // it back. Most cores are drawn as tight stroked loops in the same path as the outline, so an
-// icon costs one stroke; only the bolt, the blade and the mask's eye slits need a fill too.
+// icon costs one stroke; only the bolt, the blade, the mask's eye slits and the satellite's
+// body need a fill too.
 
 const BOLD = 1.45;
 const TAU = Math.PI * 2;
@@ -34,21 +35,26 @@ function block(ctx: Ctx, x: number, y: number, R: number, lw: number): void {
   for (let r = Math.max(0.05, R - lw / 2); r > 0.04; r -= lw * 0.9) ctx.rect(x - r, y - r, r * 2, r * 2);
 }
 
-/** A trace that splits in two, with solder pads at the ends. */
+// Two parallel board traces jogging up at 45 degrees: [y before the jog, x where it starts,
+// rise], in s. Each runs from a solid pad on the left to a hollow via on the right.
+const TRACES = [
+  [-0.02, -0.2, 0.28],
+  [0.32, 0.0, 0.28],
+] as const;
+
+/** A circuit board: two traces with a 45-degree jog, from solder pads to vias. */
 export const circuit: Icon = (ctx, cx, cy, s) => {
   const lw = thicken(ctx);
   const w = ctx.lineWidth;
   ctx.beginPath();
-  ctx.moveTo(cx - s * 0.5, cy);
-  ctx.lineTo(cx - s * 0.05, cy);
-  ctx.lineTo(cx + s * 0.2, cy - s * 0.3);
-  ctx.lineTo(cx + s * 0.48, cy - s * 0.3);
-  ctx.moveTo(cx - s * 0.05, cy);
-  ctx.lineTo(cx + s * 0.2, cy + s * 0.3);
-  ctx.lineTo(cx + s * 0.48, cy + s * 0.3);
-  dot(ctx, cx - s * 0.58, cy, s * 0.13, w);
-  dot(ctx, cx + s * 0.58, cy - s * 0.3, s * 0.13, w);
-  dot(ctx, cx + s * 0.58, cy + s * 0.3, s * 0.13, w);
+  for (const [y, x, rise] of TRACES) {
+    ctx.moveTo(cx - s * 0.5, cy + y * s);
+    ctx.lineTo(cx + x * s, cy + y * s);
+    ctx.lineTo(cx + (x + rise) * s, cy + (y - rise) * s);
+    ctx.lineTo(cx + s * 0.5, cy + (y - rise) * s);
+    block(ctx, cx - s * 0.6, cy + y * s, s * 0.1, w);
+    circle(ctx, cx + s * 0.62, cy + (y - rise) * s, s * 0.12);
+  }
   ctx.stroke();
   ctx.lineWidth = lw;
 };
@@ -240,23 +246,29 @@ export const blade: Icon = (ctx, cx, cy, s) => {
   ctx.lineWidth = lw;
 };
 
-// Satellite parts, tilted once here: two winged panels as quads, the panel seams, struts and
-// dish mast as segments.
-const SAT_TILT = -Math.PI / 4;
+// Satellite parts in s, laid out level and then tilted once here: two open solar panels on
+// struts either side of a solid body, and a dish on a short mast above it.
+const SAT_TILT = -0.45;
+const SAT_DY = 0.08; // drops the whole craft so the dish and panels sit centered
 function tilt(x: number, y: number): [number, number] {
-  return [x * Math.cos(SAT_TILT) - y * Math.sin(SAT_TILT), x * Math.sin(SAT_TILT) + y * Math.cos(SAT_TILT)];
+  const yy = y + SAT_DY;
+  return [x * Math.cos(SAT_TILT) - yy * Math.sin(SAT_TILT), x * Math.sin(SAT_TILT) + yy * Math.cos(SAT_TILT)];
 }
 function quad(x0: number, y0: number, x1: number, y1: number): [number, number][] {
   return [tilt(x0, y0), tilt(x1, y0), tilt(x1, y1), tilt(x0, y1)];
 }
-const SAT_WINGS = [quad(-0.72, -0.17, -0.27, 0.17), quad(0.27, -0.17, 0.72, 0.17)];
+const SAT_PANELS = [quad(-0.8, -0.22, -0.3, 0.22), quad(0.3, -0.22, 0.8, 0.22)];
+const SAT_BODY = quad(-0.15, -0.15, 0.15, 0.15);
 const SAT_LINES = [
-  [tilt(-0.495, -0.17), tilt(-0.495, 0.17)],
-  [tilt(0.495, -0.17), tilt(0.495, 0.17)],
-  [tilt(-0.27, 0), tilt(0.27, 0)],
-  [tilt(0, -0.2), tilt(0, -0.52)],
+  [tilt(-0.3, 0), tilt(-0.15, 0)],
+  [tilt(0.15, 0), tilt(0.3, 0)],
+  [tilt(0, -0.15), tilt(0, -0.28)],
 ] as const;
-const SAT_DISH = tilt(0, -0.38);
+// The dish: a bowl on the mast, opening up and away.
+const SAT_DISH = tilt(0, -0.5);
+const SAT_DISH_R = 0.22;
+const SAT_DISH_A0 = SAT_TILT + Math.PI * 0.18;
+const SAT_DISH_A1 = SAT_TILT + Math.PI * 0.82;
 
 function poly(ctx: Ctx, cx: number, cy: number, s: number, pts: readonly (readonly [number, number])[]): void {
   for (let i = 0; i < pts.length; i++) {
@@ -267,25 +279,27 @@ function poly(ctx: Ctx, cx: number, cy: number, s: number, pts: readonly (readon
   ctx.closePath();
 }
 
-/** A satellite: a solid body, two solar wings with seams, and a dish on a mast. */
+/**
+ * A satellite: two open solar panels on struts, a solid body and a dish on a mast. Drawn at
+ * the bar's own stroke width (not thickened) so the panels stay open on short bars.
+ */
 export const satellite: Icon = (ctx, cx, cy, s) => {
-  const lw = thicken(ctx);
   ctx.beginPath();
-  for (const w of SAT_WINGS) poly(ctx, cx, cy, s, w);
+  for (const p of SAT_PANELS) poly(ctx, cx, cy, s, p);
   for (const [[x0, y0], [x1, y1]] of SAT_LINES) {
     ctx.moveTo(cx + x0 * s, cy + y0 * s);
     ctx.lineTo(cx + x1 * s, cy + y1 * s);
   }
-  // The dish: a shallow bowl opening away from the body
   const dx = cx + SAT_DISH[0] * s;
   const dy = cy + SAT_DISH[1] * s;
-  const a0 = SAT_TILT + Math.PI * 1.15;
-  ctx.moveTo(dx + Math.cos(a0) * s * 0.2, dy + Math.sin(a0) * s * 0.2);
-  ctx.arc(dx, dy, s * 0.2, a0, SAT_TILT + Math.PI * 1.85);
-  // The body: a solid core between the wings
-  dot(ctx, cx, cy, s * 0.15, ctx.lineWidth);
+  ctx.moveTo(dx + Math.cos(SAT_DISH_A0) * s * SAT_DISH_R, dy + Math.sin(SAT_DISH_A0) * s * SAT_DISH_R);
+  ctx.arc(dx, dy, s * SAT_DISH_R, SAT_DISH_A0, SAT_DISH_A1);
+  poly(ctx, cx, cy, s, SAT_BODY);
   ctx.stroke();
-  ctx.lineWidth = lw;
+  // The body is solid.
+  ctx.beginPath();
+  poly(ctx, cx, cy, s, SAT_BODY);
+  ctx.fill();
 };
 
 const WIFI_RINGS = [0.3, 0.55, 0.8] as const;

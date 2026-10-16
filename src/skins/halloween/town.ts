@@ -44,13 +44,10 @@ function home(h: Omit<House, "light" | "shade">): House {
 }
 
 const TRIM = "#f6ead2";
-const TRIM_SHADE = "#cdbfa6";
 const SHUTTER = "#3c2f63";
 const PORCH_FLOOR = "#8a6a8f";
 const STEP = "#b39ab8";
-const STEP_SHADE = "#8f7699";
 const BRICK = "#a8574a";
-const BRICK_DARK = mix(BRICK, INK, 0.25);
 const PANE_GLOW = alpha(LAMP, 0.28);
 const POOL = alpha(CANDLE, 0.3);
 const LAMP_POOL = alpha(LAMP, 0.25);
@@ -194,10 +191,8 @@ function house(ctx: Ctx, s: Scene, h: House): void {
   const cx = h.chimney * 0.27;
   ctx.beginPath();
   rect(ctx, cx - 0.06, -1.56, cx + 0.06, -1.18);
-  outlined(ctx, BRICK, lw, INK);
-  ctx.beginPath();
   rect(ctx, cx - 0.08, -1.6, cx + 0.08, -1.53);
-  outlined(ctx, BRICK_DARK, lw, INK);
+  outlined(ctx, BRICK, lw, INK);
 
   // Walls: lit upper left, shaded under the porch roof
   ctx.beginPath();
@@ -239,10 +234,6 @@ function house(ctx: Ctx, s: Scene, h: House): void {
   ctx.stroke();
 
   // Round attic window, glowing orange, with a jack-o'-lantern grinning out of it
-  ctx.fillStyle = PANE_GLOW;
-  ctx.beginPath();
-  circle(ctx, X(0), Y(-1.2), 0.16 * T.w);
-  ctx.fill();
   ctx.beginPath();
   circle(ctx, X(0), Y(-1.2), 0.095 * T.w);
   outlined(ctx, LAMP_DEEP, lw * 0.8, INK);
@@ -269,13 +260,8 @@ function house(ctx: Ctx, s: Scene, h: House): void {
   ctx.beginPath();
   rect(ctx, dx - 0.11, -0.46, dx + 0.11, -0.12);
   outlined(ctx, h.door, lw, INK);
-  ctx.beginPath();
-  rect(ctx, dx - 0.06, -0.41, dx + 0.06, -0.3);
-  outlined(ctx, LAMP, lw * 0.6, INK);
-  ctx.fillStyle = LAMP_DEEP;
-  ctx.beginPath();
-  circle(ctx, X(dx + side * -0.07), Y(-0.27), 0.018 * T.w);
-  ctx.fill();
+  ctx.fillStyle = LAMP;
+  ctx.fillRect(X(dx - 0.06), Y(-0.41), 0.12 * T.w, 0.11 * T.w);
 
   // Porch: floor, two posts, a railing, and a shed roof
   ctx.beginPath();
@@ -303,11 +289,6 @@ function house(ctx: Ctx, s: Scene, h: House): void {
   rect(ctx, -0.56, -0.5, -0.5, -0.14);
   rect(ctx, 0.5, -0.5, 0.56, -0.14);
   outlined(ctx, TRIM, lw * 0.7, INK);
-  ctx.fillStyle = TRIM_SHADE;
-  ctx.beginPath();
-  rect(ctx, -0.53, -0.48, -0.5, -0.15);
-  rect(ctx, 0.53, -0.48, 0.555, -0.15);
-  ctx.fill();
   ctx.beginPath();
   ctx.moveTo(X(-0.66), Y(-0.48));
   ctx.lineTo(X(-0.62), Y(-0.58));
@@ -326,17 +307,16 @@ function house(ctx: Ctx, s: Scene, h: House): void {
   ctx.beginPath();
   circle(ctx, X(lx), Y(-0.38), 0.09 * T.w * flick);
   ctx.fill();
+  ctx.fillStyle = LAMP_CORE;
   ctx.beginPath();
   oval(ctx, X(lx), Y(-0.38), 0.025 * T.w, 0.035 * T.w);
-  outlined(ctx, LAMP_CORE, lw * 0.6, INK);
+  ctx.fill();
 
   // Steps down to the path
   ctx.beginPath();
   rect(ctx, dx - 0.15, -0.08, dx + 0.15, -0.04);
-  outlined(ctx, STEP, lw * 0.8, INK);
-  ctx.beginPath();
   rect(ctx, dx - 0.18, -0.04, dx + 0.18, 0);
-  outlined(ctx, STEP_SHADE, lw * 0.8, INK);
+  outlined(ctx, STEP, lw * 0.8, INK);
 
   lanterns(ctx, lw, t, h.seed);
 }

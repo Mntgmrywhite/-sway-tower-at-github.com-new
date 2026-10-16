@@ -54,6 +54,8 @@ const COBBLES: number[] = (() => {
 
 /** Half-height of a cobble as a fraction of the row's screen distance from the horizon. */
 const ROW_RY = (1 - 1 / 1.085) * 0.42;
+/** A cobble is never taller than this fraction of its width. */
+const COBBLE_FLAT = 0.62;
 
 /** A rounded stone as its own subpath: four quadratic curves (much cheaper than an ellipse). */
 function stone(ctx: Ctx, x: number, y: number, rx: number, ry: number): void {
@@ -79,7 +81,9 @@ export function cobbles(ctx: Ctx, s: Scene): void {
       if (y > s.cssH + 4) continue;
       const U = (s.u * TOWER_DEPTH) / z;
       const rx = 0.0155 * U * COBBLES[i + 2]!;
-      const ry = Math.max(0.8, ((depth * TOWER_DEPTH) / z) * ROW_RY);
+      // Rows spread apart as the camera climbs; the stones stay flat rather than stretching
+      // into tall grey pills.
+      const ry = Math.max(0.8, Math.min(rx * COBBLE_FLAT, ((depth * TOWER_DEPTH) / z) * ROW_RY));
       const x = cx + COBBLES[i + 1]! * U;
       if (pass) stone(ctx, x - rx * 0.12, y - ry * 0.3, rx * 0.7, ry * 0.5);
       else stone(ctx, x, y, rx, ry);

@@ -1,4 +1,5 @@
-import { alpha, hash, oval, type Ctx } from "../../base/draw";
+import { hash, oval, type Ctx } from "../../base/draw";
+import { tint } from "./tube";
 import { fieldY, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
 import { RAIN } from "./colors";
@@ -24,7 +25,7 @@ function drops(n: number, seed: number, len: number, speed: number): Drop[] {
   }));
 }
 
-const FAR_RAIN = drops(110, 9100, 0.045, 1.9);
+const FAR_RAIN = drops(84, 9100, 0.045, 1.9);
 const NEAR_RAIN = drops(16, 9500, 0.09, 3.2);
 
 function streaks(ctx: Ctx, s: Scene, list: Drop[], width: number, a: number): void {
@@ -39,7 +40,7 @@ function streaks(ctx: Ctx, s: Scene, list: Drop[], width: number, a: number): vo
     ctx.moveTo(x, y);
     ctx.lineTo(x - SLANT * L, y + L);
   }
-  ctx.strokeStyle = alpha(RAIN, a);
+  ctx.strokeStyle = tint(RAIN, a);
   ctx.lineWidth = width;
   ctx.lineCap = "butt";
   ctx.stroke();
@@ -79,7 +80,7 @@ export function splashes(ctx: Ctx, s: Scene): void {
     const r = u * 0.02 * k * (0.2 + p * 1.8);
     oval(ctx, x, y, r, r * 0.28);
   }
-  ctx.strokeStyle = alpha(RAIN, 0.3);
+  ctx.strokeStyle = tint(RAIN, 0.3);
   ctx.lineWidth = Math.max(0.8, u * 0.002);
   ctx.stroke();
 }

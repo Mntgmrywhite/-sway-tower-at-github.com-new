@@ -264,9 +264,11 @@ export function render(
   // The slider is in world space: it does not sway.
   if (state.phase === "playing") drawBlock(state.slider.x, state.slider.w, state.blocks.length);
 
-  // Bank chips and word pops go over the slider so they always read.
+  // Bank chips and word pops go over the slider so they always read. Once the last life is
+  // gone the game-over card takes the stage at once, so pops still in flight would peek out
+  // around it (a topple clears its own pops before the card).
   drawChips(frame);
-  drawPops(frame);
+  if (state.phase === "playing" || state.toppled) drawPops(frame);
 
   kit.front(ctx, scene);
   ctx.restore();
