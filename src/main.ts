@@ -118,6 +118,7 @@ function currentSkin(): Skin {
     skinKey = key;
     skin = resolveSkin(tuning.skin, now);
     ensureFonts(skin);
+    document.documentElement.style.setProperty("--accent", skin.hud.titleGlow);
   }
   return skin;
 }

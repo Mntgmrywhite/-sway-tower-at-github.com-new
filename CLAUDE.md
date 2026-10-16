@@ -57,6 +57,12 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - Every slice is pushed onto `cuts`; each perfect drop pops the newest and wins it back on the tower edge that receded, so a run of perfects rebuilds a sliver to the exact original bar. Misses are not slices.
 - A miss does not end the game: it costs one of `LIVES` (3); game over at 0.
 
+## Skin requirements from playtesting (decided)
+
+- All skins: no prop may be cut off — not by the foreground band, not by the screen edges, not by another prop. Keep props fully on screen (or let them leave the view only by parallax as the camera climbs), and space them so they don't cut into each other. The only allowed clip is a body part emerging from the soil, and that edge must be hidden behind its dirt mound.
+- Halloween graveyard: skeleton parts pop out **at random**. Each grave spot re-picks which part comes up (hand, skull, or feet) every cycle, and spots run on staggered, varying timings, so no two spots show the same part in lockstep and no spot always shows the same part. Deterministic from `scene.t` + `hash()` (cycle index × spot), never `Math.random()`.
+- Halloween: no zombies, no ghosts in the sky, tombstones planted (base sunk into a mound), the mansion sits on its ground line, the jack-o'-lantern stands behind the tower, faces drawn with `circle`/`oval` so features never join.
+
 ## Build order
 
 1. Scaffold — done
