@@ -1,4 +1,4 @@
-import { mix, type Ctx } from "../../neon/draw";
+import { mix, type Ctx } from "../../base/draw";
 
 // Leaf outlines shared by the sky drift, the leaf litter on the floor and the maple-leaf bar icon.
 // Unit space: about 1 tall, centered, tip up (-y), stem down (+y). Flat [x, y, x, y, ...] arrays,

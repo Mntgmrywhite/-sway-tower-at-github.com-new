@@ -1,6 +1,6 @@
-// Shared drawing helpers for the neon base and every skin.
-// Neon is built from strokes, not shadowBlur: a wide faint stroke for the glow, a colored
-// core, and a thin hot center. That keeps it cheap enough for phones.
+// Shared drawing helpers for the base world and every skin.
+// The look is bright 2D cartoon: flat fills with a light top and a shaded bottom, and a dark
+// ink outline on everything up close. Distant things are faded silhouettes with no outline.
 
 export type Ctx = CanvasRenderingContext2D;
 
@@ -53,7 +53,47 @@ export function roundRectPath(ctx: Ctx, x: number, y: number, w: number, h: numb
   ctx.closePath();
 }
 
+/** Default ink color for outlines. Skins may pass their own (palette.ink). */
+export const INK = "#2a1f3d";
+
+/** Stroke the current path as an ink outline. */
+export function ink(ctx: Ctx, width: number, color = INK): void {
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
+
+/** Fill the current path, then ink its outline. The standard look for anything up close. */
+export function outlined(ctx: Ctx, fill: string | CanvasGradient, width: number, inkColor = INK): void {
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ink(ctx, width, inkColor);
+}
+
+/** Stroke the current path as an outlined tube (bones, branches, ropes): ink under, color on top. */
+export function inkedLine(ctx: Ctx, color: string, width: number, inkWidth: number, inkColor = INK): void {
+  ink(ctx, width + inkWidth * 2, inkColor);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
+
+/** Text with a solid outline behind the fill. */
+export function outlinedText(ctx: Ctx, text: string, x: number, y: number, fill: string, outline: string, width: number): void {
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(3, width);
+  ctx.strokeStyle = outline;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
 /**
+ * @deprecated Neon-era helper, kept only while skins are restyled to the cartoon look.
  * Stroke the current path as a neon tube: soft glow, colored core, hot center.
  * `width` is the core width in pixels.
  */
@@ -73,14 +113,14 @@ export function neonStroke(ctx: Ctx, color: string, width: number, glow = 3): vo
   ctx.restore();
 }
 
-/** Fill the current path with a dark silhouette and rim it in neon. The standard skin prop look. */
+/** @deprecated Neon-era helper; use `outlined`. */
 export function neonShape(ctx: Ctx, fill: string, rim: string, width: number): void {
   ctx.fillStyle = fill;
   ctx.fill();
   neonStroke(ctx, rim, width);
 }
 
-/** Text with a black outline, a neon glow, and a solid fill. */
+/** @deprecated Neon-era helper; use `outlinedText`. */
 export function neonText(ctx: Ctx, text: string, x: number, y: number, fill: string, glow: string, outline: number): void {
   ctx.save();
   ctx.lineJoin = "round";

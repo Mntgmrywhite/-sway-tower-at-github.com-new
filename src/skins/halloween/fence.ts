@@ -1,4 +1,4 @@
-import { alpha, hash, neonStroke, type Ctx } from "../../neon/draw";
+import { alpha, hash, neonStroke, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { floor, INK } from "./common";
 

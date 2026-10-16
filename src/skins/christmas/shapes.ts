@@ -1,4 +1,4 @@
-import { alpha, circle, mix, neonStroke, type Ctx } from "../../neon/draw";
+import { alpha, circle, mix, neonStroke, type Ctx } from "../../base/draw";
 import { LIGHTS, SNOW_LIT, SNOW_SHADE, WHITE } from "./colors";
 
 // Path builders and small drawing routines shared by the Christmas layers.

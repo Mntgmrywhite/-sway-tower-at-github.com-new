@@ -4,7 +4,7 @@
 // Web fonts aren't available offline, so text uses fallback faces here.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createCanvas } from "@napi-rs/canvas";
-import { drawBar } from "../src/neon/blocks";
+import { kitFor } from "../src/base/style";
 import { shots } from "../src/preview/shots";
 import { render } from "../src/render";
 import { SKINS } from "../src/skins";
@@ -35,11 +35,11 @@ const barH = 44;
 const sheet = createCanvas(W * DPR, (skin.bars.length * (barH + 14) + 20) * DPR);
 const sctx = sheet.getContext("2d");
 sctx.scale(DPR, DPR);
-sctx.fillStyle = "#06020c";
+sctx.fillStyle = skin.style === "neon" ? "#06020c" : "#6a62c8";
 sctx.fillRect(0, 0, W, skin.bars.length * (barH + 14) + 20);
 skin.bars.forEach((_, i) => {
   const w = i % 3 === 2 ? W * 0.35 : W - 40; // some narrow ones too
-  drawBar(sctx as unknown as CanvasRenderingContext2D, 20, 10 + i * (barH + 14), w, barH, i, skin);
+  kitFor(skin).bar(sctx as unknown as CanvasRenderingContext2D, 20, 10 + i * (barH + 14), w, barH, i);
 });
 const sheetFile = `preview/${skin.id}-bars.png`;
 writeFileSync(sheetFile, sheet.toBuffer("image/png"));

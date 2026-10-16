@@ -1,27 +1,10 @@
-import type { Scene, Skin } from "../skins/skin";
+import type { NeonSkin, Scene } from "../skins/skin";
 import { alpha, hash, mix, neonStroke, type Ctx } from "./draw";
+import { altitude01 } from "./world";
 
-// The neon base world every skin sits on: dark sky, stars, a retro sun on the horizon,
-// a glowing horizon band, and a perspective grid floor scrolling toward the viewer.
-// Skins swap the palette and add props; they never replace the floor or the post pass.
-
-/** Depth of the horizon layer (how much it moves as the camera climbs). */
-export const HORIZON_P = 0.12;
-
-/** Screen y of a parallax layer's ground line. p = 0 fixed, 1 = with the tower, > 1 = foreground. */
-export function layerGround(s: Scene, p: number): number {
-  return s.groundY - s.rise * (1 - p);
-}
-
-/** Where the horizon sits for a given ground line and climb. */
-export function horizonFor(groundY: number, rise: number, u: number): number {
-  return groundY - rise * (1 - HORIZON_P) - u * 0.3;
-}
-
-/** 0 at the ground, 1 once the tower is high in the night sky. */
-export function altitude01(s: Scene): number {
-  return Math.min(1, s.altitude / 600);
-}
+// The pure neon world (the "Neon" style): dark sky, stars, a retro striped sun on the horizon,
+// a glowing horizon band, a perspective grid floor scrolling toward the viewer, and a scanline
+// + vignette pass. Used by skins with style: "neon".
 
 const STARS = Array.from({ length: 80 }, (_, i) => ({
   x: hash(i),
@@ -30,7 +13,7 @@ const STARS = Array.from({ length: 80 }, (_, i) => ({
   sparkle: hash(i + 300) > 0.88,
 }));
 
-export function sky(ctx: Ctx, s: Scene, skin: Skin): void {
+function sky(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   const a = altitude01(s);
   const p = skin.palette;
   const g = ctx.createLinearGradient(0, 0, 0, Math.max(1, s.horizonY));
@@ -147,7 +130,7 @@ function horizonGlow(ctx: Ctx, s: Scene, color: string): void {
 }
 
 /** Perspective neon grid from the horizon to the bottom of the screen, scrolling toward you. */
-function floor(ctx: Ctx, s: Scene, skin: Skin): void {
+function floor(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   const hy = s.horizonY;
   if (hy >= s.cssH) return;
   const p = skin.palette;
@@ -201,8 +184,8 @@ function floor(ctx: Ctx, s: Scene, skin: Skin): void {
   neonStroke(ctx, p.horizon, Math.max(1.5, s.u * 0.005));
 }
 
-/** Everything behind the tower. */
-export function drawWorld(ctx: Ctx, s: Scene, skin: Skin): void {
+/** Everything behind the tower, neon style. */
+export function drawNeonWorld(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   sky(ctx, s, skin);
   if (skin.celestial) skin.celestial(ctx, s);
   else retroSun(ctx, s, skin.palette.sunTop, skin.palette.sunBottom);
@@ -215,12 +198,12 @@ export function drawWorld(ctx: Ctx, s: Scene, skin: Skin): void {
 }
 
 /** In front of the tower, before the post pass. */
-export function drawForeground(ctx: Ctx, s: Scene, skin: Skin): void {
+export function drawNeonForeground(ctx: Ctx, s: Scene, skin: NeonSkin): void {
   skin.foreground?.(ctx, s);
 }
 
 /** Scanlines and a vignette over the whole scene (under the HUD). */
-export function drawPost(ctx: Ctx, s: Scene): void {
+export function drawNeonPost(ctx: Ctx, s: Scene): void {
   ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
   for (let y = 0; y < s.cssH; y += 3) ctx.fillRect(0, y, s.cssW, 1);
   const r = Math.hypot(s.cssW, s.cssH) / 2;

@@ -1,4 +1,4 @@
-import { circle, oval, type Ctx } from "../../neon/draw";
+import { circle, oval, type Ctx } from "../../base/draw";
 import type { Icon } from "../skin";
 import { starPath } from "./shapes";
 

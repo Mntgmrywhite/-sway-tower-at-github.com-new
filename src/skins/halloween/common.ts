@@ -1,4 +1,4 @@
-import { alpha, type Ctx } from "../../neon/draw";
+import { alpha, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 
 // Colors and small helpers shared by the Halloween layers.

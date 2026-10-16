@@ -1,5 +1,5 @@
-import { alpha, circle, hash, mix, neonStroke, type Ctx } from "../../neon/draw";
-import { altitude01 } from "../../neon/world";
+import { alpha, circle, hash, mix, neonStroke, type Ctx } from "../../base/draw";
+import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
 import { CHAMPAGNE, clamp01, GOLD, MAGENTA, PARTY, TAU, VIOLET } from "./colors";
 

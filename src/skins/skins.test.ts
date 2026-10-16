@@ -19,27 +19,29 @@ describe("skin by date", () => {
     [12, 31, "newyear"],
     [1, 1, "newyear"],
     [1, 6, "newyear"],
-    [1, 7, "neon"],
-    [3, 3, "neon"],
-    [9, 30, "neon"],
+    [1, 7, "classic"],
+    [3, 3, "classic"],
+    [9, 30, "classic"],
   ])("%i/%i → %s", (m, d, id) => {
     expect(skinForDate(day(m, d)).id).toBe(id);
   });
 
-  it("auto uses the date; an id overrides it; unknown ids fall back to neon", () => {
+  it("auto uses the date; an id overrides it; unknown ids fall back to classic", () => {
     expect(resolveSkin(AUTO, day(12, 24)).id).toBe("christmas");
     expect(resolveSkin("halloween", day(12, 24)).id).toBe("halloween");
-    expect(resolveSkin("nope", day(12, 24)).id).toBe("neon");
+    expect(resolveSkin("nope", day(12, 24)).id).toBe("classic");
+    expect(resolveSkin("neon", day(12, 24)).id).toBe("neon");
   });
 });
 
 describe("skin data", () => {
   const hex = /^#[0-9a-f]{6}$/i;
 
-  it("ids are unique and neon is the first, undated fallback", () => {
+  it("ids are unique and classic is the first, undated fallback", () => {
     expect(new Set(SKINS.map((s) => s.id)).size).toBe(SKINS.length);
-    expect(SKINS[0]?.id).toBe("neon");
+    expect(SKINS[0]?.id).toBe("classic");
     expect(SKINS[0]?.dates).toBeUndefined();
+    expect(SKINS.find((s) => s.id === "neon")?.dates).toBeUndefined();
   });
 
   it.each(SKINS.map((s) => [s.id, s] as const))("%s: palette and bars are valid", (_, skin) => {
@@ -49,7 +51,7 @@ describe("skin data", () => {
     expect(skin.bars.length).toBeGreaterThanOrEqual(8);
     expect(skin.bars.length).toBeLessThanOrEqual(12);
     for (const bar of skin.bars) expect(bar.color).toMatch(hex);
-    for (const key of ["title", "titleGlow", "accent", "life"] as const) expect(skin.hud[key]).toMatch(hex);
+    for (const key of ["title", "ui", "accent", "life"] as const) expect(skin.hud[key]).toMatch(hex);
     // Neighboring bars must differ so every seam reads.
     skin.bars.forEach((bar, i) => {
       expect(bar.color).not.toBe(skin.bars[(i + 1) % skin.bars.length]!.color);

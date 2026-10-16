@@ -23,6 +23,7 @@ import { driftingLeaves, geese, harvestMoon } from "./thanksgiving/sky";
 
 export const thanksgiving: Skin = {
   id: "thanksgiving",
+  style: "neon",
   name: "Thanksgiving",
   dates: [{ from: [11, 2], to: [11, 30] }],
   fonts: ["Rye"],
@@ -56,7 +57,7 @@ export const thanksgiving: Skin = {
   hud: {
     display: "Rye, 'Rockwell Extra Bold', Georgia, 'Times New Roman', serif",
     title: "#ffd36b",
-    titleGlow: "#ff2b4e",
+    ui: "#ff2b4e",
     accent: "#ffb21f",
     life: "#ff7a1a",
   },

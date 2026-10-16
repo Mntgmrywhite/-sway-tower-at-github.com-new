@@ -1,19 +1,18 @@
 import type { Skin } from "../skins/skin";
 import { alpha, mix, neonStroke, roundRectPath, type Ctx } from "./draw";
 
-// Neon bars: the one look every skin shares. Dark glass body tinted by the bar color,
-// a glowing tube around the edge, bright end caps so both edges read at a glance,
-// and the skin's symbol drawn in neon. Corners are tight so they read as light tubes,
-// not capsules.
+// Neon bars (the "Neon" style): dark glass body tinted by the bar color, a glowing tube
+// around the edge, bright end caps so both edges read at a glance, and the skin's symbol
+// drawn in neon. Corners are tight so they read as light tubes, not capsules.
 
 /** Corner radius as a fraction of bar height. Also used by the perfect-drop tint. */
-export const BAR_RADIUS = 0.14;
+export const NEON_BAR_RADIUS = 0.14;
 
-export function drawBar(ctx: Ctx, x: number, y: number, w: number, h: number, level: number, skin: Skin): void {
+export function drawNeonBar(ctx: Ctx, x: number, y: number, w: number, h: number, level: number, skin: Skin): void {
   const bars = skin.bars;
   const bar = bars[((level % bars.length) + bars.length) % bars.length]!;
   const c = bar.color;
-  const r = h * BAR_RADIUS;
+  const r = h * NEON_BAR_RADIUS;
   const tube = Math.max(1.4, h * 0.1);
   const capW = Math.min(h * 0.5, w * 0.2);
 

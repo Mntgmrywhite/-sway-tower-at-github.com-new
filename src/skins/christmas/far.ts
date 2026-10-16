@@ -1,4 +1,4 @@
-import { alpha, circle, hash, neonStroke, type Ctx } from "../../neon/draw";
+import { alpha, circle, hash, neonStroke, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { GOLD, GREEN, ICE, LAMP, NIGHT, PINE, SNOW, WHITE } from "./colors";
 import { drawBulbs, firOutline, firPath, starPath, thinRim } from "./shapes";

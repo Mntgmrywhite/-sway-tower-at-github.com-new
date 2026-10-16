@@ -25,6 +25,7 @@ import type { Skin } from "./skin";
 
 export const christmas: Skin = {
   id: "christmas",
+  style: "neon",
   name: "Christmas",
   dates: [{ from: [12, 1], to: [12, 27] }],
   fonts: ["Mountains of Christmas:wght@700"],
@@ -58,7 +59,7 @@ export const christmas: Skin = {
   hud: {
     display: "'Mountains of Christmas', Georgia, serif",
     title: "#fff6e6",
-    titleGlow: RED,
+    ui: RED,
     accent: GOLD,
     life: RED,
   },

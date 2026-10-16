@@ -1,4 +1,4 @@
-import { alpha, circle, neonStroke, oval, type Ctx } from "../../neon/draw";
+import { alpha, circle, neonStroke, oval, type Ctx } from "../../base/draw";
 import { GOLD, GREEN, NIGHT, RED, WHITE } from "./colors";
 
 // Santa's sleigh and three reindeer as a neon sign: dark silhouettes rimmed in light,

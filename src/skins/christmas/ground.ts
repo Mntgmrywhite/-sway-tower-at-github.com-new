@@ -1,5 +1,5 @@
-import { alpha, circle, hash, mix, neonStroke, oval, type Ctx } from "../../neon/draw";
-import { horizonFor } from "../../neon/world";
+import { alpha, circle, hash, mix, neonStroke, oval, type Ctx } from "../../base/draw";
+import { horizonFor } from "../../base/world";
 import type { Scene } from "../skin";
 import { GOLD, GREEN, ICE, LIGHTS, NIGHT, ORANGE, PINE, RED, SNOW, WHITE } from "./colors";
 import { drawBulbs, drawMounds, firOutline, firPath, starPath } from "./shapes";

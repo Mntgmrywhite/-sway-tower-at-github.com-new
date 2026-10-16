@@ -1,5 +1,5 @@
-import { alpha, circle, hash, mix, neonStroke, neonText, oval, roundRectPath, type Ctx } from "../../neon/draw";
-import { layerGround } from "../../neon/world";
+import { alpha, circle, hash, mix, neonStroke, neonText, oval, roundRectPath, type Ctx } from "../../base/draw";
+import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
 import { CHAMPAGNE, CYAN, GOLD, INK, MAGENTA, PARTY, SILVER, TAU, VIOLET, YEAR } from "./colors";
 

@@ -1,4 +1,4 @@
-import { circle, oval, type Ctx } from "../../neon/draw";
+import { circle, oval, type Ctx } from "../../base/draw";
 import type { Icon } from "../skin";
 
 // Neon line icons for the Halloween bars. Each draws one symbol centered at (cx, cy), about

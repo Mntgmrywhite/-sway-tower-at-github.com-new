@@ -12,6 +12,7 @@ import type { Skin } from "./skin";
 
 export const halloween: Skin = {
   id: "halloween",
+  style: "neon",
   name: "Halloween",
   dates: [{ from: [10, 1], to: [11, 1] }],
   fonts: ["Creepster"],
@@ -45,7 +46,7 @@ export const halloween: Skin = {
   hud: {
     display: "Creepster, Impact, 'Arial Black', sans-serif",
     title: "#ff8a1f",
-    titleGlow: "#9b3bff",
+    ui: "#9b3bff",
     accent: "#ffc21a",
     life: "#ff7a1a",
   },

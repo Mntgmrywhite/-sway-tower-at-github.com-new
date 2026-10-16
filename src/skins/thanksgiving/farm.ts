@@ -1,4 +1,4 @@
-import { alpha, circle, mix, neonShape, neonStroke, type Ctx } from "../../neon/draw";
+import { alpha, circle, mix, neonShape, neonStroke, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 
 // The far layer: rolling farm hills on the horizon, and a farm standing on the horizon line

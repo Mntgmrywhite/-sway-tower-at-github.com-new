@@ -25,6 +25,7 @@ import { mirrorBall, newYearSky } from "./newyear/sky";
 
 export const newYear: Skin = {
   id: "newyear",
+  style: "neon",
   name: "New Year's",
   dates: [{ from: [12, 28], to: [1, 6] }],
   fonts: ["Bungee Shade"],
@@ -57,7 +58,7 @@ export const newYear: Skin = {
   hud: {
     display: "'Bungee Shade', Monoton, Audiowide, 'Arial Black', sans-serif",
     title: "#ffd75e",
-    titleGlow: "#ff2fa8",
+    ui: "#ff2fa8",
     accent: "#3ef0ff",
     life: "#ff2fa8",
   },

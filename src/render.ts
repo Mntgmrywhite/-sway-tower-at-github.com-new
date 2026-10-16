@@ -1,14 +1,12 @@
 import { BLOCK_HEIGHT, LIVES, WORLD_WIDTH } from "./config";
 import { swayOffset, type Block, type GameState } from "./game";
-import { BAR_RADIUS, drawBar } from "./neon/blocks";
-import { neonStroke, neonText, roundRectPath } from "./neon/draw";
-import { drawForeground, drawPost, drawWorld, horizonFor } from "./neon/world";
+import { roundRectPath } from "./base/draw";
+import { kitFor } from "./base/style";
+import { horizonFor } from "./base/world";
 import type { Scene, Skin } from "./skins/skin";
 
 export const GAME_NAME = "Sway Tower";
 
-/** HUD text face for every skin; the skin picks the display face for titles. */
-const BODY_FONT = "Orbitron, 'Trebuchet MS', system-ui, sans-serif";
 
 /** World units visible horizontally; a little wider than the slider's travel. */
 const VIEW_WIDTH = WORLD_WIDTH * 1.5;
@@ -124,12 +122,13 @@ export function render(
     baseX: base ? sx(base.x) : 0,
     baseW: base ? base.w * scale : 0,
   };
-  drawWorld(ctx, scene, skin);
+  const kit = kitFor(skin);
+  kit.world(ctx, scene);
 
   const h = BLOCK_HEIGHT * scale;
   /** Draw a block whose world left edge is `x`. */
   const drawBlock = (x: number, w: number, level: number) =>
-    drawBar(ctx, sx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level, skin);
+    kit.bar(ctx, sx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
 
   // Only draw blocks that can be on screen.
   const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - cssH / h - 2));
@@ -151,7 +150,7 @@ export function render(
     ctx.save();
     // Color change: the block glows in the accent color, then fades back.
     ctx.save();
-    roundRectPath(ctx, x, y, w, h, h * BAR_RADIUS);
+    roundRectPath(ctx, x, y, w, h, h * kit.radius);
     ctx.clip();
     ctx.globalAlpha = fade * 0.65;
     ctx.fillStyle = skin.hud.accent;
@@ -182,7 +181,7 @@ export function render(
     ctx.translate(sx(f.x) + w / 2, sy(f.y) - h / 2);
     ctx.rotate(f.angle);
     ctx.globalAlpha = 0.9;
-    drawBar(ctx, -w / 2, -h / 2, w, h, f.level, skin);
+    kit.bar(ctx, -w / 2, -h / 2, w, h, f.level);
     ctx.restore();
   }
 
@@ -199,23 +198,23 @@ export function render(
     ctx.font = `400 ${size}px ${skin.hud.display}`;
     ctx.textAlign = "center";
     const label = f.streak >= 2 ? `PERFECT ×${f.streak}` : "PERFECT";
-    neonText(ctx, label, cx, y, skin.hud.accent, skin.hud.accent, Math.max(3, size * 0.12));
+    kit.text(ctx, label, cx, y, skin.hud.accent, Math.max(3, size * 0.12));
     ctx.restore();
   }
 
   // The slider is in world space: it does not sway.
   if (state.phase === "playing") drawBlock(state.slider.x, state.slider.w, state.blocks.length);
 
-  drawForeground(ctx, scene, skin);
-  drawPost(ctx, scene);
+  kit.front(ctx, scene);
 
-  // HUD: neon type with a black outline, so it reads over any part of the scene.
+  // HUD: outlined type (plus glow in neon), so it reads over any part of the scene.
   ctx.save();
   ctx.textAlign = "center";
   const hud = skin.hud;
   const top = cssH * 0.14;
+  const body = kit.body;
   const text = (t: string, x: number, y: number, fill: string, outline: number) =>
-    neonText(ctx, t, x, y, fill, hud.titleGlow, outline);
+    kit.text(ctx, t, x, y, fill, outline);
 
   if (state.phase === "over") {
     drawGameOver(ctx, cssW, cssH, u, state, best, skin);
@@ -226,45 +225,35 @@ export function render(
   if (state.score === 0) {
     // Start screen: the name instead of a zero.
     const size = fitFont(ctx, GAME_NAME, `400 {px}px ${hud.display}`, u * 0.13, cssW * 0.88);
-    neonText(ctx, GAME_NAME, cssW / 2, top, hud.title, hud.titleGlow, Math.max(3, size * 0.12));
+    text(GAME_NAME, cssW / 2, top, hud.title, Math.max(3, size * 0.12));
   } else {
-    ctx.font = `700 ${Math.round(u * 0.13)}px ${BODY_FONT}`;
+    ctx.font = `700 ${Math.round(u * 0.13)}px ${body}`;
     text(String(state.score), cssW / 2, top, "#ffffff", u * 0.016);
   }
-  ctx.font = `600 ${Math.round(u * 0.038)}px ${BODY_FONT}`;
+  ctx.font = `600 ${Math.round(u * 0.038)}px ${body}`;
   text(`best ${best}`, cssW / 2, top + u * 0.065, "#e8e4ff", u * 0.009);
 
   // Lives
   const r = u * 0.016;
   for (let i = 0; i < LIVES; i++) {
-    ctx.beginPath();
-    ctx.arc(cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, top + u * 0.11, r, 0, Math.PI * 2);
-    if (i < state.lives) {
-      ctx.fillStyle = hud.life;
-      ctx.fill();
-      neonStroke(ctx, hud.life, Math.max(1, u * 0.004), 3);
-    } else {
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-      ctx.lineWidth = Math.max(1, u * 0.004);
-      ctx.stroke();
-    }
+    kit.life(ctx, cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, top + u * 0.11, r, i < state.lives);
   }
 
   // Perfect counter: total this game, plus the current run. Hidden until the first one.
   if (state.perfects > 0) {
     const perfY = top + u * 0.18;
-    ctx.font = `700 ${Math.round(u * 0.042)}px ${BODY_FONT}`;
-    neonText(ctx, `★ ${state.perfects} perfect`, cssW / 2, perfY, hud.accent, hud.accent, u * 0.01);
+    ctx.font = `700 ${Math.round(u * 0.045)}px ${body}`;
+    text(`★ ${state.perfects} perfect`, cssW / 2, perfY, hud.accent, u * 0.011);
     if (state.streak >= 2) {
-      ctx.font = `600 ${Math.round(u * 0.036)}px ${BODY_FONT}`;
-      text(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.052, "#e8e4ff", u * 0.009);
+      ctx.font = `600 ${Math.round(u * 0.038)}px ${body}`;
+      text(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.052, "#ffffff", u * 0.01);
     }
   }
 
   if (state.score === 0) {
-    ctx.font = `600 ${Math.round(u * 0.05)}px ${BODY_FONT}`;
+    ctx.font = `600 ${Math.round(u * 0.055)}px ${body}`;
     ctx.globalAlpha = 0.7 + 0.3 * Math.sin(view.t * 3);
-    text("tap to drop", cssW / 2, cssH * 0.9, "#ffffff", u * 0.012);
+    text("tap to drop", cssW / 2, cssH * 0.9, "#ffffff", u * 0.013);
   }
   ctx.restore();
 }
@@ -279,36 +268,32 @@ function drawGameOver(
   skin: Skin,
 ): void {
   const hud = skin.hud;
-  ctx.fillStyle = "rgba(4, 2, 10, 0.55)";
+  const kit = kitFor(skin);
+  ctx.fillStyle = "rgba(4, 2, 10, 0.45)";
   ctx.fillRect(0, 0, cssW, cssH);
 
   const w = Math.min(cssW - 32, u * 0.82);
   const h = u * 0.62;
   const x = (cssW - w) / 2;
   const y = cssH * 0.42 - h / 2;
-  // Dark glass card with a neon border
-  roundRectPath(ctx, x, y, w, h, u * 0.03);
-  ctx.fillStyle = "rgba(10, 4, 22, 0.92)";
-  ctx.fill();
-  neonStroke(ctx, hud.titleGlow, Math.max(1.5, u * 0.006), 3.5);
+  kit.card(ctx, x, y, w, h, u);
 
   const cx = cssW / 2;
-  const text = (t: string, ty: number, fill: string, glow: string, outline: number) =>
-    neonText(ctx, t, cx, ty, fill, glow, outline);
+  const text = (t: string, ty: number, fill: string, outline: number) => kit.text(ctx, t, cx, ty, fill, outline);
   ctx.textAlign = "center";
-  ctx.font = `400 ${Math.round(u * 0.085)}px ${hud.display}`;
-  text("Game Over", y + h * 0.22, hud.title, hud.titleGlow, u * 0.012);
+  ctx.font = `400 ${Math.round(u * 0.09)}px ${hud.display}`;
+  text("Game Over", y + h * 0.22, hud.title, u * 0.014);
 
-  ctx.font = `700 ${Math.round(u * 0.15)}px ${BODY_FONT}`;
-  text(String(state.score), y + h * 0.54, "#ffffff", hud.titleGlow, u * 0.016);
+  ctx.font = `700 ${Math.round(u * 0.15)}px ${kit.body}`;
+  text(String(state.score), y + h * 0.54, "#ffffff", u * 0.018);
 
   const newBest = state.score > 0 && state.score >= best;
-  ctx.font = `600 ${Math.round(u * 0.042)}px ${BODY_FONT}`;
-  text(newBest ? "New best!" : `best ${best}`, y + h * 0.68, newBest ? hud.accent : "#e8e4ff", hud.titleGlow, u * 0.009);
-  text(`★ ${state.perfects} perfect`, y + h * 0.8, hud.accent, hud.accent, u * 0.009);
+  ctx.font = `600 ${Math.round(u * 0.045)}px ${kit.body}`;
+  text(newBest ? "New best!" : `best ${best}`, y + h * 0.68, newBest ? hud.accent : "#ffffff", u * 0.01);
+  text(`★ ${state.perfects} perfect`, y + h * 0.8, hud.accent, u * 0.01);
 
-  ctx.font = `600 ${Math.round(u * 0.05)}px ${BODY_FONT}`;
-  text("tap to play again", y + h + u * 0.1, "#ffffff", hud.titleGlow, u * 0.012);
+  ctx.font = `600 ${Math.round(u * 0.055)}px ${kit.body}`;
+  text("tap to play again", y + h + u * 0.1, "#ffffff", u * 0.014);
 }
 
 /**

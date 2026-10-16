@@ -1,5 +1,5 @@
-import { alpha, circle, hash, mix, neonShape, neonStroke, oval, type Ctx } from "../../neon/draw";
-import { altitude01 } from "../../neon/world";
+import { alpha, circle, hash, mix, neonShape, neonStroke, oval, type Ctx } from "../../base/draw";
+import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
 import { addLeaf, LEAF_COLORS, LEAF_FILLS } from "./leaves";
 

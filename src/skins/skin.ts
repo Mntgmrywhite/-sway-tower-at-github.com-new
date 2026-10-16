@@ -1,4 +1,4 @@
-import type { Ctx } from "../neon/draw";
+import type { Ctx } from "../base/draw";
 
 /**
  * Everything a skin needs to place scenery, in CSS pixels. The base computes it each frame.
@@ -22,7 +22,7 @@ export interface Scene {
   altitude: number;
   /** Screen y of the floor line the tower stands on. */
   groundY: number;
-  /** Screen y of the horizon (far end of the neon grid floor). */
+  /** Screen y of the horizon: where distant silhouettes stand and the field begins. */
   horizonY: number;
   /** Screen x and width of the base block. */
   baseX: number;
@@ -33,7 +33,34 @@ export interface Scene {
 export type Icon = (ctx: Ctx, cx: number, cy: number, s: number) => void;
 
 export interface Palette {
-  /** Sky gradient, top to just above the horizon. Keep these dark: neon needs a dark ground. */
+  /** Sky gradient, top to horizon. Bright and readable — never near-black. */
+  skyTop: string;
+  skyMid: string;
+  skyBottom: string;
+  star: string;
+  /** The base moon, used when the skin draws no celestial body of its own. */
+  moon: string;
+  /** Puffy cel-shaded clouds: shadow, body, light caps. */
+  cloudShadow: string;
+  cloudBase: string;
+  cloudLight: string;
+  /** Faded silhouettes in the distance: one flat color, no outline, a little darker than the sky. */
+  far: string;
+  /** The field from the horizon (hazy) to the viewer. */
+  fieldFar: string;
+  fieldNear: string;
+  /** Foreground grass lip and its jagged tips. */
+  grass: string;
+  grassDark: string;
+  /** Foreground stone tiles and their lit top edge. */
+  stone: string;
+  stoneLight: string;
+  /** Outline color for everything up close. */
+  ink: string;
+}
+
+/** Palette for the pure neon style. Keep skies dark: neon needs a dark ground. */
+export interface NeonPalette {
   skyTop: string;
   skyMid: string;
   skyBottom: string;
@@ -51,38 +78,52 @@ export interface Palette {
 }
 
 export interface Bar {
-  /** Neon tube color for this bar, #rrggbb. */
+  /** Bar fill color, #rrggbb. Bright and saturated. */
   color: string;
   icon: Icon;
 }
 
-export interface Skin {
+interface SkinBase {
   id: string;
   name: string;
   /** Inclusive [month, day] windows (1-based months) in which "Auto" picks this skin. */
   dates?: { from: [number, number]; to: [number, number] }[];
   /** Google Fonts families this skin needs (CSS2 `family=` values, e.g. "Creepster"). */
   fonts?: string[];
-  palette: Palette;
   /** Bars cycle up the tower in this order. Neighbors should contrast. 8–12 entries. */
   bars: Bar[];
   hud: {
     /** Font family stack for the title and the PERFECT pop. */
     display: string;
     title: string;
-    titleGlow: string;
+    /** UI accent: title shadow, game-over card, panel borders. */
+    ui: string;
     /** Perfect counter, PERFECT pop, perfect-drop flash. */
     accent: string;
     life: string;
   };
-  /** Replaces the base retro sun. */
+  /** Replaces the base moon. */
   celestial?(ctx: Ctx, s: Scene): void;
   /** Things in the sky (flyers, sparkles), drawn after the celestial body. */
   sky?(ctx: Ctx, s: Scene): void;
-  /** Silhouettes standing on the horizon. Replaces the base mountains. */
+  /** Faded silhouettes standing on horizonY (bottoms touch it). Replaces the base skyline. Drawn behind the cloud bank. */
   far?(ctx: Ctx, s: Scene): void;
   /** Props on the floor around the tower, drawn behind the tower. */
   ground?(ctx: Ctx, s: Scene): void;
-  /** Props in front of the tower, drawn after it (keep them low so they never hide the play). */
+  /** Props in front of the tower, drawn after the base grass-and-tiles foreground (keep them low). */
   foreground?(ctx: Ctx, s: Scene): void;
 }
+
+/** The default look: bright 2D cartoon (src/base/world.ts, src/base/blocks.ts). */
+export interface CartoonSkin extends SkinBase {
+  style?: "cartoon";
+  palette: Palette;
+}
+
+/** The pure neon look (src/base/neon-world.ts, src/base/neon-blocks.ts). */
+export interface NeonSkin extends SkinBase {
+  style: "neon";
+  palette: NeonPalette;
+}
+
+export type Skin = CartoonSkin | NeonSkin;

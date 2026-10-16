@@ -92,6 +92,8 @@ window.addEventListener("keydown", (e) => {
 });
 window.addEventListener("resize", resize);
 // Canvas text only uses a web font once it's loaded; ask for the base faces up front.
+document.fonts?.load("700 40px Fredoka").catch(() => {});
+document.fonts?.load("600 40px Fredoka").catch(() => {});
 document.fonts?.load("40px Monoton").catch(() => {});
 document.fonts?.load("700 40px Orbitron").catch(() => {});
 document.fonts?.load("600 40px Orbitron").catch(() => {});
@@ -123,7 +125,7 @@ function currentSkin(): Skin {
     skinKey = key;
     skin = resolveSkin(tuning.skin, now);
     ensureFonts(skin);
-    document.documentElement.style.setProperty("--accent", skin.hud.titleGlow);
+    document.documentElement.style.setProperty("--accent", skin.hud.ui);
   }
   return skin;
 }
