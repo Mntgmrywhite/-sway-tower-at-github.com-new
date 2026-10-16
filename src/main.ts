@@ -6,6 +6,7 @@ import { addFalling, addFlash, newView, render, updateView, type View } from "./
 import { resolveSkin } from "./skins";
 import type { Skin } from "./skins/skin";
 
+// Storage keys keep the game's original working name so saved scores survive renames.
 const BEST_KEY = "sway-stack:best";
 /** Ignore taps for this long after game over so a mistap doesn't instantly restart. */
 const RESTART_GUARD_MS = 400;

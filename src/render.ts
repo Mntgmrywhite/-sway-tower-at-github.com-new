@@ -5,6 +5,8 @@ import { neonStroke, neonText, roundRectPath } from "./neon/draw";
 import { drawForeground, drawPost, drawWorld, horizonFor } from "./neon/world";
 import type { Scene, Skin } from "./skins/skin";
 
+export const GAME_NAME = "One-Tap Stack";
+
 /** HUD text face for every skin; the skin picks the display face for titles. */
 const BODY_FONT = "Orbitron, 'Trebuchet MS', system-ui, sans-serif";
 
@@ -223,8 +225,8 @@ export function render(
 
   if (state.score === 0) {
     // Start screen: the name instead of a zero.
-    ctx.font = `400 ${Math.round(u * 0.13)}px ${hud.display}`;
-    neonText(ctx, "Sway Stack", cssW / 2, top, hud.title, hud.titleGlow, u * 0.016);
+    const size = fitFont(ctx, GAME_NAME, `400 {px}px ${hud.display}`, u * 0.13, cssW * 0.88);
+    neonText(ctx, GAME_NAME, cssW / 2, top, hud.title, hud.titleGlow, Math.max(3, size * 0.12));
   } else {
     ctx.font = `700 ${Math.round(u * 0.13)}px ${BODY_FONT}`;
     text(String(state.score), cssW / 2, top, "#ffffff", u * 0.016);
@@ -307,4 +309,19 @@ function drawGameOver(
 
   ctx.font = `600 ${Math.round(u * 0.05)}px ${BODY_FONT}`;
   text("tap to play again", y + h + u * 0.1, "#ffffff", hud.titleGlow, u * 0.012);
+}
+
+/**
+ * Set ctx.font from `template` ("{px}" is replaced by the size) at `size`, shrinking it
+ * until `text` fits in `maxWidth`. Returns the size used.
+ */
+function fitFont(ctx: CanvasRenderingContext2D, text: string, template: string, size: number, maxWidth: number): number {
+  let px = Math.round(size);
+  ctx.font = template.replace("{px}", String(px));
+  const w = ctx.measureText(text).width;
+  if (w > maxWidth) {
+    px = Math.floor((px * maxWidth) / w);
+    ctx.font = template.replace("{px}", String(px));
+  }
+  return px;
 }

@@ -2,6 +2,7 @@ import "./panel.css";
 import { DEFAULT_TUNING, resetTuning, tuning, type Tuning } from "./config";
 import { AUTO, SKINS } from "./skins";
 
+// Original working name kept on purpose: renaming the key would drop saved settings.
 const STORAGE_KEY = "sway-stack:tuning";
 
 type NumberKey = { [K in keyof Tuning]: Tuning[K] extends number ? K : never }[keyof Tuning];

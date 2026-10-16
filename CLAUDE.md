@@ -1,4 +1,4 @@
-# Sway Stack
+# One-Tap Stack
 
 One-tap stacker for the browser (later wrapped for iOS with Capacitor). A block slides back and forth; tap to drop it; overhang is sliced off. The twist: the tower sways more as it gets taller, so a good drop means timing both the slider and the sway.
 
@@ -16,7 +16,7 @@ Node lives in `~/.local/node` (user install). If `node` is not on PATH: `export 
 - `npm run build` — typecheck, then static bundle to `dist/`
 - `npm run preview` — serve the built bundle
 - `npm run snap -- <skinId>` — render a skin offscreen to `preview/<skin>-{start,climb,high,over,bars}.png` (fallback fonts; look at them with an image viewer). Use this to check visual work.
-- `npm run build:artifact` — build, then inline everything into `dist/sway-stack.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); republish that file to keep the same link
+- `npm run build:artifact` — build, then inline everything into `dist/one-tap-stack.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); republish that file to keep the same link
 
 ## Stack
 
