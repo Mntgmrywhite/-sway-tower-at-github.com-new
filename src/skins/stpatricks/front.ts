@@ -250,9 +250,10 @@ export function front(ctx: Ctx, s: Scene): void {
   if (gateTop(s) > s.cssH) return;
   const lw = inkW(s);
   const cx = s.cssW / 2;
-  // The meadow along the wall's top (over the base band's grass tips) and through the gateway.
+  // The meadow along the wall's top (over the base band's grass tips, and on down behind the
+  // cope stones so nothing shows between them) and through the gateway.
   ctx.fillStyle = MEADOW;
-  ctx.fillRect(0, top - u * 0.014, s.cssW, u * 0.024);
+  ctx.fillRect(0, top - u * 0.014, s.cssW, u * 0.044);
   ctx.fillRect(cx - GATE * u, top, GATE * 2 * u, s.cssH - top);
   // The grass verge in front of the wall, a shade deeper than the meadow.
   ctx.fillStyle = GRASS.body;

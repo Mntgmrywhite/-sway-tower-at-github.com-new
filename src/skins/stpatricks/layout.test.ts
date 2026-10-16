@@ -3,9 +3,11 @@ import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
 import { WALL_GAP, WALL_STONES } from "./colors";
 import { drifters } from "./drift";
-import { bridge, farSheep, floorTop, monastery } from "./far";
+import { bridge, farmhouses, farSheep, floorTop, monastery, mountains } from "./far";
 import { front, wallFoot, wallTop } from "./front";
-import { cottage, potOfGold, rainbowArc, sheep, smoke } from "./meadow";
+import { plan, potAndLeprechaun } from "./gold";
+import { cottage, rainbowArc, smoke, toadstool } from "./meadow";
+import { flock } from "./pasture";
 import { sun } from "./sky";
 import { context, mask, overlap, SIZES, startScene } from "./test-scene";
 import { level, toneOf } from "./tone";
@@ -14,35 +16,52 @@ import { inkW, roundTower } from "./tower";
 // The start view, on a tall and a short phone, at a few animation times: each prop is drawn
 // alone, and none touches a screen edge, the HUD at the top or the wall in front, none stands
 // in the tower's column above its floor line, nothing on the meadow beside the base block rises
-// above its top (the slider's first pass never sweeps over it), and no two overlap (except the
-// rainbow, whose foot ends in the pot of gold on purpose).
+// above its top (the slider's first pass never sweeps over it), and no two overlap, except where
+// that is the design: the rainbow comes down into the pot of gold (where the leprechaun hides),
+// and he runs off behind the round tower.
 
-const TIMES = [0, 1.3, 2.7, 4.1, 6.6, 9.4, 13.7] as const;
+/** Moments after the start shot: the first cycle has the leprechaun peek, then run off with the pot and bring it back. */
+const TIMES = [0, 1.3, 2.3, 2.7, 3.4, 4.1, 5.2, 6.6, 9.4, 13.7, 15.8, 17.6] as const;
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**
  * `above`: stands above the floor line (so must keep out of the tower's column). `beside`:
  * stands on the meadow beside the base block, so must stay below its top, out of the slider's
- * first lane.
+ * first lane. `away`: may be gone at times (the pot while the leprechaun has it).
  */
-const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean }[] = [
+const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean; away?: boolean }[] = [
   { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), floorTop(s, level(s))), above: true },
   { name: "swallows", draw: (ctx, s) => drifters(ctx, s, toneOf(s)), above: true },
+  { name: "mountains", draw: (ctx, s) => mountains(ctx, s, toneOf(s)), above: false },
   { name: "round tower and high cross", draw: (ctx, s) => monastery(ctx, s, toneOf(s)), above: true },
   { name: "far sheep", draw: (ctx, s) => farSheep(ctx, s, toneOf(s)), above: true },
+  { name: "farmhouses", draw: (ctx, s) => farmhouses(ctx, s, toneOf(s)), above: true },
   { name: "bridge", draw: (ctx, s) => bridge(ctx, s, toneOf(s)), above: true },
+  { name: "flock", draw: flock, above: true },
   { name: "smoke", draw: smoke, above: true },
   { name: "cottage", draw: cottage, above: true, beside: true },
   { name: "rainbow", draw: rainbowArc, above: true },
-  { name: "pot of gold", draw: potOfGold, above: true, beside: true },
+  { name: "pot of gold and leprechaun", draw: potAndLeprechaun, above: true, beside: true, away: true },
+  { name: "toadstool", draw: toadstool, above: true, beside: true },
   // The drum's top course is the tower's floor; the mound, ladder and doorway hang below it.
   { name: "round tower base", draw: roundTower, above: true, beside: true },
-  { name: "sheep", draw: sheep, above: true, beside: true },
 ];
 
-/** The rainbow comes down into the pot of gold: that one meeting is the design. */
+/** The meetings that are the design. */
+const ALLOWED = [
+  ["rainbow", "pot of gold and leprechaun"],
+  ["pot of gold and leprechaun", "round tower base"],
+  // The far range of mountains stands behind everything on the horizon.
+  ["mountains", "round tower and high cross"],
+  ["mountains", "far sheep"],
+  ["mountains", "farmhouses"],
+  ["mountains", "bridge"],
+  ["mountains", "sun"],
+  ["mountains", "swallows"],
+];
+
 function allowed(a: string, b: string): boolean {
-  return (a === "rainbow" && b === "pot of gold") || (a === "pot of gold" && b === "rainbow");
+  return ALLOWED.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
 }
 
 describe("st. patrick's layout", () => {
@@ -57,6 +76,7 @@ describe("st. patrick's layout", () => {
     // The HUD (title, best, lives) at the top.
     const hud = Math.round(H * 0.14 + s.u * 0.13);
     const baseTop = s.groundY - BLOCK_HEIGHT * s.scale;
+    const potHome = plan(s.t).potShown;
 
     PROPS.forEach((prop, i) => {
       const m = masks[i]!;
@@ -75,8 +95,9 @@ describe("st. patrick's layout", () => {
           if (prop.beside && y < baseTop) lane++;
         }
       }
-      expect(drawn, `${prop.name} is drawn`).toBeGreaterThan(20);
-      expect(edge, `${prop.name}: pixels on a screen edge`).toBe(0);
+      if (!prop.away || potHome) expect(drawn, `${prop.name} is drawn`).toBeGreaterThan(20);
+      // The mountains are scenery: their flanks run off the screen's sides like the hills'.
+      if (prop.name !== "mountains") expect(edge, `${prop.name}: pixels on a screen edge`).toBe(0);
       expect(column, `${prop.name}: pixels in the tower's column above its floor`).toBe(0);
       expect(top, `${prop.name}: pixels in the HUD`).toBe(0);
       expect(lane, `${prop.name}: pixels above the base block (in the slider's first lane)`).toBe(0);
@@ -86,7 +107,7 @@ describe("st. patrick's layout", () => {
         expect(overlap(m, masks[j]!), `${prop.name} overlaps ${PROPS[j]!.name}`).toBe(0);
       }
     });
-  });
+  }, 60_000);
 });
 
 /** The wall's stone and shadow colors, as [r, g, b]. */

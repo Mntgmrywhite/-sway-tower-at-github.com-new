@@ -2,28 +2,36 @@ import type { Ctx } from "../base/draw";
 import type { CartoonSkin, Scene } from "./skin";
 import { PALETTE } from "./stpatricks/colors";
 import { drifters } from "./stpatricks/drift";
-import { farLayer, floorTop, skyBottom } from "./stpatricks/far";
+import { cloudFloor, farLayer, floorTop, skyBottom } from "./stpatricks/far";
 import { front } from "./stpatricks/front";
 import * as icon from "./stpatricks/icons";
-import { meadowBack, sheep } from "./stpatricks/meadow";
-import { moon, skyFill, stars, sun } from "./stpatricks/sky";
+import { meadowBack } from "./stpatricks/meadow";
+import { moon, morningStar, shootingStar, skyFill, stars, sun } from "./stpatricks/sky";
 import { level, toneIndex, toneOf } from "./stpatricks/tone";
 import { roundTower } from "./stpatricks/tower";
 
 // St. Patrick's Day: a bright Irish spring in our cartoon style. The tower is stacked on an old
 // stone round tower (its conical cap long gone, so you can build it higher), a ladder leaning
-// up to its raised doorway, on a meadow of emerald grass. Round it a whitewashed cottage under
-// golden thatch with a red half-door and a curl of turf smoke, a sheep either side, and at the
-// right edge a rainbow coming down out of a little cloud into a pot of gold. Beyond, hills
-// quilted with fields, hedgerows and dry-stone walls; on the far hilltop a whole round tower
-// and a high cross; a stream winding out under a humpbacked stone bridge. In front, a low
-// dry-stone wall with a gateway, shamrocks in the grass verge, and a tiny green hat left on a
-// gatepost.
-// Climb, and a pair of swallows wheels by, the clouds gather into a floor below you, a soft
-// spring shower lets fall a few drops in the side lanes, then the sun breaks through and a
-// rainbow stands in the lane opposite it; geese fly home in a golden evening, and at the top
-// a calm starry night with a crescent moon. Calm by design: flat fills, one ink weight up
-// close, faded silhouettes far away, and nothing moves behind the tower.
+// up to its raised doorway, on a meadow of emerald grass. On the left, near the wall, a
+// whitewashed cottage under golden thatch with a red half-door and a curl of turf smoke; behind
+// it, in the back pasture, two ewes graze while their lambs race, pronk and skip. On the right a
+// rainbow comes down out of a little cloud into a pot of gold, and behind the pot hides a
+// leprechaun of our own, who peeks out round it and over it, and now and then makes off with
+// the pot behind the round tower (and brings it back); his cobbling waits on a red toadstool.
+// Beyond, hills quilted with fields, hedgerows and dry-stone walls, farmhouses on the right, on
+// the left hilltop a whole round tower and a high cross, a stream winding out under a humpbacked
+// stone bridge; and behind them the mountains: a flat-topped one with fluted flanks, and the
+// holy mountain with the pilgrims' path up to its little chapel. In front, a low dry-stone wall
+// with a gateway, shamrocks in the grass verge, and a tiny green hat left on a gatepost.
+// Climb, and a pair of swallows wheels by, the clouds gather into a floor below you (only the
+// mountain tops stand out of it, and it sinks with them to rest low on the screen for good), a
+// soft spring shower lets fall a few drops in the side lanes, then the sun breaks through and
+// a little rainbow with its own pot of gold stands in the lane opposite it; geese fly home in a
+// golden evening, the four swans of Lir glide by at dusk, and a calm starry night with a
+// crescent moon and the odd shooting star. Then the story loops: the night gives way to a rose
+// dawn with skylarks and the morning star, and the day comes round again (tone.ts). Calm by
+// design: flat fills, one ink weight up close, faded silhouettes far away, and nothing moves
+// behind the tower.
 //
 // The altitude story needs every layer of the backdrop, so St. Patrick's paints all of it in
 // one pass (`backdrop`, in the ground hook). The celestial and far hooks are empty on purpose:
@@ -34,13 +42,15 @@ function backdrop(ctx: Ctx, s: Scene): void {
   const floor = floorTop(s, level(s));
   skyFill(ctx, s, tone, toneIndex(s), skyBottom(s, floor));
   stars(ctx, s, tone);
+  shootingStar(ctx, s, tone);
+  morningStar(ctx, s, tone);
   moon(ctx, s, tone);
   sun(ctx, s, tone, floor);
   farLayer(ctx, s, tone, floor);
   drifters(ctx, s, tone);
   meadowBack(ctx, s);
   roundTower(ctx, s);
-  sheep(ctx, s);
+  if (floor < s.cssH + s.u * 0.15) cloudFloor(ctx, s, tone, floor);
 }
 
 function none(): void {}
@@ -49,7 +59,7 @@ export const stPatricks: CartoonSkin = {
   id: "stpatricks",
   name: "St. Patrick's Day",
   dates: [{ from: [3, 10], to: [3, 18] }],
-  fonts: ["Chewy"],
+  fonts: ["Uncial Antiqua"],
   palette: PALETTE,
   // Our own Irish symbols. Warm and cool, light and dark alternate so every seam reads, and
   // every color holds up against both the day sky and the night. (No green, white and orange
@@ -69,7 +79,7 @@ export const stPatricks: CartoonSkin = {
     { color: "#d65ad8", icon: icon.triskele },
   ],
   hud: {
-    display: "Chewy, 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif",
+    display: "'Uncial Antiqua', Georgia, 'Times New Roman', serif",
     title: "#5fe07c",
     ui: "#1f8f4f",
     accent: "#ffd447",
@@ -78,5 +88,6 @@ export const stPatricks: CartoonSkin = {
   celestial: none,
   far: none,
   ground: backdrop,
+  paintsBackdrop: true,
   foreground: front,
 };

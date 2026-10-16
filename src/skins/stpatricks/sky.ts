@@ -4,7 +4,9 @@ import type { Tone } from "./tone";
 
 // The sky and what hangs in it: the gradient for the hour (from tone.ts), a spring sun up on
 // the left (pale behind the shower, amber in the golden evening) that sinks into the cloud
-// floor at sunset, then a crescent moon on the right and the stars. Celestial things are far
+// floor at sunset, then a crescent moon on the right and the stars, now and then a shooting
+// star out in the side lanes; at the loop's dawn the moon and stars fade, the morning star
+// lingers low on the right, and the sun comes back up where it set. Celestial things are far
 // away: flat fills, no outline, a flat halo instead of a glow.
 
 /** Gradient stops for the four sky colors (top, middle, glow band, bottom). */
@@ -41,7 +43,9 @@ export const SUN_REACH = 1.42;
 
 /**
  * Where the sun is: by day left of the tower, below the title; at sunset it swells a little and
- * sinks below `floor` (the cloud floor's top). `r` is the disc; its halo reaches SUN_REACH r.
+ * sinks below `floor` (the cloud floor's top), or below the bottom of the screen once the floor
+ * has sunk out of view (and it comes up the same way at dawn). `r` is the disc; its halo reaches
+ * SUN_REACH r.
  */
 export function sunAt(s: Scene, tone: Tone, floor: number): typeof SUN {
   const k = tone.sunSet;
@@ -49,7 +53,7 @@ export function sunAt(s: Scene, tone: Tone, floor: number): typeof SUN {
   const y0 = s.cssH * 0.27;
   SUN.r = r0 * (1 + 0.45 * k);
   SUN.x = Math.max(r0 * 1.6, s.cssW / 2 - s.u * 0.36);
-  SUN.y = y0 + (floor + SUN.r * 1.3 - y0) * k;
+  SUN.y = y0 + (Math.min(floor, s.cssH) + SUN.r * 1.3 - y0) * k;
   return SUN;
 }
 
@@ -144,6 +148,73 @@ export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
     }
     ctx.fill();
   }
+  ctx.globalAlpha = 1;
+}
+
+/** Scratch result of `morningStarAt`. */
+const MORNING_STAR = { x: 0, y: 0 };
+
+/** The morning star: low on the right, out in the lane, under where the moon hangs. */
+export function morningStarAt(s: Scene): typeof MORNING_STAR {
+  MORNING_STAR.x = Math.min(s.cssW - s.u * 0.06, s.cssW / 2 + s.u * 0.33);
+  MORNING_STAR.y = s.cssH * 0.4;
+  return MORNING_STAR;
+}
+
+/** The morning star at the loop's dawn: one big sparkle with a flat halo, gently pulsing. */
+export function morningStar(ctx: Ctx, s: Scene, tone: Tone): void {
+  if (tone.morningStar <= 0.01) return;
+  const { x, y } = morningStarAt(s);
+  const r = s.u * 0.014 * (1 + 0.08 * Math.sin(s.t * 1.3));
+  ctx.globalAlpha = tone.morningStar * 0.3;
+  ctx.fillStyle = "#fff8e0";
+  ctx.beginPath();
+  circle(ctx, x, y, r * 1.5);
+  ctx.fill();
+  ctx.globalAlpha = tone.morningStar;
+  ctx.beginPath();
+  sparkle(ctx, x, y, r * 1.9);
+  circle(ctx, x, y, r * 0.42);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+/** Shooting stars: one every SHOOT_EVERY seconds or so, each crossing the sky for SHOOT_TIME. */
+const SHOOT_EVERY = 6.3;
+const SHOOT_TIME = 0.75;
+
+/**
+ * Now and then a shooting star streaks down and outward high in a side lane, by night only,
+ * a bright head with a fading tail. Which side, where and which way are picked per streak.
+ */
+export function shootingStar(ctx: Ctx, s: Scene, tone: Tone): void {
+  if (tone.stars < 0.6) return;
+  const n = Math.floor(s.t / SHOOT_EVERY);
+  const k = (s.t - n * SHOOT_EVERY) / SHOOT_TIME;
+  if (k >= 1 || hash(n * 3 + 9100) < 0.25) return;
+  const u = s.u;
+  const side = hash(n * 3 + 9101) < 0.5 ? -1 : 1;
+  // Starts between 0.3 and 0.4 u out from the center, falls outward and down 0.08 u.
+  const x0 = s.cssW / 2 + side * u * (0.3 + hash(n * 3 + 9102) * 0.1);
+  const y0 = s.cssH * (0.08 + hash(n * 3 + 9103) * 0.22) + u * 0.05;
+  const run = u * 0.08;
+  const hx = x0 + side * run * k;
+  const hy = y0 + run * 0.55 * k;
+  const len = u * 0.05 * Math.sin(Math.PI * Math.min(1, k * 1.4));
+  const a = Math.sin(Math.PI * k) * tone.stars;
+  ctx.globalAlpha = a * 0.55;
+  ctx.strokeStyle = "#fff8e0";
+  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1, u * 0.004);
+  ctx.beginPath();
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(hx - side * len, hy - len * 0.55);
+  ctx.stroke();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = "#fffdf0";
+  ctx.beginPath();
+  circle(ctx, hx, hy, u * 0.0045);
+  ctx.fill();
   ctx.globalAlpha = 1;
 }
 

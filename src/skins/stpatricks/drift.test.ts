@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { drawDrifter, eachVisible, type Drifter } from "./drift";
-import { bridge, farSheep, floorTop, landShows, monastery } from "./far";
+import { bridge, chapelAt, farmhouses, farSheep, floorTop, landShows, monastery } from "./far";
 import { rainbowArc } from "./meadow";
-import { moonAt, stars, sunAt, SUN_REACH } from "./sky";
-import { mask, overlap, sceneAt, SIZES } from "./test-scene";
-import { level, toneOf } from "./tone";
+import { moonAt, morningStarAt, stars, sunAt, SUN_REACH } from "./sky";
+import { mask, overlap, sceneAt, SIZES, zoomedScene } from "./test-scene";
+import { level, LOOP, LOOP_START, toneOf } from "./tone";
 
-// Everything drifting past in the side lanes, all the way up, on a tall and a short phone:
-// nothing enters the tower's column or touches a side of the screen, nothing overlaps (rain
-// included, while it falls), and only clouds ever pass in front of the sun (left lane) or the
-// moon (right lane).
+// Everything drifting past in the side lanes, all the way up through the first day and two
+// whole turns of the story's loop, on a tall and a short phone: nothing enters the tower's
+// column or touches a side of the screen, nothing overlaps (rain included, while it falls), and
+// only clouds ever pass in front of the sun (left lane) or the moon (right lane).
 
-const LEVELS = Array.from({ length: 111 }, (_, i) => i * 2);
+const TOP = LOOP_START + LOOP * 2 + 12;
+const LEVELS = Array.from({ length: Math.ceil(TOP / 2) + 1 }, (_, i) => i * 2);
 /** Two moments, plus one in the heart of the shower so the rain is checked at its fullest. */
 const TIMES = [0, 5.3, 8.9] as const;
 /** Masks are drawn at half size to keep this quick. */
@@ -66,9 +67,9 @@ describe("st. patrick's drifters", () => {
       });
     }
     // Every kind of drifter was on screen at some point on the way up, and it rained.
-    expect([...kinds].sort()).toEqual(["cloud", "geese", "rainbow", "swallows"]);
+    expect([...kinds].sort()).toEqual(["cloud", "geese", "larks", "rainbow", "swallows", "swans"]);
     expect(rained, "a rain cloud passes through the shower").toBe(true);
-  });
+  }, 120_000);
 });
 
 describe("st. patrick's drifters over the land", () => {
@@ -85,8 +86,11 @@ describe("st. patrick's drifters over the land", () => {
       const props = mask(W, H, (ctx) => {
         monastery(ctx, s, tone);
         farSheep(ctx, s, tone);
+        farmhouses(ctx, s, tone);
         bridge(ctx, s, tone);
         rainbowArc(ctx, s);
+        const c = chapelAt(s);
+        ctx.fillRect(c.x - s.u * 0.016, c.y - s.u * 0.036, s.u * 0.032, s.u * 0.036);
       });
       eachVisible(s, (d) => {
         checked++;
@@ -95,13 +99,74 @@ describe("st. patrick's drifters over the land", () => {
       });
     }
     expect(checked, "drifters seen while the land shows").toBeGreaterThan(10);
+  }, 60_000);
+});
+
+describe("st. patrick's lanes in the loop", () => {
+  // Past LOOP_START the lanes come round again with the story: at L and L + LOOP the same things
+  // stand at the same places on screen.
+  it.each([LOOP_START, LOOP_START + 7, LOOP_START + 30, LOOP_START + 61, LOOP_START + 95, LOOP_START + 120])("level %i matches a loop later and two", (lvl) => {
+    const seen = (l: number) => {
+      const s = sceneAt(390, 844, l, 4.2);
+      const out: string[] = [];
+      eachVisible(s, (d, lane) => out.push(`${lane}:${d.kind}:${Math.round((s.groundY - s.rise * 0.3 - d.at * s.scale * 0.7) * 10)}:${d.x.toFixed(4)}`));
+      return out.join(" ");
+    };
+    const now = seen(lvl);
+    expect(now.length, "something is in the lanes").toBeGreaterThan(0);
+    expect(seen(lvl + LOOP)).toBe(now);
+    expect(seen(lvl + LOOP * 2)).toBe(now);
   });
+
+  it("the morning star stays clear of the lanes' birds", () => {
+    // It hangs in the right lane at dawn; only clouds may pass it.
+    for (let lvl = LOOP_START; lvl < LOOP_START + LOOP; lvl += 1) {
+      const s = sceneAt(390, 844, lvl, 0);
+      const tone = toneOf(s);
+      if (tone.morningStar <= 0.01) continue;
+      const star = morningStarAt(s);
+      eachVisible(s, (d) => {
+        if (d.kind === "cloud") return;
+        const m = mask(390, 844, (ctx) => drawDrifter(ctx, s, tone, d), 0.5);
+        expect(inCircle(m, 195, star.x, star.y, s.u * 0.035), `level ${lvl}: ${d.kind} crosses the morning star`).toBe(0);
+      });
+    }
+  }, 60_000);
+});
+
+describe("st. patrick's lanes zoomed out", () => {
+  // Hard mode's zoomed-out view is up to 1/0.6 times wider and taller at the same u: the lanes
+  // keep to their places either side of the tower, nothing reaches the virtual screen's sides.
+  it.each(SIZES.flatMap(([W, H]) => [0.6, 0.8].map((z) => [W, H, z] as const)))("%ix%i at zoom %s: lanes stay clear", (W0, H0, z) => {
+    for (let lvl = 0; lvl < LOOP_START + LOOP; lvl += 6) {
+      const s = zoomedScene(W0, H0, z, lvl, 3);
+      const W = Math.round(s.cssW);
+      const H = Math.round(s.cssH);
+      const tone = toneOf(s);
+      const w = Math.round(W * K);
+      const c0 = (s.cssW / 2 - s.u * 0.25) * K;
+      const c1 = (s.cssW / 2 + s.u * 0.25) * K;
+      eachVisible(s, (d) => {
+        const m = mask(W, H, (ctx) => drawDrifter(ctx, s, tone, d), K);
+        let column = 0;
+        let edge = 0;
+        for (let k = 0; k < m.length; k++) {
+          if (!m[k]) continue;
+          const x = k % w;
+          if (x >= c0 && x <= c1) column++;
+          if (x === 0 || x === w - 1) edge++;
+        }
+        expect(column, `level ${lvl}: ${d.kind} in the column`).toBe(0);
+        expect(edge, `level ${lvl}: ${d.kind} on a side`).toBe(0);
+      });
+    }
+  }, 60_000);
 });
 
 describe("st. patrick's stars", () => {
   // The night's stars are spread across the screen, kept in from its sides so no sparkle is cut
   // in half by an edge.
-  it.each(SIZES.flatMap(([W, H]) => [100, 160].map((lvl) => [W, H, lvl] as const)))("%ix%i at level %i: no star touches a side", (W, H, lvl) => {
+  it.each(SIZES.flatMap(([W, H]) => [100, LOOP_START + LOOP + 3].map((lvl) => [W, H, lvl] as const)))("%ix%i at level %i: no star touches a side", (W, H, lvl) => {
     const s = sceneAt(W, H, lvl, 0);
     const m = mask(W, H, (ctx) => stars(ctx, s, toneOf(s)));
     let edge = 0;

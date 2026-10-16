@@ -66,6 +66,19 @@ export const RAINBOW = ["#ff5a50", "#ff9d3b", "#ffd93b", "#4cc85a", "#4a8ff0", "
 /** The little green hat on the gatepost. */
 export const HAT = shades("#2e9e4e", 0.4, 0.24);
 
+// ---------------------------------------------------------------- the leprechaun
+
+/** His frock coat and breeches, a fresh leaf green; his buckled hat a deeper bottle green. */
+export const COAT = shades("#34a852", 0.4, 0.26);
+export const LEP_HAT = shades("#1f7a3e", 0.36, 0.26);
+/** Rosy face and nose, a big ginger beard and brows, cream stockings, black shoes. */
+export const SKIN = shades("#ffd3b0", 0.4, 0.16);
+export const CHEEK = "#ff9c8c";
+export const BEARD = shades("#e8682e", 0.38, 0.2);
+export const STOCKING = "#fff6e4";
+export const SHOE = "#2b2838";
+export const BELT = "#5b3a26";
+
 // ---------------------------------------------------------------- near clouds
 
 export const CLOUD: Shades = { light: "#ffffff", body: "#f4f8ff", shade: "#d3e1f4" };

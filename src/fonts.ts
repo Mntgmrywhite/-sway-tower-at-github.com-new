@@ -1,7 +1,8 @@
 // Web fonts ship inside the page (Vite ?inline data URLs), like the audio, so the iOS app and
 // the single-file web build draw their titles without the network. The files are Fontsource's
 // copies of the Google Fonts faces (latin subset, same weights the page used to request).
-// Licenses: SIL OFL 1.1, except Luckiest Guy and Chewy (Apache 2.0); see public/font-licenses.txt.
+// Licenses: SIL OFL 1.1 (Fredoka, Monoton, Orbitron, Creepster, Abril Fatface, Limelight, Zen Dots,
+// Uncial Antiqua), except Luckiest Guy and Chewy (Apache 2.0); see public/font-licenses.txt.
 
 import abrilFatface from "@fontsource/abril-fatface/files/abril-fatface-latin-400-normal.woff2?inline";
 import chewy from "@fontsource/chewy/files/chewy-latin-400-normal.woff2?inline";
@@ -13,6 +14,7 @@ import luckiestGuy from "@fontsource/luckiest-guy/files/luckiest-guy-latin-400-n
 import monoton from "@fontsource/monoton/files/monoton-latin-400-normal.woff2?inline";
 import orbitron600 from "@fontsource/orbitron/files/orbitron-latin-600-normal.woff2?inline";
 import orbitron700 from "@fontsource/orbitron/files/orbitron-latin-700-normal.woff2?inline";
+import uncialAntiqua from "@fontsource/uncial-antiqua/files/uncial-antiqua-latin-400-normal.woff2?inline";
 import zenDots from "@fontsource/zen-dots/files/zen-dots-latin-400-normal.woff2?inline";
 
 /** Every bundled face, by family: [CSS weight, woff2 data URL]. */
@@ -32,6 +34,7 @@ export const FONT_FILES: Record<string, [weight: string, url: string][]> = {
   "Abril Fatface": [["400", abrilFatface]],
   Limelight: [["400", limelight]],
   "Zen Dots": [["400", zenDots]],
+  "Uncial Antiqua": [["400", uncialAntiqua]],
 };
 
 /** The HUD and UI faces every skin uses (cartoon body, neon body, the options title). */

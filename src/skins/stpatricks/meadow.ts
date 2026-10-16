@@ -1,18 +1,20 @@
-import { circle, ink, oval, type Ctx } from "../../base/draw";
+import { circle, ink, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { CLOUD, DOOR, FACE, GOLD, INK, IRON, OPENING, RAINBOW, SILL, THATCH, WHITEWASH, WOOL } from "./colors";
+import { CLOUD, DOOR, FACE, GOLD, INK, IRON, OPENING, RAINBOW, SILL, THATCH, WHITEWASH, WOOD } from "./colors";
+import { POT_FOOT, potAndLeprechaun } from "./gold";
 import { block } from "./shapes";
-import { sparkle } from "./sky";
 import { centerX, inkW } from "./tower";
 
 // What stands on the meadow round the round tower, all of it near (flat two-tone fills, one ink
 // weight) and none of it rising above the base block's top, so the slider's first pass never
-// sweeps over it. On the left a whitewashed cottage under golden thatch, its red half-door
-// between two windows, a curl of turf smoke from the chimney. A sheep either side, one of them
-// grazing. On the right, at the screen's edge, a rainbow comes down out of a little cloud into
-// a black pot heaped with gold, a glint winking on the coins. Two things rise higher, both at
-// the screen's edges like Classic's kite: the faint smoke, and the rainbow, whose arc and cloud
-// reach up through the slider's first lanes at the right edge, where it turns (the pot stays low).
+// sweeps over it. On the left, near the wall, a whitewashed cottage under golden thatch, its red
+// half-door between two windows, a curl of turf smoke from the chimney (the flock frolics in the
+// pasture behind it: pasture.ts). On the right a rainbow comes down out of a little cloud into a
+// black pot heaped with gold, where the leprechaun hides (gold.ts); when he makes off with the
+// pot, the rainbow runs on down to the grass. In front of it a red toadstool with his cobbler's
+// work left on it: a little buckled shoe and his hammer. Two things rise higher, both at the
+// screen's edges like Classic's kite: the faint smoke, and the rainbow, whose arc and cloud reach
+// up through the slider's first lanes at the right edge, where it turns.
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
@@ -20,7 +22,7 @@ import { centerX, inkW } from "./tower";
 
 /** The cottage: its center, its foot, the walls' half width and height, the thatch. */
 const COTTAGE_X = -0.37;
-const COTTAGE_FOOT = 0.135;
+const COTTAGE_FOOT = 0.25;
 const WALL_HW = 0.088;
 const WALL_H = 0.06;
 const EAVES_HW = 0.104;
@@ -173,112 +175,14 @@ export function smoke(ctx: Ctx, s: Scene): void {
   ctx.globalAlpha = 1;
 }
 
-// ---------------------------------------------------------------- sheep
-
-/** The sheep: x (u from center), foot (u below the floor line), facing (+1 right), whether grazing. */
-export const SHEEP = [
-  [-0.35, 0.3, 1, true],
-  [0.335, 0.29, -1, false],
-] as const;
-
-/** Where the legs stand, in units of the body's half length. */
-const LEGS = [-0.55, -0.25, 0.3, 0.6] as const;
-
-/** Wool puffs over the body: [dx, dy, r] in units of the body's half length. */
-const FLEECE = [
-  [-0.62, 0.05, 0.42],
-  [-0.2, -0.22, 0.5],
-  [0.28, -0.2, 0.48],
-  [0.66, 0.06, 0.4],
-  [0, 0.18, 0.55],
-] as const;
-
-/** Scratch pose of each sheep this frame: body center, foot, facing, head center and turn. */
-const POSE = SHEEP.map(() => ({ x: 0, cy: 0, foot: 0, m: 1, hx: 0, hy: 0, c: 1, sn: 0, tilt: 0 }));
-
-/** Both sheep, every pass shared: legs, fleece (ink rim, shade, wool, lit caps), ears, heads, eyes, crown tufts. */
-export function sheep(ctx: Ctx, s: Scene): void {
-  const u = s.u;
-  if (s.groundY + u * 0.2 > s.cssH) return;
-  const cx = centerX(s);
-  const lw = inkW(s);
-  const L = u * 0.034;
-  for (let i = 0; i < SHEEP.length; i++) {
-    const [sx, sf, m, grazing] = SHEEP[i]!;
-    const p = POSE[i]!;
-    p.x = cx + sx * u;
-    p.foot = s.groundY + sf * u;
-    p.cy = p.foot - u * 0.036;
-    p.m = m;
-    // The head: down in the grass and nodding as it grazes, or up and looking about. It turns
-    // round where it joins the neck; the ear and the eye turn with it.
-    const nod = grazing ? 0.5 + 0.5 * Math.sin(s.t * 1.1 + i * 2) : 0;
-    p.hx = p.x + m * L * (grazing ? 1.02 : 1.08);
-    p.hy = grazing ? p.cy + L * (0.42 + 0.12 * nod) : p.cy - L * 0.32 + Math.sin(s.t * 0.5 + i) * L * 0.04;
-    p.tilt = grazing ? m * (0.9 + 0.12 * nod) : m * 0.25;
-    p.c = Math.cos(p.tilt);
-    p.sn = Math.sin(p.tilt);
-  }
-  ctx.beginPath();
-  for (const p of POSE) for (const dx of LEGS) ctx.rect(p.x + dx * L - u * 0.0035, p.cy, u * 0.007, p.foot - p.cy);
-  ctx.fillStyle = FACE;
-  ctx.fill();
-  // The fleece's ink rim is the same puffs a line wider, filled in ink under the wool.
-  ctx.beginPath();
-  for (const p of POSE) for (const [dx, dy, r] of FLEECE) circle(ctx, p.x + dx * L, p.cy + dy * L, r * L + lw);
-  ctx.fillStyle = INK;
-  ctx.fill();
-  ctx.beginPath();
-  for (const p of POSE) for (const [dx, dy, r] of FLEECE) circle(ctx, p.x + dx * L, p.cy + dy * L, r * L);
-  ctx.fillStyle = WOOL.shade;
-  ctx.fill();
-  ctx.beginPath();
-  for (const p of POSE) for (const [dx, dy, r] of FLEECE) circle(ctx, p.x + dx * L - r * L * 0.05, p.cy + dy * L - r * L * 0.16, r * L * 0.86);
-  ctx.fillStyle = WOOL.body;
-  ctx.fill();
-  ctx.beginPath();
-  for (const p of POSE) for (const [dx, dy, r] of FLEECE) if (r > 0.45) circle(ctx, p.x + (dx - 0.18) * L, p.cy + (dy - 0.28) * L, r * L * 0.34);
-  ctx.fillStyle = WOOL.light;
-  ctx.fill();
-  ctx.beginPath();
-  for (const p of POSE) {
-    const ex = -p.m * L * 0.05;
-    const ey = -L * 0.36;
-    oval(ctx, p.hx + ex * p.c - ey * p.sn, p.hy + ex * p.sn + ey * p.c, L * 0.3, L * 0.12, p.tilt - p.m * 0.5);
-  }
-  ctx.fillStyle = FACE;
-  ctx.fill();
-  ink(ctx, lw * 0.7, INK);
-  ctx.beginPath();
-  for (const p of POSE) oval(ctx, p.hx, p.hy, L * 0.3, L * 0.42, p.tilt);
-  ctx.fill();
-  ink(ctx, lw * 0.8, INK);
-  ctx.fillStyle = "#ffffff";
-  ctx.beginPath();
-  for (const p of POSE) {
-    const ix = p.m * L * 0.1;
-    const iy = -L * 0.1;
-    circle(ctx, p.hx + ix * p.c - iy * p.sn, p.hy + ix * p.sn + iy * p.c, L * 0.075);
-  }
-  ctx.fill();
-  // A tuft of wool on the crown, over where the head joins the body.
-  ctx.beginPath();
-  for (const p of POSE) circle(ctx, p.x + p.m * L * 0.78, p.cy - L * 0.15, L * 0.3);
-  ctx.fillStyle = WOOL.body;
-  ctx.fill();
-}
-
 // ---------------------------------------------------------------- the rainbow and the pot of gold
 
-/** The rainbow: center of its ellipse (u), outer radii, band width; it ends in the pot. */
+/** The rainbow: center of its ellipse (u), outer radii, band width; it comes down into the pot (gold.ts). */
 const BOW_X = 0.305;
 const BOW_Y = 0.117;
 const BOW_RX = 0.13;
 const BOW_RY = 0.29;
 const BOW_BAND = 0.0075;
-/** The pot of gold: its center and foot. */
-const POT_X = 0.412;
-const POT_FOOT = 0.165;
 /** The little cloud the rainbow comes out of. */
 const PUFF_X = 0.318;
 const PUFF_Y = -0.146;
@@ -289,7 +193,11 @@ const PUFFS = [
   [0.037, 0.007, 0.016],
 ] as const;
 
-/** The rainbow coming down out of its little cloud; its foot ends in the pot of gold (drawn after it). */
+/**
+ * The rainbow coming down out of its little cloud; from the arc's foot its bands run straight
+ * down to the grass where the pot of gold stands (drawn after it, it hides them, unless the
+ * leprechaun has made off with it).
+ */
 export function rainbowArc(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = centerX(s);
@@ -301,9 +209,12 @@ export function rainbowArc(ctx: Ctx, s: Scene): void {
   const ry = BOW_RY * u;
   const bw = BOW_BAND * u;
   const a0 = -Math.PI / 2 - 0.06;
+  const ground = s.groundY + (POT_FOOT - 0.003) * u;
   for (let i = 0; i < RAINBOW.length; i++) {
     ctx.beginPath();
     ctx.ellipse(x, y, rx - i * bw, ry - i * bw, 0, a0, 0);
+    ctx.lineTo(x + rx - i * bw, ground);
+    ctx.lineTo(x + rx - (i + 1) * bw, ground);
     ctx.ellipse(x, y, rx - (i + 1) * bw, ry - (i + 1) * bw, 0, 0, a0, true);
     ctx.closePath();
     ctx.fillStyle = RAINBOW[i]!;
@@ -312,18 +223,12 @@ export function rainbowArc(ctx: Ctx, s: Scene): void {
   const n = RAINBOW.length;
   ctx.beginPath();
   ctx.ellipse(x, y, rx, ry, 0, a0, 0);
-  ctx.moveTo(x + rx - n * bw, y);
+  ctx.lineTo(x + rx, ground);
+  ctx.moveTo(x + rx - n * bw, ground);
+  ctx.lineTo(x + rx - n * bw, y);
   ctx.ellipse(x, y, rx - n * bw, ry - n * bw, 0, 0, a0, true);
   ink(ctx, lw, INK);
   puff(ctx, s, cx + PUFF_X * u, s.groundY + PUFF_Y * u, lw);
-}
-
-/** The pot of gold at the rainbow's foot. */
-export function potOfGold(ctx: Ctx, s: Scene): void {
-  const u = s.u;
-  const foot = s.groundY + POT_FOOT * u;
-  if (foot - u * 0.1 > s.cssH) return;
-  pot(ctx, s, centerX(s) + POT_X * u, foot, inkW(s));
 }
 
 /** The little inked cloud at the rainbow's top end. */
@@ -347,79 +252,107 @@ function puff(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
   ctx.fill();
 }
 
-/** Coins heaped over the pot's rim: [dx, dy] in u from the rim's center. */
-const COINS = [
-  [-0.022, -0.006],
-  [0, -0.013],
-  [0.021, -0.005],
-  [-0.009, -0.021],
-  [0.012, -0.02],
-] as const;
+// ---------------------------------------------------------------- the cobbler's toadstool
 
-/** A black iron pot on three stubby legs, heaped with gold, a glint winking on the coins. */
-function pot(ctx: Ctx, s: Scene, x: number, foot: number, lw: number): void {
-  const u = s.u;
-  const hw = u * 0.036;
-  const rim = foot - u * 0.05;
-  // Legs.
-  ctx.beginPath();
-  ctx.rect(x - hw * 0.72, foot - u * 0.012, u * 0.008, u * 0.012);
-  ctx.rect(x + hw * 0.72 - u * 0.008, foot - u * 0.012, u * 0.008, u * 0.012);
-  ctx.fillStyle = IRON.shade;
-  ctx.fill();
-  ink(ctx, lw * 0.7, INK);
-  // The heap of gold above the rim.
-  ctx.beginPath();
-  ctx.moveTo(x - hw * 0.95, rim);
-  ctx.quadraticCurveTo(x - hw * 0.7, rim - u * 0.034, x, rim - u * 0.036);
-  ctx.quadraticCurveTo(x + hw * 0.7, rim - u * 0.034, x + hw * 0.95, rim);
-  ctx.closePath();
-  ctx.fillStyle = GOLD.body;
-  ctx.fill();
-  ink(ctx, lw * 0.8, INK);
-  ctx.beginPath();
-  for (const [dx, dy] of COINS) oval(ctx, x + dx * u, rim + dy * u, u * 0.009, u * 0.006);
-  ctx.fillStyle = GOLD.light;
-  ctx.fill();
-  ctx.strokeStyle = GOLD.shade;
-  ctx.lineWidth = Math.max(1, lw * 0.5);
-  ctx.stroke();
-  // The pot: a round iron belly under a thick rim.
-  ctx.beginPath();
-  ctx.moveTo(x - hw * 0.92, rim + u * 0.006);
-  ctx.bezierCurveTo(x - hw * 1.18, rim + u * 0.03, x - hw * 0.8, foot - u * 0.006, x, foot - u * 0.006);
-  ctx.bezierCurveTo(x + hw * 0.8, foot - u * 0.006, x + hw * 1.18, rim + u * 0.03, x + hw * 0.92, rim + u * 0.006);
-  ctx.closePath();
-  ctx.fillStyle = IRON.body;
-  ctx.fill();
-  ink(ctx, lw, INK);
-  ctx.fillStyle = IRON.light;
-  ctx.beginPath();
-  oval(ctx, x - hw * 0.45, rim + u * 0.02, hw * 0.22, u * 0.008, -0.5);
-  ctx.fill();
-  ctx.beginPath();
-  block(ctx, x - hw, rim - u * 0.002, hw * 2, u * 0.011, u * 0.004);
-  ctx.fillStyle = IRON.body;
-  ctx.fill();
-  ctx.fillStyle = IRON.light;
-  ctx.fillRect(x - hw + u * 0.004, rim, hw * 2 - u * 0.008, u * 0.003);
-  ink(ctx, lw, INK);
-  // A glint winking on the gold.
-  const wink = Math.max(0, Math.sin(s.t * 1.7));
-  if (wink > 0.05) {
-    ctx.globalAlpha = wink;
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    sparkle(ctx, x + u * 0.012, rim - u * 0.026, u * 0.01 * (0.6 + 0.4 * wink));
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
+/** The toadstool: its center and foot (u). */
+const STOOL_X = 0.318;
+const STOOL_FOOT = 0.298;
+const STOOL_CAP = shadesOf("#ef4b3c");
+
+function shadesOf(c: string): { light: string; body: string; shade: string } {
+  return { light: mix(c, "#ffffff", 0.36), body: c, shade: mix(c, "#1a1030", 0.24) };
 }
 
-/** Everything on the meadow round the tower (the tower itself is drawn after the cottage, before the sheep). */
+/**
+ * A red toadstool spotted white, with the leprechaun's cobbling left on it: a little black
+ * shoe with a gold buckle, and his hammer leaning against the stalk.
+ */
+export function toadstool(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  const foot = s.groundY + STOOL_FOOT * u;
+  if (foot - u * 0.07 > s.cssH) return;
+  const x = centerX(s) + STOOL_X * u;
+  const lw = inkW(s);
+  // The hammer, leaning on the stalk's left: a wooden haft, an iron head.
+  ctx.beginPath();
+  ctx.moveTo(x - u * 0.031, foot - u * 0.001);
+  ctx.lineTo(x - u * 0.012, foot - u * 0.03);
+  ctx.strokeStyle = INK;
+  ctx.lineCap = "round";
+  ctx.lineWidth = u * 0.0055 + lw;
+  ctx.stroke();
+  ctx.strokeStyle = WOOD.body;
+  ctx.lineWidth = u * 0.0055;
+  ctx.stroke();
+  ctx.beginPath();
+  block(ctx, x - u * 0.02, foot - u * 0.039, u * 0.017, u * 0.0085, u * 0.002);
+  ctx.fillStyle = IRON.body;
+  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
+  // The stalk, creamy, a little wider at its foot.
+  ctx.beginPath();
+  ctx.moveTo(x - u * 0.008, foot - u * 0.03);
+  ctx.quadraticCurveTo(x - u * 0.01, foot - u * 0.008, x - u * 0.013, foot);
+  ctx.lineTo(x + u * 0.013, foot);
+  ctx.quadraticCurveTo(x + u * 0.01, foot - u * 0.008, x + u * 0.008, foot - u * 0.03);
+  ctx.closePath();
+  ctx.fillStyle = WHITEWASH.body;
+  ctx.fill();
+  ctx.fillStyle = WHITEWASH.shade;
+  ctx.fillRect(x + u * 0.003, foot - u * 0.028, u * 0.006, u * 0.026);
+  ink(ctx, lw * 0.85, INK);
+  // The cap: a red dome, lit on its crown, its white spots.
+  const capY = foot - u * 0.03;
+  ctx.beginPath();
+  ctx.moveTo(x - u * 0.03, capY + u * 0.002);
+  ctx.bezierCurveTo(x - u * 0.03, capY - u * 0.034, x + u * 0.03, capY - u * 0.034, x + u * 0.03, capY + u * 0.002);
+  ctx.quadraticCurveTo(x, capY + u * 0.008, x - u * 0.03, capY + u * 0.002);
+  ctx.closePath();
+  ctx.fillStyle = STOOL_CAP.body;
+  ctx.fill();
+  ctx.fillStyle = STOOL_CAP.shade;
+  ctx.beginPath();
+  ctx.moveTo(x - u * 0.03, capY + u * 0.002);
+  ctx.quadraticCurveTo(x, capY + u * 0.008, x + u * 0.03, capY + u * 0.002);
+  ctx.quadraticCurveTo(x, capY - u * 0.003, x - u * 0.03, capY + u * 0.002);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  circle(ctx, x - u * 0.014, capY - u * 0.01, u * 0.0042);
+  circle(ctx, x + u * 0.004, capY - u * 0.019, u * 0.0035);
+  circle(ctx, x + u * 0.018, capY - u * 0.008, u * 0.0038);
+  circle(ctx, x - u * 0.002, capY - u * 0.005, u * 0.0026);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - u * 0.03, capY + u * 0.002);
+  ctx.bezierCurveTo(x - u * 0.03, capY - u * 0.034, x + u * 0.03, capY - u * 0.034, x + u * 0.03, capY + u * 0.002);
+  ctx.quadraticCurveTo(x, capY + u * 0.008, x - u * 0.03, capY + u * 0.002);
+  ink(ctx, lw, INK);
+  // On the cap, the little shoe he is mending: black, curled toe, a gold buckle.
+  const sx = x + u * 0.001;
+  const sy = capY - u * 0.022;
+  ctx.beginPath();
+  ctx.moveTo(sx - u * 0.012, sy);
+  ctx.lineTo(sx - u * 0.011, sy - u * 0.009);
+  ctx.quadraticCurveTo(sx - u * 0.004, sy - u * 0.011, sx - u * 0.001, sy - u * 0.006);
+  ctx.quadraticCurveTo(sx + u * 0.009, sy - u * 0.006, sx + u * 0.014, sy - u * 0.004);
+  ctx.quadraticCurveTo(sx + u * 0.016, sy, sx + u * 0.012, sy + u * 0.001);
+  ctx.closePath();
+  ctx.fillStyle = "#2b2838";
+  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
+  ctx.beginPath();
+  ctx.rect(sx - u * 0.003, sy - u * 0.009, u * 0.0055, u * 0.004);
+  ctx.fillStyle = GOLD.body;
+  ctx.fill();
+}
+
+/** Everything on the meadow round the tower (the tower itself is drawn after them: its drum hides the leprechaun when he runs off). */
 export function meadowBack(ctx: Ctx, s: Scene): void {
   smoke(ctx, s);
   cottage(ctx, s);
   rainbowArc(ctx, s);
-  potOfGold(ctx, s);
+  potAndLeprechaun(ctx, s);
+  toadstool(ctx, s);
 }

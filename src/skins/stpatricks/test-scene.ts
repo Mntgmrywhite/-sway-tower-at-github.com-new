@@ -1,5 +1,6 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { horizonFor } from "../../base/world";
+import { frameFor, GROUND_START } from "../../camera";
 import { BASE_WIDTH, BLOCK_HEIGHT, WORLD_WIDTH } from "../../config";
 import { shots } from "../../preview/shots";
 import { render } from "../../render";
@@ -35,6 +36,30 @@ export function sceneAt(W: number, H: number, lvl: number, t: number): Scene {
     horizonY: horizonFor(groundY, rise, u),
     baseX: offsetX + ((WORLD_WIDTH - BASE_WIDTH) / 2) * scale,
     baseW: BASE_WIDTH * scale,
+  };
+}
+
+/**
+ * Hard mode's zoomed-out view, as render.ts builds it: the frame camera.ts lays out for a virtual
+ * screen W/z x H/z at the phone's u and scale (its camera held up for that taller screen while
+ * the tower is short, so the altitude can be the phone's or higher), drawn shrunk by z.
+ */
+export function zoomedScene(W: number, H: number, z: number, lvl: number, t: number): Scene {
+  const f = frameFor(W, H, (lvl + 1) * BLOCK_HEIGHT, z);
+  const groundY = f.anchorPx + f.cameraY * f.scale;
+  const rise = Math.max(0, groundY - f.height * GROUND_START);
+  return {
+    cssW: f.width,
+    cssH: f.height,
+    u: f.u,
+    scale: f.scale,
+    t,
+    rise,
+    altitude: f.cameraY,
+    groundY,
+    horizonY: horizonFor(groundY, rise, f.u),
+    baseX: f.offsetX + ((WORLD_WIDTH - BASE_WIDTH) / 2) * f.scale,
+    baseW: BASE_WIDTH * f.scale,
   };
 }
 
