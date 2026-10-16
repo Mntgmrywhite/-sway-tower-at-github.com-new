@@ -116,6 +116,11 @@ interface SkinBase {
   far?(ctx: Ctx, s: Scene): void;
   /** Props on the floor around the tower, drawn behind the tower. */
   ground?(ctx: Ctx, s: Scene): void;
+  /**
+   * The ground hook paints the whole screen behind the tower (a skin with its own backdrop): the
+   * base sky, cloud bank, heights and field would be covered anyway, so they aren't painted.
+   */
+  paintsBackdrop?: boolean;
   /** Props in front of the tower, drawn after the base grass-and-tiles foreground (keep them low). */
   foreground?(ctx: Ctx, s: Scene): void;
 }

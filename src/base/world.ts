@@ -251,6 +251,11 @@ function tiles(ctx: Ctx, s: Scene, p: Palette): void {
 /** Everything behind the tower. */
 export function drawWorld(ctx: Ctx, s: Scene, skin: CartoonSkin): void {
   const p = skin.palette;
+  if (skin.paintsBackdrop) {
+    // Everything below would be painted over: about a third of such a skin's frame.
+    skin.ground?.(ctx, s);
+    return;
+  }
   sky(ctx, s, p);
   if (skin.celestial) skin.celestial(ctx, s);
   else moon(ctx, s, p.moon);
