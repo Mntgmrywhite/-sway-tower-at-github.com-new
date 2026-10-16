@@ -10,8 +10,9 @@ import { Instrument, type InstrumentOptions } from "./sampler";
  */
 const OCT = 12;
 // Fine tuning (cents) comes from measuring every recording's pitch (scripts/music/pitch.ts):
-// glockenspiel and xylophone drift per note (up to +28 cents), so they are auto-tuned note by
-// note; others get one correction when their median was 5+ cents off. The honky-tonk piano's
+// glockenspiel and xylophone drift per note (+8 to +24 cents), so they are auto-tuned note by
+// note, as are the tenor sax and staccato tuba; others get one correction when their median
+// was 5+ cents off. The honky-tonk piano's
 // slight detune is its character and is left alone.
 
 const VCSL = "VCSL";
@@ -46,10 +47,24 @@ export const INSTRUMENTS = {
   clarinet: { dir: `${VSCO}/Woodwinds/Clarinet/susLong`, attack: 0.03, release: 0.2, gain: 0.8, transpose: OCT },
   clarinetShort: { dir: `${VSCO}/Woodwinds/Clarinet/stac`, oneShot: true, transpose: OCT },
   bassoonShort: { dir: `${VSCO}/Woodwinds/Bassoon/stac`, oneShot: true, transpose: OCT },
-  horn: { dir: `${VSCO}/Brass/F Horn/sus`, attack: 0.05, release: 0.3, gain: 0.7, transpose: OCT },
+  horn: { dir: `${VSCO}/Brass/F Horn/sus`, attack: 0.05, release: 0.3, gain: 0.7, transpose: OCT, autotune: true, harmonic: true },
   trumpetMute: { dir: `${VSCO}/Brass/Trumpet/harmonM-sus`, attack: 0.02, release: 0.15, gain: 0.8, transpose: OCT },
   trumpetShort: { dir: `${VSCO}/Brass/Trumpet/stac`, oneShot: true, gain: 0.8, transpose: OCT },
   tromboneShort: { dir: `${VSCO}/Brass/Tenor Trombone/stac`, oneShot: true, gain: 0.85, transpose: OCT },
+  // The owner's favorites: French horn, saxophones and low brass. There is no CC0 euphonium,
+  // so songs voice it as tuba + trombone on the same notes (a tenor tuba is what a euphonium is).
+  // Gains put each at about -28 dB RMS for a mid-velocity note in its main range (like the horn).
+  hornShort: { dir: `${VSCO}/Brass/F Horn/stac`, oneShot: true, gain: 0.5, transpose: OCT, even: true, autotune: true, harmonic: true, strictTuning: true },
+  trombone: { dir: `${VSCO}/Brass/Tenor Trombone/sus`, attack: 0.05, release: 0.3, gain: 2.4, transpose: OCT, even: true, autotune: true, harmonic: true },
+  tuba: { dir: `${VSCO}/Brass/Tuba/sus`, attack: 0.05, release: 0.3, gain: 0.62, transpose: OCT, even: true, autotune: true, harmonic: true },
+  // Only the louder staccato layer: the soft one is played 40-60 cents flat. Short notes bend,
+  // so the staccato sets keep only the takes whose pitch measures steady (strictTuning).
+  tubaShort: { dir: `${VSCO}/Brass/Tuba/stac`, match: /_v2_/, oneShot: true, gain: 2.2, transpose: OCT, autotune: true, harmonic: true, even: true, strictTuning: true },
+  sax: { dir: `${VCSL}/Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato`, attack: 0.03, release: 0.2, gain: 1.3, transpose: OCT, autotune: true, harmonic: true, even: true },
+  saxShort: { dir: `${VCSL}/Aerophones/Reed Aerophones/Tenor Saxophone/Staccato`, oneShot: true, gain: 1.55, transpose: OCT, even: true, autotune: true, harmonic: true, strictTuning: true },
+  // Saxello: a curved soprano sax, an octave above the tenor.
+  sopranoSax: { dir: `${VCSL}/Aerophones/Reed Aerophones/Saxello/Vibrato`, attack: 0.03, release: 0.2, gain: 0.45, transpose: OCT, even: true, autotune: true, harmonic: true },
+  sopranoSaxShort: { dir: `${VCSL}/Aerophones/Reed Aerophones/Saxello/Staccato`, oneShot: true, gain: 0.7, transpose: OCT, even: true, autotune: true, harmonic: true, strictTuning: true },
   harmonica: { dir: `${VCSL}/Aerophones/Free Aerophones/Harmonica-Hohner-Special20-C/Sustains/Normal`, attack: 0.02, release: 0.15, transpose: OCT },
 
   // Mallets and bells
@@ -63,13 +78,27 @@ export const INSTRUMENTS = {
   kick: { dir: `${VCSL}/Membranophones/Struck Membranophones/Bass Drum 1`, fixedNote: "C2", oneShot: true },
   snare: { dir: `${VCSL}/Membranophones/Struck Membranophones/Snare Drum, Modern 1`, match: /HitNS/, fixedNote: "D2", oneShot: true },
   rim: { dir: `${VCSL}/Membranophones/Struck Membranophones/Snare Drum, Modern 1`, match: /Rim|Stick/i, fixedNote: "D2", oneShot: true },
+  // `snare` is the snares-off hit (a soft thud); `snareOn` is the bright, buzzy snare of a
+  // drum kit or brass band, and `snareRoll` its roll (holds for the note's length).
+  snareOn: { dir: `${VCSL}/Membranophones/Struck Membranophones/Snare Drum, Modern 1`, match: /HitSN/, fixedNote: "D2", oneShot: true },
+  snareRoll: { dir: `${VCSL}/Membranophones/Struck Membranophones/Snare Drum, Modern 1`, match: /rollSN/, fixedNote: "D2", attack: 0.01, release: 0.12 },
+  tomHigh: { dir: `${VCSL}/Membranophones/Struck Membranophones/Tom 1/Stick`, match: /HitS/, fixedNote: "A2", oneShot: true },
+  tomLow: { dir: `${VCSL}/Membranophones/Struck Membranophones/Tom 2/Stick`, match: /HitS/, fixedNote: "F2", oneShot: true },
   hatClosed: { dir: `${VCSL}/Idiophones/Struck Idiophones/Hi-Hat Cymbal`, match: /Close|HitC/, fixedNote: "F#2", oneShot: true, gain: 0.6 },
+  hatOpen: { dir: `${VCSL}/Idiophones/Struck Idiophones/Hi-Hat Cymbal`, match: /HitO_/, fixedNote: "A#2", oneShot: true, gain: 0.5 },
+  // Kit cymbals from the suspended cymbal: a stick tip for the ride, a full hit for the crash.
+  ride: { dir: `${VCSL}/Idiophones/Struck Idiophones/Suspended Cymbal 1`, match: /hit_stick_(mp|f)1/, fixedNote: "D#3", oneShot: true, gain: 0.45 },
+  crash: { dir: `${VCSL}/Idiophones/Struck Idiophones/Suspended Cymbal 1`, match: /_hit_f1/, fixedNote: "C#3", oneShot: true, gain: 0.55 },
+  // Orchestral clash cymbals (a pair, hand-held): the fanfare's big hit.
+  cymbals: { dir: `${VCSL}/Idiophones/Struck Idiophones/Clash Cymbals 1`, match: /crash1_(mf|ff)/, fixedNote: "C#3", oneShot: true, gain: 0.5 },
   sleighBells: { dir: `${VCSL}/Idiophones/Struck Idiophones/Sleigh Bells`, match: /Hit/, fixedNote: "C4", oneShot: true, gain: 0.7 },
   woodblock: { dir: `${VCSL}/Idiophones/Struck Idiophones/Woodblock`, fixedNote: "C4", oneShot: true, gain: 0.7 },
   claps: { dir: `${VCSL}/Idiophones/Struck Idiophones/Claps`, fixedNote: "C4", oneShot: true, gain: 0.7 },
   shaker: { dir: `${VCSL}/Idiophones/Struck Idiophones/Shaker, Small`, fixedNote: "C4", oneShot: true, gain: 0.5 },
   tambourine: { dir: `${VCSL}/Idiophones/Struck Idiophones/Tambourine 1`, fixedNote: "C4", oneShot: true, gain: 0.5 },
-  triangle: { dir: `${VCSL}/Idiophones/Struck Idiophones/Triangles`, fixedNote: "C4", oneShot: true, gain: 0.5 },
+  // Triangle: open strokes and fully muted "tk" strokes (no rolls: those are 23-39 s long).
+  triangle: { dir: `${VCSL}/Idiophones/Struck Idiophones/Triangles`, match: /_Hit_/, fixedNote: "C4", oneShot: true, gain: 0.5 },
+  triangleMuted: { dir: `${VCSL}/Idiophones/Struck Idiophones/Triangles`, match: /_hitFM_/i, fixedNote: "C4", oneShot: true, gain: 0.5 },
   timpani: { dir: `${VSCO}/Percussion/Timpani`, fixedNote: "C3", oneShot: true },
 } satisfies Record<string, InstrumentOptions>;
 

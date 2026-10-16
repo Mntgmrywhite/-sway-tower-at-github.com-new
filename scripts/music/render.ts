@@ -38,7 +38,8 @@ async function main(): Promise<void> {
   mkdirSync(OUT, { recursive: true });
   mkdirSync(PREVIEW, { recursive: true });
   const manifestPath = join(OUT, "manifest.json");
-  const manifest: Record<string, LoopInfo> = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {};
+  const readManifest = (): Record<string, LoopInfo> => (existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {});
+  const rendered: Record<string, LoopInfo> = {};
 
   for (const name of names) {
     const mod = (await import(pathToFileURL(join(process.cwd(), "scripts/music/songs", `${name}.ts`)).href)) as { default: Song };
@@ -69,11 +70,12 @@ async function main(): Promise<void> {
     };
     writeWav(join(PREVIEW, `${name}.wav`), { rate: RATE, left: twice(loop.left), right: twice(loop.right) });
 
-    manifest[name] = { sr: RATE, L, PAD, priming: PRIMING, bpm: song.bpm, bars: song.bars };
+    rendered[name] = { sr: RATE, L, PAD, priming: PRIMING, bpm: song.bpm, bars: song.bars };
     const kb = Math.round(readFileSync(mp4).length / 1024);
     console.log(`${name}: ${(L / RATE).toFixed(1)}s loop, ${kb} KB -> ${mp4} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
   }
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+  // Re-read just before writing, so renders of other songs running at the same time keep their entries.
+  writeFileSync(manifestPath, JSON.stringify({ ...readManifest(), ...rendered }, null, 2) + "\n");
 }
 
 void main();

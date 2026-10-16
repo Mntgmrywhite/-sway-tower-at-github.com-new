@@ -34,6 +34,11 @@ export interface Track {
   reverb?: number;
   /** Small per-note timing/velocity variation, 0..1, so it doesn't sound quantized. */
   humanize?: number;
+  /**
+   * Darken a bright part: a gentle low-pass (12 dB/octave) from this frequency in Hz, e.g. 4000
+   * to soften a fiddle's or harpsichord's edge, 2500 for a mellow, distant voice. Off by default.
+   */
+  lowpass?: number;
 }
 
 export interface Song {
@@ -82,6 +87,9 @@ export function renderLoop(song: Song): Audio {
     const tL = new Float32Array(frames);
     const tR = new Float32Array(frames);
     renderNotes(inst, events, tL, tR, RATE, track.gain ?? 1, track.pan ?? 0);
+    if (track.lowpass) {
+      for (const ch of [tL, tR]) for (let pass = 0; pass < 2; pass++) onePoleLoop(ch, track.lowpass, RATE);
+    }
     const send = track.reverb ?? 0.25;
     for (let f = 0; f < frames; f++) {
       dryL[f] = dryL[f]! + tL[f]!;
@@ -99,18 +107,27 @@ export function renderLoop(song: Song): Audio {
   return { rate: RATE, left: dryL, right: dryR };
 }
 
+/**
+ * One-pole low-pass at `hz`, in place, over a loop: the filter is warmed up on the loop's tail
+ * first, so the start continues from the end and the seam stays seamless.
+ */
+function onePoleLoop(x: Float32Array, hz: number, rate: number): void {
+  const a = Math.exp((-2 * Math.PI * hz) / rate);
+  let lp = 0;
+  for (let i = Math.max(0, x.length - Math.round(rate * 0.05)); i < x.length; i++) lp = (1 - a) * x[i]! + a * lp;
+  for (let i = 0; i < x.length; i++) {
+    lp = (1 - a) * x[i]! + a * lp;
+    x[i] = lp;
+  }
+}
+
 /** Bring a mix to a consistent loudness with a soft limiter (peaks stay under -1 dBFS). */
 export function master(audio: Audio, targetRms = 0.16, soften = 0.35): Audio {
   // Gentle treble roll-off (about -3.5 dB above ~6 kHz) so bells and shakers don't bite.
-  const a = Math.exp((-2 * Math.PI * 6000) / audio.rate);
   const tame = (x: Float32Array) => {
-    const out = new Float32Array(x.length);
-    let lp = 0;
-    for (let i = 0; i < x.length; i++) {
-      lp = (1 - a) * x[i]! + a * lp;
-      out[i] = x[i]! - soften * (x[i]! - lp);
-    }
-    return out;
+    const lp = x.slice();
+    onePoleLoop(lp, 6000, audio.rate);
+    return x.map((v, i) => v - soften * (v - lp[i]!));
   };
   audio = { rate: audio.rate, left: tame(audio.left), right: tame(audio.right) };
   const n = audio.left.length;
@@ -142,6 +159,21 @@ export function at(beats: number, notes: Note[]): Note[] {
 /** Transpose notes by semitones. */
 export function transpose(notes: Note[], semis: number): Note[] {
   return notes.map((n) => ({ ...n, n: (typeof n.n === "number" ? n.n : midi(n.n)) + semis }));
+}
+
+/**
+ * A euphonium part. No CC0 euphonium recording exists, so it is voiced the way the instrument
+ * sounds: a tenor trombone's line and a tuba's round body on the same notes, both mellowed.
+ * Write it in the euphonium's singing range, Bb1 to F4 (a touch higher is stretched). `short`
+ * uses the staccato recordings (oom-pah, fanfare stabs). Returns two tracks to spread into a song.
+ * At gain 1 it sits level with the horn (about -30 dB RMS dry for a mid-velocity note).
+ */
+export function euphonium(notes: Note[], opts: Omit<Track, "inst" | "notes"> & { short?: boolean } = {}): Track[] {
+  const { short, gain = 1, ...rest } = opts;
+  return [
+    { ...rest, inst: short ? "tromboneShort" : "trombone", notes, gain: gain * (short ? 2.2 : 0.6), lowpass: 2800 },
+    { ...rest, inst: short ? "tubaShort" : "tuba", notes, gain: gain * (short ? 0.7 : 0.5), lowpass: 3500 },
+  ];
 }
 
 /** A chord: several notes at once. */

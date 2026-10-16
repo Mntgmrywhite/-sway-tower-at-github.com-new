@@ -55,7 +55,63 @@ export function fundamental(x: Float32Array, rate: number): number {
       best = k;
     }
   }
-  return (best * rate) / N;
+  return refine(mag, best, rate);
+}
+
+/**
+ * The HPS bin is only good to ~1.5 Hz (15-20 cents for low brass). Refine it from the
+ * partials: find each of the first 8 harmonics' peak near h·k, interpolate it to a fraction
+ * of a bin (parabola through the log magnitudes), divide by h, and average weighted by
+ * loudness. High partials are h times finer, so low notes measure to a few cents.
+ */
+function refine(mag: Float64Array, k: number, rate: number): number {
+  let sum = 0;
+  let weight = 0;
+  for (let h = 1; h <= 8; h++) {
+    const center = k * h;
+    const reach = Math.max(1, Math.round(h * 0.75));
+    if (center + reach >= mag.length - 1) break;
+    let p = center;
+    for (let i = center - reach; i <= center + reach; i++) if (mag[i]! > mag[p]!) p = i;
+    // A partial must stand out of the floor, or it is noise and would drag the average.
+    if (mag[p]! < mag[k]! - 6 || p <= 0) continue;
+    const a = mag[p - 1]!;
+    const b = mag[p]!;
+    const c = mag[p + 1]!;
+    const denom = a - 2 * b + c;
+    const shift = denom < 0 ? Math.max(-0.5, Math.min(0.5, (0.5 * (a - c)) / denom)) : 0;
+    const w = Math.exp(b);
+    sum += (w * (p + shift)) / h;
+    weight += w;
+  }
+  return ((weight > 0 ? sum / weight : k) * rate) / N;
+}
+
+/**
+ * Cents off `note` for a recording known to be (near) that note: the loudest spectral peak
+ * within ±80 cents of its `partial`-th harmonic, interpolated to a fraction of a bin. Bells and
+ * mallets use the fundamental (partial 1: their overtones are inharmonic); low notes of
+ * harmonic instruments measure a higher partial, which is that many times more precise.
+ */
+export function centsNear(x: Float32Array, rate: number, note: number, partial = 1): number {
+  const start = Math.min(Math.round(rate * 0.02), Math.max(0, x.length - N));
+  const re = new Float64Array(N);
+  const im = new Float64Array(N);
+  for (let i = 0; i < N && start + i < x.length; i++) re[i] = x[start + i]! * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N));
+  fft(re, im);
+  const hz = 440 * 2 ** ((note - 69) / 12) * partial;
+  const lo = Math.max(1, Math.floor((hz * 2 ** (-80 / 1200) * N) / rate));
+  const hi = Math.min(N / 2 - 2, Math.ceil((hz * 2 ** (80 / 1200) * N) / rate));
+  const mag = (k: number) => Math.log(1e-9 + Math.hypot(re[k]!, im[k]!));
+  let p = lo;
+  for (let k = lo; k <= hi; k++) if (mag(k) > mag(p)) p = k;
+  if (p === lo || p === hi) return NaN;
+  const a = mag(p - 1);
+  const b = mag(p);
+  const c = mag(p + 1);
+  const denom = a - 2 * b + c;
+  const shift = denom < 0 ? (0.5 * (a - c)) / denom : 0;
+  return centsFrom(((p + shift) * rate) / N / partial, note);
 }
 
 /** Cents from the equal-tempered pitch of MIDI note `note` (A4 = 440). */

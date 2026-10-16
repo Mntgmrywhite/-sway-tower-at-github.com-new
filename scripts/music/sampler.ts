@@ -3,12 +3,13 @@
 // (v1..v4, vL/vH, p/mf/f) and a round-robin index (rr1, rr2). A note plays the nearest
 // recorded pitch (preferring a zone at or below so repitching is mostly upward), resampled
 // with 4-point Hermite interpolation, through a short attack and exponential release.
+// Recordings are trimmed of the room tone before the note so every note lands on time.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import { centsFrom, fundamental } from "./pitch";
+import { centsNear } from "./pitch";
 import { readWav, type Audio } from "./wav";
 
 export const SAMPLES = join(homedir(), "APP", "samples");
@@ -31,6 +32,8 @@ interface Zone {
   audio: Audio;
   /** Tuning correction for this recording, in cents. */
   detune: number;
+  /** Gain that evens this recording with the rest of its layer (1 unless `even`). */
+  level?: number;
 }
 
 export interface InstrumentOptions {
@@ -53,6 +56,16 @@ export interface InstrumentOptions {
   cents?: number;
   /** Measure each recording's pitch on load and correct it individually (sets that drift per note). */
   autotune?: boolean;
+  /** Harmonic overtones (winds, brass, strings): lets autotune measure low notes on a higher partial. */
+  harmonic?: boolean;
+  /** With autotune: drop takes whose pitch can't be measured reliably (bent staccato notes). */
+  strictTuning?: boolean;
+  /**
+   * Even out loudness across the range: scale each recording to its layer's median level
+   * (sets recorded with one dynamic whose low notes came out much softer, e.g. the tenor sax).
+   * Layers keep their soft/loud difference.
+   */
+  even?: boolean;
 }
 
 const LAYER_WORDS: Record<string, number> = { pp: 1, p: 2, mp: 3, mf: 4, f: 5, ff: 6, soft: 1, medium: 2, loud: 3 };
@@ -81,6 +94,69 @@ function parseName(file: string): { note: number; layer: number; rr: number } {
   return { note, layer, rr };
 }
 
+/** A recording whose note starts later than this (seconds) is broken, not a slow attack. */
+const MAX_LEAD = 0.5;
+
+/**
+ * Cut the near-silence before the note (many Versilian recordings have 50-250 ms of room tone
+ * first, which made their notes land late), keeping 3 ms before the first sample above -40 dB
+ * of the peak so the attack is intact. Null for a silent or broken recording.
+ */
+export function trimLead(audio: Audio): Audio | null {
+  const { left, right, rate } = audio;
+  let peak = 0;
+  for (let i = 0; i < left.length; i++) peak = Math.max(peak, Math.abs(left[i]!), Math.abs(right[i]!));
+  if (peak < 1e-4) return null;
+  const floor = peak * 0.01;
+  let i = 0;
+  while (i < left.length && Math.abs(left[i]!) <= floor && Math.abs(right[i]!) <= floor) i++;
+  if (i / rate > MAX_LEAD) return null;
+  const start = Math.max(0, i - Math.round(rate * 0.003));
+  return { rate, left: left.subarray(start), right: right.subarray(start) };
+}
+
+interface Reading {
+  /** Cents above the label (NaN when nothing could be read). */
+  cents: number;
+  /** The reading is trustworthy enough to tune by. */
+  steady: boolean;
+}
+
+/**
+ * How far a recording sits from its label. Measured at the label (the set is labelled right,
+ * just out of tune). Mallets and bells read their fundamental (their overtones are
+ * inharmonic). Harmonic instruments read every partial from 150 Hz to 2.5 kHz (at least the
+ * first four) and take the median; it is steady only when the partials agree, since short
+ * staccato notes bend in pitch and their partials scatter. Offsets of 60+ cents are misreads.
+ */
+function measurePitch(z: Zone, harmonic: boolean): Reading {
+  const hz = 440 * 2 ** ((z.note - 69) / 12);
+  if (!harmonic) {
+    const cents = centsNear(z.audio.left, z.audio.rate, z.note);
+    return { cents, steady: Math.abs(cents) < 60 };
+  }
+  const reads: number[] = [];
+  for (let h = 1; h <= 8; h++) {
+    // Low and middle notes: partials up to 2.5 kHz; high notes: the first four.
+    if (h * hz < 150 || h * hz > Math.max(2500, hz * 4.5)) continue;
+    const c = centsNear(z.audio.left, z.audio.rate, z.note, h);
+    if (Number.isFinite(c)) reads.push(c);
+  }
+  if (!reads.length) return { cents: NaN, steady: false };
+  reads.sort((a, b) => a - b);
+  const cents = reads[Math.floor(reads.length / 2)]!;
+  const spread = reads[Math.floor((reads.length * 3) / 4)]! - reads[Math.floor(reads.length / 4)]!;
+  return { cents, steady: reads.length >= 3 && spread <= 12 && Math.abs(cents) < 60 };
+}
+
+/** RMS of the first `seconds` of a recording (both channels). */
+function rms(audio: Audio, seconds: number): number {
+  const n = Math.min(audio.left.length, Math.round(audio.rate * seconds));
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += audio.left[i]! ** 2 + audio.right[i]! ** 2;
+  return Math.sqrt(sum / (2 * Math.max(1, n)));
+}
+
 /** Decode a FLAC through afconvert into a cached WAV. */
 function wavPath(file: string): string {
   if (!/\.flac$/i.test(file)) return file;
@@ -96,21 +172,51 @@ export class Instrument {
   private rrCounter = new Map<number, number>();
 
   constructor(opts: InstrumentOptions) {
-    this.opts = { attack: 0.004, release: 0.25, oneShot: false, gain: 1, transpose: 0, cents: 0, autotune: false, ...opts };
+    this.opts = { attack: 0.004, release: 0.25, oneShot: false, gain: 1, transpose: 0, cents: 0, autotune: false, harmonic: false, strictTuning: false, even: false, ...opts };
     const dir = opts.dir.startsWith("/") ? opts.dir : join(SAMPLES, opts.dir);
     const files = readdirSync(dir).filter((f) => /\.(wav|flac)$/i.test(f) && (!opts.match || opts.match.test(f)));
     for (const f of files.sort()) {
       const parsed = parseName(f);
       if (opts.fixedNote) parsed.note = midi(opts.fixedNote);
       if (Number.isNaN(parsed.note)) continue;
-      this.zones.push({ ...parsed, note: parsed.note + this.opts.transpose, audio: readWav(wavPath(join(dir, f))), detune: this.opts.cents });
+      const audio = trimLead(readWav(wavPath(join(dir, f))));
+      if (!audio) {
+        console.warn(`${dir}/${f}: skipped (silent, or more than ${MAX_LEAD} s before the note starts)`);
+        continue;
+      }
+      this.zones.push({ ...parsed, note: parsed.note + this.opts.transpose, audio, detune: this.opts.cents });
     }
     if (!this.zones.length) throw new Error(`${dir}: no usable samples (match ${opts.match ?? "any"})`);
     if (this.opts.autotune) {
+      const reading = new Map<Zone, Reading>();
       for (const z of this.zones) {
-        const off = centsFrom(fundamental(z.audio.left, z.audio.rate), z.note);
-        // Only trust small offsets: anything bigger is a measurement error, not a tuning one.
-        if (Math.abs(off) < 45) z.detune = -off;
+        const r = measurePitch(z, this.opts.harmonic);
+        reading.set(z, r);
+        if (r.steady) z.detune = -r.cents;
+      }
+      // Bent staccato takes: keep a note's steady takes; if none is steady, the ones that are
+      // at least near the pitch (within 15 cents).
+      if (this.opts.strictTuning) {
+        const ok = (z: Zone, steadyOnly: boolean) => {
+          const r = reading.get(z)!;
+          return steadyOnly ? r.steady : Math.abs(r.cents) <= 15;
+        };
+        const keep = this.zones.filter((z) => {
+          const takes = this.zones.filter((o) => o.note === z.note && o.layer === z.layer);
+          if (takes.some((o) => ok(o, true))) return ok(z, true);
+          if (takes.some((o) => ok(o, false))) return ok(z, false);
+          return true;
+        });
+        this.zones.splice(0, this.zones.length, ...keep);
+      }
+    }
+    if (this.opts.even) {
+      const level = new Map<Zone, number>(this.zones.map((z) => [z, rms(z.audio, 1)]));
+      for (const layer of new Set(this.zones.map((z) => z.layer))) {
+        const inLayer = this.zones.filter((z) => z.layer === layer);
+        const sorted = inLayer.map((z) => level.get(z)!).sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)]!;
+        for (const z of inLayer) z.level = median / Math.max(1e-6, level.get(z)!);
       }
     }
     // Number the round-robins per (note, layer) by order, so rr1/rr2 or repeated hits cycle.
@@ -197,7 +303,7 @@ export function renderNotes(
     const holdFrames = inst.opts.oneShot ? Infinity : Math.round(ev.dur * rate);
     const releaseFrames = Math.max(1, Math.round(inst.opts.release * rate));
     const srcFrames = src.left.length;
-    const amp = gain * inst.opts.gain * (0.35 + 0.65 * ev.vel);
+    const amp = gain * inst.opts.gain * (zone.level ?? 1) * (0.35 + 0.65 * ev.vel);
     let relGain = 1;
     const relCoef = Math.exp(Math.log(0.001) / releaseFrames);
     for (let f = 0; ; f++) {
