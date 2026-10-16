@@ -36,11 +36,18 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - `localStorage` access is wrapped in try/catch.
 - Build in thin slices; one commit per working slice, with `npm run check` passing.
 
+## Game rules (decided)
+
+- Sway = base wave scaled by height (perfect drops add no energy, but taller towers move more at the top) + a damped-spring "kick".
+- A sloppy drop kicks the tower toward the overhang side, proportional to the overhang; the sway calms after the chop. Kicks change velocity only, never position, so the tower never jumps.
+- Placed blocks never topple. Cut pieces fall visibly and tumble (cosmetic, renderer-only).
+- A miss does not end the game: it costs one of `LIVES` (3); game over at 0.
+
 ## Build order
 
 1. Scaffold — done
-2. Plain stacker (no sway): slide, drop, slice, score, game over, restart; tests + bot
-3. Sway: world-space overlap, amplitude grows with height, camera follow
+2. Plain stacker (no sway): slide, drop, slice, score, game over, restart; tests + bot — done
+3. Sway: world-space overlap, height-scaled sway, overhang kicks, lives — done
 4. Tuning panel: sway on/off, curve, period, slider speed, imbalance toggle → **playtest checkpoint**
 5. Feel: perfect-drop snap + streak, falling pieces, sound, haptics
 6. Mobile polish: orientation, best score persistence

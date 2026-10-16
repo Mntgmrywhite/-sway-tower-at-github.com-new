@@ -1,4 +1,4 @@
-import { drop, newGame, step, type GameState } from "./game";
+import { drop, newGame, step, swayOffset, top, type GameState } from "./game";
 import { addFalling, newView, render, updateView, type View } from "./render";
 
 const BEST_KEY = "sway-stack:best";
@@ -50,14 +50,16 @@ function tap(): void {
     return;
   }
   const level = state.blocks.length;
+  const under = top(state);
+  const towerX = under.x + under.w / 2 + swayOffset(state, level - 1);
   const r = drop(state);
   if (!r) return;
-  if (r.kind !== "perfect") addFalling(view, r.cut, level);
+  if (r.kind !== "perfect") addFalling(view, r.cut, level, towerX);
   if (state.score > best) {
     best = state.score;
     saveBest(best);
   }
-  if (r.kind === "miss") overAt = performance.now();
+  if (r.kind === "miss" && state.lives <= 0) overAt = performance.now();
 }
 
 canvas.addEventListener("pointerdown", (e) => {
