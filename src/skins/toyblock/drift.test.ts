@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { drawDrifter, eachVisible, type Drifter } from "./drift";
 import { bridge, farTrees, floorTop, landShows, portals } from "./far";
-import { moonAt, sunAt } from "./sky";
+import { moonAt, stars, sunAt } from "./sky";
 import { mask, overlap, sceneAt, SIZES } from "./test-scene";
 import { level, toneOf } from "./tone";
 
@@ -88,5 +88,24 @@ describe("toy kingdom drifters over the land", () => {
       });
     }
     expect(checked, "drifters seen while the land shows").toBeGreaterThan(10);
+  });
+});
+
+describe("toy kingdom stars", () => {
+  // The night's stars are spread across the screen, kept in from its sides so no star is cut in
+  // half by an edge.
+  it.each(SIZES.flatMap(([W, H]) => [100, 160].map((lvl) => [W, H, lvl] as const)))("%ix%i at level %i: no star touches a side", (W, H, lvl) => {
+    const s = sceneAt(W, H, lvl, 0);
+    const m = mask(W, H, (ctx) => stars(ctx, s, toneOf(s)));
+    let edge = 0;
+    let drawn = 0;
+    for (let i = 0; i < m.length; i++) {
+      if (!m[i]) continue;
+      drawn++;
+      const x = i % W;
+      if (x <= 1 || x >= W - 2) edge++;
+    }
+    expect(drawn, "stars are out").toBeGreaterThan(50);
+    expect(edge, "star pixels on a side of the screen").toBe(0);
   });
 });

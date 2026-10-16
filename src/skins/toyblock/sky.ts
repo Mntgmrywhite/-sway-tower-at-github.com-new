@@ -131,6 +131,8 @@ const STARS = Array.from({ length: 56 }, (_, i) => ({
 
 /** Half width of the tower's column (u): no stars there, so nothing twinkles beside the bars. */
 const COLUMN = 0.27;
+/** Stars keep this far (u) in from the screen's sides, so no star is cut in half by an edge. */
+const STAR_MARGIN = 0.022;
 
 /** Stars over the night sky in three twinkle groups (one fill each). */
 export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
@@ -138,13 +140,15 @@ export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
   const c0 = s.cssW / 2 - u * COLUMN;
   const c1 = s.cssW / 2 + u * COLUMN;
+  const edge = u * STAR_MARGIN;
+  const span = s.cssW - edge * 2;
   ctx.fillStyle = "#fff8e0";
   for (let g = 0; g < 3; g++) {
     ctx.globalAlpha = tone.stars * (0.64 + 0.36 * Math.sin(s.t * 0.8 + g * 2.1));
     ctx.beginPath();
     for (const st of STARS) {
       if (st.g !== g) continue;
-      const x = st.x * s.cssW;
+      const x = edge + st.x * span;
       const y = st.y * s.cssH;
       // Nothing twinkles behind the tower.
       if (x > c0 && x < c1) continue;
