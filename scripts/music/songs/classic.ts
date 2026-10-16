@@ -48,13 +48,13 @@ const song: Song = {
   reverb: { room: 0.7, damp: 0.4, width: 0.9, level: 0.9 },
   tracks: [
     { inst: "piano", notes: pianoLead, gain: 0.9, pan: -0.1, reverb: 0.25 },
-    { inst: "glockenspiel", notes: glock, gain: 0.5, pan: 0.25, reverb: 0.35 },
+    { inst: "glockenspiel", notes: glock, gain: 0.36, pan: 0.25, reverb: 0.35 },
     { inst: "bassPizz", notes: bass, gain: 0.9, pan: 0, reverb: 0.12 },
     { inst: "violinsPizz", notes: pizz, gain: 0.55, pan: 0.35, reverb: 0.3 },
     { inst: "ukulele", notes: uke, gain: 0.5, pan: -0.35, reverb: 0.2 },
     { inst: "kick", notes: kick, gain: 0.7, reverb: 0.05 },
     { inst: "snare", notes: snare, gain: 0.45, pan: 0.05, reverb: 0.15 },
-    { inst: "shaker", notes: shaker, gain: 0.35, pan: 0.3, reverb: 0.1 },
+    { inst: "shaker", notes: shaker, gain: 0.24, pan: 0.3, reverb: 0.1 },
   ],
 };
 

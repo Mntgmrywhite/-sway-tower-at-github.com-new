@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { centsFrom, fundamental } from "./pitch";
 import { readWav, type Audio } from "./wav";
 
 export const SAMPLES = join(homedir(), "APP", "samples");
@@ -28,6 +29,8 @@ interface Zone {
   layer: number;
   rr: number;
   audio: Audio;
+  /** Tuning correction for this recording, in cents. */
+  detune: number;
 }
 
 export interface InstrumentOptions {
@@ -46,6 +49,10 @@ export interface InstrumentOptions {
   gain?: number;
   /** Semitones to add to every parsed note (fix mislabelled sets). */
   transpose?: number;
+  /** Fine tuning for the whole instrument, in cents (measured; see pitch.test.ts). */
+  cents?: number;
+  /** Measure each recording's pitch on load and correct it individually (sets that drift per note). */
+  autotune?: boolean;
 }
 
 const LAYER_WORDS: Record<string, number> = { pp: 1, p: 2, mp: 3, mf: 4, f: 5, ff: 6, soft: 1, medium: 2, loud: 3 };
@@ -89,16 +96,23 @@ export class Instrument {
   private rrCounter = new Map<number, number>();
 
   constructor(opts: InstrumentOptions) {
-    this.opts = { attack: 0.004, release: 0.25, oneShot: false, gain: 1, transpose: 0, ...opts };
+    this.opts = { attack: 0.004, release: 0.25, oneShot: false, gain: 1, transpose: 0, cents: 0, autotune: false, ...opts };
     const dir = opts.dir.startsWith("/") ? opts.dir : join(SAMPLES, opts.dir);
     const files = readdirSync(dir).filter((f) => /\.(wav|flac)$/i.test(f) && (!opts.match || opts.match.test(f)));
     for (const f of files.sort()) {
       const parsed = parseName(f);
       if (opts.fixedNote) parsed.note = midi(opts.fixedNote);
       if (Number.isNaN(parsed.note)) continue;
-      this.zones.push({ ...parsed, note: parsed.note + this.opts.transpose, audio: readWav(wavPath(join(dir, f))) });
+      this.zones.push({ ...parsed, note: parsed.note + this.opts.transpose, audio: readWav(wavPath(join(dir, f))), detune: this.opts.cents });
     }
     if (!this.zones.length) throw new Error(`${dir}: no usable samples (match ${opts.match ?? "any"})`);
+    if (this.opts.autotune) {
+      for (const z of this.zones) {
+        const off = centsFrom(fundamental(z.audio.left, z.audio.rate), z.note);
+        // Only trust small offsets: anything bigger is a measurement error, not a tuning one.
+        if (Math.abs(off) < 45) z.detune = -off;
+      }
+    }
     // Number the round-robins per (note, layer) by order, so rr1/rr2 or repeated hits cycle.
     const seen = new Map<string, number>();
     for (const z of this.zones) {
@@ -130,7 +144,7 @@ export class Instrument {
     const next = ((this.rrCounter.get(key) ?? 0) % candidates.length) + 1;
     this.rrCounter.set(key, next);
     const zone = candidates.find((z) => z.rr === next) ?? best;
-    return { zone, ratio: Math.pow(2, (note - zone.note) / 12) };
+    return { zone, ratio: Math.pow(2, (note - zone.note + zone.detune / 100) / 12) };
   }
 }
 

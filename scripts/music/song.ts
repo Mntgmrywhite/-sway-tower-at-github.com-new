@@ -100,7 +100,19 @@ export function renderLoop(song: Song): Audio {
 }
 
 /** Bring a mix to a consistent loudness with a soft limiter (peaks stay under -1 dBFS). */
-export function master(audio: Audio, targetRms = 0.16): Audio {
+export function master(audio: Audio, targetRms = 0.16, soften = 0.35): Audio {
+  // Gentle treble roll-off (about -3.5 dB above ~6 kHz) so bells and shakers don't bite.
+  const a = Math.exp((-2 * Math.PI * 6000) / audio.rate);
+  const tame = (x: Float32Array) => {
+    const out = new Float32Array(x.length);
+    let lp = 0;
+    for (let i = 0; i < x.length; i++) {
+      lp = (1 - a) * x[i]! + a * lp;
+      out[i] = x[i]! - soften * (x[i]! - lp);
+    }
+    return out;
+  };
+  audio = { rate: audio.rate, left: tame(audio.left), right: tame(audio.right) };
   const n = audio.left.length;
   let sum = 0;
   for (let f = 0; f < n; f++) sum += audio.left[f]! ** 2 + audio.right[f]! ** 2;

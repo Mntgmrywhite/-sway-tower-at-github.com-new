@@ -15,7 +15,8 @@
     "build:artifact": "npm run build && node scripts/build-artifact.mjs",
     "snap": "tsx scripts/preview.ts",
     "music": "tsx scripts/music/render.ts",
-    "music:check": "tsx scripts/music/check.ts"
+    "music:check": "tsx scripts/music/check.ts",
+    "sfx": "tsx scripts/music/sfx.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
