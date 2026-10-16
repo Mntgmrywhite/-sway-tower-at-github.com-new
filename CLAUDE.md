@@ -16,7 +16,7 @@ Node lives in `~/.local/node` (user install). If `node` is not on PATH: `export 
 - `npm run build` — typecheck, then static bundle to `dist/`
 - `npm run preview` — serve the built bundle
 - `npm run snap -- <skinId> [width] [height] [songTime]` — render a skin offscreen to `preview/<skin>-{start,climb,high,over,hard,hardClimb,topple,toppled,bars}.png` (fallback fonts; look at them with an image viewer). Use this to check visual work. `songTime` draws the shots as if the music were that many seconds in (e.g. `npm run snap -- newyear 390 844 56` for the marquee countdown).
-- `npm run build:artifact` — build, then inline everything into `dist/sway-tower.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); republish that file to keep the same link
+- `npm run build:artifact` — build, then inline everything except the songs into `dist/sway-tower.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); the songs (together over the 16 MB page limit) go to `dist/music/<hash>.mp4`, fetched by the page. Republish that file with those files (`dist/artifact-files.json` maps each published path to its file) to keep the same link. The iOS app keeps everything inline.
 - `npm run ios` — build, then copy the bundle into the iOS app (`cap sync ios`); build and run it from Xcode (`npm run ios:open`) or with `xcodebuild -project ios/App/App.xcodeproj -scheme App`
 - `npm run ios:art` — redraw the placeholder app icon and launch image (`scripts/ios-art.ts`)
 

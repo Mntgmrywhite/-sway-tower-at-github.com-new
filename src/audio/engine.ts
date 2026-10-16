@@ -62,6 +62,15 @@ function bytes(dataUrl: string): ArrayBuffer {
   return out.buffer;
 }
 
+/**
+ * A song's file: inline (the app and the dev build) or, in the published Artifact, a file next to
+ * the page that scripts/build-artifact.mjs moved it to (the songs together outgrow one page).
+ */
+function songBytes(url: string): Promise<ArrayBuffer> {
+  if (url.startsWith("data:")) return Promise.resolve(bytes(url));
+  return fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status} ${url}`))));
+}
+
 interface Settings {
   music: boolean;
   sfx: boolean;
@@ -375,7 +384,7 @@ class GameAudio {
     if (!ctx || this.loading.has(name) || this.failed.has(name)) return;
     this.loading.add(name);
     const url = MUSIC[`./music/${name}.mp4`];
-    void (url ? ctx.decodeAudioData(bytes(url)) : Promise.reject(new Error(`no music ${name}`)))
+    void (url ? songBytes(url).then((data) => ctx.decodeAudioData(data)) : Promise.reject(new Error(`no music ${name}`)))
       .then(
         (buffer) => this.songs.set(name, makeSong(name, buffer)),
         () => this.failed.add(name),
