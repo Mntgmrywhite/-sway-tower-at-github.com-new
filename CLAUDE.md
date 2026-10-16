@@ -23,7 +23,8 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 ## Architecture
 
 - `src/game.ts` — pure game logic: state, `step(state, dt)`, `drop(state)`. No DOM, no canvas, no randomness, no `Date.now()`. Everything deterministic so it can be unit-tested and driven by a bot.
-- `src/config.ts` — every tunable number lives here (speeds, sizes, tolerances, sway). No magic numbers in logic or rendering.
+- `src/config.ts` — every tunable number lives here. Fixed values are `const`s; playtest knobs live in the mutable `tuning` object (defaults in `DEFAULT_TUNING`). Logic must read `tuning.*` at call time, never cache it. No magic numbers in logic or rendering.
+- `src/panel.ts` — on-screen tuning panel (⚙ top-right). Edits `tuning` live, persists to localStorage, pauses the game while open.
 - `src/render.ts` — draws a state to a canvas. Cosmetic-only effects (falling sliced pieces, camera easing) live here, never in logic.
 - `src/main.ts` — wiring: canvas sizing, input, RAF loop, best score.
 - Tests sit next to code as `*.test.ts`. The bot test proves the game is beatable with perfect timing.
@@ -41,6 +42,7 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - Sway = base wave scaled by height (perfect drops add no energy, but taller towers move more at the top) + a damped-spring "kick".
 - A sloppy drop kicks the tower toward the overhang side, proportional to the overhang; the sway calms after the chop. Kicks change velocity only, never position, so the tower never jumps.
 - Placed blocks never topple. Cut pieces fall visibly and tumble (cosmetic, renderer-only).
+- Kick damping is capped at critical (an overdamped spring settles slower, so higher "decay" past that would feel worse).
 - A miss does not end the game: it costs one of `LIVES` (3); game over at 0.
 
 ## Build order
@@ -48,7 +50,7 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 1. Scaffold — done
 2. Plain stacker (no sway): slide, drop, slice, score, game over, restart; tests + bot — done
 3. Sway: world-space overlap, height-scaled sway, overhang kicks, lives — done
-4. Tuning panel: sway on/off, curve, period, slider speed, imbalance toggle → **playtest checkpoint**
+4. Tuning panel: sway on/off, base sway, period, kick strength, kick decay, slider speed — done → **playtest checkpoint**
 5. Feel: perfect-drop snap + streak, falling pieces, sound, haptics
 6. Mobile polish: orientation, best score persistence
 7. Later: Capacitor iOS wrap (needs Xcode + Apple Developer account)

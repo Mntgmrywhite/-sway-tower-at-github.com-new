@@ -5,16 +5,12 @@ import {
   SLIDE_RANGE,
   SLIDE_SPEED_MAX,
   SLIDE_SPEED_PER_LEVEL,
-  SLIDE_SPEED_START,
-  SWAY_BASE,
   SWAY_BEND_POWER,
   SWAY_FULL_LEVEL,
-  SWAY_KICK_DECAY,
   SWAY_KICK_FULL_LEVEL,
   SWAY_KICK_MAX,
-  SWAY_KICK_PER_UNIT,
-  SWAY_PERIOD,
   WORLD_WIDTH,
+  tuning,
 } from "./config";
 
 /** A block: left edge and width, in world units. */
@@ -26,7 +22,6 @@ export interface Block {
 /** The slider moves in world space; it does not ride the swaying tower. */
 export interface Slider extends Block {
   dir: 1 | -1;
-  speed: number;
 }
 
 export type Phase = "playing" | "over";
@@ -42,8 +37,8 @@ export interface GameState {
   score: number;
   streak: number;
   lives: number;
-  /** Seconds since the game started; drives the sway phase. */
-  time: number;
+  /** Sway phase in radians; accumulated so changing the period mid-game doesn't jump. */
+  swayAngle: number;
   /** Kick spring displacement and velocity (world units, units/sec). */
   kick: number;
   kickVel: number;
@@ -63,25 +58,38 @@ export function top(state: GameState): Block {
 
 /** Horizontal displacement of the block at `level` right now, in world units. */
 export function swayOffset(state: GameState, level: number): number {
-  const wave = Math.sin((2 * Math.PI * state.time) / SWAY_PERIOD);
+  if (!tuning.swayOn) return 0;
   const bend = Math.min(1, level / SWAY_FULL_LEVEL) ** SWAY_BEND_POWER;
   const kickBend = Math.min(1, level / SWAY_KICK_FULL_LEVEL);
-  return wave * SWAY_BASE * bend + state.kick * kickBend;
+  return Math.sin(state.swayAngle) * tuning.swayBase * bend + state.kick * kickBend;
 }
 
-const OMEGA = (2 * Math.PI) / SWAY_PERIOD;
+/** Sway angular frequency, radians/sec. */
+function omega(): number {
+  return (2 * Math.PI) / tuning.swayPeriod;
+}
 
 /** Current kick amplitude (peak displacement it would reach), in world units. */
 export function kickAmplitude(state: GameState): number {
-  return Math.hypot(state.kick, state.kickVel / OMEGA);
+  return Math.hypot(state.kick, state.kickVel / omega());
+}
+
+export function sliderSpeed(state: GameState): number {
+  return Math.min(
+    tuning.slideSpeed + state.score * SLIDE_SPEED_PER_LEVEL,
+    Math.max(SLIDE_SPEED_MAX, tuning.slideSpeed),
+  );
 }
 
 /** Damped spring; substeps keep it stable on long frames. */
 function stepKick(state: GameState, dt: number): void {
+  const w = omega();
+  // Past critical damping the spring settles *slower*, so cap it there.
+  const c = Math.min(tuning.kickDecay, w);
   const n = Math.ceil(dt / (1 / 240));
   const h = dt / n;
   for (let i = 0; i < n; i++) {
-    const acc = -OMEGA * OMEGA * state.kick - 2 * SWAY_KICK_DECAY * state.kickVel;
+    const acc = -w * w * state.kick - 2 * c * state.kickVel;
     state.kickVel += acc * h;
     state.kick += state.kickVel * h;
   }
@@ -89,7 +97,7 @@ function stepKick(state: GameState, dt: number): void {
 
 /** Push the tower toward `dir`; the position doesn't jump, only the velocity changes. */
 function addKick(state: GameState, amount: number, dir: 1 | -1): void {
-  state.kickVel += dir * amount * OMEGA;
+  state.kickVel += dir * amount * omega();
   const amp = kickAmplitude(state);
   if (amp > SWAY_KICK_MAX) {
     const k = SWAY_KICK_MAX / amp;
@@ -107,8 +115,7 @@ function sliderBounds(under: Block, w: number): [number, number] {
 function spawnSlider(under: Block, level: number): Slider {
   const fromLeft = level % 2 === 0;
   const [minX, maxX] = sliderBounds(under, under.w);
-  const speed = Math.min(SLIDE_SPEED_START + level * SLIDE_SPEED_PER_LEVEL, SLIDE_SPEED_MAX);
-  return { x: fromLeft ? minX : maxX, w: under.w, dir: fromLeft ? 1 : -1, speed };
+  return { x: fromLeft ? minX : maxX, w: under.w, dir: fromLeft ? 1 : -1 };
 }
 
 export function newGame(): GameState {
@@ -120,7 +127,7 @@ export function newGame(): GameState {
     score: 0,
     streak: 0,
     lives: LIVES,
-    time: 0,
+    swayAngle: 0,
     kick: 0,
     kickVel: 0,
   };
@@ -129,12 +136,12 @@ export function newGame(): GameState {
 /** Advance time by dt seconds: slider bounces, sway moves, kick decays. */
 export function step(state: GameState, dt: number): void {
   if (state.phase !== "playing") return;
-  state.time += dt;
-  stepKick(state, dt);
+  state.swayAngle = (state.swayAngle + omega() * dt) % (2 * Math.PI);
+  if (tuning.swayOn) stepKick(state, dt);
 
   const s = state.slider;
   const [minX, maxX] = sliderBounds(top(state), s.w);
-  s.x += s.dir * s.speed * dt;
+  s.x += s.dir * sliderSpeed(state) * dt;
   // Reflect off the ends; loop handles a dt long enough to cross both.
   for (;;) {
     if (s.x > maxX) {
@@ -181,7 +188,7 @@ export function drop(state: GameState): DropResult | null {
     const cutW = s.w - overlap;
     const cut = s.x < underX ? { x: s.x, w: cutW } : { x: right, w: cutW };
     state.streak = 0;
-    addKick(state, cutW * SWAY_KICK_PER_UNIT, s.x < underX ? -1 : 1);
+    if (tuning.swayOn) addKick(state, cutW * tuning.kickPerUnit, s.x < underX ? -1 : 1);
     result = { kind: "sliced", placed: { x: left - newOffset, w: overlap }, cut };
   }
 

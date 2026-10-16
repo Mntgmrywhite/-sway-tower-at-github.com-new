@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { LIVES, PERFECT_TOLERANCE, SLIDE_RANGE, SWAY_PERIOD } from "./config";
-import { drop, kickAmplitude, newGame, step, swayOffset, top, type GameState } from "./game";
+import { afterEach, describe, expect, it } from "vitest";
+import { LIVES, PERFECT_TOLERANCE, SLIDE_RANGE, resetTuning, tuning } from "./config";
+import { drop, kickAmplitude, newGame, sliderSpeed, step, swayOffset, top, type GameState } from "./game";
+
+afterEach(resetTuning);
 
 /** World x of the tower top right now. */
 function topWorldX(g: GameState): number {
@@ -84,19 +86,19 @@ describe("misses and lives", () => {
 });
 
 describe("sway", () => {
-  // A quarter period puts sin() at its peak.
-  const PEAK = SWAY_PERIOD / 4;
+  // sin() peaks at a quarter turn.
+  const PEAK = Math.PI / 2;
 
   it("the base never moves", () => {
     const g = newGame();
-    g.time = PEAK;
+    g.swayAngle = PEAK;
     g.kick = 20;
     expect(Math.abs(swayOffset(g, 0))).toBe(0);
   });
 
   it("taller towers move more at the top, with no kick at all", () => {
     const g = newGame();
-    g.time = PEAK;
+    g.swayAngle = PEAK;
     expect(g.kick).toBe(0);
     const low = Math.abs(swayOffset(g, 5));
     const high = Math.abs(swayOffset(g, 30));
@@ -144,7 +146,7 @@ describe("sway", () => {
   it("overlap is judged in world space: aiming at the tower's rest position misses the swaying top", () => {
     const g = newGame();
     stack(g, 40);
-    g.time = PEAK; // tower top displaced by the full base sway
+    g.swayAngle = PEAK; // tower top displaced by the full base sway
     const offset = swayOffset(g, g.blocks.length - 1);
     expect(Math.abs(offset)).toBeGreaterThan(PERFECT_TOLERANCE * 2);
 
@@ -155,7 +157,7 @@ describe("sway", () => {
   it("a sliced block stays exactly where it was dropped (world space)", () => {
     const g = newGame();
     stack(g, 30);
-    g.time = PEAK * 0.7;
+    g.swayAngle = PEAK * 0.7;
     g.kick = 5;
     g.kickVel = 20;
     aim(g, 6);
@@ -163,6 +165,76 @@ describe("sway", () => {
     drop(g);
     const placedWorldX = top(g).x + swayOffset(g, g.blocks.length - 1);
     expect(placedWorldX).toBeCloseTo(sliderX);
+  });
+});
+
+describe("tuning", () => {
+  it("sway off: the tower never moves and sloppy drops add no kick", () => {
+    tuning.swayOn = false;
+    const g = newGame();
+    stack(g, 40);
+    g.swayAngle = Math.PI / 2;
+    aim(g, 10);
+    drop(g);
+    expect(swayOffset(g, 40)).toBe(0);
+    expect(kickAmplitude(g)).toBe(0);
+  });
+
+  it("base sway scales the displacement", () => {
+    const g = newGame();
+    g.swayAngle = Math.PI / 2;
+    const a = swayOffset(g, 40);
+    tuning.swayBase *= 2;
+    expect(swayOffset(g, 40)).toBeCloseTo(a * 2);
+  });
+
+  it("period sets how fast the sway cycles", () => {
+    tuning.swayPeriod = 2;
+    const g = newGame();
+    for (let i = 0; i < 60; i++) step(g, 1 / 120); // half a second = quarter cycle
+    expect(g.swayAngle).toBeCloseTo(Math.PI / 2);
+  });
+
+  it("changing the period mid-game does not make the tower jump", () => {
+    const g = newGame();
+    stack(g, 40);
+    step(g, 0.3);
+    const before = swayOffset(g, 40);
+    tuning.swayPeriod = 1;
+    expect(swayOffset(g, 40)).toBe(before);
+  });
+
+  it("kick strength and decay are live", () => {
+    tuning.kickPerUnit = 2.4;
+    const g = newGame();
+    aim(g, 5);
+    drop(g);
+    expect(kickAmplitude(g)).toBeCloseTo(12);
+
+    tuning.kickDecay = 2;
+    for (let i = 0; i < 60; i++) step(g, 1 / 60);
+    expect(kickAmplitude(g)).toBeLessThan(12 * 0.3);
+  });
+
+  it("very high decay calms at least as fast as moderate decay", () => {
+    const after = (decay: number) => {
+      tuning.kickDecay = decay;
+      const g = newGame();
+      aim(g, 10);
+      drop(g);
+      for (let i = 0; i < 90; i++) step(g, 1 / 60);
+      return kickAmplitude(g);
+    };
+    expect(after(10)).toBeLessThanOrEqual(after(1.5));
+  });
+
+  it("slider speed applies immediately", () => {
+    const g = newGame();
+    tuning.slideSpeed = 100;
+    expect(sliderSpeed(g)).toBe(100);
+    const x0 = g.slider.x;
+    step(g, 0.1);
+    expect(g.slider.x - x0).toBeCloseTo(10);
   });
 });
 

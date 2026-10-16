@@ -1,4 +1,5 @@
 import { drop, newGame, step, swayOffset, top, type GameState } from "./game";
+import { createPanel } from "./panel";
 import { addFalling, newView, render, updateView, type View } from "./render";
 
 const BEST_KEY = "sway-stack:best";
@@ -42,11 +43,17 @@ function resize(): void {
   ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
+function restart(): void {
+  state = newGame();
+  view = newView();
+}
+
+const panel = createPanel(restart);
+
 function tap(): void {
   if (state.phase === "over") {
     if (performance.now() - overAt < RESTART_GUARD_MS) return;
-    state = newGame();
-    view = newView();
+    restart();
     return;
   }
   const level = state.blocks.length;
@@ -64,9 +71,11 @@ function tap(): void {
 
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
+  if (panel.isOpen()) return;
   tap();
 });
 window.addEventListener("keydown", (e) => {
+  if (panel.isOpen()) return;
   if (e.code === "Space" && !e.repeat) {
     e.preventDefault();
     tap();
@@ -79,8 +88,11 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
-  step(state, dt);
-  updateView(view, state, dt);
+  // Paused while tuning, so values can be changed without losing the run.
+  if (!panel.isOpen()) {
+    step(state, dt);
+    updateView(view, state, dt);
+  }
   render(ctx!, cssW, cssH, state, view, best);
   requestAnimationFrame(frame);
 }
