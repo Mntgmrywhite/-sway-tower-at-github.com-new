@@ -1,6 +1,9 @@
+import { tuning } from "./config";
 import { drop, newGame, step, swayOffset, top, type GameState } from "./game";
 import { createPanel } from "./panel";
 import { addFalling, addFlash, newView, render, updateView, type View } from "./render";
+import { resolveSkin } from "./skins";
+import type { Skin } from "./skins/skin";
 
 const BEST_KEY = "sway-stack:best";
 /** Ignore taps for this long after game over so a mistap doesn't instantly restart. */
@@ -83,11 +86,41 @@ window.addEventListener("keydown", (e) => {
   }
 });
 window.addEventListener("resize", resize);
-// Canvas text only uses a web font once it's loaded; ask for it up front.
-document.fonts?.load("40px Creepster").catch(() => {});
-document.fonts?.load("700 40px Fredoka").catch(() => {});
-document.fonts?.load("600 40px Fredoka").catch(() => {});
+// Canvas text only uses a web font once it's loaded; ask for the base faces up front.
+document.fonts?.load("40px Monoton").catch(() => {});
+document.fonts?.load("700 40px Orbitron").catch(() => {});
+document.fonts?.load("600 40px Orbitron").catch(() => {});
 resize();
+
+/** Pull in a skin's Google Fonts the first time it is shown. */
+const loadedFonts = new Set<string>();
+function ensureFonts(skin: Skin): void {
+  for (const family of skin.fonts ?? []) {
+    if (loadedFonts.has(family)) continue;
+    loadedFonts.add(family);
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}&display=swap`;
+    document.head.append(link);
+    link.addEventListener("load", () => {
+      document.fonts?.load(`40px "${family.split(":")[0]}"`).catch(() => {});
+    });
+  }
+}
+
+/** The active skin, re-resolved when the choice or the day changes. */
+let skinKey = "";
+let skin: Skin = resolveSkin(tuning.skin, new Date());
+function currentSkin(): Skin {
+  const now = new Date();
+  const key = `${tuning.skin}|${now.getMonth()}-${now.getDate()}`;
+  if (key !== skinKey) {
+    skinKey = key;
+    skin = resolveSkin(tuning.skin, now);
+    ensureFonts(skin);
+  }
+  return skin;
+}
 
 let last = performance.now();
 function frame(now: number): void {
@@ -98,7 +131,7 @@ function frame(now: number): void {
     step(state, dt);
     updateView(view, state, dt);
   }
-  render(ctx!, cssW, cssH, state, view, best);
+  render(ctx!, cssW, cssH, state, view, best, currentSkin());
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

@@ -12,12 +12,16 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "build:artifact": "npm run build && node scripts/build-artifact.mjs"
+    "build:artifact": "npm run build && node scripts/build-artifact.mjs",
+    "snap": "tsx scripts/preview.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@napi-rs/canvas": "^1.0.11",
+    "@types/node": "^26.6.5",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",

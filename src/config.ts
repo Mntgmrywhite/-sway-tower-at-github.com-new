@@ -34,8 +34,8 @@ export const SWAY_KICK_FULL_LEVEL = 8;
 
 /** Live-tunable values, edited by the on-screen tuning panel. */
 export interface Tuning {
-  /** Visual theme only; no effect on gameplay. */
-  halloween: boolean;
+  /** Visual skin: "auto" (by date) or a skin id. No effect on gameplay. */
+  skin: string;
   swayOn: boolean;
   /** Base sway amplitude at the top of a full-height tower, world units. */
   swayBase: number;
@@ -52,7 +52,7 @@ export interface Tuning {
 }
 
 export const DEFAULT_TUNING: Readonly<Tuning> = {
-  halloween: true,
+  skin: "auto",
   swayOn: true,
   swayBase: 14,
   swayPeriod: 2.6,

@@ -15,6 +15,7 @@ Node lives in `~/.local/node` (user install). If `node` is not on PATH: `export 
 - `npm run check` — typecheck + lint + test; run before every commit
 - `npm run build` — typecheck, then static bundle to `dist/`
 - `npm run preview` — serve the built bundle
+- `npm run snap -- <skinId>` — render a skin offscreen to `preview/<skin>-{start,climb,high,over,bars}.png` (fallback fonts; look at them with an image viewer). Use this to check visual work.
 - `npm run build:artifact` — build, then inline everything into `dist/sway-stack.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); republish that file to keep the same link
 
 ## Stack
@@ -26,11 +27,14 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - `src/game.ts` — pure game logic: state, `step(state, dt)`, `drop(state)`. No DOM, no canvas, no randomness, no `Date.now()`. Everything deterministic so it can be unit-tested and driven by a bot.
 - `src/config.ts` — every tunable number lives here. Fixed values are `const`s; playtest knobs live in the mutable `tuning` object (defaults in `DEFAULT_TUNING`). Logic must read `tuning.*` at call time, never cache it. No magic numbers in logic or rendering.
 - `src/panel.ts` — on-screen tuning panel (⚙ top-right). Edits `tuning` live, persists to localStorage, pauses the game while open.
-- `src/themes/` — visual themes (`classic`, `halloween`) behind a small `Theme` interface: background, optional foreground (drawn in front of the tower), block drawer, HUD fonts and colors. Purely cosmetic; switched by `tuning.halloween`.
-  - Halloween art style: casual cartoon (reference: Flappy-Bird-like night scene). Periwinkle sky, faded silhouettes in the distance, puffy cel-shaded teal clouds, and an ink outline (`INK` #2a1f3d) plus simple light/shade on everything up close. HUD uses Fredoka with outlines; titles use Creepster with a black outline.
-  - `halloween.ts` — cartoon bars: ink outline, light top / dark bottom, gloss stripe, pipe-style end caps (edges must stay easy to read), inked Halloween icons; 12 colors cycle so neighbors contrast.
-  - `halloween-icons.ts` — stroke-built icons (pumpkin, witch hat, candy corn, ghost, bat, tombstone, mummy, moon, skull, fangs, spider, house).
-  - `halloween-scene.ts` — parallax: layer ground = `groundY - rise * (1 - p)`. Distant town + mansion (p 0.1), cloud bank piled at the sides (0.25), small clouds at fixed heights (0.6), graveyard (1): fence, grass strip, soil, weathered tombstones planted in mounds, jack-o'-lantern behind the tower, skeleton hands/skull/feet coming up; foreground grass over stone tiles (1.6). Witches and bats are faded silhouettes in the sky. Draw several circles in one path with `circle`/`oval` (each starts its own subpath), or the canvas joins them with stray lines.
+- **Neon base + skins.** The base look is 80s neon (think Far Cry Blood Dragon) and never goes away; holiday skins layer on top and keep the neon touches.
+  - `src/neon/draw.ts` — helpers every skin uses: `neonStroke` (glow + core + hot center, no shadowBlur), `neonShape` (dark silhouette + neon rim), `neonText`, `mix`/`alpha`, `circle`/`oval` (each starts its own subpath — never put several arcs in one path without them, or the canvas joins them with stray lines), `roundRectPath`, `hash`, `emerge`.
+  - `src/neon/world.ts` — base world: sky + stars, retro striped sun, wireframe mountains, horizon glow, perspective grid floor scrolling toward the viewer, scanlines + vignette post pass. Exports `layerGround(scene, p)` for parallax and `retroSun`/`mountains` for skins to reuse.
+  - `src/neon/blocks.ts` — the neon bar every skin shares: dark glass body, neon tube edge, bright end caps, the skin's icon in neon. Skins only choose colors and icons.
+  - `src/skins/skin.ts` — the `Skin` contract: palette, 8–12 bars `{color, icon}`, HUD display font/colors, optional `celestial`, `sky`, `far`, `ground`, `foreground` layers, `fonts` (Google Fonts, loaded on demand), `dates` for auto-pick.
+  - `src/skins/index.ts` — registry, `skinForDate`, `resolveSkin`. `tuning.skin` is "auto" or an id; picker in the ⚙ panel.
+  - `src/skins/<id>.ts` (+ optional `src/skins/<id>/` folder) — one skin each: `neon` (base), `halloween`, `thanksgiving`, `christmas`, `newyear`.
+  - `src/preview/shots.ts` — deterministic game moments shared by `npm run snap` and the render smoke test.
 - `src/render.ts` — draws a state to a canvas via the active theme. Cosmetic-only effects (falling sliced pieces, camera easing) live here, never in logic.
 - `src/main.ts` — wiring: canvas sizing, input, RAF loop, best score.
 - Tests sit next to code as `*.test.ts`. The bot test proves the game is beatable with perfect timing.

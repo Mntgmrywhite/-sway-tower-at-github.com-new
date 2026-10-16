@@ -1,5 +1,6 @@
 import "./panel.css";
 import { DEFAULT_TUNING, resetTuning, tuning, type Tuning } from "./config";
+import { AUTO, SKINS } from "./skins";
 
 const STORAGE_KEY = "sway-stack:tuning";
 
@@ -69,7 +70,13 @@ export function createPanel(onRestart: () => void): Panel {
   panel.innerHTML = `
     <h2>Tuning</h2>
     <p class="note">Game pauses while open. Values are saved on this device.</p>
-    <label class="check"><input type="checkbox" data-key="halloween" /> Halloween</label>
+    <label class="pick">
+      <span>Skin</span>
+      <select data-key="skin">
+        <option value="${AUTO}">Auto (by date)</option>
+        ${SKINS.map((k) => `<option value="${k.id}">${k.name}</option>`).join("")}
+      </select>
+    </label>
     <label class="check"><input type="checkbox" data-key="swayOn" /> Sway on</label>
     ${SLIDERS.map(
       (s) => `
@@ -84,12 +91,15 @@ export function createPanel(onRestart: () => void): Panel {
       <button type="button" class="primary" data-action="restart">Restart</button>
     </div>`;
 
-  type BoolKey = "halloween" | "swayOn";
-  const boxes = (["halloween", "swayOn"] as BoolKey[]).map(
+  type BoolKey = "swayOn";
+  const boxes = (["swayOn"] as BoolKey[]).map(
     (key) => [key, panel.querySelector<HTMLInputElement>(`input[data-key="${key}"]`)!] as const,
   );
 
+  const skinPick = panel.querySelector<HTMLSelectElement>('select[data-key="skin"]')!;
+
   const sync = () => {
+    skinPick.value = tuning.skin;
     for (const [key, box] of boxes) box.checked = tuning[key];
     for (const s of SLIDERS) {
       panel.querySelector<HTMLInputElement>(`input[data-key="${s.key}"]`)!.value = String(tuning[s.key]);
@@ -97,6 +107,10 @@ export function createPanel(onRestart: () => void): Panel {
     }
   };
 
+  skinPick.addEventListener("change", () => {
+    tuning.skin = skinPick.value;
+    save();
+  });
   for (const [key, box] of boxes) {
     box.addEventListener("change", () => {
       tuning[key] = box.checked;

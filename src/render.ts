@@ -1,8 +1,12 @@
-import { BLOCK_HEIGHT, LIVES, WORLD_WIDTH, tuning } from "./config";
+import { BLOCK_HEIGHT, LIVES, WORLD_WIDTH } from "./config";
 import { swayOffset, type Block, type GameState } from "./game";
-import { classic } from "./themes/classic";
-import { halloween } from "./themes/halloween";
-import { roundRectPath, type Scene, type Theme } from "./themes/theme";
+import { BAR_RADIUS, drawBar } from "./neon/blocks";
+import { neonStroke, neonText, roundRectPath } from "./neon/draw";
+import { drawForeground, drawPost, drawWorld, horizonFor } from "./neon/world";
+import type { Scene, Skin } from "./skins/skin";
+
+/** HUD text face for every skin; the skin picks the display face for titles. */
+const BODY_FONT = "Orbitron, 'Trebuchet MS', system-ui, sans-serif";
 
 /** World units visible horizontally; a little wider than the slider's travel. */
 const VIEW_WIDTH = WORLD_WIDTH * 1.5;
@@ -89,6 +93,7 @@ export function render(
   state: GameState,
   view: View,
   best: number,
+  skin: Skin,
 ): void {
   // Portrait-shaped play area, centered; letterboxed on wide screens.
   const u = Math.min(cssW, cssH * 0.6);
@@ -101,26 +106,28 @@ export function render(
   const sx = (x: number) => offsetX + x * scale;
   const sy = (y: number) => anchorPx - (y - cameraY) * scale;
 
-  const theme = tuning.halloween ? halloween : classic;
   const base = state.blocks[0];
+  const groundY = sy(0);
+  const rise = Math.max(0, groundY - cssH * GROUND_START);
   const scene: Scene = {
     cssW,
     cssH,
     u,
     scale,
     t: view.t,
-    rise: Math.max(0, sy(0) - cssH * GROUND_START),
+    rise,
     altitude: cameraY,
-    groundY: sy(0),
+    groundY,
+    horizonY: horizonFor(groundY, rise, u),
     baseX: base ? sx(base.x) : 0,
     baseW: base ? base.w * scale : 0,
   };
-  theme.background(ctx, scene);
+  drawWorld(ctx, scene, skin);
 
   const h = BLOCK_HEIGHT * scale;
   /** Draw a block whose world left edge is `x`. */
   const drawBlock = (x: number, w: number, level: number) =>
-    theme.block(ctx, sx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
+    drawBar(ctx, sx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level, skin);
 
   // Only draw blocks that can be on screen.
   const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - cssH / h - 2));
@@ -142,10 +149,10 @@ export function render(
     ctx.save();
     // Color change: the block glows in the accent color, then fades back.
     ctx.save();
-    roundRectPath(ctx, x, y, w, h, h * 0.35);
+    roundRectPath(ctx, x, y, w, h, h * BAR_RADIUS);
     ctx.clip();
     ctx.globalAlpha = fade * 0.65;
-    ctx.fillStyle = theme.hud.streak;
+    ctx.fillStyle = skin.hud.accent;
     ctx.fillRect(x, y, w, h);
     ctx.restore();
     ctx.globalCompositeOperation = "lighter";
@@ -155,13 +162,13 @@ export function render(
     const thick = Math.max(2, h * 0.28) * fade;
     const grad = ctx.createLinearGradient(x - reach, 0, x + w + reach, 0);
     grad.addColorStop(0, "rgba(255,255,255,0)");
-    grad.addColorStop(0.5 * (reach / (w + reach * 2)) + 0.02, theme.hud.streak);
+    grad.addColorStop(0.5 * (reach / (w + reach * 2)) + 0.02, skin.hud.accent);
     grad.addColorStop(0.5, "#ffffff");
-    grad.addColorStop(1 - 0.5 * (reach / (w + reach * 2)) - 0.02, theme.hud.streak);
+    grad.addColorStop(1 - 0.5 * (reach / (w + reach * 2)) - 0.02, skin.hud.accent);
     grad.addColorStop(1, "rgba(255,255,255,0)");
     ctx.globalAlpha = fade;
     ctx.fillStyle = grad;
-    ctx.shadowColor = theme.hud.streak;
+    ctx.shadowColor = skin.hud.accent;
     ctx.shadowBlur = h * 0.8 * fade;
     ctx.fillRect(x - reach, seamY - thick / 2, w + reach * 2, thick);
     ctx.restore();
@@ -173,7 +180,7 @@ export function render(
     ctx.translate(sx(f.x) + w / 2, sy(f.y) - h / 2);
     ctx.rotate(f.angle);
     ctx.globalAlpha = 0.9;
-    theme.block(ctx, -w / 2, -h / 2, w, h, f.level);
+    drawBar(ctx, -w / 2, -h / 2, w, h, f.level, skin);
     ctx.restore();
   }
 
@@ -187,75 +194,75 @@ export function render(
     const size = Math.round(u * 0.065 * (1 + 0.25 * Math.min(1, f.streak / 5)));
     ctx.save();
     ctx.globalAlpha = 1 - k * k;
-    ctx.font = `800 ${size}px ${theme.hud.display}`;
+    ctx.font = `400 ${size}px ${skin.hud.display}`;
     ctx.textAlign = "center";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = Math.max(3, size * 0.18);
-    ctx.strokeStyle = theme.hud.outline;
     const label = f.streak >= 2 ? `PERFECT ×${f.streak}` : "PERFECT";
-    ctx.strokeText(label, cx, y);
-    ctx.fillStyle = theme.hud.streak;
-    ctx.fillText(label, cx, y);
+    neonText(ctx, label, cx, y, skin.hud.accent, skin.hud.accent, Math.max(3, size * 0.12));
     ctx.restore();
   }
 
   // The slider is in world space: it does not sway.
   if (state.phase === "playing") drawBlock(state.slider.x, state.slider.w, state.blocks.length);
 
-  theme.foreground?.(ctx, scene);
+  drawForeground(ctx, scene, skin);
+  drawPost(ctx, scene);
 
-  // HUD: rounded type with an ink outline, so it reads over any part of the scene.
+  // HUD: neon type with a black outline, so it reads over any part of the scene.
   ctx.save();
   ctx.textAlign = "center";
-  const hud = theme.hud;
+  const hud = skin.hud;
   const top = cssH * 0.14;
   const text = (t: string, x: number, y: number, fill: string, outline: number) =>
-    outlinedText(ctx, t, x, y, fill, hud.outline, outline);
+    neonText(ctx, t, x, y, fill, hud.titleGlow, outline);
 
   if (state.phase === "over") {
-    drawGameOver(ctx, cssW, cssH, u, state, best, theme);
+    drawGameOver(ctx, cssW, cssH, u, state, best, skin);
     ctx.restore();
     return;
   }
 
   if (state.score === 0) {
     // Start screen: the name instead of a zero.
-    ctx.font = `400 ${Math.round(u * 0.15)}px ${hud.display}`;
-    text("Sway Stack", cssW / 2, top, hud.title, u * 0.018);
+    ctx.font = `400 ${Math.round(u * 0.13)}px ${hud.display}`;
+    neonText(ctx, "Sway Stack", cssW / 2, top, hud.title, hud.titleGlow, u * 0.016);
   } else {
-    ctx.font = `700 ${Math.round(u * 0.14)}px ${hud.body}`;
-    text(String(state.score), cssW / 2, top, hud.score, u * 0.018);
+    ctx.font = `700 ${Math.round(u * 0.13)}px ${BODY_FONT}`;
+    text(String(state.score), cssW / 2, top, "#ffffff", u * 0.016);
   }
-  ctx.font = `600 ${Math.round(u * 0.042)}px ${hud.body}`;
-  text(`best ${best}`, cssW / 2, top + u * 0.065, hud.muted, u * 0.01);
+  ctx.font = `600 ${Math.round(u * 0.038)}px ${BODY_FONT}`;
+  text(`best ${best}`, cssW / 2, top + u * 0.065, "#e8e4ff", u * 0.009);
 
   // Lives
   const r = u * 0.016;
   for (let i = 0; i < LIVES; i++) {
     ctx.beginPath();
     ctx.arc(cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, top + u * 0.11, r, 0, Math.PI * 2);
-    ctx.fillStyle = i < state.lives ? hud.life : hud.lifeLost;
-    ctx.fill();
-    ctx.lineWidth = Math.max(1.5, u * 0.005);
-    ctx.strokeStyle = hud.outline;
-    ctx.stroke();
+    if (i < state.lives) {
+      ctx.fillStyle = hud.life;
+      ctx.fill();
+      neonStroke(ctx, hud.life, Math.max(1, u * 0.004), 3);
+    } else {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+      ctx.lineWidth = Math.max(1, u * 0.004);
+      ctx.stroke();
+    }
   }
 
   // Perfect counter: total this game, plus the current run. Hidden until the first one.
   if (state.perfects > 0) {
     const perfY = top + u * 0.18;
-    ctx.font = `700 ${Math.round(u * 0.048)}px ${hud.body}`;
-    text(`★ ${state.perfects} perfect`, cssW / 2, perfY, hud.streak, u * 0.012);
+    ctx.font = `700 ${Math.round(u * 0.042)}px ${BODY_FONT}`;
+    neonText(ctx, `★ ${state.perfects} perfect`, cssW / 2, perfY, hud.accent, hud.accent, u * 0.01);
     if (state.streak >= 2) {
-      ctx.font = `600 ${Math.round(u * 0.04)}px ${hud.body}`;
-      text(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.052, hud.muted, u * 0.01);
+      ctx.font = `600 ${Math.round(u * 0.036)}px ${BODY_FONT}`;
+      text(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.052, "#e8e4ff", u * 0.009);
     }
   }
 
   if (state.score === 0) {
-    ctx.font = `600 ${Math.round(u * 0.058)}px ${hud.body}`;
+    ctx.font = `600 ${Math.round(u * 0.05)}px ${BODY_FONT}`;
     ctx.globalAlpha = 0.7 + 0.3 * Math.sin(view.t * 3);
-    text("tap to drop", cssW / 2, cssH * 0.9, hud.score, u * 0.014);
+    text("tap to drop", cssW / 2, cssH * 0.9, "#ffffff", u * 0.012);
   }
   ctx.restore();
 }
@@ -267,67 +274,37 @@ function drawGameOver(
   u: number,
   state: GameState,
   best: number,
-  theme: Theme,
+  skin: Skin,
 ): void {
-  const hud = theme.hud;
-  ctx.fillStyle = "rgba(10, 5, 20, 0.45)";
+  const hud = skin.hud;
+  ctx.fillStyle = "rgba(4, 2, 10, 0.55)";
   ctx.fillRect(0, 0, cssW, cssH);
 
   const w = Math.min(cssW - 32, u * 0.82);
   const h = u * 0.62;
   const x = (cssW - w) / 2;
   const y = cssH * 0.42 - h / 2;
-  // Card: drop shadow, body, light inner rim, ink border
-  roundRectPath(ctx, x + u * 0.012, y + u * 0.016, w, h, u * 0.045);
-  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+  // Dark glass card with a neon border
+  roundRectPath(ctx, x, y, w, h, u * 0.03);
+  ctx.fillStyle = "rgba(10, 4, 22, 0.92)";
   ctx.fill();
-  roundRectPath(ctx, x, y, w, h, u * 0.045);
-  ctx.fillStyle = "#3a3180";
-  ctx.fill();
-  roundRectPath(ctx, x + u * 0.012, y + u * 0.012, w - u * 0.024, h - u * 0.024, u * 0.035);
-  ctx.lineWidth = Math.max(1.5, u * 0.006);
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
-  ctx.stroke();
-  roundRectPath(ctx, x, y, w, h, u * 0.045);
-  ctx.lineWidth = Math.max(3, u * 0.012);
-  ctx.strokeStyle = hud.outline;
-  ctx.stroke();
+  neonStroke(ctx, hud.titleGlow, Math.max(1.5, u * 0.006), 3.5);
 
   const cx = cssW / 2;
-  const text = (t: string, ty: number, fill: string, outline: number) =>
-    outlinedText(ctx, t, cx, ty, fill, hud.outline, outline);
+  const text = (t: string, ty: number, fill: string, glow: string, outline: number) =>
+    neonText(ctx, t, cx, ty, fill, glow, outline);
   ctx.textAlign = "center";
-  ctx.font = `400 ${Math.round(u * 0.1)}px ${hud.display}`;
-  text("Game Over", y + h * 0.22, hud.title, u * 0.014);
+  ctx.font = `400 ${Math.round(u * 0.085)}px ${hud.display}`;
+  text("Game Over", y + h * 0.22, hud.title, hud.titleGlow, u * 0.012);
 
-  ctx.font = `700 ${Math.round(u * 0.16)}px ${hud.body}`;
-  text(String(state.score), y + h * 0.54, hud.score, u * 0.018);
+  ctx.font = `700 ${Math.round(u * 0.15)}px ${BODY_FONT}`;
+  text(String(state.score), y + h * 0.54, "#ffffff", hud.titleGlow, u * 0.016);
 
   const newBest = state.score > 0 && state.score >= best;
-  ctx.font = `600 ${Math.round(u * 0.045)}px ${hud.body}`;
-  text(newBest ? "New best!" : `best ${best}`, y + h * 0.68, newBest ? hud.streak : hud.muted, u * 0.01);
-  text(`★ ${state.perfects} perfect`, y + h * 0.8, hud.streak, u * 0.01);
+  ctx.font = `600 ${Math.round(u * 0.042)}px ${BODY_FONT}`;
+  text(newBest ? "New best!" : `best ${best}`, y + h * 0.68, newBest ? hud.accent : "#e8e4ff", hud.titleGlow, u * 0.009);
+  text(`★ ${state.perfects} perfect`, y + h * 0.8, hud.accent, hud.accent, u * 0.009);
 
-  ctx.font = `600 ${Math.round(u * 0.055)}px ${hud.body}`;
-  text("tap to play again", y + h + u * 0.1, hud.score, u * 0.014);
-}
-
-/** Text with a solid outline behind the fill. */
-function outlinedText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  fill: string,
-  outline: string,
-  width: number,
-): void {
-  ctx.save();
-  ctx.lineJoin = "round";
-  ctx.lineWidth = Math.max(3, width);
-  ctx.strokeStyle = outline;
-  ctx.strokeText(text, x, y);
-  ctx.fillStyle = fill;
-  ctx.fillText(text, x, y);
-  ctx.restore();
+  ctx.font = `600 ${Math.round(u * 0.05)}px ${BODY_FONT}`;
+  text("tap to play again", y + h + u * 0.1, "#ffffff", hud.titleGlow, u * 0.012);
 }
