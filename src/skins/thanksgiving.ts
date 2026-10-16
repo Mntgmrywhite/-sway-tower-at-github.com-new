@@ -1,7 +1,7 @@
 import type { CartoonSkin } from "./skin";
 import { PALETTE } from "./thanksgiving/colors";
-import { farm } from "./thanksgiving/farm";
-import { harvest } from "./thanksgiving/harvest";
+import { backyard } from "./thanksgiving/ground";
+import { hollow } from "./thanksgiving/hollow";
 import {
   acorn,
   apple,
@@ -16,20 +16,22 @@ import {
   turkey,
   wheat,
 } from "./thanksgiving/icons";
-import { driftingLeaves, geese, harvestMoon } from "./thanksgiving/sky";
+import { driftingLeaves, geese, moon, sun } from "./thanksgiving/sky";
 
-// Thanksgiving: a warm autumn evening in the bright cartoon style. A sunset-amber to dusky
-// violet sky with a huge harvest moon rising behind a faded farm (silo, barn, windmill,
-// farmhouse) on rolling hills, rose-and-peach clouds, leaves tumbling down and geese crossing
-// the moon; on the golden stubble field, a scarecrow behind hay bales, corn shocks and a pile of
-// pumpkins and gourds beside the tower.
+// Thanksgiving: a cozy small town in a hollow on a late-November afternoon, in a simple, warm
+// comic-strip spirit (gently wobbly ink lines, flat autumn colors, lots of open lawn). Lavender
+// hills patched with fields ring the hollow, where a little town with a white church steeple
+// peeks over apricot clouds under a low comic-strip sun. In the backyard around the tower: the
+// farmhouse with its porch, a big orange tree letting go of its leaves, a Thanksgiving table
+// set outdoors with mismatched chairs and a pie, and friendly turkeys by their rail fence.
+// Climb, and the sun sets while a pale moon comes up and geese head south.
 
 export const thanksgiving: CartoonSkin = {
   id: "thanksgiving",
   style: "cartoon",
   name: "Thanksgiving",
   dates: [{ from: [11, 2], to: [11, 30] }],
-  fonts: ["Rye"],
+  fonts: ["Chewy"],
   palette: PALETTE,
   // Candy-bright harvest colors; warm hues alternate with teal, blue, lime and violet so every
   // seam reads.
@@ -48,17 +50,20 @@ export const thanksgiving: CartoonSkin = {
     { color: "#3fd6a0", icon: cornucopia },
   ],
   hud: {
-    display: "Rye, 'Rockwell Extra Bold', Georgia, 'Times New Roman', serif",
+    display: "Chewy, 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif",
     title: "#ffd36b",
     ui: "#7a3424",
     accent: "#ffc23a",
     life: "#ff7a1a",
   },
-  celestial: harvestMoon,
+  celestial(ctx, s) {
+    moon(ctx, s);
+    sun(ctx, s);
+  },
   sky(ctx, s) {
     geese(ctx, s);
     driftingLeaves(ctx, s);
   },
-  far: farm,
-  ground: harvest,
+  far: hollow,
+  ground: backyard,
 };

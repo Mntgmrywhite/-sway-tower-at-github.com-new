@@ -4,119 +4,107 @@ import type { Scene } from "../skin";
 import { INK, PALETTE } from "./colors";
 import { addLeaf, LEAF_BACKS, LEAF_COLORS } from "./leaves";
 
-// The evening sky: a huge harvest moon rising from behind the farm, cartoon leaves blowing in
-// and tumbling down, and now and then a faded V of geese crossing the moon.
+// The afternoon sky over the hollow: a low comic-strip sun resting on the clouds at the right
+// (it sets as you climb, and a pale moon rises at the left into the dusk), leaves blowing in
+// and tumbling down, and now and then a faded V of geese heading south.
 
-/** Bright sky things stay out of the top-center HUD zone: below this, or right of HUD_RIGHT. */
+/** Bright sky things stay out of the top-center HUD zone: below this, or outside 0.2..0.8 of the width. */
 const HUD_BAND = 0.32;
 const HUD_RIGHT = 0.8;
-/** The moon's visible halo reaches about this far out, in radii; it stays out of the band too. */
-const HALO_REACH = 1.2;
-
-// Cel-shaded moon: flat body, a shaded crescent on the lower right, a lit rim, soft seas.
-const MOON_BODY = "#ffd47e";
-const MOON_SHADE = "#f7ad5c";
-const MOON_LIGHT = "#ffeab8";
-const MOON_SEA = "#f6bb66";
-const MOON_HALO = alpha("#ffe2a6", 0.85);
+const HUD_LEFT = 0.2;
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
-/** Rough top of the base cloud bank above the horizon (u) at fraction fx of the width. */
-function cloudTop(fx: number): number {
-  const side = Math.abs(fx - 0.5) * 2;
-  return 0.1 + 0.26 * side * side;
-}
-
-/** Where the moon is this frame; shared with the geese so they cross its face. */
-const moon = { x: 0, y: 0, r: 0 };
+const SUN = "#ffe58e";
+const SUN_LIGHT = "#fff6cf";
+const SUN_SHADE = "#ffc76a";
+const SUN_HALO = alpha("#fff3c4", 0.35);
+const RAYS = alpha("#fff0b8", 0.75);
+const RAY_N = 12;
 
 /**
- * Huge and low right of the tower at the start, rising out of the farm and the cloud bank.
- * As the camera climbs it slides right and shrinks first, then rises into the top-right corner,
- * so it never enters the HUD zone while it is up there.
+ * The sun sits low at the right, just outside the HUD's columns, resting on the cloud pile.
+ * It sinks a little faster than the horizon as the camera climbs, so it sets behind the clouds.
  */
-function placeMoon(s: Scene): typeof moon {
-  // Measured from the start view (rise is 0 until the camera starts to climb).
-  const slide = smooth(clamp01(s.rise / (s.u * 0.6)));
-  const rise = smooth(clamp01((s.rise - s.u * 0.7) / (s.u * 1.5)));
-  moon.r = s.u * (0.24 - 0.155 * slide);
-  moon.x = Math.min(s.cssW * (0.66 + 0.24 * slide), s.cssW - moon.r - s.u * 0.015);
-  const fx = moon.x / s.cssW;
-  // Low: the cloud bank and hills hide its lower part (less of it as it slides toward the
-  // corner, where the clouds pile higher). Kept out of the HUD band.
-  const low = Math.min(
-    s.horizonY - s.u * cloudTop(fx) - moon.r * (0.15 + 0.6 * slide),
-    s.cssH * 0.62,
-  );
-  const below = s.cssH * HUD_BAND + moon.r * HALO_REACH;
-  const lowSafe = Math.max(low, below + s.u * 0.01);
-  const high = Math.max(s.cssH * 0.12, moon.r + s.u * 0.04);
-  moon.y = lowSafe + (high - lowSafe) * rise;
-  // While the moon is still left of the HUD's right edge, it may not rise into the band.
-  if (moon.x - moon.r < s.cssW * HUD_RIGHT) moon.y = Math.max(moon.y, below);
-  return moon;
+export function sun(ctx: Ctx, s: Scene): void {
+  const r = s.u * 0.072;
+  const x = Math.max(s.cssW * HUD_RIGHT + r, s.cssW - r * 1.64);
+  const y = s.horizonY - s.u * 0.4 + s.rise * 0.2;
+  if (y - r * 1.6 > s.cssH) return;
+
+  // A soft flat halo, then short rays turning slowly: a comic-strip sun.
+  ctx.fillStyle = SUN_HALO;
+  ctx.beginPath();
+  circle(ctx, x, y, r * 1.32);
+  ctx.fill();
+  ctx.beginPath();
+  const spin = s.t * 0.08;
+  for (let i = 0; i < RAY_N; i++) {
+    const a = spin + (i * Math.PI * 2) / RAY_N;
+    const r0 = r * 1.18;
+    const r1 = r * (i % 2 ? 1.42 : 1.56);
+    const w = 0.07;
+    ctx.moveTo(x + Math.cos(a - w) * r0, y + Math.sin(a - w) * r0);
+    ctx.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+    ctx.lineTo(x + Math.cos(a + w) * r0, y + Math.sin(a + w) * r0);
+    ctx.closePath();
+  }
+  ctx.fillStyle = RAYS;
+  ctx.fill();
+
+  ctx.fillStyle = SUN_SHADE;
+  ctx.beginPath();
+  circle(ctx, x, y, r);
+  ctx.fill();
+  ctx.fillStyle = SUN;
+  ctx.beginPath();
+  circle(ctx, x - r * 0.06, y - r * 0.07, r * 0.9);
+  ctx.fill();
+  ctx.fillStyle = SUN_LIGHT;
+  ctx.beginPath();
+  oval(ctx, x - r * 0.34, y - r * 0.36, r * 0.32, r * 0.2, -0.6);
+  ctx.fill();
 }
 
-// Seas and craters as fractions of the radius: [x, y, rx, ry, rotation].
-const SEAS = [
-  [-0.34, -0.3, 0.22, 0.14, 0.5],
-  [0.16, -0.48, 0.17, 0.1, -0.25],
-  [0.3, -0.08, 0.22, 0.14, 0.6],
-  [-0.16, 0.04, 0.15, 0.11, 0.1],
-  [-0.5, 0.18, 0.1, 0.08, 0],
-] as const;
-const CRATERS = [
-  [-0.6, -0.12, 0.07],
-  [0.52, -0.44, 0.06],
-  [-0.06, -0.72, 0.05],
-  [0.64, 0.12, 0.05],
-  [0.08, 0.38, 0.06],
-] as const;
+const MOON = "#fff3d2";
+const MOON_SEA = "#efdcae";
+const MOON_HALO = alpha("#fff0c0", 0.13);
 
-export function harvestMoon(ctx: Ctx, s: Scene): void {
-  const { x: cx, y: cy, r } = placeMoon(s);
-  if (cy - r > s.cssH) return;
-
-  // The one soft glow in the scene.
-  ctx.save();
-  ctx.shadowColor = MOON_HALO;
-  ctx.shadowBlur = r * 0.7;
-  ctx.fillStyle = MOON_SHADE;
+/**
+ * A pale moon rises at the left as the camera climbs into the dusk, always left of the HUD
+ * columns. Hidden behind the clouds at the start.
+ */
+export function moon(ctx: Ctx, s: Scene): void {
+  const r = s.u * 0.05;
+  const x = Math.min(s.cssW * HUD_LEFT - r * 1.5, s.u * 0.1);
+  const up = smooth(clamp01(s.rise / (s.u * 2.2)));
+  const low = s.horizonY - s.u * 0.12;
+  const high = s.cssH * 0.14;
+  const y = low + (high - low) * up;
+  if (y - r * 1.5 > s.cssH || up <= 0) return;
+  ctx.fillStyle = MOON_HALO;
   ctx.beginPath();
-  circle(ctx, cx, cy, r);
+  circle(ctx, x, y, r * 1.22);
   ctx.fill();
-  ctx.restore();
-
-  ctx.save();
+  ctx.fillStyle = MOON;
   ctx.beginPath();
-  circle(ctx, cx, cy, r);
-  ctx.clip();
-  // Light, then the body, each offset to the upper left: a shaded crescent is left on the
-  // lower right and a thin lit rim on the upper left.
-  ctx.fillStyle = MOON_LIGHT;
-  ctx.beginPath();
-  circle(ctx, cx - r * 0.14, cy - r * 0.12, r * 0.97);
-  ctx.fill();
-  ctx.fillStyle = MOON_BODY;
-  ctx.beginPath();
-  circle(ctx, cx - r * 0.06, cy - r * 0.05, r * 0.86);
+  circle(ctx, x, y, r);
   ctx.fill();
   ctx.fillStyle = MOON_SEA;
   ctx.beginPath();
-  for (const [mx, my, rx, ry, rot] of SEAS) oval(ctx, cx + mx * r, cy + my * r, rx * r, ry * r, rot);
-  for (const [mx, my, cr] of CRATERS) circle(ctx, cx + mx * r, cy + my * r, cr * r);
+  circle(ctx, x - r * 0.3, y - r * 0.2, r * 0.22);
+  circle(ctx, x + r * 0.28, y + r * 0.3, r * 0.17);
+  circle(ctx, x + r * 0.32, y - r * 0.36, r * 0.1);
   ctx.fill();
-  ctx.restore();
 }
 
 // Leaves blown in from the side edges below the title, curling inward on the wind as they
 // fall. They stay out of the top-center HUD zone: they only reach the middle further down.
 
 /** Leaves in the air near the ground; more are swept up as the tower climbs into open sky. */
-const LEAVES_LOW = 12;
-const DRIFT = Array.from({ length: 22 }, (_, i) => {
+const LEAVES_LOW = 8;
+const DRIFT = Array.from({ length: 18 }, (_, i) => {
   const h = (k: number) => hash(i * 17 + k);
   return {
     side: i % 2 ? 1 : -1,
@@ -124,7 +112,7 @@ const DRIFT = Array.from({ length: 22 }, (_, i) => {
     drift: 0.18 + h(2) * 0.3,
     period: 12 + h(3) * 10,
     off: h(4) * 40,
-    size: 0.046 + h(5) * 0.026,
+    size: 0.04 + h(5) * 0.022,
     color: Math.floor(h(6) * LEAF_COLORS.length) % LEAF_COLORS.length,
     oak: h(7) > 0.6,
     sway: 0.012 + h(8) * 0.014,
@@ -163,7 +151,7 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
     n.flip = (f < 0 ? -1 : 1) * (0.25 + 0.75 * Math.abs(f));
     n.on = true;
   }
-  const lw = Math.max(1.1, s.u * 0.0032);
+  const lw = Math.max(1.1, s.u * 0.003);
   // One fill and one ink pass per color and face (front, or the darker back when flipped).
   for (let c = 0; c < LEAF_COLORS.length; c++) {
     for (let face = 0; face < 2; face++) {
@@ -183,27 +171,27 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
   }
 }
 
-// A faded V of geese crossing in front of the moon every so often.
-const GEESE_PERIOD = 26; // seconds between flights
-const GEESE_FLIGHT = 12; // seconds to cross the screen
+// A faded V of geese heading south every so often, across the open sky below the HUD.
+const GEESE_PERIOD = 28; // seconds between flights
+const GEESE_FLIGHT = 13; // seconds to cross the screen
 const GEESE = 7;
-const GOOSE = mix(PALETTE.far, PALETTE.skyTop, 0.3);
+const GOOSE = mix(PALETTE.far, "#4a3a6e", 0.35);
 
 export function geese(ctx: Ctx, s: Scene): void {
   const cycle = Math.floor(s.t / GEESE_PERIOD);
   const tt = s.t - cycle * GEESE_PERIOD;
   if (tt > GEESE_FLIGHT) return;
   const k = tt / GEESE_FLIGHT;
-  const m = placeMoon(s);
   const dir = hash(cycle * 7 + 3) < 0.6 ? -1 : 1;
-  const g = s.u * 0.05; // body length
+  const g = s.u * 0.042; // body length
   const span = s.cssW + g * 14;
   const lx = dir > 0 ? -g * 2 + k * span : s.cssW + g * 2 - k * span;
+  const lowest = Math.min(s.horizonY - s.u * 0.42, s.cssH * 0.6);
   const ly = Math.max(
-    s.cssH * HUD_BAND + g * 3,
-    m.y - m.r * (0.3 + 0.3 * hash(cycle * 5 + 1)) + Math.sin(k * 5) * s.u * 0.008,
+    s.cssH * HUD_BAND + g * 2,
+    lowest - s.u * 0.12 * hash(cycle * 5 + 1) + Math.sin(k * 5) * s.u * 0.008,
   );
-  if (ly > s.horizonY - g) return;
+  if (ly > s.horizonY - g * 3) return;
 
   ctx.beginPath();
   for (let j = 0; j < GEESE; j++) {

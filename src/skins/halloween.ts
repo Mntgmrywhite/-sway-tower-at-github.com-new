@@ -1,15 +1,19 @@
 import { PALETTE } from "./halloween/common";
-import { graveyard } from "./halloween/graveyard";
+import { ground } from "./halloween/graveyard";
+import { hollow } from "./halloween/hollow";
 import * as icon from "./halloween/icons";
+import { piles } from "./halloween/leaves";
 import { flyers, moon } from "./halloween/sky";
-import { town } from "./halloween/town";
 import type { CartoonSkin } from "./skin";
 
-// Halloween in the bright cartoon style: a periwinkle-purple night with teal clouds piled at
-// the sides, a big cream moon with a witch crossing it and bats flitting about, a faded
-// haunted town and mansion on the horizon, and a graveyard around the tower: weathered
-// tombstones planted in their mounds, a jack-o'-lantern glowing behind the tower, and open
-// graves where skeleton hands, skulls and feet pop up at random.
+// Halloween, after Trick 'r Treat and The Legend of Sleepy Hollow, in the bright cartoon
+// style. A small town on Halloween night: porch houses lined with jack-o'-lanterns, leaves
+// blowing on the wind, and trick-or-treaters in homemade costumes (witch, skeleton, cat,
+// pumpkin, caped hero) with their candy bags. The tower stands in the old churchyard, among
+// weathered headstones and open graves where skeleton parts pop up at random, with a big
+// jack-o'-lantern glowing behind it. Beyond the town lies the misty hollow: a covered bridge,
+// a giant gnarled tree, the church steeple in the fog, crows, and on the hill under the
+// harvest moon the Headless Horseman galloping past with his flaming pumpkin held high.
 
 export const halloween: CartoonSkin = {
   id: "halloween",
@@ -22,7 +26,7 @@ export const halloween: CartoonSkin = {
     { color: "#ff9a2e", icon: icon.pumpkin },
     { color: "#a173e0", icon: icon.witchHat },
     { color: "#ffd23f", icon: icon.candyCorn },
-    { color: "#5fd7f0", icon: icon.ghost },
+    { color: "#5fd7f0", icon: icon.crow },
     { color: "#ff6fae", icon: icon.bat },
     { color: "#a6e05a", icon: icon.tombstone },
     { color: "#f2d7a0", icon: icon.mummy },
@@ -41,6 +45,7 @@ export const halloween: CartoonSkin = {
   },
   celestial: moon,
   sky: flyers,
-  far: town,
-  ground: graveyard,
+  far: hollow,
+  ground,
+  foreground: piles,
 };

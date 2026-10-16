@@ -182,8 +182,9 @@ function currentSkin(): Skin {
     skin = resolveSkin(tuning.skin, now);
     ensureFonts(skin);
     document.documentElement.style.setProperty("--accent", skin.hud.ui);
-    // Each skin has its arrangement of the theme (skins without one play Classic's).
-    audio.setMusic(skin.id);
+    // Each skin has its arrangement of the theme; the four Neon skins share one (and any skin
+    // without a rendered arrangement plays Classic's).
+    audio.setMusic(skin.style === "neon" ? "neon" : skin.id);
   }
   return skin;
 }

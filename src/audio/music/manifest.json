@@ -6,5 +6,37 @@
     "priming": 2112,
     "bpm": 270,
     "bars": 16
+  },
+  "christmas": {
+    "sr": 48000,
+    "L": 2048000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 270,
+    "bars": 32
+  },
+  "thanksgiving": {
+    "sr": 48000,
+    "L": 1728000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 320,
+    "bars": 32
+  },
+  "newyear": {
+    "sr": 48000,
+    "L": 1280000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 216,
+    "bars": 32
+  },
+  "halloween": {
+    "sr": 48000,
+    "L": 2048000,
+    "PAD": 12000,
+    "priming": 2112,
+    "bpm": 270,
+    "bars": 32
   }
 }

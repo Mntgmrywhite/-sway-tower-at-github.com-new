@@ -1,345 +1,344 @@
-import { alpha, circle, hash, mix, type Ctx } from "../../base/draw";
+import { alpha, circle, hash, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { FAR, FAR_BACK, FAR_BACK_SNOW, FAR_LAMP, FAR_SNOW, LIGHTS, SKY_BOTTOM } from "./colors";
-import { firOutline, firPath, starPath } from "./shapes";
-import { sleigh } from "./sky";
+import { FAR, FAR_BACK, FAR_BACK_SNOW, FAR_LIGHT, FAR_SNOW, FOG, SMOKE_FAR } from "./colors";
+import { pigeonFlock } from "./sky";
 
-// On the horizon, as faded flat silhouettes with no outlines: a low line of snowy firs,
-// taller firs framing both edges behind the cloud bank, and a little village in between —
-// tall gabled houses with lit windows and smoking chimneys, a church spire with a star, and
-// strings of lights between the roofs. Everything stands on horizonY.
-// Village positions are in u from the screen center, framing firs in u from each screen
-// edge (so they are never cut off); heights in u.
+// London on the horizon, as faded flat silhouettes in the fog (no outlines): a hazy back row
+// of rooftops bristling with chimney pots and a couple of thin spires, a fog veil, then two
+// landmarks of our own design: a great domed cathedral left of center and a tiered church
+// steeple right of center whose bell swings and rings out at dusk. Everything stands on
+// horizonY; the base cloud bank in front hides the feet as rolling fog.
+// Layout is in u from the screen center, y up from the horizon.
 
-const FIR = firOutline(
-  [
-    { top: -1, bottom: -0.7, half: 0.1 },
-    { top: -0.82, bottom: -0.5, half: 0.14 },
-    { top: -0.64, bottom: -0.3, half: 0.18 },
-    { top: -0.46, bottom: -0.1, half: 0.22 },
-  ],
-  0.03,
-);
+// ---------------------------------------------------------------- back row
 
-/** Snow ledges on the lower tiers of FIR: [tier top, tier half width]. */
-const FIR_LEDGES = [
-  [-0.82, 0.14],
-  [-0.64, 0.18],
-  [-0.46, 0.22],
-] as const;
-
-/**
- * Framing firs, measured inward from a screen edge: [distance to the trunk, height] in u.
- * Their tips peek over the cloud bank piled at the sides (more so on wide screens), and they
- * stay below the moon and the sleigh's path. Each keeps its whole outline on screen.
- */
-const FRAMING = [
-  [0.075, 0.3],
-  [0.205, 0.24],
-] as const;
-
-interface House {
-  x: number;
-  w: number;
-  h: number;
-  roof: number;
-  chimney: number; // -1 left slope, 1 right slope, 0 none
-  rows: number; // rows of windows
-}
-
-/**
- * Tall gabled houses, taller toward the ends of the village where the clouds pile higher,
- * so their snowy roofs and top windows always show above the cloud bank.
- */
-const HOUSES: House[] = [
-  { x: -0.235, w: 0.075, h: 0.17, roof: 0.05, chimney: 1, rows: 4 },
-  { x: -0.145, w: 0.085, h: 0.13, roof: 0.05, chimney: -1, rows: 3 },
-  { x: -0.055, w: 0.075, h: 0.115, roof: 0.045, chimney: 0, rows: 3 },
-  { x: 0.035, w: 0.08, h: 0.125, roof: 0.05, chimney: 1, rows: 3 },
-  { x: 0.25, w: 0.075, h: 0.175, roof: 0.05, chimney: -1, rows: 4 },
-];
-const EAVE = 0.012; // roof overhang
-
-const CHURCH = { x: 0.15, w: 0.085, h: 0.13, roof: 0.045, towerW: 0.04, towerH: 0.23, spire: 0.09 };
-
-/** Windows per house, as (x, y) in u relative to (center, horizon), precomputed. */
-const WINDOWS: number[] = (() => {
-  const out: number[] = [];
-  for (const h of HOUSES) {
-    for (let r = 0; r < h.rows; r++) {
-      const y = -h.h + 0.026 + r * 0.036;
-      out.push(h.x - h.w * 0.24, y, h.x + h.w * 0.24, y);
+/** Back rooftops: a closed outline as x, y pairs (y up), and the chimney pots on top. */
+const { ROOFLINE, POTS, BACK_WINDOWS, BACK_SMOKE } = (() => {
+  const line: number[] = [];
+  const pots: number[] = [];
+  const wins: number[] = [];
+  const smoke: number[] = [];
+  const lift = (x: number) => {
+    const side = Math.min(1, Math.abs(x) / 0.55);
+    return 1 + 1.3 * side * side;
+  };
+  let x = -1.7;
+  line.push(x, 0);
+  for (let i = 0; x < 1.7; i++) {
+    const w = 0.045 + hash(i + 8000) * 0.05;
+    const k = lift(x + w / 2);
+    const h = (0.055 + hash(i + 8010) * 0.05) * k;
+    const kind = hash(i + 8020);
+    line.push(x, h);
+    if (kind < 0.45) {
+      // Gable
+      line.push(x + w / 2, h + w * 0.45);
+    } else if (kind < 0.75) {
+      // Flat roof with a chimney stack and its pots
+      const cx = x + w * (0.3 + hash(i + 8030) * 0.4);
+      const sw = 0.016;
+      const sh = 0.018 * Math.min(1.4, k);
+      line.push(cx - sw / 2, h, cx - sw / 2, h + sh, cx + sw / 2, h + sh, cx + sw / 2, h);
+      pots.push(cx - sw * 0.28, h + sh, cx + sw * 0.22, h + sh);
+      if (hash(i + 8040) > 0.5) smoke.push(cx, h + sh + 0.008, hash(i + 8050));
+    } else {
+      // Mansard: steep sides, flat top
+      line.push(x + w * 0.18, h + w * 0.3, x + w * 0.82, h + w * 0.3);
     }
+    line.push(x + w, h);
+    if (hash(i + 8060) > 0.45) wins.push(x + w * (0.3 + hash(i + 8070) * 0.4), h * (0.45 + hash(i + 8080) * 0.3));
+    // Now and then a thin spire behind the roofs.
+    if (hash(i + 8090) > 0.9 && Math.abs(x) > 0.3) {
+      const sx = x + w / 2;
+      const sk = Math.min(1.3, k);
+      line.push(x + w, h, sx + 0.008, h, sx + 0.008, h + 0.06 * sk, sx, h + 0.11 * sk, sx - 0.008, h + 0.06 * sk, sx - 0.008, h);
+    }
+    x += w;
   }
-  return out;
+  line.push(x, 0);
+  return { ROOFLINE: line, POTS: pots, BACK_WINDOWS: wins, BACK_SMOKE: smoke };
 })();
 
-/**
- * Strings of lights draped from roof to roof and on to the church tower, precomputed in u
- * relative to (center, horizon): WIRES holds each sagging curve as six numbers (start,
- * control, end) and BULBS the x, y of every bulb along them.
- */
-const { WIRES, BULBS } = (() => {
-  const wires: number[] = [];
-  const bulbs: number[] = [];
-  const anchors: [number, number][] = HOUSES.map((h) => [h.x, -(h.h + h.roof)]);
-  anchors.push([CHURCH.x - CHURCH.w / 2 + CHURCH.towerW / 2, -(CHURCH.towerH * 0.8)]);
-  anchors.sort((a, b) => a[0] - b[0]);
-  for (let i = 0; i + 1 < anchors.length; i++) {
-    const [ax, ay] = anchors[i]!;
-    const [bx, by] = anchors[i + 1]!;
-    const cx = (ax + bx) / 2;
-    const cy = Math.max(ay, by) + 0.03 + 0.012 * hash(i + 40);
-    wires.push(ax, ay, cx, cy, bx, by);
-    const n = Math.max(3, Math.round(Math.hypot(bx - ax, by - ay) / 0.016));
-    for (let k = 1; k < n; k++) {
-      const t = k / n;
-      bulbs.push(
-        (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * cx + t * t * bx,
-        (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * cy + t * t * by,
-      );
-    }
-  }
-  return { WIRES: wires, BULBS: bulbs };
-})();
-
-/** Faded versions of the light colors: lit and dim. */
-const FAR_LIGHTS = LIGHTS.map((c) => mix(c, FAR, 0.25));
-const FAR_LIGHTS_DIM = FAR_LIGHTS.map((c) => mix(c, FAR, 0.6));
-const SPIRE_STAR = FAR_LAMP;
-const SPIRE_STAR_LIT = mix(FAR_LAMP, "#ffffff", 0.35);
-const SMOKE = alpha(mix(FAR, SKY_BOTTOM, 0.6), 0.6);
-const WIRE = alpha(FAR_SNOW, 0.6);
-
-/** Height of back-row fir i (taller toward the screen edges). */
-function backFirHeight(s: Scene, i: number, step: number): number {
-  const side = Math.min(1, Math.abs(i * step) / (s.cssW * 0.5));
-  return s.u * (0.1 + 0.05 * hash(i + 700)) * (1 + 1.25 * side * side);
-}
-
-/** A low, dense line of distant firs across the whole horizon, tipped with snow. */
-function backForest(ctx: Ctx, s: Scene, hy: number): void {
-  const cx = s.cssW / 2;
-  const step = s.u * 0.03;
-  const n = Math.ceil(cx / step) + 2;
+function backRow(ctx: Ctx, s: Scene, cx: number, hy: number): void {
+  const u = s.u;
   ctx.beginPath();
-  ctx.moveTo(-4, hy);
-  let prev = backFirHeight(s, -n - 1, step);
-  for (let i = -n; i <= n; i++) {
-    const h = backFirHeight(s, i, step);
-    const x = cx + i * step + (hash(i + 900) - 0.5) * step * 0.4;
-    ctx.lineTo(x - step * 0.5, hy - Math.min(prev, h) * 0.2);
-    ctx.lineTo(x - h * 0.17, hy - h * 0.3);
-    ctx.lineTo(x - h * 0.08, hy - h * 0.36);
-    ctx.lineTo(x - h * 0.13, hy - h * 0.58);
-    ctx.lineTo(x - h * 0.05, hy - h * 0.62);
-    ctx.lineTo(x, hy - h);
-    ctx.lineTo(x + h * 0.05, hy - h * 0.62);
-    ctx.lineTo(x + h * 0.13, hy - h * 0.58);
-    ctx.lineTo(x + h * 0.08, hy - h * 0.36);
-    ctx.lineTo(x + h * 0.17, hy - h * 0.3);
-    prev = h;
-  }
-  ctx.lineTo(s.cssW + 4, hy);
+  ctx.moveTo(cx + ROOFLINE[0]! * u, hy + 1);
+  for (let i = 2; i + 1 < ROOFLINE.length; i += 2) ctx.lineTo(cx + ROOFLINE[i]! * u, hy - ROOFLINE[i + 1]! * u);
+  ctx.lineTo(cx + ROOFLINE[ROOFLINE.length - 2]! * u, hy + 1);
   ctx.closePath();
+  // Chimney pots: little stubs on the stacks.
+  const pw = u * 0.0045;
+  const ph = u * 0.009;
+  for (let i = 0; i + 1 < POTS.length; i += 2) ctx.rect(cx + POTS[i]! * u - pw / 2, hy - POTS[i + 1]! * u - ph, pw, ph + 1);
   ctx.fillStyle = FAR_BACK;
   ctx.fill();
 
+  // Snow along the roofs: a thin light line on every slope and flat.
   ctx.beginPath();
-  for (let i = -n; i <= n; i++) {
-    const h = backFirHeight(s, i, step);
-    const x = cx + i * step + (hash(i + 900) - 0.5) * step * 0.4;
-    ctx.moveTo(x, hy - h);
-    ctx.lineTo(x + h * 0.07, hy - h * 0.74);
-    ctx.lineTo(x - h * 0.07, hy - h * 0.74);
-    ctx.closePath();
-  }
-  ctx.fillStyle = FAR_BACK_SNOW;
-  ctx.fill();
-}
-
-/** Snow on a framing fir standing at (x, hy), `h` tall: a cap on top and a ledge on each lower tier. */
-function firSnow(ctx: Ctx, x: number, hy: number, h: number): void {
-  const y = hy - h;
-  ctx.moveTo(x, y - h * 0.01);
-  ctx.lineTo(x + h * 0.06, y + h * 0.17);
-  ctx.lineTo(x + h * 0.02, y + h * 0.14);
-  ctx.lineTo(x - h * 0.015, y + h * 0.18);
-  ctx.lineTo(x - h * 0.06, y + h * 0.17);
-  ctx.closePath();
-  for (const [top, half] of FIR_LEDGES) {
-    // Just under the notch above, along each outer slope.
-    const y0 = hy + (top + 0.1) * h;
-    const x0 = half * 0.3 * h;
-    const x1 = half * 0.88 * h;
-    const y1 = hy + (top + 0.29) * h;
-    for (let dir = -1; dir <= 1; dir += 2) {
-      ctx.moveTo(x + dir * x0, y0);
-      ctx.lineTo(x + dir * x1, y1);
-      ctx.lineTo(x + dir * x1 * 0.9, y1 + h * 0.035);
-      ctx.lineTo(x + dir * x0 * 0.9, y0 + h * 0.04);
-      ctx.closePath();
-    }
-  }
-}
-
-/** Snowy firs mirrored on both edges, peeking over the cloud bank. */
-function framingFirs(ctx: Ctx, s: Scene, hy: number): void {
-  ctx.beginPath();
-  for (const [d, h] of FRAMING) {
-    firPath(ctx, FIR, d * s.u, hy, h * s.u);
-    firPath(ctx, FIR, s.cssW - d * s.u, hy, h * s.u);
-  }
-  ctx.fillStyle = FAR;
-  ctx.fill();
-  ctx.beginPath();
-  for (const [d, h] of FRAMING) {
-    firSnow(ctx, d * s.u, hy, h * s.u);
-    firSnow(ctx, s.cssW - d * s.u, hy, h * s.u);
-  }
-  ctx.fillStyle = FAR_SNOW;
-  ctx.fill();
-}
-
-function housePath(ctx: Ctx, x: number, hy: number, w: number, h: number, roof: number, eave: number): void {
-  ctx.moveTo(x - w / 2, hy);
-  ctx.lineTo(x - w / 2, hy - h);
-  ctx.lineTo(x - w / 2 - eave, hy - h);
-  ctx.lineTo(x, hy - h - roof);
-  ctx.lineTo(x + w / 2 + eave, hy - h);
-  ctx.lineTo(x + w / 2, hy - h);
-  ctx.lineTo(x + w / 2, hy);
-  ctx.closePath();
-}
-
-/** Snow lying on a pitched roof, with a few soft drips along the eaves. */
-function roofSnow(ctx: Ctx, x: number, hy: number, w: number, h: number, roof: number, eave: number, t: number): void {
-  const l = x - w / 2 - eave * 1.3;
-  const r = x + w / 2 + eave * 1.3;
-  const y = hy - h;
-  const top = y - roof - t * 0.9;
-  ctx.moveTo(l, y + t * 0.1);
-  ctx.lineTo(x, top);
-  ctx.lineTo(r, y + t * 0.1);
-  ctx.lineTo(r - t * 0.3, y + t * 0.7);
-  ctx.lineTo(x + (r - x) * 0.55, y - roof * 0.45 + t * 1.1);
-  ctx.lineTo(x + (r - x) * 0.4, y - roof * 0.6 + t * 1.6);
-  ctx.lineTo(x + (r - x) * 0.25, y - roof * 0.75 + t * 0.9);
-  ctx.lineTo(x, top + t * 1.4);
-  ctx.lineTo(x - (x - l) * 0.3, y - roof * 0.7 + t * 1.5);
-  ctx.lineTo(x - (x - l) * 0.5, y - roof * 0.5 + t * 0.9);
-  ctx.lineTo(l + t * 0.3, y + t * 0.7);
-  ctx.closePath();
-}
-
-/** Cottages and a church with lit windows, snowy roofs, chimney smoke and strings of lights. */
-function village(ctx: Ctx, s: Scene, hy: number): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const eave = EAVE * u;
-  const c = CHURCH;
-  const chx = cx + c.x * u;
-  const tx = chx - c.w * 0.5 * u + c.towerW * 0.5 * u; // tower stands at the nave's left end
-  const towerTop = hy - c.towerH * u;
-
-  // Chimney smoke: puffs rising, swelling and fading.
-  ctx.beginPath();
-  for (let i = 0; i < HOUSES.length; i++) {
-    const h = HOUSES[i]!;
-    if (!h.chimney) continue;
-    const x0 = cx + (h.x + h.chimney * h.w * 0.25) * u;
-    const y0 = hy - (h.h + h.roof * 0.95) * u;
-    for (let k = 0; k < 4; k++) {
-      const p = (s.t * 0.18 + k / 4 + hash(i + 60)) % 1;
-      const r = u * (0.005 + 0.008 * p);
-      circle(ctx, x0 + Math.sin(p * 4 + i) * u * 0.005 + p * u * 0.02, y0 - u * 0.006 - p * u * 0.06, r);
-    }
-  }
-  ctx.fillStyle = SMOKE;
-  ctx.fill();
-
-  // Silhouettes: houses, chimneys, the church nave, tower and spire.
-  ctx.beginPath();
-  for (const h of HOUSES) {
-    const x = cx + h.x * u;
-    housePath(ctx, x, hy, h.w * u, h.h * u, h.roof * u, eave);
-    if (h.chimney) {
-      const chimX = x + h.chimney * h.w * 0.25 * u;
-      ctx.rect(chimX - 0.008 * u, hy - (h.h + h.roof * 0.95) * u, 0.016 * u, h.roof * 0.6 * u);
-    }
-  }
-  housePath(ctx, chx + c.towerW * 0.4 * u, hy, (c.w - c.towerW * 0.2) * u, c.h * u, c.roof * u, eave);
-  ctx.rect(tx - c.towerW * 0.5 * u, towerTop, c.towerW * u, c.towerH * u);
-  ctx.moveTo(tx - c.towerW * 0.62 * u, towerTop);
-  ctx.lineTo(tx, towerTop - c.spire * u);
-  ctx.lineTo(tx + c.towerW * 0.62 * u, towerTop);
-  ctx.closePath();
-  ctx.fillStyle = FAR;
-  ctx.fill();
-
-  // Snow on the roofs and the tower's ledge
-  const snowT = u * 0.008;
-  ctx.beginPath();
-  for (const h of HOUSES) roofSnow(ctx, cx + h.x * u, hy, h.w * u, h.h * u, h.roof * u, eave, snowT);
-  roofSnow(ctx, chx + c.towerW * 0.4 * u, hy, (c.w - c.towerW * 0.2) * u, c.h * u, c.roof * u, eave, snowT);
-  ctx.rect(tx - c.towerW * 0.62 * u, towerTop - snowT * 0.6, c.towerW * 1.24 * u, snowT * 0.9);
-  ctx.fillStyle = FAR_SNOW;
-  ctx.fill();
-
-  // Lit windows; now and then one goes dark for a while.
-  const ww = u * 0.015;
-  const wh = u * 0.018;
-  ctx.beginPath();
-  for (let i = 0; i + 1 < WINDOWS.length; i += 2) {
-    if (Math.sin(s.t * 0.35 + hash(i + 70) * 40) < -0.85) continue;
-    ctx.rect(cx + WINDOWS[i]! * u - ww / 2, hy + WINDOWS[i + 1]! * u - wh / 2, ww, wh);
-  }
-  // Church: tall windows along the nave and a round window in the tower.
-  for (let k = 0; k < 2; k++) {
-    ctx.rect(chx + (0.008 + k * 0.022) * u, hy - c.h * u * 0.8, u * 0.01, u * 0.03);
-  }
-  circle(ctx, tx, hy - c.towerH * u * 0.72, u * 0.01);
-  ctx.fillStyle = FAR_LAMP;
-  ctx.fill();
-
-  // Star on the spire, twinkling.
-  const tw = 0.5 + 0.5 * Math.sin(s.t * 2.4);
-  const sy = towerTop - c.spire * u - u * 0.014;
-  ctx.beginPath();
-  starPath(ctx, tx, sy, u * (0.013 + 0.003 * tw), 0.45);
-  ctx.fillStyle = tw > 0.5 ? SPIRE_STAR_LIT : SPIRE_STAR;
-  ctx.fill();
-
-  // Strings of lights between the roofs: a faint wire, bulbs taking turns to shine.
-  ctx.beginPath();
-  for (let i = 0; i + 5 < WIRES.length; i += 6) {
-    ctx.moveTo(cx + WIRES[i]! * u, hy + WIRES[i + 1]! * u);
-    ctx.quadraticCurveTo(cx + WIRES[i + 2]! * u, hy + WIRES[i + 3]! * u, cx + WIRES[i + 4]! * u, hy + WIRES[i + 5]! * u);
-  }
-  ctx.strokeStyle = WIRE;
-  ctx.lineWidth = Math.max(0.8, u * 0.002);
+  ctx.moveTo(cx + ROOFLINE[2]! * u, hy - ROOFLINE[3]! * u);
+  for (let i = 4; i + 1 < ROOFLINE.length - 2; i += 2) ctx.lineTo(cx + ROOFLINE[i]! * u, hy - ROOFLINE[i + 1]! * u);
+  ctx.strokeStyle = FAR_BACK_SNOW;
+  ctx.lineWidth = Math.max(1, u * 0.003);
+  ctx.lineJoin = "round";
   ctx.stroke();
-  const r = Math.max(1, u * 0.0042);
-  for (let c4 = 0; c4 < FAR_LIGHTS.length; c4++) {
-    const lit = Math.sin(s.t * 3 - c4 * (Math.PI / 2)) > -0.3;
+
+  // A few lit windows twinkling on and off.
+  const ww = u * 0.008;
+  ctx.beginPath();
+  for (let i = 0; i + 1 < BACK_WINDOWS.length; i += 2) {
+    if (Math.sin(s.t * 0.3 + i * 1.7) < -0.7) continue;
+    ctx.rect(cx + BACK_WINDOWS[i]! * u - ww / 2, hy - BACK_WINDOWS[i + 1]! * u - ww * 0.6, ww, ww * 1.2);
+  }
+  ctx.fillStyle = alpha(FAR_LIGHT, 0.7);
+  ctx.fill();
+
+  // Thin smoke rising from some of the stacks.
+  ctx.beginPath();
+  for (let i = 0; i + 2 < BACK_SMOKE.length; i += 3) {
+    const x0 = cx + BACK_SMOKE[i]! * u;
+    const y0 = hy - BACK_SMOKE[i + 1]! * u;
+    for (let k = 0; k < 3; k++) {
+      const p = (s.t * 0.12 + k / 3 + BACK_SMOKE[i + 2]!) % 1;
+      circle(ctx, x0 + p * u * 0.03, y0 - p * u * 0.05, u * (0.004 + 0.008 * p));
+    }
+  }
+  ctx.fillStyle = SMOKE_FAR;
+  ctx.fill();
+}
+
+// ---------------------------------------------------------------- fog veil
+
+const VEIL_STOPS = [
+  [0, alpha(FOG, 0)],
+  [1, alpha(FOG, 0.75)],
+] as const;
+let veilCtx: Ctx | null = null;
+let veilFill: CanvasGradient | null = null;
+
+/** A soft band of fog over the feet of the back row, so the landmarks stand out in front. */
+function veil(ctx: Ctx, s: Scene, hy: number): void {
+  if (veilCtx !== ctx || !veilFill) {
+    veilCtx = ctx;
+    veilFill = ctx.createLinearGradient(0, 0, 0, 1);
+    for (const [at, c] of VEIL_STOPS) veilFill.addColorStop(at, c);
+  }
+  const h = s.u * 0.16;
+  ctx.save();
+  ctx.translate(0, hy - h);
+  ctx.scale(1, h);
+  ctx.fillStyle = veilFill;
+  ctx.fillRect(0, 0, s.cssW, 1.02);
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- landmark frame
+
+/** Origin and scale for the landmark drawing helpers below (set per landmark, no closures). */
+let ox = 0;
+let oy = 0;
+let ou = 1;
+/** Screen x of `v` u right of the landmark's center line. */
+function X(v: number): number {
+  return ox + v * ou;
+}
+/** Screen y of `v` u above the horizon. */
+function Y(v: number): number {
+  return oy - v * ou;
+}
+
+// ---------------------------------------------------------------- the dome
+
+const DOME_X = -0.15;
+
+/** The cathedral: a long body, a colonnaded drum, a ribbed dome, a lantern, ball and cross. */
+function dome(ctx: Ctx, s: Scene, cx: number, hy: number): void {
+  const u = s.u;
+  const x = cx + DOME_X * u;
+  ox = x;
+  oy = hy;
+  ou = u;
+
+  ctx.beginPath();
+  // Body and attic
+  ctx.rect(X(-0.11), Y(0.07), 0.22 * u, 0.07 * u + 1);
+  ctx.rect(X(-0.075), Y(0.088), 0.15 * u, 0.02 * u);
+  // Pediments over the two ends
+  ctx.moveTo(X(-0.11), Y(0.07));
+  ctx.lineTo(X(-0.085), Y(0.088));
+  ctx.lineTo(X(-0.06), Y(0.07));
+  ctx.closePath();
+  ctx.moveTo(X(0.06), Y(0.07));
+  ctx.lineTo(X(0.085), Y(0.088));
+  ctx.lineTo(X(0.11), Y(0.07));
+  ctx.closePath();
+  // Colonnade ring, drum, dome
+  ctx.rect(X(-0.058), Y(0.122), 0.116 * u, 0.034 * u);
+  ctx.rect(X(-0.05), Y(0.138), 0.1 * u, 0.018 * u);
+  ctx.moveTo(X(-0.05), Y(0.137));
+  ctx.ellipse(x, Y(0.137), 0.05 * u, 0.064 * u, 0, Math.PI, 0);
+  ctx.closePath();
+  // Lantern, its cap, ball and cross
+  ctx.rect(X(-0.0095), Y(0.222), 0.019 * u, 0.025 * u);
+  ctx.moveTo(X(-0.011), Y(0.222));
+  ctx.ellipse(x, Y(0.222), 0.011 * u, 0.012 * u, 0, Math.PI, 0);
+  ctx.closePath();
+  circle(ctx, x, Y(0.238), u * 0.0045);
+  ctx.rect(X(-0.0018), Y(0.262), 0.0036 * u, 0.022 * u);
+  ctx.rect(X(-0.008), Y(0.253), 0.016 * u, 0.0034 * u);
+  ctx.fillStyle = FAR;
+  ctx.fill();
+
+  // Snow: on the dome's crown, the ledges and the body's roof.
+  ctx.beginPath();
+  oval(ctx, x, Y(0.192), 0.03 * u, 0.012 * u);
+  ctx.rect(X(-0.061), Y(0.124), 0.122 * u, 0.0045 * u);
+  ctx.rect(X(-0.053), Y(0.14), 0.106 * u, 0.0045 * u);
+  ctx.rect(X(-0.077), Y(0.09), 0.154 * u, 0.004 * u);
+  ctx.fillStyle = FAR_SNOW;
+  ctx.fill();
+
+  // Lit slits between the columns, and the dome's ribs.
+  ctx.beginPath();
+  for (let i = 0; i < 7; i++) ctx.rect(X(-0.047 + i * 0.0155), Y(0.116), u * 0.0055, u * 0.02);
+  for (let i = 0; i < 3; i++) ctx.rect(X(-0.088 + i * 0.012), Y(0.058), u * 0.006, u * 0.016);
+  for (let i = 0; i < 3; i++) ctx.rect(X(0.064 + i * 0.012), Y(0.058), u * 0.006, u * 0.016);
+  ctx.fillStyle = FAR_LIGHT;
+  ctx.fill();
+  ctx.beginPath();
+  for (const k of [-0.6, -0.25, 0.25, 0.6]) {
+    ctx.moveTo(X(k * 0.05), Y(0.14));
+    ctx.quadraticCurveTo(X(k * 0.045), Y(0.185), x, Y(0.198));
+  }
+  ctx.strokeStyle = FAR_SNOW;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = Math.max(1, u * 0.0028);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- the steeple
+
+const STEEPLE_X = 0.17;
+const BELL_PERIOD = 7; // seconds per peal cycle
+const BELL_RING = 3.2; // seconds of each cycle the bell swings
+
+/** 0..1 swing envelope of the bell, and its angle. */
+function bellSwing(t: number): { on: number; angle: number } {
+  const p = ((t % BELL_PERIOD) + BELL_PERIOD) % BELL_PERIOD;
+  const on = p < BELL_RING ? Math.sin((p / BELL_RING) * Math.PI) : 0;
+  return { on, angle: Math.sin(p * 5.2) * 0.55 * on };
+}
+
+/** A tiered steeple: tower with a clock, an open belfry with a swinging bell, tiers, spire. */
+function steeple(ctx: Ctx, s: Scene, cx: number, hy: number): void {
+  const u = s.u;
+  const x = cx + STEEPLE_X * u;
+  ox = x;
+  oy = hy;
+  ou = u;
+
+  ctx.beginPath();
+  ctx.rect(X(-0.026), Y(0.15), 0.052 * u, 0.15 * u + 1);
+  // Belfry with an arched opening cut out (drawn as two piers and a lintel)
+  ctx.rect(X(-0.022), Y(0.198), 0.01 * u, 0.048 * u);
+  ctx.rect(X(0.012), Y(0.198), 0.01 * u, 0.048 * u);
+  ctx.rect(X(-0.022), Y(0.198), 0.044 * u, 0.01 * u);
+  // Tiers and the spire
+  ctx.rect(X(-0.016), Y(0.218), 0.032 * u, 0.021 * u);
+  ctx.rect(X(-0.011), Y(0.234), 0.022 * u, 0.017 * u);
+  ctx.moveTo(X(-0.008), Y(0.234));
+  ctx.lineTo(x, Y(0.315));
+  ctx.lineTo(X(0.008), Y(0.234));
+  ctx.closePath();
+  circle(ctx, x, Y(0.318), u * 0.004);
+  ctx.fillStyle = FAR;
+  ctx.fill();
+
+  // Inside the belfry: warm lamplight with the bell swinging in it.
+  const openX = X(-0.012);
+  const openY = Y(0.188);
+  const openH = 0.038 * u;
+  ctx.beginPath();
+  ctx.rect(openX, openY, 0.024 * u, openH);
+  ctx.fillStyle = FAR_LIGHT;
+  ctx.fill();
+  const { on, angle } = bellSwing(s.t);
+  ctx.save();
+  ctx.translate(x, openY + u * 0.003);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  const b = u * 0.0105;
+  ctx.moveTo(-b * 0.55, b * 0.3);
+  ctx.quadraticCurveTo(-b * 0.6, b * 1.5, -b * 1.05, b * 2);
+  ctx.lineTo(b * 1.05, b * 2);
+  ctx.quadraticCurveTo(b * 0.6, b * 1.5, b * 0.55, b * 0.3);
+  ctx.quadraticCurveTo(0, -b * 0.15, -b * 0.55, b * 0.3);
+  ctx.closePath();
+  circle(ctx, 0, b * 2.2, b * 0.3);
+  ctx.fillStyle = FAR;
+  ctx.fill();
+  ctx.restore();
+
+  // Clock face on the tower, and lit lancet windows below it.
+  const cy = Y(0.128);
+  ctx.beginPath();
+  circle(ctx, x, cy, u * 0.012);
+  ctx.rect(X(-0.005), Y(0.085), u * 0.01, u * 0.024);
+  ctx.rect(X(-0.005), Y(0.045), u * 0.01, u * 0.024);
+  ctx.fillStyle = FAR_LIGHT;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x, cy);
+  ctx.lineTo(x, cy - u * 0.009);
+  ctx.moveTo(x, cy);
+  ctx.lineTo(x + u * 0.006, cy + u * 0.002);
+  ctx.strokeStyle = FAR;
+  ctx.lineWidth = Math.max(1, u * 0.0025);
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  // Snow on the ledges.
+  ctx.beginPath();
+  ctx.rect(X(-0.029), Y(0.152), 0.058 * u, 0.005 * u);
+  ctx.rect(X(-0.025), Y(0.2), 0.05 * u, 0.0045 * u);
+  ctx.rect(X(-0.018), Y(0.22), 0.036 * u, 0.004 * u);
+  ctx.rect(X(-0.013), Y(0.236), 0.026 * u, 0.004 * u);
+  ctx.fillStyle = FAR_SNOW;
+  ctx.fill();
+
+  // While it swings, rings of sound spread from the belfry and fade.
+  if (on > 0.02) {
+    const by = openY + openH * 0.5;
+    const p = (s.t * 0.9) % 1;
     ctx.beginPath();
-    for (let i = c4 * 2; i + 1 < BULBS.length; i += FAR_LIGHTS.length * 2) circle(ctx, cx + BULBS[i]! * u, hy + BULBS[i + 1]! * u, r);
-    ctx.fillStyle = lit ? FAR_LIGHTS[c4]! : FAR_LIGHTS_DIM[c4]!;
-    ctx.fill();
+    for (let k = 0; k < 2; k++) {
+      const q = (p + k * 0.5) % 1;
+      const r = u * (0.03 + q * 0.07);
+      ctx.moveTo(x + Math.cos(-0.5) * r, by + Math.sin(-0.5) * r);
+      ctx.arc(x, by, r, -0.5, 0.5);
+      ctx.moveTo(x - Math.cos(-0.5) * r, by + Math.sin(-0.5) * r);
+      ctx.arc(x, by, r, Math.PI + 0.5, Math.PI - 0.5, true);
+    }
+    ctx.strokeStyle = "#ffffff";
+    ctx.globalAlpha = 0.55 * on;
+    ctx.lineWidth = Math.max(1.2, u * 0.004);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }
 
 /**
- * The horizon, then Santa's sleigh: it flies in front of the distant village (so a tall
- * spire never cuts through it on wide screens) but behind the cloud bank, which it seems
- * to fly out of at the screen's edge.
+ * The horizon: the hazy back row, a fog veil, the dome and the steeple, then the pigeons
+ * passing over (in front of the skyline, behind the fog bank).
  */
 export function far(ctx: Ctx, s: Scene): void {
   const hy = s.horizonY;
-  if (hy - s.u * 0.55 <= s.cssH) {
-    backForest(ctx, s, hy);
-    framingFirs(ctx, s, hy);
-    village(ctx, s, hy);
+  const cx = s.cssW / 2;
+  if (hy - s.u * 0.4 <= s.cssH) {
+    backRow(ctx, s, cx, hy);
+    veil(ctx, s, hy);
+    dome(ctx, s, cx, hy);
+    steeple(ctx, s, cx, hy);
   }
-  sleigh(ctx, s);
+  pigeonFlock(ctx, s);
 }

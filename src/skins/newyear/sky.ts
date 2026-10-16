@@ -2,11 +2,13 @@ import { alpha, circle, hash, mix, type Ctx } from "../../base/draw";
 import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
 import { MID_SPAN, PEAK_LEFT, PEAK_RIGHT, SKYLINE_MID } from "./city";
-import { clamp01, CREAM, GOLD, INK, PARTY, PINK, TAU } from "./colors";
+import { CHAMPAGNE, clamp01, GOLD, GOLD_LIGHT, IVORY, PARTY, ROSE, TAU } from "./colors";
+import { barbPath, PLUME, PLUME_HALF, plumePath, quillPath } from "./plume";
 
-// The New Year's sky: a full moon wearing a party hat, bright cartoon fireworks (fat dots of
-// flat color, no outlines) that come faster the higher you climb, and confetti drifting down.
-// Everything here is drawn behind the city and the clouds, so rockets rise from behind them.
+// The New Year's sky: a pale-gold full moon ringed with flat Deco halos, bright cartoon
+// fireworks (fat dots of flat color, no outlines; gold willows for Gatsby) that come faster
+// the higher you climb, confetti drifting down, and a few flapper's ostrich plumes see-sawing
+// down with it. Everything here is drawn behind the city and the clouds.
 
 /* ---------------------------------------------------------------- HUD keep-out */
 
@@ -26,82 +28,63 @@ function titleOn(s: Scene): number {
 
 /* ---------------------------------------------------------------- moon */
 
-/** The moon's center height (of cssH) and largest radius (u), for keeping bursts off it. */
-const MOON_Y = 0.085;
-const MOON_R_MAX = 0.1;
-const MOON = "#fff3cf";
-const CRATER = mix(MOON, "#c9a6e8", 0.32);
-const HAT = PINK;
-const HAT_SHADE = mix(PINK, INK, 0.22);
-const HAT_STRIPE = GOLD;
-/** Where the hat sits on the rim (angle from the moon's center), and how far it is tipped. */
-const HAT_AT = -2.25;
-const HAT_TIP = -0.18;
+/** The moon's smallest and largest radius (u). */
+const MOON_R_MIN = 0.068;
+const MOON_R_MAX = 0.085;
+/** Gap (u) between the title's baseline and the top of the moon at its largest: room for the
+ *  title's descenders and outline, so the start-screen title never covers the moon. */
+const MOON_DROP = 0.045;
+/** Halo radius, as a multiple of the moon's radius. */
+const MOON_HALO = 1.62;
+const MOON = "#fff0c6";
+const CRATER = mix(MOON, CHAMPAGNE, 0.75);
+const HALO_IN = alpha(GOLD_LIGHT, 0.13);
+const HALO_OUT = alpha(GOLD_LIGHT, 0.07);
+/** Craters: offset and radius as fractions of the moon's radius. */
+const CRATERS: readonly (readonly [number, number, number])[] = [
+  [0.3, 0.1, 0.17],
+  [-0.2, 0.42, 0.12],
+  [0.46, -0.34, 0.08],
+  [-0.4, -0.05, 0.08],
+  [-0.05, -0.4, 0.06],
+];
 
-/** A full moon in party mode: flat and pale with one soft halo, a striped hat on its head. */
-export function partyMoon(ctx: Ctx, s: Scene): void {
-  const a = altitude01(s);
-  const r = s.u * (0.075 + a * (MOON_R_MAX - 0.075));
-  const x = Math.max(r * 1.7, s.cssW / 2 - s.u * 0.34);
-  const y = s.cssH * MOON_Y;
+function moonR(s: Scene): number {
+  return s.u * (MOON_R_MIN + altitude01(s) * (MOON_R_MAX - MOON_R_MIN));
+}
 
-  ctx.save();
-  ctx.shadowColor = "rgba(255, 240, 205, 0.55)";
-  ctx.shadowBlur = r * 0.9;
-  ctx.fillStyle = MOON;
+/** Left of the HUD columns, never off the screen. */
+function moonX(s: Scene, r: number): number {
+  return Math.max(r + s.u * 0.02, Math.min(s.cssW * HUD_X0 - r - s.u * 0.01, s.cssW / 2 - s.u * 0.3));
+}
+
+/** Just under the title's row (render.ts puts its baseline at cssH * TITLE_Y), so the wide
+ *  start-screen title never hides it; the HUD columns beside it stay clear. */
+function moonY(s: Scene): number {
+  return s.cssH * TITLE_Y + s.u * (MOON_DROP + MOON_R_MAX);
+}
+
+/** A full moon in flat pale gold, ringed by two flat Deco halos. */
+export function decoMoon(ctx: Ctx, s: Scene): void {
+  const r = moonR(s);
+  const x = moonX(s, r);
+  const y = moonY(s);
+  ctx.beginPath();
+  circle(ctx, x, y, r * MOON_HALO);
+  ctx.fillStyle = HALO_OUT;
+  ctx.fill();
+  ctx.beginPath();
+  circle(ctx, x, y, r * 1.3);
+  ctx.fillStyle = HALO_IN;
+  ctx.fill();
   ctx.beginPath();
   circle(ctx, x, y, r);
+  ctx.fillStyle = MOON;
   ctx.fill();
-  ctx.restore();
-
+  ctx.beginPath();
+  for (const [dx, dy, cr] of CRATERS) circle(ctx, x + dx * r, y + dy * r, cr * r);
   ctx.fillStyle = CRATER;
-  ctx.beginPath();
-  circle(ctx, x + r * 0.32, y + r * 0.08, r * 0.17);
-  circle(ctx, x - r * 0.18, y + r * 0.42, r * 0.12);
-  circle(ctx, x + r * 0.5, y - r * 0.32, r * 0.08);
-  circle(ctx, x - r * 0.42, y + r * 0.02, r * 0.07);
   ctx.fill();
-
-  // The hat: a cone whose brim sits just inside the rim, tipped back off the moon's head.
-  const bx = x + Math.cos(HAT_AT) * r * 0.8;
-  const by = y + Math.sin(HAT_AT) * r * 0.8;
-  const w = r * 0.95;
-  const h = r * 1.05;
-  ctx.save();
-  ctx.translate(bx, by);
-  ctx.rotate(HAT_AT + Math.PI / 2 + HAT_TIP);
-  ctx.beginPath();
-  ctx.moveTo(-w / 2, 0);
-  ctx.lineTo(0, -h);
-  ctx.lineTo(w / 2, 0);
-  ctx.quadraticCurveTo(0, w * 0.2, -w / 2, 0);
-  ctx.fillStyle = HAT;
-  ctx.fill();
-  ctx.save();
-  ctx.clip();
-  // Shaded right flank, then two gold bands around the cone
-  ctx.fillStyle = HAT_SHADE;
-  ctx.beginPath();
-  ctx.moveTo(w * 0.08, 0.1 * w);
-  ctx.lineTo(0, -h);
-  ctx.lineTo(w, 0);
-  ctx.lineTo(w, w);
-  ctx.fill();
-  ctx.strokeStyle = HAT_STRIPE;
-  ctx.lineWidth = h * 0.12;
-  ctx.beginPath();
-  ctx.moveTo(-w, -h * 0.2);
-  ctx.lineTo(w, -h * 0.02);
-  ctx.moveTo(-w, -h * 0.58);
-  ctx.lineTo(w, -h * 0.4);
-  ctx.stroke();
-  ctx.restore();
-  // Pom-pom
-  ctx.fillStyle = CREAM;
-  ctx.beginPath();
-  circle(ctx, 0, -h, r * 0.15);
-  ctx.fill();
-  ctx.restore();
 }
 
 /* ---------------------------------------------------------------- fireworks */
@@ -113,15 +96,16 @@ interface Launcher {
   need: number;
 }
 
-const LAUNCHERS: Launcher[] = Array.from({ length: 11 }, (_, i) => {
-  const period = 3.4 + hash(i * 5.31 + 1) * 1.8;
+/** Launchers that always fire; the rest join in one by one as the tower climbs. */
+const ALWAYS = 5;
+const LAUNCHERS: Launcher[] = Array.from({ length: 15 }, (_, i) => {
+  const period = 3.3 + hash(i * 5.31 + 1) * 1.8;
   return {
     period,
     // Golden-ratio stagger so launchers never all rest at once; the constant phase puts
     // a few bursts in the air within the first seconds.
     offset: ((i * 0.618034) % 1) * period + hash(i * 5.31 + 2) * 0.4 + 3.75,
-    // Five always fire; the rest join in as the tower climbs.
-    need: i < 5 ? -1 : 0.08 + ((i - 5) / 6) * 0.7,
+    need: i < ALWAYS ? -1 : 0.06 + ((i - ALWAYS) / (14 - ALWAYS)) * 0.8,
   };
 });
 
@@ -133,9 +117,9 @@ const BLOOM = 1.9; // seconds the burst lasts
 const ABOVE = 1.15;
 const BELOW = 1.35;
 const BELOW_WILLOW = 1.55;
-/** Burst styles by hash(seed + 8): peony below RING_AT, ring below WILLOW_AT, else willow. */
-const RING_AT = 0.5;
-const WILLOW_AT = 0.75;
+/** Burst styles by hash(seed + 8): peony below RING_AT, ring below WILLOW_AT, else a gold willow. */
+const RING_AT = 0.45;
+const WILLOW_AT = 0.68;
 
 const OUTER = 14;
 const INNER = 7;
@@ -154,7 +138,8 @@ const HEADS = new Float32Array(OUTER * 2);
 const SPOT = { x: 0, y: 0, r: 0 };
 /** Trail tints (a step lighter than the heads), the willow's gold trail, and the cel highlight. */
 const TRAIL = PARTY.map((c) => mix(c, "#ffffff", 0.35));
-const WILLOW_TRAIL = mix(GOLD, "#ffffff", 0.35);
+const WILLOW_HEAD = GOLD_LIGHT;
+const WILLOW_TRAIL = mix(GOLD, "#ffffff", 0.2);
 const HIGHLIGHT = alpha("#ffffff", 0.75);
 
 /** Pop flash: an eight-point star, unit radius. */
@@ -219,9 +204,12 @@ function place(s: Scene, seed: number, a: number): number {
   const cxMin = cR + u * 0.02;
   const cxMax = W * HUD_X0 - cR - 2;
   const title = H * 0.05 + (H * TITLE_Y + u * 0.04 - H * 0.05) * titleOn(s);
-  const ceiling = left ? Math.max(title, H * MOON_Y + u * (MOON_R_MAX + 0.02)) : title;
-  const cY0 = ceiling + cR * ABOVE;
-  const cY1 = Math.min(hudBottom, rowTop - cR * below * follow, peak - cR * below);
+  const cY0 = title + cR * ABOVE;
+  // On the left the moon fills the corner under the title's row, so bursts there go above it
+  // (once the title has gone).
+  const moonTop = H * TITLE_Y + u * (MOON_DROP - MOON_R_MAX * (MOON_HALO - 1) - 0.02);
+  const floor = left ? moonTop - cR * below : hudBottom;
+  const cY1 = Math.min(floor, rowTop - cR * below * follow, peak - cR * below);
   const lowOK = lowY1 >= lowY0;
   const cornerOK = cxMax > cxMin && cY1 >= cY0;
   let x: number;
@@ -250,7 +238,7 @@ function fireworks(ctx: Ctx, s: Scene): void {
 
   for (let i = 0; i < LAUNCHERS.length; i++) {
     const L = LAUNCHERS[i]!;
-    const join = clamp01((a - L.need) / 0.1);
+    const join = clamp01((a - L.need) / 0.08);
     if (join <= 0) continue;
     const tt = s.t + L.offset;
     const cycle = Math.floor(tt / L.period);
@@ -268,7 +256,7 @@ function fireworks(ctx: Ctx, s: Scene): void {
     const style = hash(seed + 8);
 
     if (local < RISE) {
-      // Rocket: a cream head with a dotted gold trail, rising from behind the city.
+      // Rocket: an ivory head with a dotted gold trail, rising from behind the city.
       const k = local / RISE;
       const sx = bx + (hash(seed + 9) - 0.5) * u * 0.1;
       ctx.globalAlpha = on;
@@ -282,7 +270,7 @@ function fireworks(ctx: Ctx, s: Scene): void {
       const e = cubicOut(k);
       ctx.beginPath();
       circle(ctx, sx + (bx - sx) * e, launchY + (by - launchY) * e, u * 0.008);
-      ctx.fillStyle = CREAM;
+      ctx.fillStyle = IVORY;
       ctx.fill();
       ctx.globalAlpha = 1;
       continue;
@@ -296,21 +284,21 @@ function fireworks(ctx: Ctx, s: Scene): void {
     const droop = R * (willow ? 0.55 : 0.3) * k * k;
     const droopT = R * (willow ? 0.55 : 0.3) * Math.max(0, k - 0.2) ** 2;
     const shrink = k < 0.5 ? 1 : 1 - ((k - 0.5) / 0.5) * 0.8;
-    const pr = R * (willow ? 0.055 : ring ? 0.085 : 0.075) * shrink;
+    const pr = R * (willow ? 0.06 : ring ? 0.085 : 0.075) * shrink;
     const squash = ring ? 0.55 + hash(seed + 10) * 0.3 : 1;
     const tilt = ring ? (hash(seed + 11) - 0.5) * 0.9 : 0;
     const ct = Math.cos(tilt);
     const st = Math.sin(tilt);
     ctx.globalAlpha = on * (k < 0.82 ? 1 : 1 - (k - 0.82) / 0.18);
 
-    // The pop: a flat cream star at the center
+    // The pop: a flat ivory star at the center
     if (k < 0.14) {
       const fr = R * 0.38 * (1 - k / 0.14);
       ctx.beginPath();
       ctx.moveTo(bx + FLASH[0]![0] * fr, by + FLASH[0]![1] * fr);
       for (let j = 1; j < FLASH.length; j++) ctx.lineTo(bx + FLASH[j]![0] * fr, by + FLASH[j]![1] * fr);
       ctx.closePath();
-      ctx.fillStyle = CREAM;
+      ctx.fillStyle = IVORY;
       ctx.fill();
     }
 
@@ -337,7 +325,7 @@ function fireworks(ctx: Ctx, s: Scene): void {
     }
     ctx.beginPath();
     for (let j = 0; j < OUTER; j++) circle(ctx, HEADS[j * 2]!, HEADS[j * 2 + 1]!, pr);
-    ctx.fillStyle = willow ? CREAM : c1;
+    ctx.fillStyle = willow ? WILLOW_HEAD : c1;
     ctx.fill();
 
     // Inner two-tone ring on peonies
@@ -359,7 +347,7 @@ function fireworks(ctx: Ctx, s: Scene): void {
   }
 }
 
-/* ---------------------------------------------------------------- confetti */
+/* ---------------------------------------------------------------- confetti and feathers */
 
 const CONFETTI = Array.from({ length: 44 }, (_, i) => ({
   x: hash(i * 3.7 + 11),
@@ -371,14 +359,29 @@ const CONFETTI = Array.from({ length: 44 }, (_, i) => ({
   size: 0.016 + hash(i * 3.7 + 17) * 0.008,
   color: i % PARTY.length,
 }));
-const CONFETTI_BACK = PARTY.map((c) => mix(c, INK, 0.3));
+const CONFETTI_BACK = PARTY.map((c) => mix(c, "#5a4a8a", 0.35));
+
+/** Where a falling piece is: x and y in CSS px, or y > floor when it is out of sight. */
+const AT = { x: 0, y: 0, d: 0 };
+
+/** Shared fall for confetti and feathers: pieces whose swing (`reach`, u either side) takes
+ *  them over the HUD columns start falling below the HUD. */
+function fall(s: Scene, fx01: number, phase: number, speed: number, reach: number): void {
+  const { cssW: W, cssH: H, u } = s;
+  const fx = fx01 * W;
+  const r = reach * u;
+  const top = fx + r > W * HUD_X0 && fx - r < W * HUD_X1 ? H * HUD_BOTTOM : -u * 0.06;
+  const span = H + u * 0.08 - top;
+  AT.d = (((s.t * speed * u + phase * span) % span) + span) % span;
+  AT.x = fx;
+  AT.y = top + AT.d;
+}
 
 /** Confetti drifting down the sky, tumbling so each piece flashes its darker back. */
 function confettiFall(ctx: Ctx, s: Scene): void {
-  const { cssW: W, cssH: H, u } = s;
-  const hudBottom = H * HUD_BOTTOM;
-  const floor = Math.min(H, s.horizonY);
-  const count = Math.round(28 + 16 * altitude01(s));
+  const u = s.u;
+  const floor = Math.min(s.cssH, s.horizonY);
+  const count = Math.round(26 + 18 * altitude01(s));
   for (let c = 0; c < PARTY.length; c++) {
     for (let side = 0; side < 2; side++) {
       ctx.beginPath();
@@ -386,17 +389,13 @@ function confettiFall(ctx: Ctx, s: Scene): void {
       for (let i = 0; i < count; i++) {
         const p = CONFETTI[i]!;
         if (p.color !== c) continue;
-        const fx = p.x * W;
-        // Pieces over the HUD start falling below it, growing in as they appear.
-        const top = fx > W * HUD_X0 && fx < W * HUD_X1 ? hudBottom : -u * 0.03;
-        const span = H + u * 0.05 - top;
-        const d = (((s.t * p.speed * u + p.phase * span) % span) + span) % span;
-        const y = top + d;
+        fall(s, p.x, p.phase, p.speed, p.sway + p.size * 0.6);
+        const y = AT.y;
         if (y > floor) continue;
         const flip = Math.cos(s.t * p.spin + i);
         if ((flip >= 0) !== (side === 0)) continue;
-        const grow = clamp01(d / (u * 0.05));
-        const x = fx + Math.sin(s.t * 1.3 + i) * p.sway * u;
+        const grow = clamp01(AT.d / (u * 0.05));
+        const x = AT.x + Math.sin(s.t * 1.3 + i) * p.sway * u;
         const w = p.size * u * grow * Math.max(0.15, Math.abs(flip));
         const h = p.size * u * grow * 0.55;
         const rot = p.turn + s.t * p.spin * 0.25;
@@ -420,8 +419,104 @@ function confettiFall(ctx: Ctx, s: Scene): void {
   }
 }
 
+/** Ostrich plumes: color, its shaded half, and how each one falls and see-saws. */
+const PLUME_COLORS = [IVORY, ROSE, GOLD_LIGHT, IVORY, ROSE, CHAMPAGNE] as const;
+const PLUMES = PLUME_COLORS.map((color, i) => ({
+  color,
+  shade: mix(color, "#6a4a8a", 0.28),
+  x: 0.08 + ((i * 0.618034 + 0.13) % 1) * 0.84,
+  phase: hash(i * 7.3 + 61),
+  speed: 0.045 + hash(i * 7.3 + 62) * 0.02,
+  swing: 0.04 + hash(i * 7.3 + 63) * 0.03,
+  rate: 0.9 + hash(i * 7.3 + 64) * 0.5,
+  size: 0.06 + hash(i * 7.3 + 65) * 0.02,
+}));
+
+/** Plumes falling slowly, see-sawing as they go, never in front of the HUD. */
+function plumes(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  const floor = Math.min(s.cssH, s.horizonY) + u * 0.05;
+  const n = 3 + Math.round(3 * altitude01(s));
+  ctx.lineCap = "round";
+  for (let i = 0; i < n; i++) {
+    const p = PLUMES[i]!;
+    fall(s, p.x, p.phase, p.speed, p.swing + p.size * 0.6);
+    if (AT.y - u * p.size > floor) continue;
+    const grow = clamp01(AT.d / (u * 0.08));
+    if (grow <= 0) continue;
+    const sw = Math.sin(s.t * p.rate + i * 2.1);
+    const x = AT.x + sw * p.swing * u;
+    const f = p.size * u * grow;
+    const rot = sw * 0.7 + 0.25;
+    const c = Math.cos(rot);
+    const sn = Math.sin(rot);
+    ctx.beginPath();
+    plumePath(ctx, PLUME, x, AT.y, f, c, sn);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.beginPath();
+    plumePath(ctx, PLUME_HALF, x, AT.y, f, c, sn);
+    ctx.fillStyle = p.shade;
+    ctx.fill();
+    ctx.beginPath();
+    barbPath(ctx, x, AT.y, f, c, sn);
+    quillPath(ctx, x, AT.y, f, c, sn);
+    ctx.strokeStyle = p.shade;
+    ctx.lineWidth = Math.max(1, f * 0.05);
+    ctx.stroke();
+  }
+  ctx.lineCap = "butt";
+}
+
+/* ---------------------------------------------------------------- glitter */
+
+/** Little four-point twinkles popping in the clear sky either side of the tower; more join in
+ *  as you climb. Each pops at a fresh spot every cycle. */
+const GLITTER = Array.from({ length: 16 }, (_, i) => ({
+  period: 1.5 + hash(i * 9.1 + 80) * 1.3,
+  offset: hash(i * 9.1 + 81) * 5,
+  need: 0.1 + (i / 16) * 0.8,
+}));
+
+function glitter(ctx: Ctx, s: Scene): void {
+  const a = altitude01(s);
+  const { cssW: W, cssH: H, u } = s;
+  const top = H * 0.44;
+  const floor = Math.min(H * 0.86, s.horizonY - u * 0.42);
+  if (floor - top < u * 0.1) return;
+  const span = W / 2 - u * 0.3 - u * 0.04;
+  if (span <= 0) return;
+  ctx.beginPath();
+  for (let i = 0; i < GLITTER.length; i++) {
+    const g = GLITTER[i]!;
+    if (a < g.need) continue;
+    const tt = s.t + g.offset;
+    const cycle = Math.floor(tt / g.period);
+    const p = (tt - cycle * g.period) / g.period;
+    if (p > 0.35) continue;
+    const seed = i * 37 + cycle * 11;
+    const xx = u * 0.04 + hash(seed + 1) * span;
+    const x = hash(seed) < 0.5 ? xx : W - xx;
+    const y = top + hash(seed + 2) * (floor - top);
+    const r = u * (0.012 + hash(seed + 3) * 0.01) * Math.sin((p / 0.35) * Math.PI);
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r * 0.22, y - r * 0.22);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x + r * 0.22, y + r * 0.22);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r * 0.22, y + r * 0.22);
+    ctx.lineTo(x - r, y);
+    ctx.lineTo(x - r * 0.22, y - r * 0.22);
+    ctx.closePath();
+  }
+  ctx.fillStyle = GOLD_LIGHT;
+  ctx.fill();
+}
+
 /** Everything in the New Year's sky between the moon and the skyline. */
 export function newYearSky(ctx: Ctx, s: Scene): void {
   fireworks(ctx, s);
+  glitter(ctx, s);
   confettiFall(ctx, s);
+  plumes(ctx, s);
 }

@@ -1,5 +1,5 @@
-import { alpha, circle, ink, mix, type Ctx } from "../../base/draw";
-import { INK, LIGHTS, RED, SNOW, SNOW_SHADE } from "./colors";
+import { alpha, ink, type Ctx } from "../../base/draw";
+import { INK, LAMP, LAMP_CORE, SNOW, SNOW_SHADE } from "./colors";
 
 // Path builders and small drawing routines shared by the Christmas layers.
 // Path builders only add subpaths (no beginPath), so callers can batch several shapes.
@@ -29,45 +29,27 @@ export function sparklePath(ctx: Ctx, x: number, y: number, r: number): void {
   ctx.closePath();
 }
 
-/** A tier of a fir: top y, bottom y and half width at the bottom, all as fractions of the height. */
-export interface Tier {
-  top: number;
-  bottom: number;
-  half: number;
+/** A quadrilateral as its own subpath. */
+export function quad(ctx: Ctx, ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): void {
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.lineTo(cx, cy);
+  ctx.lineTo(dx, dy);
+  ctx.closePath();
 }
 
 /**
- * Outline of a tiered fir standing at y = 0 with its apex at y = -1, as [x, y] pairs
- * (fractions of the height), clockwise. Notches sit where each tier tucks under the next.
+ * A soft snow cap lying on a ledge from x0 to x1 at y: a flat underside with a lumpy top
+ * `h` high and a little overhang at both ends, as its own subpath.
  */
-export function firOutline(tiers: Tier[], trunk: number): [number, number][] {
-  const right: [number, number][] = [];
-  const last = tiers[tiers.length - 1]!;
-  right.push([0, tiers[0]!.top]);
-  tiers.forEach((t, i) => {
-    right.push([t.half, t.bottom]);
-    const next = tiers[i + 1];
-    if (next) {
-      const y = t.bottom - 0.03;
-      const k = (y - next.top) / (next.bottom - next.top);
-      right.push([next.half * Math.max(0.12, k), y]);
-    }
-  });
-  right.push([trunk, last.bottom - 0.01], [trunk, 0]);
-  const left = right
-    .slice(1)
-    .reverse()
-    .map(([x, y]) => [-x, y] as [number, number]);
-  return [...right, ...left];
-}
-
-/** Add a precomputed fir outline at (x, base), `h` pixels tall, as its own subpath. */
-export function firPath(ctx: Ctx, pts: readonly [number, number][], x: number, base: number, h: number): void {
-  for (let i = 0; i < pts.length; i++) {
-    const [px, py] = pts[i]!;
-    if (i === 0) ctx.moveTo(x + px * h, base + py * h);
-    else ctx.lineTo(x + px * h, base + py * h);
-  }
+export function snowCap(ctx: Ctx, x0: number, x1: number, y: number, h: number): void {
+  const w = x1 - x0;
+  const o = Math.min(h * 0.5, w * 0.08);
+  ctx.moveTo(x0 - o, y + h * 0.25);
+  ctx.quadraticCurveTo(x0 - o, y - h * 0.7, x0 + w * 0.2, y - h * 0.85);
+  ctx.quadraticCurveTo(x0 + w * 0.45, y - h * 1.15, x0 + w * 0.62, y - h * 0.8);
+  ctx.quadraticCurveTo(x0 + w * 0.85, y - h * 0.95, x1 + o, y + h * 0.15);
+  ctx.quadraticCurveTo(x0 + w * 0.5, y + h * 0.45, x0 - o, y + h * 0.25);
   ctx.closePath();
 }
 
@@ -79,9 +61,9 @@ function moundTop(ctx: Ctx, x: number, y: number, w: number, h: number): void {
 }
 
 /**
- * A snow drift planted on the field: an uneven hump `w` wide and `h` tall with its feet at y.
- * Lit snow on top shading to blue at the feet, inked along its top edge only, so it reads
- * as part of the snowfield rather than a sticker on it.
+ * A snow drift planted on the street: an uneven hump `w` wide and `h` tall with its feet at
+ * y. Lit snow with a flat blue shade along its foot, inked along its top edge only, so it reads
+ * as part of the snow rather than a sticker on it.
  */
 export function mound(ctx: Ctx, x: number, y: number, w: number, h: number, lw: number): void {
   ctx.beginPath();
@@ -89,11 +71,14 @@ export function mound(ctx: Ctx, x: number, y: number, w: number, h: number, lw: 
   moundTop(ctx, x, y, w, h);
   ctx.quadraticCurveTo(x, y + h * 0.6, x - w / 2, y);
   ctx.closePath();
-  const g = ctx.createLinearGradient(0, y - h, 0, y + h * 0.3);
-  g.addColorStop(0, SNOW);
-  g.addColorStop(0.55, SNOW);
-  g.addColorStop(1, SNOW_SHADE);
-  ctx.fillStyle = g;
+  ctx.fillStyle = SNOW;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.42, y - h * 0.12);
+  ctx.quadraticCurveTo(x, y - h * 0.4, x + w * 0.46, y - h * 0.08);
+  ctx.quadraticCurveTo(x, y + h * 0.5, x - w * 0.42, y - h * 0.12);
+  ctx.closePath();
+  ctx.fillStyle = SNOW_SHADE;
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(x - w / 2, y);
@@ -101,88 +86,32 @@ export function mound(ctx: Ctx, x: number, y: number, w: number, h: number, lw: 
   ink(ctx, lw, INK);
 }
 
-/** Each light color in a few brightness steps, dim to lit, worked out once. */
-const BULB_STEPS = 6;
-const BULB_SHADES = LIGHTS.map((c) =>
-  Array.from({ length: BULB_STEPS }, (_, i) => {
-    const tw = i / (BULB_STEPS - 1);
-    return mix(mix(c, "#ffffff", 0.35 * tw), INK, 0.4 * (1 - tw));
-  }),
-);
-const BULB_GLINT = alpha("#ffffff", 0.85);
+// ---------------------------------------------------------------- glows
 
 /**
- * Twinkling light bulbs in the Christmas colors. `pts` holds x, y pairs already in screen
- * space; bulb i takes color i % 4. Each color brightens and dims in turn, so the lights
- * chase. Flat cartoon bulbs: a faint flat halo when lit, an ink rim and a white glint.
+ * Soft round glows (lamps, lanterns, windows) without shadowBlur and without a new gradient
+ * per frame: one unit radial gradient per canvas, scaled into place with the transform.
  */
-export function drawBulbs(ctx: Ctx, pts: readonly number[], r: number, t: number, speed = 3, lw = 1): void {
-  const n = LIGHTS.length;
-  for (let c = 0; c < n; c++) {
-    const color = LIGHTS[c]!;
-    const tw = 0.5 + 0.5 * Math.sin(t * speed - c * (TAU / n));
-    if (tw > 0.45) {
-      ctx.beginPath();
-      for (let i = c * 2; i + 1 < pts.length; i += n * 2) circle(ctx, pts[i]!, pts[i + 1]!, r * 1.9);
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.3 * (tw - 0.45);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-    ctx.beginPath();
-    for (let i = c * 2; i + 1 < pts.length; i += n * 2) circle(ctx, pts[i]!, pts[i + 1]!, r);
-    ctx.fillStyle = BULB_SHADES[c]![Math.round(tw * (BULB_STEPS - 1))]!;
-    ctx.fill();
+const GLOW_STOPS = [
+  [0, alpha(LAMP_CORE, 0.55)],
+  [0.35, alpha(LAMP, 0.28)],
+  [1, alpha(LAMP, 0)],
+] as const;
+let glowCtx: Ctx | null = null;
+let glowFill: CanvasGradient | null = null;
+
+/** A warm glow of radius r centered at (x, y), at `strength` (0..1) opacity. */
+export function glow(ctx: Ctx, x: number, y: number, r: number, strength = 1): void {
+  if (glowCtx !== ctx || !glowFill) {
+    glowCtx = ctx;
+    glowFill = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    for (const [at, c] of GLOW_STOPS) glowFill.addColorStop(at, c);
   }
-  ctx.beginPath();
-  for (let i = 0; i + 1 < pts.length; i += 2) circle(ctx, pts[i]!, pts[i + 1]!, r);
-  ink(ctx, lw, INK);
-  ctx.beginPath();
-  for (let i = 0; i + 1 < pts.length; i += 2) circle(ctx, pts[i]! - r * 0.3, pts[i + 1]! - r * 0.3, r * 0.32);
-  ctx.fillStyle = BULB_GLINT;
-  ctx.fill();
-}
-
-/**
- * Add a candy cane: shaft from its foot (x, base) up `h`, hook bending toward `dir`
- * (1 right, -1 left), the whole cane leaning by `tilt` radians (positive leans right).
- */
-export function canePath(ctx: Ctx, x: number, base: number, h: number, dir: number, tilt: number): void {
-  const r = h * 0.18;
-  const sin = Math.sin(tilt);
-  const cos = Math.cos(tilt);
-  const top = -h + r;
-  ctx.moveTo(x, base);
-  ctx.lineTo(x - top * sin, base + top * cos);
-  const ax = dir * r;
-  ctx.arc(
-    x + ax * cos - top * sin,
-    base + ax * sin + top * cos,
-    r,
-    (dir > 0 ? Math.PI : 0) + tilt,
-    (dir > 0 ? 0 : Math.PI) + tilt,
-    dir < 0,
-  );
-  const tx = dir * r * 2;
-  const ty = top + r * 0.75;
-  ctx.lineTo(x + tx * cos - ty * sin, base + tx * sin + ty * cos);
-}
-
-/** Reused dash pattern for the cane stripes. */
-const STRIPES = [0, 0];
-
-/** Stroke the current path as an inked candy cane: ink rim, white tube, red stripes. */
-export function caneStroke(ctx: Ctx, w: number, lw: number): void {
   ctx.save();
-  ink(ctx, w + lw * 2, INK);
-  ctx.strokeStyle = "#fff6f6";
-  ctx.lineWidth = w;
-  ctx.stroke();
-  ctx.lineCap = "butt";
-  STRIPES[0] = w * 0.75;
-  STRIPES[1] = w * 0.75;
-  ctx.setLineDash(STRIPES);
-  ctx.strokeStyle = RED;
-  ctx.stroke();
+  ctx.translate(x, y);
+  ctx.scale(r, r);
+  ctx.globalAlpha *= strength;
+  ctx.fillStyle = glowFill;
+  ctx.fillRect(-1, -1, 2, 2);
   ctx.restore();
 }

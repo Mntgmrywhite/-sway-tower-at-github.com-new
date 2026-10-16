@@ -1,74 +1,103 @@
 import type { CartoonSkin } from "./skin";
 import { city } from "./newyear/city";
-import { BLUE, CYAN, FAR, GOLD, INK, LIME, MAGENTA, MINT, ORANGE, PINK, RED, SILVER, VIOLET } from "./newyear/colors";
-import { partyPlaza } from "./newyear/ground";
 import {
-  balloon,
+  AMBER,
+  AMETHYST,
+  AQUA,
+  FAR,
+  GOLD,
+  INK,
+  IVORY,
+  LIME,
+  MARBLE_FAR,
+  MARBLE_NEAR,
+  ORCHID,
+  ROSE,
+  RUBY,
+  SAPPHIRE,
+  SILVER,
+  SKY_BOTTOM,
+  SKY_MID,
+  SKY_TOP,
+} from "./newyear/colors";
+import { decoRail } from "./newyear/front";
+import { partyTerrace } from "./newyear/ground";
+import {
   bowTie,
-  burst,
   clock,
-  confetti,
-  discoBall,
-  flute,
-  horn,
-  partyHat,
-  sparkle,
+  cocktail,
+  coupe,
+  fan,
+  feather,
+  gramophoneIcon,
+  pearls,
+  saxophone,
   star,
+  sunburst,
+  topHat,
 } from "./newyear/icons";
-import { newYearSky, partyMoon } from "./newyear/sky";
+import { decoMoon, newYearSky } from "./newyear/sky";
 
-// New Year's: a festive midnight city in the bright cartoon style. An indigo-to-violet sky
-// with a party-hatted moon, cartoon fireworks that get busier as you climb and confetti
-// drifting down; a faded skyline with a clock tower creeping toward twelve and a ball sliding
-// down its mast; pink clouds piled at the sides; and on the violet-grey plaza, champagne
-// popping in an ice bucket, a party popper, a stack of gifts and a bulb-lit marquee.
+// New Year's: Manhattan and The Great Gatsby, Art Deco glamour in black and gold, drawn in the
+// bright cartoon style. A deep indigo night with a pale-gold moon in flat Deco halos,
+// fireworks that come thicker as you climb, confetti and flapper's plumes drifting down; a
+// Deco skyline across the bay — stepped crowns floodlit gold, needle spires, a ball sliding
+// down its mast toward midnight — with searchlights sweeping behind it and champagne clouds
+// piled at its feet; out on a point, a château-style mansion throwing a party, the green light
+// at the end of its dock; and on our ivory-marble terrace, a gold-and-emerald sunburst inlay, a
+// champagne-coupe tower, a gramophone and a cream boat-tail roadster with a boa on its door.
+
+/** Bar fills: jewel tones, warm and cool alternating so every seam reads. */
+const EMERALD_BAR = "#2fd396";
 
 export const newYear: CartoonSkin = {
   id: "newyear",
   style: "cartoon",
   name: "New Year's",
   dates: [{ from: [12, 28], to: [1, 6] }],
-  fonts: ["Luckiest Guy"],
+  fonts: ["Limelight"],
   palette: {
-    skyTop: "#2a2672",
-    skyMid: "#4c3cab",
-    skyBottom: "#8a5ccc",
-    star: "#fff4dc",
-    moon: "#fff3cf",
-    cloudShadow: "#c0559f",
-    cloudBase: "#ee86c4",
-    cloudLight: "#ffc2e2",
+    skyTop: SKY_TOP,
+    skyMid: SKY_MID,
+    skyBottom: SKY_BOTTOM,
+    star: "#fff3d0",
+    moon: "#fff0c6",
+    cloudShadow: "#cfa676",
+    cloudBase: "#f4e0b6",
+    cloudLight: "#fff8e6",
     far: FAR,
-    fieldFar: "#ad97c2",
-    fieldNear: "#7a6793",
-    grass: "#ffcf3a",
-    grassDark: "#e09a1c",
-    stone: "#5a5488",
-    stoneLight: "#746ea4",
+    fieldFar: MARBLE_FAR,
+    fieldNear: MARBLE_NEAR,
+    grass: GOLD,
+    grassDark: "#c98a1e",
+    stone: "#3f3680",
+    stoneLight: "#5d52a6",
     ink: INK,
   },
   bars: [
-    { color: PINK, icon: burst },
-    { color: GOLD, icon: flute },
-    { color: CYAN, icon: clock },
-    { color: VIOLET, icon: partyHat },
-    { color: ORANGE, icon: star },
-    { color: SILVER, icon: discoBall },
-    { color: RED, icon: balloon },
-    { color: MINT, icon: sparkle },
-    { color: MAGENTA, icon: horn },
-    { color: BLUE, icon: bowTie },
-    { color: LIME, icon: confetti },
+    { color: GOLD, icon: coupe },
+    { color: SAPPHIRE, icon: pearls },
+    { color: ROSE, icon: feather },
+    { color: EMERALD_BAR, icon: fan },
+    { color: IVORY, icon: topHat },
+    { color: AMETHYST, icon: saxophone },
+    { color: AMBER, icon: gramophoneIcon },
+    { color: AQUA, icon: clock },
+    { color: RUBY, icon: sunburst },
+    { color: LIME, icon: cocktail },
+    { color: ORCHID, icon: star },
+    { color: SILVER, icon: bowTie },
   ],
   hud: {
-    display: "'Luckiest Guy', 'Arial Black', Impact, sans-serif",
-    title: "#ffd23f",
-    ui: "#55309c",
-    accent: "#ffe45c",
-    life: "#ff4f9a",
+    display: "Limelight, 'Arial Black', Impact, sans-serif",
+    title: "#ffd34d",
+    ui: "#1f5f50",
+    accent: "#ffe08a",
+    life: "#4dffa0",
   },
-  celestial: partyMoon,
+  celestial: decoMoon,
   sky: newYearSky,
   far: city,
-  ground: partyPlaza,
+  ground: partyTerrace,
+  foreground: decoRail,
 };

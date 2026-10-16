@@ -33,17 +33,20 @@ export function mound(ctx: Ctx, x: number, y: number, rx: number, ry: number, se
   moundPath(ctx, x, y, rx, ry, seed);
   ctx.fillStyle = DIRT;
   ctx.fill();
-  ctx.save();
-  ctx.clip();
+  // Shade along the foot and light on the crown, both shaped to stay inside the dome (no
+  // clip: clipping is the slow part of drawing a mound).
   ctx.fillStyle = DIRT_DARK;
   ctx.beginPath();
-  oval(ctx, x + rx * 0.12, y + ry * 0.2, rx * 1.1, ry * 0.42);
+  ctx.moveTo(x - rx * 0.97, y - ry * 0.06);
+  ctx.quadraticCurveTo(x + rx * 0.1, y - ry * 0.5, x + rx * 0.97, y - ry * 0.06);
+  ctx.lineTo(x + rx, y);
+  ctx.ellipse(x, y, rx, ry * 0.28, 0, 0, Math.PI);
+  ctx.closePath();
   ctx.fill();
   ctx.fillStyle = DIRT_LIGHT;
   ctx.beginPath();
-  oval(ctx, x - rx * 0.28, y - ry * 0.78, rx * 0.5, ry * 0.3, -0.12);
+  oval(ctx, x - rx * 0.26, y - ry * 0.68, rx * 0.42, ry * 0.2, -0.12);
   ctx.fill();
-  ctx.restore();
   moundPath(ctx, x, y, rx, ry, seed);
   ink(ctx, lw, INK);
 
@@ -93,15 +96,15 @@ export const GRAVE_RY = 0.5;
 export function hole(ctx: Ctx, hx: number, hy: number, hrx: number, hry: number, lw: number): void {
   ctx.beginPath();
   oval(ctx, hx, hy, hrx, hry);
+  ctx.fillStyle = HOLE;
+  ctx.fill();
+  // The far wall: a crescent between the rim's top arc and the same arc dropped a little.
+  ctx.beginPath();
+  ctx.ellipse(hx, hy, hrx, hry, 0, Math.PI, Math.PI * 2);
+  ctx.ellipse(hx, hy + hry * 0.45, hrx * 0.97, hry, 0, Math.PI * 2, Math.PI, true);
+  ctx.closePath();
   ctx.fillStyle = DIRT_DARK;
   ctx.fill();
-  ctx.save();
-  ctx.clip();
-  ctx.fillStyle = HOLE;
-  ctx.beginPath();
-  oval(ctx, hx, hy + hry * 0.45, hrx * 1.02, hry);
-  ctx.fill();
-  ctx.restore();
   ctx.beginPath();
   oval(ctx, hx, hy, hrx, hry);
   ink(ctx, lw, INK);

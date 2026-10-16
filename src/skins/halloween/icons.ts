@@ -59,22 +59,31 @@ export const candyCorn: Icon = (ctx, cx, cy, s) => {
   ctx.stroke();
 };
 
-export const ghost: Icon = (ctx, cx, cy, s) => {
-  const r = s * 0.34;
+export const crow: Icon = (ctx, cx, cy, s) => {
+  // A crow perched and facing right: body and head, then beak and tail, then its legs.
   ctx.beginPath();
-  ctx.moveTo(cx - r, cy + s * 0.44);
-  ctx.lineTo(cx - r, cy - s * 0.1);
-  ctx.arc(cx, cy - s * 0.1, r, Math.PI, 0);
-  ctx.lineTo(cx + r, cy + s * 0.44);
-  for (let i = 1; i <= 3; i++) {
-    const x = cx + r - (i * 2 * r) / 3;
-    ctx.quadraticCurveTo(x + r / 3, cy + s * 0.22, x, cy + s * 0.44);
-  }
-  ctx.stroke();
-  ctx.beginPath();
-  oval(ctx, cx - s * 0.13, cy - s * 0.08, s * 0.065, s * 0.1);
-  oval(ctx, cx + s * 0.13, cy - s * 0.08, s * 0.065, s * 0.1);
+  oval(ctx, cx - s * 0.04, cy + s * 0.06, s * 0.3, s * 0.2, -0.38);
+  circle(ctx, cx + s * 0.22, cy - s * 0.2, s * 0.15);
   ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.32, cy - s * 0.27);
+  ctx.lineTo(cx + s * 0.58, cy - s * 0.16);
+  ctx.lineTo(cx + s * 0.33, cy - s * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.2, cy + s * 0.08);
+  ctx.lineTo(cx - s * 0.58, cy + s * 0.34);
+  ctx.lineTo(cx - s * 0.5, cy + s * 0.44);
+  ctx.lineTo(cx - s * 0.12, cy + s * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.04, cy + s * 0.2);
+  ctx.lineTo(cx - s * 0.06, cy + s * 0.46);
+  ctx.moveTo(cx + s * 0.08, cy + s * 0.18);
+  ctx.lineTo(cx + s * 0.08, cy + s * 0.46);
+  ctx.stroke();
 };
 
 export const bat: Icon = (ctx, cx, cy, s) => {

@@ -1,14 +1,17 @@
 import {
   AMBER,
   BLUE,
-  COOKIE,
   FAR,
   FIELD_FAR,
   FIELD_NEAR,
+  FOG,
+  FOG_LIGHT,
+  FOG_SHADE,
   GOLD,
   GREEN,
   ICE,
   INK,
+  IVORY,
   LILAC,
   LIME,
   ORANGE,
@@ -23,71 +26,73 @@ import { far } from "./christmas/far";
 import { foreground, ground } from "./christmas/ground";
 import {
   bell,
-  candyCane,
+  candle,
+  carolBook,
   gift,
-  gingerbread,
+  goose,
   holly,
-  mitten,
-  ornament,
+  lantern,
+  plumPudding,
+  pocketWatch,
   snowflake,
-  star,
-  stocking,
-  tree,
+  topHat,
   wreath,
 } from "./christmas/icons";
 import { celestial, skyLayer } from "./christmas/sky";
 import type { CartoonSkin } from "./skin";
 
-// Christmas: a snowy winter night in bright cartoon. A deep blue sky fading to icy
-// periwinkle, a big moon with Santa's sleigh crossing it now and then, snow falling,
-// white-blue clouds, a faded snowy forest and a village with lit windows on the horizon,
-// a snowfield, and ink-outlined props beside the tower: a decorated tree with twinkling
-// lights, presents, a waving snowman and candy canes. Frosty stones under a snowy lip in
-// front. Northern lights come out as you climb.
+// Christmas, after Dickens' A Christmas Carol (1843): a snowy Victorian London street at
+// dusk in bright cartoon. A twilight sky warming to a rosy glow, a pale moon, snow falling,
+// pigeons wheeling over the chimneys; on the horizon, rooftops bristling with chimney pots, a
+// great dome and a church steeple whose bell rings out, all in rolling lavender fog. Around
+// the tower: Scrooge & Marley's counting house (Marley's face shimmers in the door knocker)
+// and the poulterer's with its prize goose, candlelit windows and wreaths, gas lamps, the
+// lamplighter at work, carolers singing by lantern light, pigeons on the snowy cobbles and a
+// carriage trotting by. A snowy kerb in front.
 
 export const christmas: CartoonSkin = {
   id: "christmas",
   style: "cartoon",
   name: "Christmas",
   dates: [{ from: [12, 1], to: [12, 27] }],
-  fonts: ["Mountains of Christmas:wght@700"],
+  fonts: ["Abril Fatface"],
   palette: {
     skyTop: SKY_TOP,
     skyMid: SKY_MID,
     skyBottom: SKY_BOTTOM,
-    star: "#ffffff",
-    moon: "#fbfcff",
-    cloudShadow: "#8eaadf",
-    cloudBase: "#c2d6f5",
-    cloudLight: "#eef6ff",
+    star: "#fff6e6",
+    moon: "#fff6df",
+    cloudShadow: FOG_SHADE,
+    cloudBase: FOG,
+    cloudLight: FOG_LIGHT,
     far: FAR,
     fieldFar: FIELD_FAR,
     fieldNear: FIELD_NEAR,
-    grass: "#f4f9ff",
-    grassDark: "#d2e3f7",
-    stone: "#7189bd",
-    stoneLight: "#c9dbf3",
+    grass: "#fdfcff",
+    grassDark: "#d6dcf3",
+    stone: "#7c78a8",
+    stoneLight: "#c4c0e2",
     ink: INK,
   },
-  // Candy colors, warm and cool alternating so every seam reads.
+  // Bright and festive; warm and cool alternate so every seam reads.
   bars: [
+    { color: RED, icon: holly },
     { color: ICE, icon: snowflake },
-    { color: RED, icon: candyCane },
-    { color: GREEN, icon: tree },
-    { color: GOLD, icon: star },
-    { color: LILAC, icon: ornament },
-    { color: ORANGE, icon: gift },
-    { color: BLUE, icon: mitten },
-    { color: PINK, icon: stocking },
-    { color: LIME, icon: holly },
-    { color: COOKIE, icon: gingerbread },
-    { color: TEAL, icon: wreath },
+    { color: GOLD, icon: candle },
+    { color: LILAC, icon: topHat },
+    { color: ORANGE, icon: plumPudding },
+    { color: GREEN, icon: wreath },
+    { color: PINK, icon: gift },
+    { color: BLUE, icon: lantern },
     { color: AMBER, icon: bell },
+    { color: LIME, icon: carolBook },
+    { color: TEAL, icon: goose },
+    { color: IVORY, icon: pocketWatch },
   ],
   hud: {
-    display: "'Mountains of Christmas', Georgia, serif",
+    display: "'Abril Fatface', Georgia, 'Times New Roman', serif",
     title: "#ffffff",
-    ui: "#c92a42",
+    ui: "#a82638",
     accent: GOLD,
     life: RED,
   },
