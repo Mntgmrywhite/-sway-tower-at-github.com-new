@@ -54,6 +54,14 @@ export const STRATA = [
 export const PEBBLE = "#f3e3c2";
 export const PEBBLE_SHADE = "#cdb48e";
 
+/** Crystals in the bedrock: body, lit facet, shaded facet. */
+export const GEM = "#6fd8ee";
+export const GEM_LIGHT = "#d6fbff";
+export const GEM_SHADE = "#3f9fd0";
+/** The spring's water. */
+export const WATER = "#7cc8f4";
+export const WATER_LIGHT = "#e4f7ff";
+
 /** Hanging roots and the vines that trail over the lip. */
 export const ROOT = "#9a5d38";
 export const VINE = "#3fae4a";
@@ -63,6 +71,11 @@ export const VINE_LEAF = "#74d65a";
 export const STONE = "#efe1c2";
 export const STONE_LIGHT = "#fff6e0";
 export const STONE_SHADE = "#cdb88e";
+
+/** Daisies on the grass, and the bluebird. */
+export const PETAL = "#ffffff";
+export const BLUEBIRD = "#4f86f0";
+export const BLUEBIRD_SHADE = "#3a64c4";
 
 /** Round bush and tree canopies on the islands. */
 export const LEAF = "#46b64a";
@@ -82,3 +95,19 @@ export const CREAM = "#fff3d6";
 export const CLOUD_LIGHT = "#ffffff";
 export const CLOUD = "#f4f9ff";
 export const CLOUD_SHADE = "#d3e3f6";
+
+// ---------------------------------------------------------------- little buildings
+
+/** Whitewashed walls and coral-red roofs: the cottages, the windmill and the lighthouse. */
+export const WALL = "#fff3dc";
+export const WALL_SHADE = "#e8cfae";
+export const ROOF = "#e8604c";
+export const ROOF_SHADE = "#b8434a";
+/** Warm lamplight in windows and lanterns. */
+export const LAMP = "#ffd86a";
+export const LAMP_GLOW = "#ffb24a";
+
+// ---------------------------------------------------------------- night sky
+
+/** The aurora's curtain: mint low down, teal, and violet up high. */
+export const AURORA = ["#6ff5c0", "#45d6c8", "#9a7cf0"] as const;

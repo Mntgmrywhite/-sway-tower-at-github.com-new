@@ -73,6 +73,28 @@ export function strata(ctx: Ctx, cx: number, top: number, hw: number, d: number,
 }
 
 /**
+ * An island's underside in curved strata without a clip (for the islands further off, drawn
+ * many times a frame): the whole underside in the lowest band's color, then shallower copies of
+ * it for the bands above, each with a lit strip just under the band above it. `bands` top to
+ * bottom; their `at` is where each band begins (fraction of the depth).
+ */
+export function nestedStrata(ctx: Ctx, cx: number, top: number, hw: number, d: number, m: number, bands: readonly Band[]): void {
+  const strip = d * 0.06;
+  for (let i = bands.length - 1; i >= 0; i--) {
+    const b = bands[i]!;
+    const depth = i === bands.length - 1 ? d : bands[i + 1]!.at * d;
+    if (i < bands.length - 1) {
+      undersidePath(ctx, cx, top, hw, depth + strip, m);
+      ctx.fillStyle = bands[i + 1]!.lit;
+      ctx.fill();
+    }
+    undersidePath(ctx, cx, top, hw, depth, m);
+    ctx.fillStyle = b.body;
+    ctx.fill();
+  }
+}
+
+/**
  * The grass cap of an island: a flat top at `top` with rounded ends, `h` thick, its lower edge
  * hanging over the soil in `bumps` round scallops. Starts its own path.
  */
@@ -115,6 +137,16 @@ export const TALL_CLOUD: CloudShape = [
   [0.25, -0.32, 0.62],
 ];
 
+/** A big cumulus: a tall heap of puffs over a broad base. */
+export const BIG_CLOUD: CloudShape = [
+  [-1.15, -0.18, 0.5],
+  [-0.62, -0.5, 0.68],
+  [-0.05, -0.95, 0.78],
+  [0.45, -0.62, 0.72],
+  [1.05, -0.24, 0.52],
+  [0.1, -0.3, 0.66],
+];
+
 /** The flat base of a cloud shape: [left, right] in units of its size. */
 function baseOf(shape: CloudShape): [number, number] {
   let l = Infinity;
@@ -128,6 +160,7 @@ function baseOf(shape: CloudShape): [number, number] {
 const BASES = new Map<CloudShape, [number, number]>([
   [LONG_CLOUD, baseOf(LONG_CLOUD)],
   [TALL_CLOUD, baseOf(TALL_CLOUD)],
+  [BIG_CLOUD, baseOf(BIG_CLOUD)],
 ]);
 
 function cloudLayer(ctx: Ctx, shape: CloudShape, x: number, y: number, r: number, k: number, dy: number): void {

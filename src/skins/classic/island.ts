@@ -1,7 +1,16 @@
-import { circle, ink, inkedLine, oval, roundRectPath, type Ctx } from "../../base/draw";
+import { circle, hash, ink, inkedLine, oval, roundRectPath, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import {
+  BLUEBIRD,
+  BLUEBIRD_SHADE,
+  CLOUD,
+  CLOUD_LIGHT,
+  CLOUD_SHADE,
   CORAL,
+  CREAM,
+  GEM,
+  GEM_LIGHT,
+  GEM_SHADE,
   GRASS,
   GRASS_LIGHT,
   GRASS_SHADE,
@@ -11,6 +20,9 @@ import {
   LEAF_SHADE,
   PEBBLE,
   PEBBLE_SHADE,
+  PETAL,
+  ROOF,
+  ROOF_SHADE,
   ROOT,
   STONE,
   STONE_LIGHT,
@@ -20,15 +32,19 @@ import {
   TRUNK,
   VINE,
   VINE_LEAF,
+  WATER,
+  WATER_LIGHT,
 } from "./colors";
 import { capPath, strata, undersidePath, type Band } from "./shapes";
 
-// The home island the tower grows from. A flat cap of bright grass with a low stone plinth for
-// the base block and a little round tree at the edge, and underneath, the signature:
-// the island's striped underside (topsoil, sand, clay, umber, plum bedrock) with roots hanging
-// from it and a few vines trailing over the lip. It does not bob: the tower stands on rock.
-// A kite on a long string is tied to a stake at the left edge. Everything here is near: flat
-// two-tone fills and one ink outline weight.
+// The home island the tower grows from. A flat cap of bright grass with tufts and daisies, a
+// low stone plinth for the base block and a little round tree at the edge, and underneath, the
+// signature: the island's striped underside (topsoil, sand, clay, umber, plum bedrock) with
+// roots hanging from it, vines trailing over the lip, a cluster of crystals glinting in the
+// bedrock and a spring spilling out of its side in a little waterfall that turns to mist. It
+// does not bob: the tower stands on rock. A kite on a long string is tied to a stake at the
+// left edge, a bluebird perched on top of it; on the right a rope bridge crosses to a little
+// islet with a birdhouse. Everything here is near: flat two-tone fills and one ink weight.
 
 /** Island proportions, in u. */
 const CAP_HW = 0.33;
@@ -52,7 +68,7 @@ const ROOTS = [
 
 /** Vines over the lip: x (half widths of the cap), length (u). */
 const VINES = [
-  { x: -0.86, len: 0.075 },
+  { x: -0.72, len: 0.075 },
   { x: -0.52, len: 0.1 },
   { x: 0.7, len: 0.065 },
 ] as const;
@@ -62,7 +78,7 @@ const PEBBLES = [
   { x: -0.55, y: 0.3, r: 0.009 },
   { x: 0.4, y: 0.27, r: 0.008 },
   { x: -0.18, y: 0.56, r: 0.01 },
-  { x: 0.14, y: 0.75, r: 0.008 },
+  { x: 0.34, y: 0.6, r: 0.008 },
 ] as const;
 
 /** Ink width up close. */
@@ -82,12 +98,16 @@ const STAKE_X = -0.3;
 export function homeIsland(ctx: Ctx, s: Scene): void {
   kite(ctx, s);
   if (s.groundY - s.u * 0.13 > s.cssH) return;
+  islet(ctx, s);
   islandBody(ctx, s);
   islandTree(ctx, s);
   plinth(ctx, s, centerX(s), inkW(s));
 }
 
-/** The island itself: roots, the striped underside, vines over the lip, the grass cap. */
+/**
+ * The island itself: the spring's waterfall, roots, the striped underside with its pebbles and
+ * crystals, vines over the lip, the grass cap with its tufts and daisies.
+ */
 export function islandBody(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = centerX(s);
@@ -96,17 +116,21 @@ export function islandBody(ctx: Ctx, s: Scene): void {
   const underTop = grassTop + u * CAP_H * 0.7;
   const hw = u * UNDER_HW;
   const d = u * UNDER_D;
+  spring(ctx, s, cx - hw * 0.97, underTop + d * 0.16, lw);
   roots(ctx, s, cx, underTop, hw, d, lw);
   undersidePath(ctx, cx, underTop, hw, d);
   ctx.save();
   ctx.clip();
   strata(ctx, cx, underTop, hw, d, BANDS);
   pebbles(ctx, s, cx, underTop, hw, d);
+  crystals(ctx, s, cx + hw * 0.1, underTop + d * 0.97, lw);
   ctx.restore();
   undersidePath(ctx, cx, underTop, hw, d);
   ink(ctx, lw, INK);
+  glint(ctx, s, cx + hw * 0.1, underTop + d * 0.97);
   vines(ctx, s, cx, grassTop + u * CAP_H, lw);
   cap(ctx, s, cx, grassTop, lw);
+  flowers(ctx, s, cx, grassTop);
 }
 
 /** The little tree on the grass right of the plinth. */
@@ -124,6 +148,60 @@ export function kite(ctx: Ctx, s: Scene): void {
   const lw = inkW(s);
   kiteFlying(ctx, s, x, grassTop, lw);
   stake(ctx, s, x, grassTop, lw);
+  bluebird(ctx, s, x, grassTop - u * 0.026, lw);
+}
+
+/**
+ * A bluebird perched on top of the kite's stake at (x, y), facing out: a round blue body with
+ * a cream breast, a sunny beak and a dot of an eye. Now and then it dips its head.
+ */
+function bluebird(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
+  const u = s.u;
+  const r = u * 0.0105;
+  const cycle = s.t % 4.6;
+  const dip = cycle < 0.5 ? Math.sin((cycle / 0.5) * Math.PI) : 0;
+  const bx = x;
+  const by = y - r * 0.85;
+  // Tail, body, head.
+  ctx.beginPath();
+  ctx.moveTo(bx + r * 0.5, by + r * 0.1);
+  ctx.lineTo(bx + r * 1.6, by + r * 0.5);
+  ctx.lineTo(bx + r * 1.45, by + r * 0.9);
+  ctx.lineTo(bx + r * 0.6, by + r * 0.75);
+  ctx.closePath();
+  ctx.fillStyle = BLUEBIRD_SHADE;
+  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
+  ctx.beginPath();
+  oval(ctx, bx, by + r * 0.2, r * 0.95, r * 0.78);
+  const hx = bx - r * 0.55 - dip * r * 0.25;
+  const hy = by - r * 0.55 + dip * r * 0.45;
+  circle(ctx, hx, hy, r * 0.58);
+  ctx.fillStyle = BLUEBIRD;
+  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
+  ctx.fill();
+  ctx.fillStyle = CREAM;
+  ctx.beginPath();
+  oval(ctx, bx - r * 0.35, by + r * 0.4, r * 0.45, r * 0.4, -0.3);
+  ctx.fill();
+  ctx.fillStyle = BLUEBIRD_SHADE;
+  ctx.beginPath();
+  oval(ctx, bx + r * 0.25, by + r * 0.1, r * 0.5, r * 0.3, 0.4);
+  ctx.fill();
+  // Beak and eye.
+  ctx.fillStyle = SUNNY;
+  ctx.beginPath();
+  ctx.moveTo(hx - r * 0.5, hy - r * 0.08);
+  ctx.lineTo(hx - r * 0.98, hy + r * 0.08);
+  ctx.lineTo(hx - r * 0.48, hy + r * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  ink(ctx, lw * 0.5, INK);
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  circle(ctx, hx - r * 0.18, hy - r * 0.1, r * 0.13);
+  ctx.fill();
 }
 
 // ---------------------------------------------------------------- island body
@@ -226,6 +304,349 @@ export function vines(ctx: Ctx, s: Scene, cx: number, y: number, lw: number): vo
   ctx.fillStyle = VINE_LEAF;
   ctx.fill();
   ink(ctx, lw, INK);
+  ctx.fill();
+}
+
+
+/** Crystals in the bedrock: x offset (u), length (u), lean (radians from straight up). */
+const CRYSTALS = [
+  [-0.014, 0.022, -0.55],
+  [0, 0.032, -0.05],
+  [0.014, 0.02, 0.5],
+] as const;
+
+/** A geode in the bedrock: a cluster of crystals growing up from (x, y), fanning out. */
+export function crystals(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
+  const u = s.u;
+  const w = u * 0.0075;
+  // Each shard: base at (bx, y - w) pointing along its lean, as a five-point prism; `p` maps
+  // (along, side) to the screen.
+  const each = (draw: (p: (along: number, side: number) => readonly [number, number], L: number) => void): void => {
+    for (const [dx, len, lean] of CRYSTALS) {
+      const bx = x + dx * u;
+      const sn = Math.sin(lean + Math.PI);
+      const c = Math.cos(lean + Math.PI);
+      draw((along, side) => [bx + sn * along + c * side, y - w + c * along - sn * side] as const, len * u);
+    }
+  };
+  const poly = (pts: (readonly [number, number])[]) => {
+    ctx.moveTo(pts[0]![0], pts[0]![1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]![0], pts[i]![1]);
+    ctx.closePath();
+  };
+  ctx.beginPath();
+  each((p, L) => poly([p(-w, -w), p(L * 0.75, -w), p(L, 0), p(L * 0.75, w), p(-w, w)]));
+  ctx.fillStyle = GEM;
+  ctx.fill();
+  ink(ctx, lw * 0.8, INK);
+  ctx.fill();
+  // The lit facet down one side, the shaded tip on the other.
+  ctx.beginPath();
+  each((p, L) => poly([p(-w, -w * 0.1), p(L * 0.75, -w * 0.1), p(L, 0), p(L * 0.75, -w), p(-w, -w)]));
+  ctx.fillStyle = GEM_LIGHT;
+  ctx.fill();
+  ctx.beginPath();
+  each((p, L) => poly([p(L * 0.75, w), p(L, 0), p(L * 0.75, w * 0.35)]));
+  ctx.fillStyle = GEM_SHADE;
+  ctx.fill();
+}
+
+/** Seconds between glints on the crystals. */
+const GLINT_EVERY = 3.4;
+
+/** Now and then a glint flashes on a crystal's tip. */
+function glint(ctx: Ctx, s: Scene, x: number, y: number): void {
+  const n = Math.floor(s.t / GLINT_EVERY);
+  const k = (s.t - n * GLINT_EVERY) / 0.5;
+  if (k < 0 || k > 1) return;
+  const [dx, len, lean] = CRYSTALS[n % CRYSTALS.length]!;
+  const u = s.u;
+  const gx = x + dx * u + Math.sin(lean) * len * u * 0.8;
+  const gy = y - Math.cos(lean) * len * u * 0.8 - u * 0.0075;
+  const r = u * 0.014 * Math.sin(k * Math.PI);
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  const w = r * 0.22;
+  ctx.moveTo(gx, gy - r);
+  ctx.quadraticCurveTo(gx + w, gy - w, gx + r, gy);
+  ctx.quadraticCurveTo(gx + w, gy + w, gx, gy + r);
+  ctx.quadraticCurveTo(gx - w, gy + w, gx - r, gy);
+  ctx.quadraticCurveTo(gx - w, gy - w, gx, gy - r);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** How far the spring falls before it turns to mist (u). */
+const SPRING_FALL = 0.13;
+
+/**
+ * A spring spilling out of a crack in the island's side at (x, y): a little stream gushing out
+ * to the left, falling and fanning out a little as it goes, a lighter core with streaks
+ * sliding down it, and a puff of mist with a few droplets where it breaks up.
+ */
+function spring(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
+  const u = s.u;
+  const w = u * 0.012;
+  const out = u * 0.032;
+  const top = y + u * 0.03;
+  const bottom = y + u * SPRING_FALL;
+  const wob = Math.sin(s.t * 2.2) * u * 0.0015;
+  const fx = x - out;
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.4, y - w * 0.75);
+  ctx.bezierCurveTo(x - out * 0.45, y - w * 1.1, fx - w * 0.75, y - w * 0.2, fx - w * 0.55, top);
+  ctx.quadraticCurveTo(fx - w * 0.35 + wob, (top + bottom) / 2, fx - w * 0.85, bottom);
+  ctx.lineTo(fx + w * 1.15, bottom);
+  ctx.quadraticCurveTo(fx + w * 0.75 - wob, (top + bottom) / 2, fx + w * 0.55, top + u * 0.004);
+  ctx.bezierCurveTo(fx + w * 0.5, y + w * 0.4, x - out * 0.3, y + w * 0.3, x + w * 0.4, y + w * 0.75);
+  ctx.closePath();
+  ctx.fillStyle = WATER;
+  ctx.fill();
+  ink(ctx, lw * 0.8, INK);
+  // A lighter core, and streaks sliding down it, fading in and out so none pops.
+  ctx.fillStyle = WATER_LIGHT;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(x - out * 0.2, y - w * 0.35);
+  ctx.quadraticCurveTo(fx, y - w * 0.3, fx - w * 0.05, top + u * 0.006);
+  ctx.lineTo(fx + w * 0.2, top + u * 0.006);
+  ctx.quadraticCurveTo(fx + w * 0.3, y, x - out * 0.2, y + w * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  for (let i = 0; i < 3; i++) {
+    const k = (s.t * 0.7 + i / 3) % 1;
+    ctx.globalAlpha = Math.sin(k * Math.PI) * 0.9;
+    ctx.fillRect(fx - w * 0.1 + (i - 1) * w * 0.28, top + (bottom - top - u * 0.03) * k, w * 0.22, u * 0.018);
+  }
+  ctx.globalAlpha = 1;
+  // Mist where it breaks up: a small inked cloud, breathing, and a few droplets.
+  const b = 1 + Math.sin(s.t * 1.1) * 0.05;
+  const mx = fx + w * 0.15;
+  const my = bottom + u * 0.004;
+  ctx.fillStyle = WATER;
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const k = (s.t * 0.9 + i / 3) % 1;
+    circle(ctx, mx + (i - 1) * u * 0.022 * (0.6 + k), my - u * 0.012 - Math.sin(k * Math.PI) * u * 0.014, u * 0.0028 * (1 - k * 0.5));
+  }
+  ctx.fill();
+  const puffs = [
+    [-0.017, 0.002, 0.012],
+    [0, -0.006, 0.016],
+    [0.018, 0.001, 0.011],
+  ] as const;
+  ctx.beginPath();
+  for (const [dx, dy, r] of puffs) circle(ctx, mx + dx * u, my + dy * u, r * u * b);
+  ink(ctx, lw * 1.6, INK);
+  ctx.fillStyle = CLOUD_SHADE;
+  ctx.fill();
+  ctx.beginPath();
+  for (const [dx, dy, r] of puffs) circle(ctx, mx + dx * u - r * u * 0.06, my + dy * u - r * u * 0.18, r * u * b * 0.84);
+  ctx.fillStyle = CLOUD;
+  ctx.fill();
+  ctx.beginPath();
+  for (const [dx, dy, r] of puffs) circle(ctx, mx + dx * u - r * u * 0.3, my + dy * u - r * u * 0.45, r * u * 0.38);
+  ctx.fillStyle = CLOUD_LIGHT;
+  ctx.fill();
+}
+
+/** Grass tufts and daisies along the cap's top, clear of the plinth: x (u from the center line). */
+const TUFTS = [-0.325, -0.28, -0.24, 0.235, 0.27, 0.315] as const;
+const DAISIES = [
+  [-0.258, 1],
+  [-0.316, 0.8],
+  [0.248, 0.9],
+  [0.322, 1],
+] as const;
+
+/** Tufts of brighter grass and a few daisies standing on the cap's top edge at `top`. */
+export function flowers(ctx: Ctx, s: Scene, cx: number, top: number): void {
+  const u = s.u;
+  ctx.fillStyle = GRASS_LIGHT;
+  ctx.beginPath();
+  for (let i = 0; i < TUFTS.length; i++) {
+    const x = cx + TUFTS[i]! * u;
+    const h = u * (0.009 + hash(i + 2100) * 0.004);
+    const b = u * 0.004;
+    for (const [dx, lean] of [
+      [-b, -0.5],
+      [0, 0],
+      [b, 0.5],
+    ] as const) {
+      ctx.moveTo(x + dx - b * 0.6, top + u * 0.002);
+      ctx.lineTo(x + dx + lean * b, top - h * (dx === 0 ? 1 : 0.75));
+      ctx.lineTo(x + dx + b * 0.6, top + u * 0.002);
+      ctx.closePath();
+    }
+  }
+  ctx.fill();
+  // Daisies: a stem, five white petals round a sunny middle.
+  ctx.strokeStyle = GRASS_SHADE;
+  ctx.lineWidth = Math.max(1, u * 0.0022);
+  ctx.beginPath();
+  for (const [dx, k] of DAISIES) {
+    const x = cx + dx * u;
+    ctx.moveTo(x, top + u * 0.003);
+    ctx.lineTo(x, top - u * 0.008 * k);
+  }
+  ctx.stroke();
+  ctx.fillStyle = PETAL;
+  ctx.beginPath();
+  for (const [dx, k] of DAISIES) {
+    const x = cx + dx * u;
+    const y = top - u * 0.009 * k;
+    const r = u * 0.0042 * k;
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      oval(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r, r * 0.75, r * 0.5, a);
+    }
+  }
+  ctx.fill();
+  ctx.fillStyle = SUNNY;
+  ctx.beginPath();
+  for (const [dx, k] of DAISIES) circle(ctx, cx + dx * u, top - u * 0.009 * k, u * 0.0028 * k);
+  ctx.fill();
+}
+
+// ---------------------------------------------------------------- the islet and its bridge
+
+/** The islet: center (u right of the island's center line), cap half width and how far its grass sits below the floor (u). */
+export const ISLET = { x: 0.43, hw: 0.045, drop: 0.05 } as const;
+const ISLET_BANDS: Band[] = [BANDS[0]!, { ...BANDS[1]!, at: 0.3 }, { ...BANDS[2]!, at: 0.6 }, { ...BANDS[4]!, at: 0.85 }];
+
+/**
+ * A little islet off the home island's right edge, a step lower: its own grass cap and striped
+ * underside with two roots, a birdhouse on a post, and a rope bridge sagging across to it.
+ */
+export function islet(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  const lw = inkW(s);
+  const cx = centerX(s);
+  const ix = cx + ISLET.x * u;
+  const top = s.groundY + ISLET.drop * u;
+  const hw = ISLET.hw * u;
+  const capH = u * 0.02;
+  const underTop = top + capH * 0.7;
+  const d = u * 0.065;
+  // Two small roots.
+  ctx.beginPath();
+  for (const [rx, ry, len] of [
+    [-0.4, 0.55, 0.03],
+    [0.3, 0.75, 0.024],
+  ] as const) {
+    const x = ix + rx * hw;
+    const y = underTop + ry * d - u * 0.006;
+    const sw = Math.sin(s.t * 0.8 + rx * 5) * u * 0.002;
+    ctx.moveTo(x - u * 0.004, y);
+    ctx.quadraticCurveTo(x - u * 0.004, y + len * u * 0.6, x + sw, y + len * u);
+    ctx.quadraticCurveTo(x + u * 0.004, y + len * u * 0.5, x + u * 0.004, y);
+    ctx.closePath();
+  }
+  ctx.fillStyle = ROOT;
+  ctx.fill();
+  ink(ctx, lw * 0.8, INK);
+  ctx.fill();
+  undersidePath(ctx, ix, underTop, hw * 0.94, d, -1);
+  ctx.save();
+  ctx.clip();
+  strata(ctx, ix, underTop, hw, d, ISLET_BANDS);
+  ctx.restore();
+  undersidePath(ctx, ix, underTop, hw * 0.94, d, -1);
+  ink(ctx, lw, INK);
+  // The rope bridge, from the home island's grass to the islet's.
+  bridge(ctx, s, cx + u * (CAP_HW - 0.002), s.groundY + u * (GRASS_DROP + 0.008), ix - hw + u * 0.008, top + u * 0.006, lw);
+  capPath(ctx, ix, top, hw, capH, 4);
+  ctx.fillStyle = GRASS_SHADE;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  capPath(ctx, ix, top - capH * 0.32, hw, capH, 4);
+  ctx.fillStyle = GRASS;
+  ctx.fill();
+  ctx.fillStyle = GRASS_LIGHT;
+  ctx.fillRect(ix - hw, top, hw * 2, capH * 0.24);
+  ctx.restore();
+  capPath(ctx, ix, top, hw, capH, 4);
+  ink(ctx, lw, INK);
+  birdhouse(ctx, s, ix + hw * 0.25, top + u * 0.002, lw);
+}
+
+/** A rope bridge between two grass edges: a sagging deck of planks under a hand rope. */
+function bridge(ctx: Ctx, s: Scene, x0: number, y0: number, x1: number, y1: number, lw: number): void {
+  const u = s.u;
+  const sag = u * 0.014;
+  const at = (k: number, lift: number) => {
+    const x = x0 + (x1 - x0) * k;
+    const y = y0 + (y1 - y0) * k + sag * 4 * k * (1 - k) - lift;
+    return [x, y] as const;
+  };
+  // Planks hang from the deck rope.
+  ctx.beginPath();
+  const n = 5;
+  for (let i = 1; i < n; i++) {
+    const [x, y] = at(i / n, 0);
+    ctx.rect(x - u * 0.0035, y - u * 0.002, u * 0.007, u * 0.008);
+  }
+  ctx.fillStyle = TRUNK;
+  ctx.fill();
+  ink(ctx, lw * 0.6, INK);
+  // Ropes: the deck and the hand rope, with two uprights at each end.
+  ctx.beginPath();
+  for (const lift of [0, u * 0.016]) {
+    const [ax, ay] = at(0, lift);
+    ctx.moveTo(ax, ay);
+    for (let i = 1; i <= 8; i++) {
+      const [x, y] = at(i / 8, lift);
+      ctx.lineTo(x, y);
+    }
+  }
+  for (const k of [0, 1]) {
+    const [x, y] = at(k, 0);
+    ctx.moveTo(x, y + u * 0.002);
+    ctx.lineTo(x, y - u * 0.019);
+  }
+  inkedLine(ctx, CREAM, Math.max(1, u * 0.0025), lw * 0.45, INK);
+}
+
+/** A birdhouse on a post standing at (x, y): a cream box with a round door under a red roof. */
+function birdhouse(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
+  const u = s.u;
+  const postH = u * 0.03;
+  roundRectPath(ctx, x - u * 0.003, y - postH, u * 0.006, postH, u * 0.002);
+  ctx.fillStyle = TRUNK;
+  ctx.fill();
+  ink(ctx, lw * 0.8, INK);
+  const w = u * 0.022;
+  const h = u * 0.018;
+  const by = y - postH - h;
+  roundRectPath(ctx, x - w / 2, by, w, h, u * 0.002);
+  ctx.fillStyle = CREAM;
+  ctx.fill();
+  ctx.fillStyle = STONE_SHADE;
+  ctx.fillRect(x + w * 0.2, by, w * 0.3, h);
+  roundRectPath(ctx, x - w / 2, by, w, h, u * 0.002);
+  ink(ctx, lw * 0.8, INK);
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.68, by + u * 0.002);
+  ctx.lineTo(x, by - h * 0.62);
+  ctx.lineTo(x + w * 0.68, by + u * 0.002);
+  ctx.closePath();
+  ctx.fillStyle = ROOF;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = ROOF_SHADE;
+  ctx.fillRect(x, by - h, w, h * 1.2);
+  ctx.restore();
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.68, by + u * 0.002);
+  ctx.lineTo(x, by - h * 0.62);
+  ctx.lineTo(x + w * 0.68, by + u * 0.002);
+  ctx.closePath();
+  ink(ctx, lw * 0.8, INK);
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  circle(ctx, x - w * 0.08, by + h * 0.45, u * 0.0035);
   ctx.fill();
 }
 
