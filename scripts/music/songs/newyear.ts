@@ -64,15 +64,26 @@ const swung = (t: number) => (Math.abs((t % 1) - 0.5) < 1e-6 ? t + SWING / 2 : t
  * Split one part into several tracks that differ only in gain, so each note can get its own
  * level (the sampler has no per-note gain). Used to even out recordings whose zones were
  * captured at very different levels, and for dynamics that must not change velocity layer
- * (the lead's build, the brass hits).
+ * (the lead's build, the brass hits). `choke` (a one-shot line) stops each note at the line's
+ * next note, as the track option would if the line were one track: each note's ring time is set
+ * from the whole line, so the split tracks don't ring into each other.
  */
-function byGain(base: Omit<Track, "notes" | "gain">, notes: Note[], gainOf: (n: Note) => number): Track[] {
-  const groups = new Map<number, Note[]>();
+function byGain(base: Omit<Track, "notes" | "gain">, notes: Note[], gainOf: (n: Note) => number, choke = false): Track[] {
+  const starts = [...new Set(notes.map((n) => n.t))].sort((a, b) => a - b);
+  const ringOf = (n: Note) => {
+    const next = starts.find((t) => t > n.t + 1e-6) ?? starts[0]! + BARS * BEATS;
+    return Math.round(((next - n.t) * 60 * 1000) / BPM) / 1000;
+  };
+  const groups = new Map<string, { gain: number; ring?: number; notes: Note[] }>();
   for (const n of notes) {
-    const g = Math.round(gainOf(n) * 1000) / 1000;
-    groups.set(g, [...(groups.get(g) ?? []), n]);
+    const gain = Math.round(gainOf(n) * 1000) / 1000;
+    const ring = choke ? ringOf(n) : undefined;
+    const key = `${gain}/${ring}`;
+    const g = groups.get(key) ?? { gain, ring, notes: [] };
+    g.notes.push(n);
+    groups.set(key, g);
   }
-  return [...groups].map(([gain, ns]) => ({ ...base, gain, notes: ns }));
+  return [...groups.values()].map(({ gain, ring, notes: ns }) => ({ ...base, gain, notes: ns, ...(ring === undefined ? {} : { ring }) }));
 }
 const dB = (x: number) => 10 ** (x / 20);
 
@@ -246,14 +257,20 @@ for (const line of [trumpetC2, tuttiSoprano, tuttiTenor]) push(line, bar(57));
 // split, even after humanizing); the build through the form is done in gain (see the tracks).
 const SOFT_FROM = midi("Bb4");
 /**
- * Song-local tuning of the lead (cents), from measuring each rendered note: the soft G5 (the F5
- * take played up) drifts sharp, +9 cents over its quarter note; the soft Bb4 take starts with a
- * lip scoop from -24 cents that settles after 150 ms, so the clipped pickup before a push (under
- * half a beat) measured -14. Everything else is within 7 cents.
+ * Song-local tuning of the lead (cents). The harmon-mute set is the one lead recording that
+ * instruments.ts does not auto-tune, so each take is corrected here, from measuring every rendered
+ * lead note as heard (scripts/music/pitch.ts centsHeard, the median of its partials). The soft
+ * Bb4 take (played for Bb4–C5) starts with a lip scoop from -24 cents that settles after ~150 ms,
+ * so the shorter the note, the flatter it sounds: -15 for a pickup clipped by a push, -9 for a
+ * quarter, -4 for a held note. The soft D5 take (D5, Eb5) sits 5 flat, the soft F5 take (F5, G5)
+ * 5 sharp, the loud Bb3 6 flat and the loud C4 4 sharp; the other takes measure within 3.
  */
-function leadCents(m: number, d: number): number {
-  if (m === midi("G5")) return -8;
-  if (m === midi("Bb4") && d < 0.5) return 10;
+function leadCents(m: number, beats: number): number {
+  if (m >= midi("F5")) return -5;
+  if (m >= midi("D5")) return 5;
+  if (m >= SOFT_FROM) return beats < 0.6 ? 14 : beats < 1.5 ? 9 : 4;
+  if (m === midi("C4")) return -4;
+  if (m === midi("Bb3")) return 6;
   return 0;
 }
 const lead: Note[] = [...trumpetC1, ...trumpetC2].map((n) => {
@@ -421,8 +438,9 @@ const hitTimes = new Set(HITS.map((h) => h.t));
 
 // ---------------------------------------------------------------- piano: stride comping, a break
 
-// The warm upright piano: it is in tune, where the honky-tonk's unisons are detuned by design (and
-// the owner hears tuning); its recordings are hot, hence the small gains.
+// The warm upright piano: auto-tuned per recording (instruments.ts), where the honky-tonk's
+// unisons are detuned by design (and the owner hears tuning); its recordings are hot, hence the
+// small gains.
 // Stride: the left hand's bass note ("oom") on 1, the chord ("pah") on 2 and 3.
 //   S  oom-pah-pah        P  oom, pah on 2, pah on &3 anticipating the next chord
 //   C  Charleston: oom + chord on 1, chord on &2      L  light: oom, pah on 2      -  tacet
@@ -439,28 +457,9 @@ function oom(b: number): number {
   while (m < midi("Eb2")) m += 12;
   return m;
 }
-// The upright's bass zones measure flat (a piano's stretch tuning; the median of their partials):
-// C2 -21, Eb2 -8, F#2 -12, A2 -4 cents; C3 and up are within 2 cents. Notes played from those
-// zones are pulled up so the oom sits in tune with the pizz bass.
-const PIANO_FLAT: Record<number, number> = { [midi("C2")]: 21, [midi("Eb2")]: 8, [midi("F#2")]: 12, [midi("A2")]: 4 };
-/** The recorded zones up to C3 in each velocity layer (the loud one has a B2 instead of an A2). */
-const PIANO_ZONES = { soft: ["C2", "Eb2", "F#2", "A2", "C3"].map(midi), loud: ["C2", "Eb2", "F#2", "B2", "C3"].map(midi) };
-/** Cents to add to a piano note: finds its zone the way the sampler does (at or below, else up). */
-function pianoCents(m: number, loud: boolean): number {
-  let zone = 0;
-  let best = Infinity;
-  for (const z of PIANO_ZONES[loud ? "loud" : "soft"]) {
-    const d = m - z;
-    const cost = d >= 0 ? d : -1.3 * d;
-    if (cost < best) {
-      best = cost;
-      zone = z;
-    }
-  }
-  return PIANO_FLAT[zone] ?? 0;
-}
-const tuned = (n: string | number, loud = false) => num(n) + pianoCents(num(n), loud) / 100;
-
+// The comping needs no song-local tuning: with the piano tuned as heard (instruments.ts), the soft
+// F#3 recording that plays F3 and G3 measures +0.5 to +2.4 cents in the short "pah" chords
+// (centsHeard, rendered solo), and every other comping note within 3.
 const piano: Note[] = [];
 for (let b = 1; b <= BARS; b++) {
   const kind = STRIDE[b - 1]!;
@@ -474,9 +473,9 @@ for (let b = 1; b <= BARS; b++) {
   const chordAt = (beat: number, d: number, v: number, next = false) => {
     const t = swung(s + beat);
     // Shells roll very slightly, bottom up, like a hand landing on the keys (after the swing).
-    voicing(next ? h % CHORUS : h - 1).forEach((n, k) => piano.push({ t: t + k * 0.012, d, n: tuned(n), v: v + lift - k * 0.02 }));
+    voicing(next ? h % CHORUS : h - 1).forEach((n, k) => piano.push({ t: t + k * 0.012, d, n: num(n), v: v + lift - k * 0.02 }));
   };
-  piano.push({ t: s, d: 0.9, n: tuned(oom(b)), v: 0.4 + 0.06 * energy(s) });
+  piano.push({ t: s, d: 0.9, n: oom(b), v: 0.4 + 0.06 * energy(s) });
   if (kind === "S" || kind === "P" || kind === "L") chordAt(1, 0.6, 0.36);
   if (kind === "S") chordAt(2, 0.6, 0.34);
   if (kind === "P") chordAt(2.5, 1.0, 0.38, true);
@@ -505,8 +504,8 @@ const BREAK_LH: [number, string, string[]][] = [
   [31, "Bb2", ["Eb3", "Ab3", "C4"]], [32, "F2", ["D3", "Ab3", "C4"]],
 ];
 for (const [b, low, chordNotes] of BREAK_LH) {
-  breakNotes.push({ t: bar(b), d: 0.9, n: tuned(low, true), v: 0.6 });
-  for (const beat of b === 32 ? [1] : [1, 2]) chordNotes.forEach((n, k) => breakNotes.push({ t: bar(b) + beat + k * 0.012, d: 0.6, n: tuned(n, true), v: 0.58 - k * 0.02 }));
+  breakNotes.push({ t: bar(b), d: 0.9, n: low, v: 0.6 });
+  for (const beat of b === 32 ? [1] : [1, 2]) chordNotes.forEach((n, k) => breakNotes.push({ t: bar(b) + beat + k * 0.012, d: 0.6, n, v: 0.58 - k * 0.02 }));
 }
 
 // ---------------------------------------------------------------- walking bass
@@ -532,30 +531,31 @@ const BASS_SPLIT = midi("F#2");
 // arrangement and, as the master normalizes RMS, made everything else quieter.
 const BASS_GAIN = 0.24;
 // The recordings also vary note to note; these trims (dB) even out the walking line, from
-// measuring each rendered note's level (A-weighted, first 250 ms).
+// measuring each rendered note's level (A-weighted, first 250 ms): each note's average sits within
+// 1 dB of the line's median.
 const BASS_TRIM = new Map(
-  Object.entries({ G1: 3.5, Ab1: 2, C2: 3.5, D2: 3.5, F2: -1, G2: 7, Ab2: -1.5, Bb2: -1, C3: 1 }).map(([k, db]) => [midi(k), db]),
+  Object.entries({ G1: 3.5, Ab1: 2, Bb1: 2, C2: 3.5, D2: 3.5, F2: -1, G2: 4.5, Ab2: 0, Bb2: 0.5, C3: 3 }).map(([k, db]) => [midi(k), db]),
 );
-// Bb2 is played from the A2 recording, whose two round-robin takes alternate note by note and
-// measure (with the instrument's -6 cent correction) about +10 and 0 cents. Pulling every Bb2 down
-// 5 cents leaves both within 5; the old -10 put the in-tune take 10 cents flat.
-const BASS_CENTS = new Map([[midi("Bb2"), -5]]);
 const bass = byGain(
   { inst: "bassPizz", pan: 0, reverb: 0.1, humanize: 0.25 },
   bassNotes.map((n) => {
     const m = num(n.n);
     const a = n.v ?? 0;
-    return { ...n, n: m + (BASS_CENTS.get(m) ?? 0) / 100, v: m < BASS_SPLIT ? 0.7 + a : 0.3 + a * 0.6 };
+    return { ...n, v: m < BASS_SPLIT ? 0.7 + a : 0.3 + a * 0.6 };
   }),
   (n) => {
-    const m = Math.round(num(n.n));
+    const m = num(n.n);
     return BASS_GAIN * dB((m < BASS_SPLIT ? 0 : 8) + (BASS_TRIM.get(m) ?? 0));
   },
+  // A pizz note rings for seconds (a beat later it is only 3-7 dB down), so the walking line's
+  // notes, a step apart, sounded together; the bassist's next note stops the last one.
+  true,
 );
 
 // ---------------------------------------------------------------- drums: a 1920s kit
 
 const hat: Note[] = [];
+const hatFoot: Note[] = [];
 const ride: Note[] = [];
 const rim: Note[] = [];
 const snare: Note[] = [];
@@ -567,10 +567,10 @@ for (let b = 1; b <= BARS; b++) {
   const s = bar(b);
   if (b >= 29 && b <= 32) continue; // the piano break (its hit and pickup are below)
   const lift = 0.06 * energy(s);
-  // Jazz-waltz time, "1  2-a 3 | 1  2  3-a": on the closed hat for the first A sections, then on
-  // the ride with the hat "chick" on 2. Always four strokes a bar: the ride's two recordings (mp
-  // and f) alternate as round robins in note order, so an even count keeps the f take on 1 and 3
-  // (an extra skip in the last A flipped the accent onto beat 2 every other bar).
+  // Jazz-waltz time, "1  2-a 3 | 1  2  3-a": stick on the closed hat for the first A sections
+  // (velocities keep to the third of its four layers; the accent is in level), then on the ride,
+  // with the hat's foot "chick" on 2. The ride's strong (f) recording plays 1 and 3, its lighter
+  // (mp) one the 2 and the skip: velocity picks the layer (under 0.5 = mp, even after humanizing).
   const skips = b % 2 ? [1.5] : [2.5];
   if (b <= 16) {
     for (const beat of [0, 1, 2]) hat.push({ t: s + beat, d: 1, n: "F#2", v: (beat === 0 ? 0.66 : 0.6) + lift });
@@ -578,9 +578,9 @@ for (let b = 1; b <= BARS; b++) {
     // Cross-stick on 3.
     rim.push({ t: s + 2, d: 1, n: "D2", v: 0.5 + lift });
   } else {
-    for (const beat of [0, 1, 2]) ride.push({ t: s + beat, d: 1, n: "D#3", v: (beat === 0 ? 0.8 : 0.7) + lift });
-    for (const beat of skips) ride.push({ t: s + beat, d: 1, n: "D#3", v: 0.55 + lift });
-    hat.push({ t: s + 1, d: 1, n: "F#2", v: 0.4 });
+    ride.push({ t: s, d: 1, n: "D#3", v: 0.8 + lift }, { t: s + 1, d: 1, n: "D#3", v: 0.46 }, { t: s + 2, d: 1, n: "D#3", v: 0.7 + lift });
+    for (const beat of skips) ride.push({ t: s + beat, d: 1, n: "D#3", v: 0.42 });
+    hatFoot.push({ t: s + 1, d: 1, n: "G#2", v: 0.5 });
     // Snare comping: a ghost note on the "&" here and there.
     if (b % 2 === 0) snare.push({ t: s + 1.5, d: 1, n: "D2", v: 0.12 });
     if (b % 4 === 3) snare.push({ t: s + 2.5, d: 1, n: "D2", v: 0.14 });
@@ -633,7 +633,22 @@ for (let b = 61; b <= 64; b++) {
 // (One recorded layer each, so velocity is level here: the soli leads, the ensemble's inner voices
 // sit under the trumpet but stay within ~10 dB of the mix through the countdown.)
 const sopranoLine = [...soliSoprano.map((n) => ({ ...n, v: 0.62 + (n.v ?? 0) })), ...tuttiSoprano.map((n) => ({ ...n, v: 0.58 + (n.v ?? 0) }))];
-const tenorLine = [...soliTenor.map((n) => ({ ...n, v: 0.55 + (n.v ?? 0) })), ...tuttiTenor.map((n) => ({ ...n, v: 0.58 + (n.v ?? 0) }))];
+/**
+ * Song-local tuning of the tenor's short notes (cents). The tenor sax scoops up into its low notes;
+ * auto-tuning centres each recording's first half second, so a quarter note, which ends inside the
+ * scoop, sounds flat: Eb3 -11, G3 -8, Bb3 -7, G4 and Ab4 -4, and the G4 pickup a push clips -7
+ * (centsHeard, every rendered note). Its held notes, and every other note, measure within 3.
+ */
+const TENOR_SCOOP = new Map(Object.entries({ Eb3: 10, G3: 8, Bb3: 7, G4: 4, Ab4: 4 }).map(([k, c]) => [midi(k), c]));
+function tenorCents(m: number, beats: number): number {
+  if (beats >= 1.5) return 0;
+  const c = TENOR_SCOOP.get(m) ?? 0;
+  return beats < 0.6 ? c + 3 : c;
+}
+const tenorLine = [...soliTenor.map((n) => ({ ...n, v: 0.55 + (n.v ?? 0) })), ...tuttiTenor.map((n) => ({ ...n, v: 0.58 + (n.v ?? 0) }))].map((n) => ({
+  ...n,
+  n: num(n.n) + tenorCents(num(n.n), n.d) / 100,
+}));
 
 const song: Song = {
   name: "newyear",
@@ -646,9 +661,10 @@ const song: Song = {
     // The lead rises ~3 dB from the first A to the countdown.
     // The harmon mute's buzz peaks at 2.5 kHz, its loudest third-octave (louder than its own
     // fundamentals), and it alone made this the brightest song by 8-13 dB at 2-4 kHz. The low-pass
-    // (-0.5 dB at 500 Hz, -2 dB at 1 kHz, -6 dB at 2 kHz, -8 dB at 2.5 kHz) tames it to a warmer,
-    // hat-muted 1920s sound; +3.2 dB of gain keeps the lead on top.
-    ...byGain({ inst: "trumpetMute", pan: 0.05, reverb: 0.3, humanize: 0.35, lowpass: 2000 }, lead, (n) => 3.9 * dB(leadGainDb(num(n.n)) + buildDb(n.t, 3))),
+    // (-0.7 dB at 500 Hz, -2.6 dB at 1 kHz, -7.5 dB at 2 kHz, -10 dB at 2.5 kHz) tames it to a
+    // warmer, hat-muted 1920s sound; +4 dB of gain keeps the lead on top. The buzz is the harmon
+    // mute's voice, so this stays the brightest song at 2-4 kHz (about 3 dB over the others' median).
+    ...byGain({ inst: "trumpetMute", pan: 0.05, reverb: 0.3, humanize: 0.35, lowpass: 1700 }, lead, (n) => 4.3 * dB(leadGainDb(num(n.n)) + buildDb(n.t, 3))),
     // The sax section: soprano on top (the soli's lead), tenor under it, both darkened a little.
     { inst: "sopranoSax", notes: sopranoLine, gain: 0.5, pan: 0.15, reverb: 0.28, humanize: 0.3, lowpass: 4500 },
     { inst: "sax", notes: tenorLine, gain: 0.38, pan: -0.15, reverb: 0.28, humanize: 0.3, lowpass: 5000 },
@@ -662,17 +678,19 @@ const song: Song = {
     ...byGain({ inst: "piano", pan: -0.3, reverb: 0.2, humanize: 0.4 }, piano, (n) => (n.t < bar(33) ? 0.058 : 0.08)),
     { inst: "piano", notes: breakNotes, gain: 0.065, pan: -0.3, reverb: 0.25, humanize: 0.3 },
     ...bass,
-    // The cymbals are the mix's only content above 8 kHz, so both are darkened (an old, dark 1920s
-    // cymbal), the ride most, as it plays through 44 of the 64 bars; their gains make up the level.
-    // Hat, ride, rim and snare sit up front enough for the kit to be featured on a phone speaker,
-    // where the kick is lost.
-    { inst: "hatClosed", notes: hat, gain: 0.67, pan: 0.25, reverb: 0.1, humanize: 0.4, lowpass: 7000 },
-    { inst: "ride", notes: ride, gain: 1.49, pan: 0.3, reverb: 0.15, humanize: 0.4, lowpass: 6000 },
-    { inst: "rim", notes: rim, gain: 1.35, pan: 0.05, reverb: 0.15, humanize: 0.4 },
-    { inst: "snareOn", notes: snare, gain: 1.32, pan: 0.05, reverb: 0.18, humanize: 0.4 },
+    // The kit carries almost all of the mix above 4 kHz, so it is darkened (an old, dark 1920s
+    // kit), the ride most, as it plays through 44 of the 64 bars; the gains make up the level.
+    // That leaves the mix about 2 dB brighter than the other songs' median at 4-8 kHz and above
+    // 8 kHz (it was 4 and 5). Hat, ride, rim and snare sit up front enough for the kit to be
+    // featured on a phone speaker, where the kick is lost.
+    { inst: "hatClosed", notes: hat, gain: 0.77, pan: 0.25, reverb: 0.1, humanize: 0.4, lowpass: 5000 },
+    { inst: "hatPedal", notes: hatFoot, gain: 0.46, pan: 0.25, reverb: 0.1, humanize: 0.4, lowpass: 5000 },
+    { inst: "ride", notes: ride, gain: 2, pan: 0.3, reverb: 0.15, humanize: 0.4, lowpass: 4500 },
+    { inst: "rim", notes: rim, gain: 1.6, pan: 0.05, reverb: 0.15, humanize: 0.4, lowpass: 6000 },
+    { inst: "snareOn", notes: snare, gain: 1.32, pan: 0.05, reverb: 0.18, humanize: 0.4, lowpass: 6000 },
     { inst: "kick", notes: kick, gain: 0.37, reverb: 0.05 },
-    { inst: "crash", notes: crash, gain: 0.5, pan: -0.3, reverb: 0.2 },
-    { inst: "cymbals", notes: cymbals, gain: 0.18, pan: 0.2, reverb: 0.25 },
+    { inst: "crash", notes: crash, gain: 0.5, pan: -0.3, reverb: 0.2, lowpass: 6000 },
+    { inst: "cymbals", notes: cymbals, gain: 0.18, pan: 0.2, reverb: 0.25, lowpass: 6000 },
     { inst: "tomHigh", notes: toms, gain: 0.5, pan: 0.2, reverb: 0.15 },
     { inst: "tomLow", notes: tomsLow, gain: 0.35, pan: -0.15, reverb: 0.15 },
     { inst: "claps", notes: clapsL, gain: 0.3, pan: -0.35, reverb: 0.25, humanize: 0.5 },

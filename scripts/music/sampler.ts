@@ -68,6 +68,12 @@ export interface InstrumentOptions {
   autotune?: boolean | "heard";
   /** Harmonic overtones (winds, brass, strings): lets autotune measure low notes on a higher partial. */
   harmonic?: boolean;
+  /**
+   * Piano-like strings, whose overtones run progressively sharp: autotune reads the fundamental,
+   * or partials 2-4 below 130 Hz where the fundamental is weak (that is how the low notes are
+   * heard, and it keeps the natural stretch a tuner gives the bass).
+   */
+  stretched?: boolean;
   /** With autotune: drop takes whose pitch can't be measured reliably (bent staccato notes). */
   strictTuning?: boolean;
   /**
@@ -128,7 +134,9 @@ export function trimLead(audio: Audio): Audio | null {
 interface Reading {
   /** Cents above the label (NaN when nothing could be read). */
   cents: number;
-  /** The reading is trustworthy enough to tune by. */
+  /** Good enough to tune by: the partials roughly agree (plucks' partials fade unevenly). */
+  usable: boolean;
+  /** The partials agree closely: a clean take (strictTuning keeps these). */
   steady: boolean;
 }
 
@@ -139,25 +147,28 @@ interface Reading {
  * first four) and take the median; it is steady only when the partials agree, since short
  * staccato notes bend in pitch and their partials scatter. Offsets of 60+ cents are misreads.
  */
-function measurePitch(z: Zone, harmonic: boolean, heard: boolean): Reading {
+function measurePitch(z: Zone, kind: "harmonic" | "stretched" | "fundamental", heard: boolean): Reading {
   const hz = 440 * 2 ** ((z.note - 69) / 12);
   const read = (h: number) => (heard ? centsHeard : centsNear)(z.audio.left, z.audio.rate, z.note, h);
-  if (!harmonic) {
+  if (kind === "fundamental" || (kind === "stretched" && hz >= 130)) {
     const cents = read(1);
-    return { cents, steady: Math.abs(cents) < 60 };
+    const ok = Math.abs(cents) < 60;
+    return { cents, usable: ok, steady: ok };
   }
   const reads: number[] = [];
-  for (let h = 1; h <= 8; h++) {
+  const partials = kind === "stretched" ? [2, 3, 4] : [1, 2, 3, 4, 5, 6, 7, 8];
+  for (const h of partials) {
     // Low and middle notes: partials up to 2.5 kHz; high notes: the first four.
-    if (h * hz < 150 || h * hz > Math.max(2500, hz * 4.5)) continue;
+    if (kind === "harmonic" && (h * hz < 150 || h * hz > Math.max(2500, hz * 4.5))) continue;
     const c = read(h);
     if (Number.isFinite(c)) reads.push(c);
   }
-  if (!reads.length) return { cents: NaN, steady: false };
+  if (!reads.length) return { cents: NaN, usable: false, steady: false };
   reads.sort((a, b) => a - b);
   const cents = reads[Math.floor(reads.length / 2)]!;
   const spread = reads[Math.floor((reads.length * 3) / 4)]! - reads[Math.floor(reads.length / 4)]!;
-  return { cents, steady: reads.length >= 3 && spread <= 12 && Math.abs(cents) < 60 };
+  const ok = Math.abs(cents) < 60 && (kind === "stretched" || reads.length >= 3);
+  return { cents, usable: ok && spread <= 25, steady: ok && spread <= 12 };
 }
 
 /** RMS of the first `seconds` of a recording (both channels). */
@@ -183,7 +194,7 @@ export class Instrument {
   private rrCounter = new Map<number, number>();
 
   constructor(opts: InstrumentOptions) {
-    this.opts = { attack: 0.004, release: 0.25, oneShot: false, gain: 1, transpose: 0, cents: 0, autotune: false, harmonic: false, strictTuning: false, even: false, ...opts };
+    this.opts = { attack: 0.004, release: 0.25, oneShot: false, gain: 1, transpose: 0, cents: 0, autotune: false, harmonic: false, stretched: false, strictTuning: false, even: false, ...opts };
     const dir = opts.dir.startsWith("/") ? opts.dir : join(SAMPLES, opts.dir);
     const files = readdirSync(dir).filter((f) => /\.(wav|flac)$/i.test(f) && (!opts.match || opts.match.test(f)));
     for (const f of files.sort()) {
@@ -205,9 +216,9 @@ export class Instrument {
     if (this.opts.autotune) {
       const reading = new Map<Zone, Reading>();
       for (const z of this.zones) {
-        const r = measurePitch(z, this.opts.harmonic, this.opts.autotune === "heard");
+        const r = measurePitch(z, this.opts.harmonic ? "harmonic" : this.opts.stretched ? "stretched" : "fundamental", this.opts.autotune === "heard");
         reading.set(z, r);
-        if (r.steady) z.detune = -r.cents;
+        if (r.usable) z.detune = -r.cents;
       }
       // Bent staccato takes: keep a note's steady takes; if none is steady, the ones that are
       // at least near the pitch (within 15 cents).

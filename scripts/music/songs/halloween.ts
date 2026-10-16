@@ -18,23 +18,31 @@
 // gallop builds while the euphonium sings the B section (25–28) with a horn call over it and the
 // violins' off-beats still riding, and a snare roll throws it into the tutti (29–32): clash
 // cymbals and crash, the kick on both pulses and the buzzy snare on the second, horn and
-// euphonium on the tune two octaves under the harpsichord. It ends on the dominant, so it falls
-// back into the tiptoe at bar 1. Pass 1's harpsichord sits a couple of dB under pass 2's.
+// euphonium on the tune two octaves under the harpsichord, the bass taking inversions under it
+// (bars 30–31) and falling F–E to end on the dominant, so it falls back into the tiptoe at bar 1.
+// Pass 1's harpsichord sits a couple of dB under pass 2's. Plucked parts are damped like the real
+// instruments: the harpsichord tune at each next note, the continuo after an eighth, the low pizz
+// at its next note, so nothing rings on into the next chord.
 //
 // Register plan (the harpsichord tune is E4–C6, mostly C5–A5):
 //   xylophone G#5–B6 (an octave over the tune) · harpsichord continuo D4–C5
 //   pizz violins D4–F4 and violas G3–D4 on the off-beats · horn calls E3–D4, under them
 //   sax answers D3–A3 · bassoon and euphonium solos B2–B3 (pickups E2–G2 and E3–G3),
 //   euphonium fifths A2–E3, horn and euphonium tutti tune A2–A3 (the cellos rest wherever these
-//   play) · piano octaves A1–F3 · pizz bass G#1–G2 · toms tuned to E2 and A2 · kick E1
+//   play) · piano octaves A1–F3 · pizz bass G#1–G2 · toms tuned to E2 and A2 · kick (untuned)
 //
-// Mix: the harpsichord leads the A sections (within 5 dB of the mix), the bassoon and the
+// Mix: the harpsichord leads the A sections (within about 5 dB of the mix), the bassoon and the
 // euphonium their B sections; piano, sax, horn and low brass each sit within about 10 dB of the
 // mix where they play, and the drums grow from about -16 dB (the distant hoofbeats of bar 21) to
 // -6 in the tutti (scripts/music/mix.ts, and per bar).
+//
+// Tuning: the shared instruments are auto-tuned per recording to the pitch heard. Song-local, only
+// what that leaves: the horn's E3–G3 go to its second layer and the sustained brass's eighth notes
+// are lifted 4 cents (see the horn), the toms are tuned per layer and the timpani to the chord.
+// Measured as rendered, every note of the piano, sax, horn, euphonium (trombone + tuba together),
+// harpsichord and bassoon is within 5 cents of pitch as heard.
 
-import { INSTRUMENTS } from "../instruments";
-import { midi, type InstrumentOptions } from "../sampler";
+import { midi } from "../sampler";
 import { euphonium, transpose, type Note, type Song, type Track } from "../song";
 import { CHORDS, EIGHTHS_PER_BAR, melody, minorize, THEME_BARS, THEME_BPM } from "../theme";
 
@@ -112,9 +120,9 @@ const pianoNeighbour = (t: number) => (barOf(t) === 4 || barOf(t) === 16) && t %
  * Pass 2 accents the phrase starts and the held dominants the way a harpsichordist does (the
  * instrument has no dynamics): a quick spread chord rolled up into the tune's note, so the tune
  * still lands on the beat with the bass and the xylophone. The spread uses the chord tones within
- * an octave below the note. Neighbour-note ornaments (mordents, trills) don't work with these
- * samples: a one-shot can't be damped when the key is released, so the neighbour would ring on
- * under the main note as a semitone smear (and a trill's upper F would clash with the E7 chord).
+ * an octave below the note, on its own track: the rolled keys are held and ring with the note,
+ * while the tune itself is damped as each next note is played (choke, as the real instrument's
+ * dampers do; the recordings would otherwise ring on for 1–2 s under the following notes).
  */
 const SPREAD_BARS = new Set([17, 19, 20, 21, 23, 29, 31, 32]);
 const spreadUnder = (t: number, m: number): number[] => {
@@ -127,6 +135,7 @@ const spreadUnder = (t: number, m: number): number[] => {
 // Pass 1 (its own track, a couple of dB down: the tiptoe) and pass 2.
 const tiptoe: Note[] = [];
 const lead: Note[] = [];
+const rolls: Note[] = [];
 for (const n of theme) {
   for (const t of [n.t, n.t + PASS]) {
     // The soloists take the B sections and the pickups into them.
@@ -140,7 +149,7 @@ for (const n of theme) {
     const v = clampV((n.v ?? 0.7) * 1.02);
     if (t % BAR === 0 && SPREAD_BARS.has(barOf(t))) {
       const grace = spreadUnder(t, m);
-      grace.forEach((g, i) => lead.push({ t: t - (grace.length - i) * 0.1, d: 1, n: g, v: v * 0.6 }));
+      grace.forEach((g, i) => rolls.push({ t: t - (grace.length - i) * 0.1, d: 1, n: g, v: v * 0.6 }));
     }
     lead.push({ t, d: n.d, n: m, v });
   }
@@ -157,7 +166,9 @@ const CONTINUO = new Map<string[], string[]>([
   [F, ["F4", "A4", "C5"]],
   [Bdim, ["D4", "F4", "B4"]],
 ]);
-// Under the euphonium (its own track) it plays out more, to keep the ride from thinning.
+// Under the euphonium (its own track) it plays out more, to keep the ride from thinning. The
+// chords are let go after an eighth (ring), the off-beats of a dance, so the E7 that ends each
+// solo stops at the bar line instead of ringing into the A minor that follows (bars 13 and 29).
 const continuo: Note[] = [];
 const continuoRide: Note[] = [];
 for (const from of [9, 25]) {
@@ -219,15 +230,11 @@ const bassoonTune: Note[] = [
 
 // Low octaves on an upright: a boom on the tonic, then a chromatic creep down F–E–Eb–D into the
 // iv while the tune holds its C, and an E–F–E (the Phrygian half step over the dominant) in the
-// held E of bars 4 and 16. Pass 1 only: bars 1–4 and 13–16, with the pizz waltz.
-// Song-local tuning: measured as rendered (centsNear, median over partials), the upright's
-// lowest notes sit flat (a piano's stretched bass): A1 -13, B1 -8, D2 -6, Eb2 -7, E2 -7 and
-// F2 -12 cents, against 0 to -2 an octave up. Played in octaves with the pizz bass, that beats,
-// so those notes are nudged up by what they measured.
-const PIANO_CENTS: Record<string, number> = { A1: 13, B1: 8, D2: 6, Eb2: 7, E2: 7, F2: 12 };
+// held E of bars 4 and 16. Pass 1 only: bars 1–4 and 13–16, with the pizz waltz. The shared
+// autotune tunes the upright's bass on partials 2–4, which is how it is heard against the pizz
+// bass (measured as rendered: every note within 2 cents), so it needs no correction here.
 const piano: Note[] = [];
-const octave = (t: number, low: string, d: number, v: number) =>
-  piano.push({ t, d, n: num(low) + (PIANO_CENTS[low] ?? 0) / 100, v }, { t, d, n: num(low) + 12, v: v - 0.02 });
+const octave = (t: number, low: string, d: number, v: number) => piano.push({ t, d, n: low, v }, { t, d, n: num(low) + 12, v: v - 0.02 });
 for (const from of [1, 13]) {
   const t = bar(from);
   octave(t, "A1", 6, 0.66);
@@ -266,11 +273,18 @@ const saxTreat: Note[] = [
 // brassy third velocity layer, in the horn's well-recorded middle (E3–D4): above C4 only the
 // softest layer has notes, and the loudest layer has only two.
 //
-// Except E3–G3: the third layer plays those from its F3 recording, which starts about 50 cents
-// flat and only reaches pitch after ~180 ms (measured as rendered: -46 to -59 cents over the first
-// 160 ms, then within 8). An eighth note here is 222 ms, so a short E3 or G3 was flat nearly all
-// the way through. Those notes go to the second layer instead (its F3 bends at most 13 cents), on a
-// twin track with the level made up (that layer sits about 9 dB lower).
+// Except E3–G3: the third layer plays those from its F3 recording, which scoops up from about 50
+// cents flat over its first ~220 ms. The shared autotune tunes what is heard of a long note, so a
+// dotted quarter is in tune (-2 cents as rendered), but an eighth note (222 ms) is nearly all
+// scoop: E3 measures -38 cents heard, G3 -23. Those notes go to the second layer instead (its F3
+// bends little), on a twin track with the level made up (that layer sits about 9 dB lower).
+//
+// Eighth notes on sustained brass hear mostly the attack of a long-note recording, which starts a
+// little flat: as rendered, the euphonium's eighths (trombone + tuba) measure 3 to 7 cents under
+// pitch, its longer notes within 2, and the horn's second-layer F3 take plays eighths 5 to 6 cents
+// flat. Those eighths are lifted 4 cents. (The horn's other takes are within 5 at any length.)
+const EIGHTH_LIFT = 0.04;
+const liftEighths = (notes: Note[]): Note[] => notes.map((n) => (n.d <= 1 ? { ...n, n: num(n.n) + EIGHTH_LIFT } : n));
 const HORN_SCOOP = new Set(["E3", "F3", "F#3", "G3"].map(num));
 const hornTracks = (notes: Note[], opts: Omit<Track, "inst" | "notes">): Track[] =>
   [
@@ -278,7 +292,7 @@ const hornTracks = (notes: Note[], opts: Omit<Track, "inst" | "notes">): Track[]
     {
       inst: "horn" as const,
       // 0.30–0.47: inside the second layer (0.25–0.5) with a humanize-width to spare.
-      notes: notes.filter((n) => HORN_SCOOP.has(num(n.n))).map((n) => ({ ...n, v: Math.min(0.47, Math.max(0.3, (n.v ?? 0.7) - 0.14)) })),
+      notes: liftEighths(notes.filter((n) => HORN_SCOOP.has(num(n.n)))).map((n) => ({ ...n, v: Math.min(0.47, Math.max(0.3, (n.v ?? 0.7) - 0.14)) })),
       ...opts,
       gain: (opts.gain ?? 1) * 2.9,
     },
@@ -310,7 +324,7 @@ const hornTune = tuneIn(29, 32, -24, (v) => 0.5 + (v - 0.5) * 0.7);
 // Ominous open fifths over the bass as the gallop starts (bars 21–24), the tune's pickup an octave
 // over the solo (E–F–G, turning onto its first F), the B section (25–28) as the Horseman rides,
 // then the tune with the horn in the tutti.
-const euphLine: Note[] = [
+const euphLine: Note[] = liftEighths([
   { t: bar(21), d: 6, n: "E3", v: 0.46 },
   { t: bar(22), d: 3, n: "D3", v: 0.48 },
   { t: bar(22) + 3, d: 3, n: "C3", v: 0.5 },
@@ -320,39 +334,32 @@ const euphLine: Note[] = [
   { t: bar(24) + 3, d: 1, n: "E3", v: 0.56 },
   { t: bar(24) + 4, d: 1, n: "F3", v: 0.58 },
   { t: bar(24) + 5, d: 1, n: "G3", v: 0.6 },
-];
+]);
 // The solo is its own track: it leads the ride, so it plays out well over the opening fifths.
-const euphTune = tuneIn(25, 28, -24, (v) => Math.min(0.64, v * 0.9));
-const euphTutti = tuneIn(29, 32, -24, (v) => Math.min(0.64, v * 0.85));
+const euphTune = liftEighths(tuneIn(25, 28, -24, (v) => Math.min(0.64, v * 0.9)));
+const euphTutti = liftEighths(tuneIn(29, 32, -24, (v) => Math.min(0.64, v * 0.85)));
 
 // ------------------------------------------------------------------ pizzicato waltz
-
-/**
- * Song-local tuning for the pizz section, against the piano, bassoon and brass in tune. Rendered
- * and measured per note (median over partials, over the whole pluck and its first 170 ms, both
- * takes and both layers; a pluck starts sharp and settles): the cellos sit about 9 cents sharp;
- * the violas about 13, except their B3 recording (which plays B3 and C4) at about 3; the violins'
- * D4 recording (D4 and E4) about 12 sharp and their F#4 one (F4) 9 flat. Corrected here net of any
- * `cents` the shared instrument gets later, and not at all once it is autotuned there, so a shared
- * fix can't double up.
- */
-const PIZZ_CENTS: Record<"cellosPizz" | "violasPizz" | "violinsPizz", (m: number) => number> = {
-  cellosPizz: () => 9,
-  violasPizz: (m) => (m === num("B3") || m === num("C4") ? 3 : 13),
-  violinsPizz: (m) => (m === num("D4") ? 13 : m === num("E4") ? 11 : m === num("F4") ? -9 : 0),
-};
-const pizz = (name: keyof typeof PIZZ_CENTS, n: string | number): number => {
-  const m = num(n);
-  const shared = INSTRUMENTS[name] as InstrumentOptions;
-  return shared.autotune ? m : m - (PIZZ_CENTS[name](m) + (shared.cents ?? 0)) / 100;
-};
 
 const bass: Note[] = [];
 const cellos: Note[] = [];
 const violas: Note[] = [];
 const violins: Note[] = [];
+/**
+ * In the tutti the horn and euphonium sing the tune an octave over the contrabass, and on bars
+ * 30–31 the tune lands on the chord roots (F, C, D, B, then E), so plain roots would run in
+ * exposed octaves with it. There the bass takes inversions: VI over A (so it rises to the C as
+ * the tune falls to it), then iv and iiø over F, which falls a half step to the dominant (the
+ * Phrygian F–E again, against the tune rising D–E).
+ */
+const TUTTI_BASS = new Map<number, string>([
+  [bar(30), "A1"],
+  [bar(31), "F2"],
+  [bar(31) + 3, "F2"],
+]);
 for (let t = 0; t < BARS * BAR; t += 3) {
-  const [b, chord] = half(t);
+  const [root, chord] = half(t);
+  const b = TUTTI_BASS.get(t) ?? root;
   const first = t % BAR === 0;
   const pass2 = t >= PASS;
   // Contrabass on every pulse; cellos double it an octave up except where the bassoon solo, the
@@ -361,15 +368,15 @@ for (let t = 0; t < BARS * BAR; t += 3) {
   // would beat as a semitone in the lowest octave. For the same reason they leave the piano's
   // E–F–E (bars 4 and 16) to the piano, whose own E2+E3 is the bass there.
   if (!(soloPickup(t) && !pass2) && !pianoNeighbour(t)) bass.push({ t, d: 3, n: b, v: first ? 0.84 : 0.72 });
-  if (!bassoonSolo(t) && !soloPickup(t) && !pianoNeighbour(t) && t < bar(17)) cellos.push({ t, d: 3, n: pizz("cellosPizz", num(b) + 12), v: first ? 0.64 : 0.56 });
+  if (!bassoonSolo(t) && !soloPickup(t) && !pianoNeighbour(t) && t < bar(17)) cellos.push({ t, d: 3, n: num(b) + 12, v: first ? 0.64 : 0.56 });
   if (bassoonSolo(t) || soloPickup(t) || pianoNeighbour(t)) continue;
   // "Pah-pah": violas take the lower two notes, violins (from bar 5) the top one. Under the
   // bassoon the strings rest; under the euphonium the violins keep the waltz riding, above it.
   const lift = pass2 ? 1 : between(t, 1, 4) ? 0.9 : 0.95;
   for (const off of [1, 2]) {
     const v = (off === 1 ? 0.62 : 0.42) * lift;
-    if (!euphSolo(t)) violas.push({ t: t + off, d: 1, n: pizz("violasPizz", chord[0]!), v }, { t: t + off, d: 1, n: pizz("violasPizz", chord[1]!), v });
-    if (t >= bar(5)) violins.push({ t: t + off, d: 1, n: pizz("violinsPizz", chord[2]!), v });
+    if (!euphSolo(t)) violas.push({ t: t + off, d: 1, n: chord[0]!, v }, { t: t + off, d: 1, n: chord[1]!, v });
+    if (t >= bar(5)) violins.push({ t: t + off, d: 1, n: chord[2]!, v });
   }
 }
 
@@ -391,7 +398,8 @@ const softBells: Note[] = [
 // sampler rotates through them (two takes each), but the loud layer's four drums (v >= 0.67;
 // kept at 0.72 and up so humanizing can't drop a hit into a softer layer), played 2.56
 // semitones down, land on G#, B, D and E (measured principal tones: +25, +4, +2 and +20 cents):
-// the notes of E7, whichever drum comes up.
+// the notes of E7, whichever drum comes up. (Round robins restart with every render, so the eight
+// hits take them in order, two each: G# in bars 4 and 12, B in 16, D in 20 and 28, E in 32.)
 const TIMPANI = num("C3") - 2.56;
 const timpani: Note[] = [bar(4) + 3, bar(12) + 3, bar(16), bar(16) + 3, bar(20) + 3, bar(28) + 3, bar(32), bar(32) + 3].map((t) => ({
   t,
@@ -424,8 +432,8 @@ for (let t = 0; t < bar(21); t++) {
 // comes in on its own.
 const tomLowNote = (v: number) => num("F2") - (v < 0.33 ? 1.37 : v < 0.67 ? 1.64 : 1.83);
 const tomHighNote = (v: number) => num("A2") + (v < 0.33 ? 0.57 : v < 0.67 ? 0.19 : 0.02);
-/** The kick's two layers used here ring about 20 cents flat: B1 (the soft hits of bars 23–24), E1. */
-const KICK = num("C2") + 0.22;
+/** The kick plays at its recorded pitch: its body rings in several inharmonic modes (B1, D2, E2), not one note to tune. */
+const KICK = "C2";
 const kick: Note[] = [];
 const tomLow: Note[] = [];
 const tomHigh: Note[] = [];
@@ -485,11 +493,13 @@ const song: Song = {
   reverb: { room: 0.8, damp: 0.6, width: 1, level: 0.95 },
   tracks: [
     // The quill attack is the brightest thing in the mix (nearly all of it above 4 kHz): a
-    // low-pass takes its edge off and leaves the pluck.
-    { inst: "harpsichord", notes: tiptoe, gain: 0.8, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000 },
-    { inst: "harpsichord", notes: lead, gain: 1, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000 },
-    { inst: "harpsichord", notes: continuo, gain: 0.2, pan: -0.15, reverb: 0.36, lowpass: 5000 },
-    { inst: "harpsichord", notes: continuoRide, gain: 0.45, pan: -0.15, reverb: 0.36, lowpass: 5000 },
+    // low-pass takes its edge off and leaves the pluck. The tune is damped at the next note, or
+    // after 0.5 s (with the release, a dotted quarter) where a rest or the other pass follows.
+    { inst: "harpsichord", notes: tiptoe, gain: 0.9, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, choke: true, ring: 0.5 },
+    { inst: "harpsichord", notes: lead, gain: 1.12, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, choke: true, ring: 0.5 },
+    { inst: "harpsichord", notes: rolls, gain: 1.12, pan: -0.08, reverb: 0.36, humanize: 0.25, lowpass: 5000, ring: 0.6 },
+    { inst: "harpsichord", notes: continuo, gain: 0.2, pan: -0.15, reverb: 0.36, lowpass: 5000, ring: 0.2 },
+    { inst: "harpsichord", notes: continuoRide, gain: 0.45, pan: -0.15, reverb: 0.36, lowpass: 5000, ring: 0.2 },
     { inst: "xylophone", notes: bones, gain: 1.3, pan: 0.3, reverb: 0.32 },
     { inst: "xylophone", notes: bonesTutti, gain: 0.28, pan: 0.3, reverb: 0.32 },
     { inst: "piano", notes: piano, gain: 0.3, pan: -0.15, reverb: 0.3 },
@@ -504,8 +514,10 @@ const song: Song = {
     ...euphonium(euphLine, { gain: 3.5, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
     ...euphonium(euphTune, { gain: 7.5, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
     ...euphonium(euphTutti, { gain: 4, pan: 0.15, reverb: 0.28, humanize: 0.15 }),
-    { inst: "bassPizz", notes: bass, gain: 0.62, pan: 0.1, reverb: 0.12 },
-    { inst: "cellosPizz", notes: cellos, gain: 0.4, pan: 0.3, reverb: 0.2 },
+    // The low pizz is stopped at its next note (the bass's low strings ring for seconds), so a
+    // root never smears into the next chord: E–F, F–E and G#–A are semitones in the lowest octave.
+    { inst: "bassPizz", notes: bass, gain: 0.62, pan: 0.1, reverb: 0.12, choke: true },
+    { inst: "cellosPizz", notes: cellos, gain: 0.4, pan: 0.3, reverb: 0.2, choke: true },
     { inst: "violasPizz", notes: violas, gain: 0.3, pan: 0.2, reverb: 0.3, humanize: 0.4 },
     { inst: "violinsPizz", notes: violins, gain: 0.6, pan: -0.35, reverb: 0.3, humanize: 0.4 },
     { inst: "tubularBells", notes: bells, gain: 0.16, pan: -0.25, reverb: 0.45 },

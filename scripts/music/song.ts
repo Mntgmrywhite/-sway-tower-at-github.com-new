@@ -39,6 +39,12 @@ export interface Track {
    * to soften a fiddle's or harpsichord's edge, 2500 for a mellow, distant voice. Off by default.
    */
   lowpass?: number;
+  /**
+   * Thin a part's low end: a gentle high-pass (12 dB/octave) from this frequency in Hz. Phones
+   * can't play much under ~120 Hz, and master() normalizes loudness, so deep kick and bass
+   * energy only makes everything else quieter; 60-90 Hz keeps their punch for less.
+   */
+  highpass?: number;
   /** The part this track belongs to, for reports (mix.ts sums a part's tracks into one row). */
   label?: string;
   /**
@@ -119,6 +125,15 @@ export function renderLoop(song: Song): Audio {
     renderNotes(inst, events, tL, tR, RATE, track.gain ?? 1, track.pan ?? 0);
     if (track.lowpass) {
       for (const ch of [tL, tR]) for (let pass = 0; pass < 2; pass++) onePoleLoop(ch, track.lowpass, RATE);
+    }
+    if (track.highpass) {
+      for (const ch of [tL, tR]) {
+        for (let pass = 0; pass < 2; pass++) {
+          const low = ch.slice();
+          onePoleLoop(low, track.highpass, RATE);
+          for (let f = 0; f < frames; f++) ch[f] = ch[f]! - low[f]!;
+        }
+      }
     }
     const send = track.reverb ?? 0.25;
     for (let f = 0; f < frames; f++) {

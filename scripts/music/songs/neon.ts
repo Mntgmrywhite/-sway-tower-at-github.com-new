@@ -13,17 +13,22 @@
 // (A1–G2: on G and F it doubles the left hand's upper octave, so no long-ringing low pizz runs
 // into the next chord);
 // from A' the horns hold open pads underneath. In B the piano takes the tune (with a chord tone
-// under each note) over harp arpeggios, and the sax answers. A snare roll, a horn swell and a sax
-// run up the E7 chord lift bar 16 into pass 2, the chorus: the sax solos on the tune an octave
-// up (turns, runs, a climb to C6 at bar 29) and the soprano sax answers its held notes; the
-// piano's triplets drop under it, the bass drives eighths, the horns pad in triads, horn +
-// euphonium stabs mark the sections (pushed an eighth early into B and the last A), and a
-// glockenspiel arpeggiator shimmers on top. The last bar runs down the E7 chord and a big fill
-// drops the loop back into the verse.
+// under each note) over harp arpeggios, and the sax answers. A snare roll, a tom fill, a horn swell
+// and a sax run up the E7 chord, each growing to the bar line, lift bar 16 into pass 2, the chorus
+// (it lands on the loop's biggest crash): the sax solos on the tune an octave up (turns, runs, a
+// climb to C6 at bar 29) and the soprano sax answers its held notes; the piano's triplets drop
+// under it, the bass drives eighths, the horns pad in triads, horn + euphonium stabs mark the
+// sections (pushed an eighth early into B and the last A), and a glockenspiel arpeggiator
+// shimmers on top. The last bar runs down the E7 chord and a big fill drops the loop back into
+// the verse.
 //
 // Voicings are generated per chord inside each part's lane, leaving out any chord tone a
 // semitone from a passing note in the tune (no b9 against the melody) and, for the parts that
 // ring on (glockenspiel, harp), any tone a semitone from the chords and tune notes they ring into.
+//
+// Tuning and mix: the shared sampler tunes every recording by the pitch heard; only the saxes'
+// short notes are retuned here, for their scoop (see unscooped). The harp is damped at each chord
+// change and the bass pizz at each pluck; the kick and the bass are high-passed for phones.
 //
 // Register plan (so no two parts fight in the same octave):
 //   pass 1: piano LH octaves F1–E3 · bass pizz A1–G2 · horn pads F2–F3 · sax G#3–C5 ·
@@ -32,8 +37,10 @@
 //           sax G#4–C6 (its last bar runs down to D4) · soprano sax G5–D6 · glockenspiel C6–A7
 // All parts sit inside their instruments' recorded ranges.
 
-import { midi } from "../sampler";
-import { euphonium, transpose, type Note, type Song, type Track } from "../song";
+import { instrument, type InstrumentName } from "../instruments";
+import { centsHeard } from "../pitch";
+import { midi, renderNotes } from "../sampler";
+import { euphonium, RATE, transpose, type Note, type Song, type Track } from "../song";
 import { CHORDS, EIGHTHS_PER_BAR, melody, minorize, THEME_BARS, THEME_BPM } from "../theme";
 
 const BAR = EIGHTHS_PER_BAR;
@@ -63,6 +70,13 @@ function byGain(base: Omit<Track, "notes" | "gain">, notes: Note[], gainOf: (n: 
     groups.set(g, [...(groups.get(g) ?? []), n]);
   }
   return [...groups].map(([gain, ns]) => ({ ...base, gain, notes: ns }));
+}
+
+/** Split a one-shot part into tracks by note length (`ring` is per track): each note rings for its written length, then damps. */
+function byRing(base: Omit<Track, "notes" | "ring">, notes: Note[]): Track[] {
+  const groups = new Map<number, Note[]>();
+  for (const n of notes) groups.set(n.d, [...(groups.get(n.d) ?? []), n]);
+  return [...groups].map(([d, ns]) => ({ ...base, ring: (d * 60) / THEME_BPM, notes: ns }));
 }
 
 /**
@@ -181,19 +195,67 @@ function phrase(notes: Note[], base: number): Note[] {
     return { t: n.t + LAID_BACK, d, n: num(n.n), v };
   });
 }
-const sax: Note[] = [...phrase([...verse, ...answers.map(([t, d, n]) => ({ t, d, n }))], 0.6), ...phrase(solo, 0.74)];
-/** Per-note level (dB) evening out the recordings (measured, phone-weighted): the low notes are ~1.5 dB softer. */
-const saxTrim = (m: number): number => (m < midi("A4") ? 1.5 : 0);
+
+/**
+ * The saxes scoop into every note: the tenor's takes rise from 30–40 cents flat over their first
+ * 0.1 s, the soprano's from ~20 flat to an overshoot of ~+15 around 0.2 s. The shared autotune
+ * centres the pitch heard over a take's first 0.6 s, so held notes are in tune, but a note held an
+ * eighth or less is heard mostly as its scoop: rendered solo, the tenor's measured 4–15 cents flat
+ * and the soprano's 5–10 sharp. So every note shorter than two eighths is rendered here as the song
+ * plays it (its take, its length, the release), measured as the sampler measures (the median of
+ * its partials' heard pitch) and retuned by what is heard. A retuned note never crosses onto the
+ * neighbouring take (the sampler plays the nearest one): it stops a cent short of it. (Rendering
+ * here moves the round robins, but renderLoop restarts them, so the song's takes don't change.)
+ */
+const SCOOP_UNDER = 2;
+const heardCache = new Map<string, number>();
+function heardOff(name: InstrumentName, m: number, v: number, d: number): number {
+  const inst = instrument(name);
+  const key = `${name} ${m} ${inst.zoneFor(m, v).layer} ${d}`;
+  let cents = heardCache.get(key);
+  if (cents === undefined) {
+    const left = new Float32Array(RATE * 2);
+    renderNotes(inst, [{ time: 0, dur: (d * 60) / THEME_BPM, note: m, vel: v }], left, new Float32Array(RATE * 2), RATE, 1, 0);
+    const hz = 440 * 2 ** ((m - 69) / 12);
+    const reads = [1, 2, 3, 4, 5, 6, 7, 8]
+      .filter((h) => h * hz >= 150 && h * hz <= Math.max(2500, hz * 4.5))
+      .map((h) => centsHeard(left, RATE, m, h))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    cents = reads.length ? reads[Math.floor(reads.length / 2)]! : 0;
+    heardCache.set(key, cents);
+  }
+  return cents;
+}
+function unscooped(name: InstrumentName, notes: Note[]): Note[] {
+  const inst = instrument(name);
+  return notes.map((n) => {
+    if (n.d >= SCOOP_UNDER) return n;
+    const target = num(n.n);
+    const v = n.v ?? 0.7;
+    const take = inst.zoneFor(target, v);
+    let played = target - heardOff(name, target, v, n.d) / 100;
+    while (inst.zoneFor(played, v) !== take) played += Math.sign(target - played) * 0.01;
+    return { ...n, n: played };
+  });
+}
+
+const sax: Note[] = unscooped("sax", [...phrase([...verse, ...answers.map(([t, d, n]) => ({ t, d, n }))], 0.6), ...phrase(solo, 0.74)]);
+/** Per-note level (dB) evening out the recordings (measured, phone-weighted, held notes): below A4 they average ~2.5 dB softer. */
+const saxTrim = (m: number): number => (m < midi("A4") ? 2.5 : 0);
+/** Bar 16's run (short, low notes) swells into the solo: +1 dB on its first note to +5 on its last. */
+const RUN = bar(16) + 3;
+const runLift = (n: Note): number => (n.t >= RUN && n.t < bar(17) ? 1 + 2 * (n.t - LAID_BACK - RUN) : 0);
 
 // The soprano sax answers the tenor's held notes in pass 2 (bars 22, 26 and 30).
-const soprano: Note[] = [
+const soprano: Note[] = unscooped("sopranoSax", [
   // Over F, a pentatonic turn above the held F5.
   ...phrase([{ t: bar(22) + 3.5, d: 0.5, n: "C6" }, { t: bar(22) + 4, d: 0.5, n: "D6" }, { t: bar(22) + 4.5, d: 0.5, n: "C6" }, { t: bar(22) + 5, d: 1.2, n: "A5" }], 0.62),
   // Over G, rising above the held B4.
   ...phrase([{ t: bar(26) + 3.5, d: 0.5, n: "G5" }, { t: bar(26) + 4, d: 0.5, n: "B5" }, { t: bar(26) + 4.5, d: 1.3, n: "D6" }], 0.62),
   // Over F, answering the way down.
   ...phrase([{ t: bar(30) + 3.5, d: 0.5, n: "A5" }, { t: bar(30) + 4, d: 0.5, n: "C6" }, { t: bar(30) + 4.5, d: 1.2, n: "A5" }], 0.62),
-];
+]);
 
 // ------------------------------------------------------------------ the piano's tune in B (pass 1)
 
@@ -269,15 +331,6 @@ const thin = (h: number, notes: string[]): number[] => notes.map(num).filter((m)
 
 // ------------------------------------------------------------------ piano
 
-/**
- * The upright's bass zones are tuned flat (measured over partials 2–4: the F#1 zone ~-43 cents,
- * C2 ~-26, A1 ~-19, the F#2 zone ~-14), so the left hand's notes are pulled up to the band (cents).
- */
-const PIANO_CENTS = new Map(
-  Object.entries({ F1: 43, G1: 43, A1: 19, B1: 12, C2: 26, D2: 10, E2: 10, F2: 14, G2: 14, A2: 2, B2: 2, C3: 2, D3: 5, E3: 5, F3: 5, G3: 5 }).map(([k, c]) => [midi(k), c]),
-);
-const pianoTuned = (m: number): number => m + (PIANO_CENTS.get(m) ?? 0) / 100;
-
 /** Rising broken-chord triplets over half bar h (the first note moves with a push), pedalled to its end. */
 function arpeggio(h: number, notes: number[], v: (k: number) => number): Note[] {
   const [start, end] = span(h);
@@ -295,7 +348,7 @@ for (let h = 0; h < HALVES_PER_LOOP; h++) {
   // Left hand: a big octave on every pulse, held like the sustain pedal.
   const low = num(chordOf(h).bass);
   const v = pass2 ? 0.74 : h % 2 === 0 ? 0.62 : 0.56;
-  lh.push({ t: start, d: end - start - 0.05, n: pianoTuned(low), v }, { t: start + 0.01, d: end - start - 0.05, n: pianoTuned(low + 12), v: v - 0.04 });
+  lh.push({ t: start, d: end - start - 0.05, n: low, v }, { t: start + 0.01, d: end - start - 0.05, n: low + 12, v: v - 0.04 });
   // Right hand: soft and high above the low sax in pass 1 (not where it has the tune); under the solo in pass 2.
   if (3 * h >= bar(8) + 3 && 3 * h < bar(13)) continue;
   rh.push(...arpeggio(h, voice(h, pass2 ? "C4" : "C5", 3, 0), (k) => (pass2 ? 0.56 - k * 0.02 : 0.42 - k * 0.03)));
@@ -310,10 +363,11 @@ for (let h = 0; h < HALVES_PER_LOOP; h++) {
  * within a second, at most 3 semitones from it); the piano's left hand keeps the low A–G–F descent.
  */
 const pizzRoot = (m: number): number => (m < num("A1") ? m + 12 : m);
-/** The E2 zone's two takes measure -1 and -5 cents (partials 2–8), so the notes played from it are centred. */
-const BASS_CENTS = new Map(["E2", "F2", "G2"].map((k) => [midi(k), 3]));
-/** Per-note level (dB), from measuring each rendered note (phone-weighted, first 300 ms). */
-const BASS_TRIM = new Map(Object.entries({ B1: 2.5, C2: 3.5, D2: 4.5, F2: 1 }).map(([k, v]) => [midi(k), v]));
+/**
+ * Per-note level (dB), from measuring each rendered note (phone-weighted, first 300 ms, both takes):
+ * A1–D2 sit 3.5–6 dB under E2–G2, whose second harmonic is the first a phone plays.
+ */
+const BASS_TRIM = new Map(Object.entries({ A1: 5, B1: 3.5, C2: 6, D2: 5 }).map(([k, v]) => [midi(k), v]));
 const bassNotes: Note[] = [];
 for (let t = 0; t < LOOP; t++) {
   const pass2 = t >= PASS;
@@ -325,14 +379,25 @@ for (let t = 0; t < LOOP; t++) {
   // Dm/F walks down through D into the E (F F D | E): a last F would ring a semitone over the E.
   const root = pass2 && e === 2 && chord === DmF ? num("D2") : pizzRoot(num(chord.bass));
   const v = e === 0 ? (t % BAR === 0 ? 0.86 : 0.8) : pushed ? 0.84 : 0.66;
-  bassNotes.push({ t, d: pass2 ? 1 : 3, n: root + (BASS_CENTS.get(root) ?? 0) / 100, v });
+  bassNotes.push({ t, d: pass2 ? 1 : 3, n: root, v });
 }
-const bass = byGain({ inst: "bassPizz", pan: 0, reverb: 0.08, humanize: 0.25 }, bassNotes, (n) => 0.52 * dB(BASS_TRIM.get(Math.round(num(n.n))) ?? 0));
+// Each pluck stops the last, as the bassist's next pluck on the string would (choke), and the
+// high-pass trims the sub-bass a phone can't play (it only cost loudness elsewhere in master()).
+const bass = byGain({ inst: "bassPizz", pan: 0, reverb: 0.08, humanize: 0.25, highpass: 60, choke: true }, bassNotes, (n) => 0.7 * dB(BASS_TRIM.get(Math.round(num(n.n))) ?? 0));
 
 // ------------------------------------------------------------------ horns: pads, swell, stabs
 
-/** Horn level per note (dB), measured (phone-weighted): the A3 zone was recorded ~4 dB hot, A2–C3 ~8.5 dB soft. */
-const HORN_TRIM = new Map(Object.entries({ F2: -2, "G#2": 1.5, A2: 8.5, B2: 8.5, C3: 8.5, D3: 1.5, "G#3": -4, A3: -4 }).map(([k, v]) => [midi(k), v]));
+/**
+ * Horn level per note (dB), measured (phone-weighted, first 0.6 s of the pad): the A3 zone was
+ * recorded ~6 dB hot, A2–C3 ~7 dB soft, and G#2's softer take (PAD_SOFT) ~4 dB under the rest.
+ */
+const HORN_TRIM = new Map(Object.entries({ F2: -3, "G#2": 4, A2: 7.5, B2: 7, C3: 7, D3: 1, "G#3": -5, A3: -6, D4: -1.5 }).map(([k, v]) => [midi(k), v]));
+/**
+ * E7's G#2 plays the horn's softer take: the third layer has it from a G2 that scoops up from
+ * 75 cents flat over its first 0.3 s (heard 18 cents flat over the pad); the second layer's G2
+ * is in tune within 5 (its level is made up in HORN_TRIM).
+ */
+const PAD_SOFT = num("G#2");
 const pads: Note[] = [];
 // Pads hold each chord, tied across repeated notes; pass 1 from A' (bar 5), open and low, pass 2
 // in triads under the piano. They breathe under the piano's pickup into B (bar 8), and bar 16's
@@ -344,10 +409,11 @@ for (let h = bar(5) / 3; h < HALVES_PER_LOOP; h++) {
   for (const m of thin(h, pass2 ? chordOf(h).pad2 : chordOf(h).pad1)) {
     const tied = pads.find((p) => p.n === m && Math.abs(p.t + p.d + 0.1 - start) < 0.01 && start !== PASS);
     if (tied) tied.d += end - start;
-    else pads.push({ t: start, d: end - start - 0.1, n: m, v: 0.56 });
+    else pads.push({ t: start, d: end - start - 0.1, n: m, v: m === PAD_SOFT ? 0.45 : 0.56 });
   }
 }
 // The swell into the chorus: E7 (its 3rd left to the sax's run) blooms bottom-up over bar 16's last pulse.
+const SWELL_LIFT = 4;
 const swell: Note[] = ["E3", "B3", "D4"].map((n, k) => ({ t: bar(16) + 3 + k * 0.67, d: 3 - k * 0.67, n: num(n), v: 0.5 + k * 0.08 }));
 
 // Stabs: short horns + euphonium on the chorus downbeats, two of them pushed an eighth early.
@@ -359,19 +425,19 @@ const STABS: [number, string[], string][] = [
   [bar(25) - 1, ["F3", "A3", "C4"], "F2"],
   [bar(29) - 1, ["E3", "A3", "C4"], "A2"],
 ];
-const HORN_SHORT_TRIM = new Map(Object.entries({ C4: 1.5 }).map(([k, v]) => [midi(k), v]));
+/** The staccato C4 take measures 2 dB under the stabs' other notes (phone-weighted). */
+const HORN_SHORT_TRIM = new Map(Object.entries({ C4: 2 }).map(([k, v]) => [midi(k), v]));
 const stabs: Note[] = STABS.flatMap(([t, ns]) => ns.map((n, k) => ({ t: t + k * 0.012, d: 1, n: num(n), v: 0.6 })));
 const euphStabs: Note[] = STABS.map(([t, , root]) => ({ t, d: 1, n: num(root), v: 0.7 }));
 
 // ------------------------------------------------------------------ harp and glockenspiel arpeggios
 
 // Harp under the piano's tune in pass 1's B; the glockenspiel arpeggiator over the whole chorus.
-// Both ring on, so their voicings also avoid the next chord's neighbours.
-/** The harp strings that measure off over partials 1–3 (C3, D3 and F4 ~5–6 cents sharp, D4 ~6 flat, B3/C4 ~3 flat), pulled in (cents). */
-const HARP_CENTS = new Map(Object.entries({ C3: -5, D3: -5, B3: 3, C4: 3, D4: 6, F4: -6 }).map(([k, c]) => [midi(k), c]));
+// Both ring on, so their voicings also avoid the next chord's neighbours. The harpist damps the
+// strings at each chord change: every harp note rings to the end of its half bar (its written
+// length), then through its release, rather than on into the next chord.
 const harp: Note[] = [];
 for (let h = bar(9) / 3; h < bar(13) / 3; h++) harp.push(...arpeggio(h, voice(h, "C3", 3, 1), (k) => (k === 0 ? 0.5 : 0.42)));
-for (const n of harp) n.n = num(n.n) + (HARP_CENTS.get(num(n.n)) ?? 0) / 100;
 const glock: Note[] = [];
 for (let h = PASS / 3; h < HALVES_PER_LOOP; h++) glock.push(...arpeggio(h, voice(h, "C6", 3, 2), (k) => (k === 0 ? 0.3 : 0.24)));
 
@@ -409,7 +475,7 @@ const fill = (b: number, hits: [number, "hi" | "lo", number][]) => {
 };
 for (const b of [4, 12, 20, 28]) fill(b, [[4, "hi", 0.62], [4.5, "hi", 0.66], [5, "lo", 0.7], [5.5, "lo", 0.74]]);
 for (const b of [8, 24]) fill(b, [[3.5, "hi", 0.6], [4, "hi", 0.64], [4.5, "hi", 0.68], [5, "lo", 0.72], [5.5, "lo", 0.76]]);
-fill(16, [[3.5, "hi", 0.7], [4, "hi", 0.72], [4.5, "lo", 0.74], [5, "lo", 0.78], [5.5, "lo", 0.8]]);
+fill(16, [[3.5, "hi", 0.78], [4, "hi", 0.82], [4.5, "lo", 0.86], [5, "lo", 0.9], [5.5, "lo", 0.95]]);
 fill(32, [[3.5, "hi", 0.7], [4, "hi", 0.74], [4.5, "lo", 0.76], [5, "lo", 0.8], [5.5, "lo", 0.84]]);
 // Bar 16: a snare roll swelling into the chorus (each eighth a louder recorded roll).
 roll.push({ t: bar(16), d: 1, n: "D2", v: 0.2 }, { t: bar(16) + 1, d: 1, n: "D2", v: 0.5 }, { t: bar(16) + 2, d: 0.95, n: "D2", v: 0.85 });
@@ -432,28 +498,32 @@ const song: Song = {
   bars: BARS,
   reverb: { room: 0.86, damp: 0.45, width: 1, level: 1 },
   tracks: [
-    ...byGain({ inst: "sax", pan: 0, reverb: 0.3, humanize: 0.3, lowpass: 4200 }, sax, (n) => 1.4 * dB(saxTrim(Math.round(num(n.n))))),
+    ...byGain({ inst: "sax", pan: 0, reverb: 0.3, humanize: 0.3, lowpass: 4200 }, sax, (n) => 1.4 * dB(saxTrim(Math.round(num(n.n))) + runLift(n))),
     { inst: "sopranoSax", notes: soprano, gain: 1.6, pan: 0.25, reverb: 0.38, humanize: 0.3, lowpass: 4500 },
     { inst: "piano", notes: lh, gain: 0.11, pan: -0.1, reverb: 0.22, humanize: 0.2 },
     { inst: "piano", notes: rh, gain: 0.16, pan: -0.2, reverb: 0.3, humanize: 0.3 },
     { inst: "piano", notes: [...pianoTop, ...pianoUnder], gain: 0.24, pan: -0.1, reverb: 0.3, humanize: 0.2 },
     ...bass,
-    ...byGain({ inst: "horn", pan: 0.2, reverb: 0.4, humanize: 0.15 }, [...pads, ...swell], (n) => 0.6 * dB(HORN_TRIM.get(Math.round(num(n.n))) ?? 0)),
+    ...byGain({ inst: "horn", pan: 0.2, reverb: 0.4, humanize: 0.15 }, [...pads, ...swell], (n) => 0.65 * dB((HORN_TRIM.get(Math.round(num(n.n))) ?? 0) + (swell.includes(n) ? SWELL_LIFT : 0))),
     ...byGain({ inst: "hornShort", pan: 0.15, reverb: 0.35, humanize: 0.2 }, stabs, (n) => 1.05 * dB(HORN_SHORT_TRIM.get(num(n.n)) ?? 0)),
     ...euphonium(euphStabs, { short: true, gain: 0.8, pan: -0.1, reverb: 0.3 }),
-    { inst: "harp", notes: harp, gain: 0.9, pan: 0.3, reverb: 0.4, humanize: 0.2 },
+    ...byRing({ inst: "harp", gain: 1.1, pan: 0.3, reverb: 0.4, humanize: 0.2 }, harp),
     { inst: "glockenspiel", notes: glock, gain: 6, pan: 0.3, reverb: 0.45, humanize: 0.2, lowpass: 6000 },
     // Drums
-    { inst: "kick", notes: kickVerse, gain: 0.25, reverb: 0.06 },
-    { inst: "kick", notes: kickChorus, gain: 0.26, reverb: 0.06 },
+    // High-passed: a phone plays little of the drum's 60–90 Hz boom, and master() evens out the
+    // loudness, so the boom only made everything else quieter; the cut buys gain for the beater and
+    // the shell's ring, which a phone does play.
+    { inst: "kick", notes: kickVerse, gain: 0.62, reverb: 0.06, highpass: 90 },
+    { inst: "kick", notes: kickChorus, gain: 0.65, reverb: 0.06, highpass: 90 },
     // The chorus lifts in gain (the hardest snare hit throughout: its crack and ring are the 80s sound).
     ...byGain({ inst: "snareOn", pan: 0.05, reverb: 0.75, lowpass: 7000 }, snare, (n) => (n.t >= PASS ? 0.68 : 0.52)),
-    { inst: "snareRoll", notes: roll, gain: 0.35, pan: 0.05, reverb: 0.6, lowpass: 6000 },
+    { inst: "snareRoll", notes: roll, gain: 0.55, pan: 0.05, reverb: 0.6, lowpass: 6000 },
     { inst: "tomHigh", notes: tomHi, gain: 0.8, pan: -0.2, reverb: 0.5 },
     { inst: "tomLow", notes: tomLo, gain: 0.8, pan: 0.2, reverb: 0.5 },
     ...byGain({ inst: "hatClosed", pan: 0.3, reverb: 0.08, humanize: 0.4, lowpass: 7000 }, hatPulse, (n) => (n.t >= PASS ? 2.6 : 2.1)),
     ...byGain({ inst: "hatClosed", pan: 0.3, reverb: 0.08, humanize: 0.4, lowpass: 7000 }, hatOff, (n) => (n.t >= PASS ? 1.7 : 1.35)),
-    { inst: "crash", notes: crashBig, gain: 0.5, pan: -0.3, reverb: 0.3, lowpass: 8000 },
+    // The chorus's arrival (bar 17) crashes 4 dB harder than the other section starts.
+    ...byGain({ inst: "crash", pan: -0.3, reverb: 0.3, lowpass: 8000 }, crashBig, (n) => (n.t === bar(17) ? 0.8 : 0.5)),
     { inst: "crash", notes: crash, gain: 0.32, pan: -0.3, reverb: 0.3, lowpass: 8000 },
   ],
 };

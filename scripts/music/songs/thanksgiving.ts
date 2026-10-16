@@ -15,8 +15,8 @@
 //          swung eighths, played a little lighter than the jig's triplets. The piano plays the tune
 //          over left-hand rootless voicings (sevenths and ninths on the theme's chords); the
 //          contrabass plays in 2 (17–24), then walks (25–32); the drums play a stick ride (ding,
-//          ding-a), the hi-hat on the backbeat pulse, a feathered kick and ghosted snare, and a soft
-//          crash lifts B. A tenor sax joins: doubling the tune an octave below in A' (21–24, leaving
+//          ding-a), the hi-hat's foot chick on the backbeat pulse, a feathered kick and ghosted
+//          snare, and a soft crash lifts B. A tenor sax joins: doubling the tune an octave below in A' (21–24, leaving
 //          the pickup run into B to the piano), a tenth below in B (25–28), then taking the tune in
 //          A'' (29–32) with the horn in harmony under it while the piano comps above. The bass walks
 //          up D-E-F#, the drums fill and the guitar's pickup strum hand back to the hoedown at bar 1.
@@ -30,6 +30,7 @@
 // are bright, and the owner hears that edge as harsh.
 
 import { instrument, type InstrumentName } from "../instruments";
+import { centsHeard } from "../pitch";
 import { midi } from "../sampler";
 import { euphonium, transpose, type Note, type Song, type Track } from "../song";
 import { CHORDS, EIGHTHS_PER_BAR, melody, THEME_BARS, type Quality } from "../theme";
@@ -83,48 +84,31 @@ const BASS: Record<string, [string, string]> = {
 
 // The solo recordings speak at quite different levels from note to note (the fiddle's by up to
 // 10 dB, the strumstick's more), so a line played at one velocity comes out lumpy, with some
-// notes of the tune ducking under the band. These mirror the sampler's choice of recording for
-// a note so a line can be evened out before its dynamics are applied.
+// notes of the tune ducking under the band. These read the recording the sampler plays for a
+// note (zoneFor) so a line can be evened out before its dynamics are applied.
 
-function layerOf(name: InstrumentName, vel: number): { layer: number; lo: number; hi: number } {
-  const layers = [...new Set(instrument(name).zones.map((z) => z.layer))].sort((a, b) => a - b);
-  const i = Math.min(layers.length - 1, Math.floor(vel * layers.length));
-  return { layer: layers[i]!, lo: i / layers.length, hi: i === layers.length - 1 ? 1 : (i + 1) / layers.length };
-}
-
-/** The recorded note a note is played from at a velocity (the sampler's nearest-zone rule). */
-function zoneNote(name: InstrumentName, note: number, vel: number): number {
-  const { layer } = layerOf(name, vel);
-  let best = NaN;
-  let bestCost = Infinity;
-  for (const z of instrument(name).zones) {
-    if (z.layer !== layer) continue;
-    const d = note - z.note;
-    const cost = d >= 0 ? d : -d * 1.3;
-    if (cost < bestCost) {
-      bestCost = cost;
-      best = z.note;
-    }
-  }
-  return best;
+/** The velocity range of the layer a velocity plays (the sampler's rule). */
+function layerRange(name: InstrumentName, vel: number): { lo: number; hi: number } {
+  const n = new Set(instrument(name).zones.map((z) => z.layer)).size;
+  const i = Math.min(n - 1, Math.floor(vel * n));
+  return { lo: i / n, hi: i === n - 1 ? 1 : (i + 1) / n };
 }
 
 const zoneLevels = new Map<string, number>();
 /**
  * How loud a note's recording gets while it's held (peak 30 ms RMS over its first `seconds`,
- * at most 0.35 s; dB, round robins averaged). Some bowed recordings swell in slowly, so a short
- * note on them never reaches the level a long one does.
+ * at most 0.35 s; dB, round robins averaged, after the sampler's evening-out). Some bowed
+ * recordings swell in slowly, so a short note on them never reaches the level a long one does.
  */
 function zoneDb(name: InstrumentName, note: number, vel: number, seconds = 0.35): number {
-  const { layer } = layerOf(name, vel);
-  const zone = zoneNote(name, note, vel);
+  const { note: zone, layer } = instrument(name).zoneFor(note, vel);
   const window = Math.min(0.35, Math.max(0.1, seconds));
   const key = `${name}/${zone}/${layer}/${window.toFixed(2)}`;
   let db = zoneLevels.get(key);
   if (db === undefined) {
     const peaks = instrument(name)
       .zones.filter((z) => z.layer === layer && z.note === zone)
-      .map(({ audio: { left, right, rate } }) => {
+      .map(({ audio: { left, right, rate }, level = 1 }) => {
         const w = Math.round(rate * 0.03);
         let peak = 0;
         for (let s = 0; s + w < Math.min(left.length, rate * window); s += Math.round(w / 3)) {
@@ -132,7 +116,7 @@ function zoneDb(name: InstrumentName, note: number, vel: number, seconds = 0.35)
           for (let i = s; i < s + w; i++) sum += (left[i]! ** 2 + right[i]! ** 2) / 2;
           peak = Math.max(peak, sum / w);
         }
-        return 10 * Math.log10(peak + 1e-12);
+        return 10 * Math.log10(peak * level ** 2 + 1e-12);
       });
     db = peaks.reduce((a, b) => a + b, 0) / peaks.length;
     zoneLevels.set(key, db);
@@ -142,7 +126,7 @@ function zoneDb(name: InstrumentName, note: number, vel: number, seconds = 0.35)
 
 /** The velocity that changes a note's amplitude by `db`, within its velocity layer. */
 function nudge(name: InstrumentName, vel: number, db: number): number {
-  const { lo, hi } = layerOf(name, vel);
+  const { lo, hi } = layerRange(name, vel);
   const v = ((0.35 + 0.65 * vel) * 10 ** (db / 20) - 0.35) / 0.65;
   return Math.min(hi === 1 ? 1 : hi - 0.03, Math.max(lo + 0.03, v));
 }
@@ -168,24 +152,66 @@ function leveled(track: Omit<Track, "notes">, notes: Note[]): Track[] {
   return [...groups].map(([step, group]) => ({ ...track, notes: group, gain: (track.gain ?? 1) * 10 ** (step / 20) }));
 }
 
-// A few recordings sit a little off pitch. Pitch-tracked over the part of each note you hear
-// (its first half second), as played (after each instrument's own correction): the fiddle's E5 is
-// ~8 cents sharp and its C5 ~7 flat (vibrato recordings, each its own take); the guitar's open B
-// string is 9 cents sharp, the third of every G chord; plucked strings start sharp and settle, so
-// a few strumstick notes (D4 most) ring 3–7 cents high through a dotted quarter; and most of the
-// contrabass's firm-pizzicato recordings sit 5–10 cents flat. Enough to sound sour against the
-// fiddle, so those notes are played that much the other way. Cents per recording (the layers used
-// here), keyed by the recorded note. (The piano, sax, horn and euphonium measure within 6 cents
-// on every note they play here: the upright piano's fundamentals, the brass and sax autotuned.)
-const OFF_PITCH: Partial<Record<InstrumentName, Record<string, number>>> = {
-  fiddle: { C4: -12, G4: -6, A4: 6, C5: -7, E5: 8, C6: -8 },
-  guitar: { A3: 4, B3: 9 },
-  strumstick: { A3: 4, D4: 6, G4: 3, D5: 4 },
-  bassPizz: { G1: -9, "A#1": -3, C2: -5, E2: -10 },
-};
-function inTune(name: InstrumentName, note: number, vel: number): number {
-  const cents = Object.entries(OFF_PITCH[name] ?? {}).find(([n]) => midi(n) === zoneNote(name, note, vel))?.[1] ?? 0;
-  return note - cents / 100;
+// ---------------------------------------------------------------- short notes, tuned as heard
+
+// The sampler tunes every recording on what you hear of it over its first half second. A short
+// note plays only the start of its recording, and some takes start off their settled pitch: the
+// tenor sax's low notes scoop up from below (an A3 or G3 held a swung quarter is heard 7–10 cents
+// flat), some of the fiddle's vibrato takes start sharp (its G5 held a quarter +8, a B5 eighth +12),
+// the euphonium's eighth notes come out 4–5 cents flat. So the short notes of the melodic parts are tuned one by
+// one on the part of the recording they actually play: its first `seconds` and release, read the
+// way the sampler reads it (the median of its partials' heard pitch), but on both channels as they
+// sound together (the sampler reads the left one). Notes held longer play most of what the sampler
+// tuned on (they measure within 2 cents of it), so they are left to it, except the fiddle's: its
+// stereo takes read differently left and right (the loud E5 +21.5 cents left, +14 both channels),
+// so tuned on the left one, its E5, A4 and G5 were heard 6-9 cents flat at any length. The
+// fiddle's every note is tuned here.
+const SHORT = 0.45;
+
+const heardCache = new Map<string, number>();
+/** Cents a note is heard off its pitch when held `seconds` (after the sampler's own tuning). */
+function heardCents(name: InstrumentName, note: number, vel: number, seconds: number): number {
+  const inst = instrument(name);
+  const z = inst.zoneFor(note, vel);
+  const key = `${name}/${z.note}/${z.layer}/${note}/${seconds.toFixed(3)}`;
+  let cents = heardCache.get(key);
+  if (cents === undefined) {
+    const { left, right, rate } = z.audio;
+    // In the recording's own time: a note shifted up plays through it faster.
+    const speed = 2 ** ((note - z.note + z.detune / 100) / 12);
+    const attack = Math.max(1, inst.opts.attack * rate * speed);
+    const hold = Math.round(seconds * rate * speed);
+    const release = Math.max(1, Math.round(inst.opts.release * rate * speed));
+    const x = new Float32Array(Math.max(Math.min(left.length, hold + 3 * release), 8192 + 1));
+    const fall = Math.exp(Math.log(0.001) / release);
+    let g = 1;
+    for (let i = 0; i < Math.min(left.length, hold + 3 * release); i++) {
+      if (i >= hold) g *= fall;
+      x[i] = ((left[i]! + right[i]!) / 2) * Math.min(1, i / attack) * g;
+    }
+    const hz = 440 * 2 ** ((z.note - 69) / 12);
+    const reads = [1, 2, 3, 4, 5, 6, 7, 8]
+      .filter((h) => h * hz >= 150 && h * hz <= Math.max(2500, hz * 4.5))
+      .map((h) => centsHeard(x, rate, z.note, h))
+      .filter((c) => Number.isFinite(c))
+      .sort((a, b) => a - b);
+    const read = reads.length >= 3 ? reads[Math.floor(reads.length / 2)]! : NaN;
+    // A short note can't always be read; past 30 cents it is a misread, not a tuning.
+    cents = Number.isFinite(read) && Math.abs(read + z.detune) <= 30 ? read + z.detune : 0;
+    heardCache.set(key, cents);
+  }
+  return cents;
+}
+
+/** A melodic track with each short note (`every`: each note) played that far the other way. */
+function asHeard(track: Track, every = false): Track {
+  const notes = track.notes.map((n) => {
+    const seconds = (n.d * 60) / BPM;
+    if (seconds >= SHORT && !every) return n;
+    const note = n.n as number;
+    return { ...n, n: note - heardCents(track.inst, note, n.v ?? 0.7, seconds) / 100 };
+  });
+  return { ...track, notes };
 }
 
 /** The hoedown's dynamics: rising through A' into the B section's peak (bar 12), the band full in A''. */
@@ -233,9 +259,9 @@ for (const n of tune) {
     harmonica.push({ t: n.t - reed(note), d: n.d - 0.15, n: note, v: hv });
   } else if (TREBLES.has(n.t)) {
     [0.82, 0.62, 0.72].forEach((tv, i) => spiccato.push({ t: n.t + i / 3, d: 1, n: note, v: tv }));
-    fiddle.push({ t: n.t + 1 - BOW, d: n.d - 1.2, n: inTune("fiddle", note, v), v: v - 0.04 });
+    fiddle.push({ t: n.t + 1 - BOW, d: n.d - 1.2, n: note, v: v - 0.04 });
   } else {
-    fiddle.push({ t: wrap(n.t - BOW), d: n.d >= 2 ? n.d - 0.25 : 0.8, n: inTune("fiddle", note, v), v });
+    fiddle.push({ t: wrap(n.t - BOW), d: n.d >= 2 ? n.d - 0.25 : 0.8, n: note, v });
   }
 }
 
@@ -249,11 +275,10 @@ const COUNTER: [number, number, string][] = [
 ];
 const strumstick: Note[] = [];
 for (const [t, d, name] of COUNTER) {
-  // Plucked medium (the middle layer): warmer and truer than the firm plucks, which start 10–20
-  // cents sharp, stay 5–13 sharp through a dotted quarter and carry far more pick click and
-  // treble. Its uneven levels from note to note are evened out by `leveled`.
+  // Plucked medium (the middle layer): warmer than the firm plucks, which carry far more pick
+  // click and treble. Its uneven levels from note to note are evened out by `leveled`.
   const v = (d >= 3 ? 0.56 : 0.52) + lift(t) * 0.5;
-  strumstick.push({ t, d, n: inTune("strumstick", midi(name), v), v });
+  strumstick.push({ t, d, n: midi(name), v });
 }
 
 // ---------------------------------------------------------------- the town band: euphonium, horn (B, A'')
@@ -279,25 +304,47 @@ const HORN_LINE: [number, number, string][] = [[72, 3, "G3"], [75, 3, "B3"], [78
 const HORN_HOEDOWN: [number, number, string][] = [...HORN_LINE, [81, 3, "E3"], [84, 3, "E3"], [87, 3, "A3"], [90, 7.5, "F#3"]];
 const HORN_TRIO: [number, number, string][] = [...HORN_LINE, [81, 3, "D3"], [84, 3, "E3"], [87, 8.5, "F#3"]];
 const euph: Note[] = EUPH.map(([t, d, name]) => ({ t: t - 0.1, d: d - 0.2, n: midi(name), v: t >= TRIO ? 0.45 : 0.55 + lift(t) * 0.5 }));
-// The horn's A3 recording speaks ~4 dB hotter than its neighbours: played a little softer.
+/**
+ * The euphonium's tracks. The tuba's louder takes stop at A#3, so the line's D4 (bar 13) would
+ * stretch it a major third: the tuba plays that note from its soft take (the only D4), brought up
+ * to the level the loud take would have had.
+ */
+function euphoniumTracks(opts: Parameters<typeof euphonium>[1]): Track[] {
+  const SOFT = 0.3;
+  const amp = (v: number) => 0.35 + 0.65 * v;
+  const [trombone, tuba] = euphonium(euph, opts) as [Track, Track];
+  const high = (n: Note) => (n.n as number) - instrument("tuba").zoneFor(n.n as number, n.v ?? 0.7).note > 3;
+  const soft = tuba.notes.filter(high).map((n): Track => {
+    const up = zoneDb("tuba", n.n as number, n.v ?? 0.7) - zoneDb("tuba", n.n as number, SOFT);
+    return { ...tuba, notes: [{ ...n, v: SOFT }], gain: (tuba.gain ?? 1) * 10 ** (up / 20) * (amp(n.v ?? 0.7) / amp(SOFT)) };
+  });
+  return [trombone, { ...tuba, notes: tuba.notes.filter((n) => !high(n)) }, ...soft];
+}
+// The horn plays its mezzo-piano takes (velocity layer 2): in the louder layer the F3, which would
+// play most of this line (E3, F#3, G3), speaks a quarter tone flat for its first 150 ms before it
+// blooms. Their levels differ from note to note (the A3 7–11 dB hotter), so `leveled` evens them.
 const hornPart = (start: number, line: [number, number, string][]): Note[] =>
-  line.map(([t, d, name]) => ({ t: start + t - 0.1, d: d - 0.2, n: midi(name), v: name === "A3" ? 0.52 : 0.64 }));
+  line.map(([t, d, name]) => ({ t: start + t - 0.1, d: d - 0.2, n: midi(name), v: 0.42 }));
 const hornBand = hornPart(0, HORN_HOEDOWN);
 const hornTrio = hornPart(TRIO, HORN_TRIO);
 
 // ---------------------------------------------------------------- guitar, bass
 
-const guitar: Note[] = [];
+/**
+ * The guitar's four strings, low to high, each its own (choked) track: a string rings until it is
+ * struck again, so every down stroke stops the last chord instead of ringing into the next one.
+ */
+const guitar: Note[][] = [[], [], [], []];
 /** A strum: down strokes roll low to high across four strings, up strokes catch the top three. */
 function strum(t: number, chord: string, v: number, up = false): void {
   const notes = GUITAR[chord]!.map((n) => midi(n));
-  const strings = up ? notes.slice(-3).reverse() : notes;
-  strings.forEach((n, i) => guitar.push({ t: t + i * 0.07, d: 2, n: inTune("guitar", n, v), v: v - i * 0.02 }));
+  const strings = up ? [3, 2, 1] : [0, 1, 2, 3];
+  strings.forEach((s, i) => guitar[s]!.push({ t: t + i * 0.07, d: 2, n: notes[s]!, v: v - i * 0.02 }));
 }
 
 const bass: Note[] = [];
 const pluck = (t: number, d: number, name: string, v: number) => {
-  bass.push({ t, d, n: inTune("bassPizz", midi(name), v), v });
+  bass.push({ t, d, n: midi(name), v });
 };
 for (let bar = 0; bar < THEME_BARS; bar++) {
   const t = bar * BAR;
@@ -493,34 +540,25 @@ for (const [b, pos, name] of WALK) {
 // ---------------------------------------------------------------- drums
 
 // Stick ride: ding (1), ding (the backbeat pulse), -a (the skip, just before the next bar).
-// The ride's two recordings (a firm and a medium stroke, ~7 dB apart) alternate as round robins
-// in note order, so the notes are listed in the order that gives the firm stroke to the backbeat
-// and the medium one to the skips: per two bars [A backbeat, A skip, B backbeat, B skip,
-// A downbeat, B downbeat] (the first bar's downbeat firm, the second's medium: a lean on 1 of each
-// 4/4 bar). Velocities then set the accents within each stroke.
+// The ride has a firm and a medium stroke (its velocity layers: 0.5 and up plays the firm one,
+// ~5 dB louder): firm on the backbeat and on 1 of the first bar of each pair (a lean on 1 of each
+// 4/4 bar, harder into B at bar 25), medium on the skips and on the second bar's 1.
 /** The skip lands a hair after the piano's offbeats, nearer the triplet, as drummers play it. */
 const SKIP = 4.9;
+const FIRM = 0.53;
 const ride: Note[] = [];
-for (let b = 0; b < 16; b += 2) {
-  const A = TRIO + b * BAR;
-  const B = A + BAR;
-  // In bar 32 the sticks leave the ride after the downbeat for the fill (which also keeps the
-  // ride's long ring from washing over the hoedown's first bars); the pairs stay in step.
-  const last = b === 14;
-  ride.push(
-    { t: A + 3, d: 1, n: "D#3", v: 0.18 },
-    { t: A + SKIP, d: 1, n: "D#3", v: 0.42 },
-    ...(last ? [] : [{ t: B + 3, d: 1, n: "D#3", v: 0.18 }, { t: B + SKIP, d: 1, n: "D#3", v: 0.42 }]),
-    { t: A, d: 1, n: "D#3", v: b === 8 ? 0.4 : 0.22 },
-    { t: B, d: 1, n: "D#3", v: 0.62 },
-  );
+for (let b = 0; b < 16; b++) {
+  const s = TRIO + b * BAR;
+  ride.push({ t: s, d: 1, n: "D#3", v: b === 8 ? 0.66 : b % 2 === 0 ? FIRM : 0.46 });
+  // In bar 32 the sticks leave the ride after the downbeat for the fill.
+  if (b < 15) ride.push({ t: s + 3, d: 1, n: "D#3", v: FIRM }, { t: s + SKIP, d: 1, n: "D#3", v: 0.38 });
 }
 const hat: Note[] = [];
 const kick: Note[] = [];
 const snare: Note[] = [];
 for (let b = 0; b < 16; b++) {
   const s = TRIO + b * BAR;
-  // Hi-hat closed on the backbeat pulse; feathered kick on both pulses.
+  // The hi-hat's foot chick on the backbeat pulse (jazz's 2 and 4); feathered kick on both pulses.
   hat.push({ t: s + 3, d: 1, n: "F#2", v: 0.36 });
   kick.push({ t: s, d: 1, n: "C2", v: 0.16 }, { t: s + 3, d: 1, n: "C2", v: 0.1 });
 }
@@ -548,32 +586,36 @@ const song: Song = {
   reverb: { room: 0.6, damp: 0.7, width: 0.9, level: 0.85 },
   tracks: [
     // hoedown
-    ...leveled({ inst: "fiddle", gain: 1, pan: -0.05, reverb: 0.3, lowpass: 3500 }, fiddle),
+    ...leveled({ inst: "fiddle", gain: 1, pan: -0.05, reverb: 0.3, lowpass: 3500 }, fiddle).map((t) => asHeard(t, true)),
     ...leveled({ inst: "fiddleShort", gain: 1.15, pan: -0.05, reverb: 0.3, lowpass: 3500 }, spiccato),
-    { inst: "harmonica", notes: harmonica, gain: 1, pan: 0.25, reverb: 0.25, lowpass: 2400 },
+    asHeard({ inst: "harmonica", notes: harmonica, gain: 1, pan: 0.25, reverb: 0.25, lowpass: 2400 }),
     ...leveled({ inst: "strumstick", gain: 0.75, pan: 0.4, reverb: 0.3, lowpass: 6000 }, strumstick),
-    ...euphonium(euph, { gain: 2.2, pan: 0.3, reverb: 0.3, humanize: 0.2 }),
-    { inst: "horn", notes: hornBand, gain: 0.75, pan: -0.3, reverb: 0.35, humanize: 0.2 },
-    { inst: "guitar", notes: guitar, gain: 0.039, pan: -0.35, reverb: 0.2, humanize: 0.5 },
-    { inst: "bassPizz", notes: bass, gain: 0.34, pan: 0, reverb: 0.1 },
-    { inst: "shaker", notes: shaker, gain: 0.1, pan: 0.45, reverb: 0.1, humanize: 0.4 },
+    ...euphoniumTracks({ gain: 2.2, pan: 0.3, reverb: 0.3, humanize: 0.2 }).map((t) => asHeard(t)),
+    ...leveled({ inst: "horn", gain: 2.6, pan: -0.3, reverb: 0.35, humanize: 0.2 }, hornBand),
+    // Each string rings until it is struck again; the break's chord (bar 16) lets go as the trio starts.
+    ...guitar.map((notes): Track => ({ inst: "guitar", notes, gain: 0.039, pan: -0.35, reverb: 0.2, humanize: 0.5, choke: true, ring: 1.1, label: "guitar" })),
+    // The bass and kicks are high-passed: phones can't play their lowest octave, and it only costs loudness.
+    { inst: "bassPizz", notes: bass, gain: 0.42, pan: 0, reverb: 0.1, choke: true, highpass: 60 },
+    // Each shake stops at the next (the recording set mixes single shakes with long rolls).
+    { inst: "shaker", notes: shaker, gain: 1.05, pan: 0.45, reverb: 0.1, humanize: 0.4, choke: true },
     { inst: "woodblock", notes: woodblock, gain: 1, pan: -0.25, reverb: 0.15 },
-    { inst: "kick", notes: stomp, gain: 0.33, pan: 0, reverb: 0.1 },
+    { inst: "kick", notes: stomp, gain: 0.52, pan: 0, reverb: 0.1, highpass: 80, label: "stomp" },
     { inst: "claps", notes: claps, gain: 0.29, pan: 0.1, reverb: 0.25, humanize: 0.5 },
     // trio
     { inst: "piano", notes: pianoTune, gain: 0.18, pan: -0.1, reverb: 0.25, humanize: 0.3 },
     { inst: "piano", notes: comp, gain: 0.1, pan: -0.15, reverb: 0.25, humanize: 0.4 },
     // The sax under the piano in A' (doubling), level with it in B (harmony), out front in A''.
-    { inst: "sax", notes: saxDouble, gain: 0.55, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
-    { inst: "sax", notes: saxHarmony, gain: 0.85, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
-    { inst: "sax", notes: saxLead, gain: 1, pan: 0.15, reverb: 0.3, humanize: 0.2, lowpass: 3500 },
-    { inst: "horn", notes: hornTrio, gain: 1, pan: -0.3, reverb: 0.35, humanize: 0.2 },
-    // The kit: a dark ride (its wash carried the trio's whole top end), the hi-hat darkened toward
-    // a foot chick and up where it reads under the ride, the crash a soft swell into B.
-    { inst: "ride", notes: ride, gain: 6, pan: 0.3, reverb: 0.15, humanize: 0.3, lowpass: 4500 },
-    { inst: "hatClosed", notes: hat, gain: 6.5, pan: 0.35, reverb: 0.1, humanize: 0.3, lowpass: 5000 },
+    asHeard({ inst: "sax", notes: saxDouble, gain: 0.55, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 }),
+    asHeard({ inst: "sax", notes: saxHarmony, gain: 0.85, pan: 0.2, reverb: 0.3, humanize: 0.2, lowpass: 3500 }),
+    asHeard({ inst: "sax", notes: saxLead, gain: 1, pan: 0.15, reverb: 0.3, humanize: 0.2, lowpass: 3500 }),
+    ...leveled({ inst: "horn", gain: 3.5, pan: -0.3, reverb: 0.35, humanize: 0.2 }, hornTrio),
+    // The kit: a dark ride (its wash carried the trio's whole top end; each stroke rings at most
+    // 1.1 s, so bar 32's last one is gone by the hoedown's first beat), the hi-hat's foot chick
+    // darkened and up where it reads under the ride, the crash a soft swell into B.
+    { inst: "ride", notes: ride, gain: 5.4, pan: 0.3, reverb: 0.15, humanize: 0.3, lowpass: 4500, ring: 1.1 },
+    { inst: "hatPedal", notes: hat, gain: 3, pan: 0.35, reverb: 0.1, humanize: 0.3, lowpass: 5000 },
     { inst: "snareOn", notes: snare, gain: 3, pan: 0.05, reverb: 0.15, humanize: 0.3 },
-    { inst: "kick", notes: kick, gain: 0.9, pan: 0, reverb: 0.05, humanize: 0.2 },
+    { inst: "kick", notes: kick, gain: 1.5, pan: 0, reverb: 0.05, humanize: 0.2, highpass: 80 },
     { inst: "crash", notes: crash, gain: 1.1, pan: 0.3, reverb: 0.2, lowpass: 5000 },
   ],
 };

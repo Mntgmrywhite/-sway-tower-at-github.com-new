@@ -19,17 +19,23 @@
 //
 // Register plan, so no two harmony parts fight in the same octave:
 //   tuba G1–F2 · bass pizz G1–F2 · cellos (B) G2–D3 · piano left hand C2–Bb3
-//   euphonium (B) C3–F3, (A'') the tune F3–F4 · horn (B) F3–E4, (A'') Bb2–C4 under the euphonium
+//   euphonium (B) C3–F3, (A'') the tune F3–F4 · horn (B) F3–D4, (A'') Bb2–C4 under the euphonium
 //   harp Bb3–D5 · piano chords (B) F4–E5, tune E4–A5 · violins E4–D5 (A), G4–F5 (B, last A'')
 //   vibraphone G4–F5 · flute C5–A6 (glockenspiel solo A5–F6) · glockenspiel twinkles C6–G7
-// All parts sit inside their instruments' recorded ranges. The horn stays at or below E4: above
+// All parts sit inside their instruments' recorded ranges. The horn stays at or below D4: above
 // C4 it has only a soft D5 and F5, so its higher notes would be stretched recordings. The
 // euphonium (trombone + tuba) has recordings up to F4, which is why it, not the horn, sings the
 // tune in the last phrase.
+//
+// Tuning is instruments.ts's: it tunes every recording by measurement. This file only raises the
+// horn's short notes, which are heard in their scoop (heardInTune), and the violins' layer-2 F4s
+// (a repitched take, 7 cents flat), and has the harp damp strings that would rub against the next
+// chord (damped).
 
 import { instrument, type InstrumentName } from "../instruments";
-import { midi } from "../sampler";
-import { euphonium, type Note, type Song, type Track } from "../song";
+import { centsHeard } from "../pitch";
+import { midi, renderNotes } from "../sampler";
+import { euphonium, RATE, type Note, type Song, type Track } from "../song";
 import { chordNotes, EIGHTHS_PER_BAR, harmony, melody, THEME_BARS, THEME_BPM, type Quality } from "../theme";
 
 const KEY = 5; // C major -> F major
@@ -93,7 +99,7 @@ function voicing(c: Chord, lo: string, hi: string, prev: number[] | null): numbe
   return options.reduce((a, b) => (cost(b) < cost(a) ? b : a));
 }
 
-// ---------------------------------------------------------------- level and tuning helpers
+// ---------------------------------------------------------------- level helpers
 
 /** Velocity that plays `db` louder (or quieter) than velocity `v` (the sampler plays 0.35 + 0.65 v). */
 function trim(v: number, db: number, lo = 0.05, hi = 1): number {
@@ -126,32 +132,13 @@ const VIOLIN_LEVELS: [string, number][] = [["F#4", -30], ["A4", -30], ["C5", -23
 const HORN_LEVELS: [string, number][] = [["F3", -24], ["A3", -20], ["C4", -24.5]];
 const VIBES_LEVELS: [string, number][] = [["E4", -21], ["G4", -22.5], ["B4", -22], ["D5", -18.5], ["F5", -18.5]];
 
-/** The recording the sampler plays for `note` at velocity `v` (same choice as Instrument.pick). */
-function zoneFor(name: InstrumentName, note: number, v: number) {
-  const zones = instrument(name).zones;
-  const layers = [...new Set(zones.map((z) => z.layer))].sort((a, b) => a - b);
-  const layer = layers[Math.min(layers.length - 1, Math.floor(v * layers.length))]!;
-  let best = zones.find((z) => z.layer === layer)!;
-  let bestCost = Infinity;
-  for (const z of zones) {
-    if (z.layer !== layer) continue;
-    const d = note - z.note;
-    const cost = d >= 0 ? d : -d * 1.3;
-    if (cost < bestCost) {
-      bestCost = cost;
-      best = z;
-    }
-  }
-  return best;
-}
-
 /**
  * Level (dB RMS over its first 0.05–0.6 s, after the sampler's `even` scaling) of the recording
  * the sampler plays for `note` at velocity `v`. Measured from the recording itself, so parts
  * evened with it stay even if instruments.ts changes.
  */
 function recordingDb(name: InstrumentName, note: number, v: number): number {
-  const z = zoneFor(name, note, v);
+  const z = instrument(name).zoneFor(note, v);
   const { left, right, rate } = z.audio;
   const a = Math.round(rate * 0.05);
   const b = Math.min(left.length, Math.round(rate * 0.6));
@@ -160,6 +147,8 @@ function recordingDb(name: InstrumentName, note: number, v: number): number {
   return 10 * Math.log10(sum / (2 * Math.max(1, b - a))) + 20 * Math.log10(z.level ?? 1);
 }
 
+const num = (n: Note) => (typeof n.n === "number" ? n.n : midi(n.n));
+
 /**
  * A part split into one track per recording it plays, each with the gain that brings that
  * recording to `db` (as recordingDb() measures it): for sets whose recordings differ in loudness
@@ -167,9 +156,8 @@ function recordingDb(name: InstrumentName, note: number, v: number): number {
  */
 function evenTracks(track: Track, db: number): Track[] {
   const byZone = new Map<number, Note[]>();
-  const num = (n: Note) => (typeof n.n === "number" ? n.n : midi(n.n));
   for (const n of track.notes) {
-    const z = zoneFor(track.inst, num(n), n.v ?? 0.7).note;
+    const z = instrument(track.inst).zoneFor(num(n), n.v ?? 0.7).note;
     byZone.set(z, [...(byZone.get(z) ?? []), n]);
   }
   return [...byZone.values()].map((notes) => {
@@ -178,29 +166,38 @@ function evenTracks(track: Track, db: number): Track[] {
   });
 }
 
+/** How far ahead (in eighths) damped() looks for a chord a ringing harp string would rub against. */
+const DAMP_SPAN = 24;
+
 /**
- * Recordings that measure out of tune and that instruments.ts doesn't correct: cents above
- * their label (median of the first four partials over the first 0.7 s, with pitch.ts's
- * centsNear). The upright piano's bass is tuned flat, as pianos are (stretch tuning), which sours
- * it against the strings; the harp's D4 and F4 strings sit 5 cents flat and 8 sharp once
- * instruments.ts's overall +7 is applied. tuned() plays such a note by whatever error remains
- * after the sampler's own correction, so it stays right if instruments.ts tunes them later.
- * (The glockenspiel needed the same until instruments.ts learned to autotune it.)
+ * The harp's strings ring for ten seconds. A harpist damps a string when the harmony moves to a
+ * chord it would rub against (a semitone from one of that chord's notes, like the A of F under B
+ * flat, or the E of C under F), and stops all its strings on the bar line where the harp hands
+ * over and rests (bars 9 and 21). Each note rings until the first of those; the rest ring out.
+ * One track per ring time (a track's `ring` is the same for all its notes).
  */
-const MEASURED_CENTS: Partial<Record<InstrumentName, Record<string, number>>> = {
-  harp: { D4: -12, F4: 1 },
-  piano: { C2: -24, "D#2": -9, "F#2": -14, A2: -7, "D#3": -6, "F#3": -6 },
-};
-function tuned(name: InstrumentName, t: number, d: number, note: number, v: number): Note {
-  const table = MEASURED_CENTS[name] ?? {};
-  let n = note;
-  // Twice, in case the nudge itself tips the sampler onto the neighbouring recording.
-  for (let i = 0; i < 2; i++) {
-    const z = zoneFor(name, n, v);
-    const label = Object.keys(table).find((k) => midi(k) === z.note);
-    n = label ? note - (table[label]! + z.detune) / 100 : note;
+function damped(track: Track): Track[] {
+  const loop = BARS * BAR;
+  const byRing = new Map<number, Note[]>();
+  for (const n of track.notes) {
+    let ring = Infinity;
+    for (let c = Math.floor(n.t / 3) + 1; c * 3 - n.t <= DAMP_SPAN; c++) {
+      if (chordAt(c * 3).pcs.some((pc) => rubs(num(n), pc))) {
+        ring = c * 3 - n.t;
+        break;
+      }
+    }
+    for (let line = (Math.floor(n.t / BAR) + 1) * BAR; line - n.t <= DAMP_SPAN; line += BAR) {
+      const rests = !track.notes.some((o) => (((o.t - line) % loop) + loop) % loop < BAR);
+      if (rests) {
+        ring = Math.min(ring, line - n.t);
+        break;
+      }
+    }
+    byRing.set(ring, [...(byRing.get(ring) ?? []), n]);
   }
-  return { t, d, n, v };
+  const eighth = 60 / THEME_BPM;
+  return [...byRing].map(([ring, notes]) => ({ ...track, notes, ...(Number.isFinite(ring) ? { ring: ring * eighth } : {}) }));
 }
 
 // ---------------------------------------------------------------- the tune
@@ -245,7 +242,7 @@ for (let pass = 0; pass < 2; pass++) {
     // softer than its neighbours.
     else if (parlor) {
       const v = 0.53 + (n.v - 0.55) * 0.4 + ARC[bar]! * 0.01;
-      pianoTune.push(tuned("piano", t, n.d, n.n - 12, trim(v, PIANO_TUNE_DB - recordingDb("piano", n.n - 12, v), 0.52, 1)));
+      pianoTune.push({ t, d: n.d, n: n.n - 12, v: trim(v, PIANO_TUNE_DB - recordingDb("piano", n.n - 12, v), 0.52, 1) });
     }
     // Elsewhere the glockenspiel twinkles an octave up, softly: the pulse notes in pass 1's A' and
     // A'', the whole tune in the last phrase.
@@ -291,13 +288,13 @@ for (let bar = 0; bar < BARS; bar++) {
     pattern.forEach((n, i) => {
       const sung = euphTune.find((e) => e.t === t0 + i)?.n as number | undefined;
       if (sung !== undefined && rubs(n!, sung) && Math.abs(n! - sung) <= 13) return;
-      harp.push(tuned("harp", t0 + i, 1, n!, vels[i]!));
+      harp.push({ t: t0 + i, d: 1, n: n!, v: vels[i]! });
     });
     if (lastBar) {
       // Starts above the arpeggio's top note, so no string is plucked twice in a row.
       tonesIn(second, "G4", "B5")
         .filter((n) => n > up[2]!)
-        .forEach((n, i) => harp.push(tuned("harp", t0 + 3 + i * 0.5, 1, n, 0.44 + i * 0.03)));
+        .forEach((n, i) => harp.push({ t: t0 + 3 + i * 0.5, d: 1, n, v: 0.44 + i * 0.03 }));
     }
   }
 
@@ -307,8 +304,8 @@ for (let bar = 0; bar < BARS; bar++) {
     for (const half of [0, 3]) {
       pianoVoicing = voicing(chordAt(t0 + half), "F4", "E5", pianoVoicing);
       const v = half ? 0.36 : 0.42;
-      pianoVoicing.forEach((n, i) => pianoChords.push(tuned("piano", t0 + half + i * 0.06, 3 - i * 0.06, n, v)));
-      pianoChords.push(tuned("piano", t0 + half + 2, 1, pianoVoicing[2]!, 0.3));
+      pianoVoicing.forEach((n, i) => pianoChords.push({ t: t0 + half + i * 0.06, d: 3 - i * 0.06, n, v }));
+      pianoChords.push({ t: t0 + half + 2, d: 1, n: pianoVoicing[2]!, v: 0.3 });
     }
   }
 
@@ -320,7 +317,7 @@ for (let bar = 0; bar < BARS; bar++) {
       const root = above(c.root, "C2");
       const mid = c.quality === "dom7" ? above(c.pcs[3]!, root) : above(c.pcs[2]!, root);
       const tenth = above(c.pcs[1]!, root + 12);
-      [root, mid, tenth].forEach((n, i) => pianoLeft.push(tuned("piano", t0 + half + i, 3 - i, n, [0.42, 0.3, 0.34][i]! - (half ? 0.04 : 0))));
+      [root, mid, tenth].forEach((n, i) => pianoLeft.push({ t: t0 + half + i, d: 3 - i, n, v: [0.42, 0.3, 0.34][i]! - (half ? 0.04 : 0) }));
     }
   }
 
@@ -402,6 +399,10 @@ const violins: Note[] = [];
     if (cur) violins.push(cur);
   }
 }
+// Song-local tuning: layer 2 has no F4, so an F4 plays its F#4 take a semitone down, which is heard
+// 7 cents flat (-7.4 as the median of its partials, -6.5 loudness-weighted; the same take reads
+// -0.2 at F#4, and layer 1's F4 within 1.6). Those F4s are raised 7 cents (they stay on that take).
+for (const n of violins) if (n.n === midi("F4") && (n.v ?? 0.7) >= 0.5) n.n = midi("F4") + 0.07;
 
 // Vibraphone (celesta stand-in): soft bell dyads on the bar under pass 2's music box. These
 // recordings can't be damped: a note is still only ~4 dB down a bar later and ~9 dB down two bars
@@ -419,23 +420,55 @@ for (let bar = THEME_BARS; bar < THEME_BARS + 4; bar++) {
 // ---------------------------------------------------------------- horn and street band
 
 /**
+ * A horn scoops up into each note. The sampler tunes a recording by the pitch heard over its first
+ * half second, so a note shorter than that is heard mostly in its scoop: the harmony line's soft
+ * eighths on A3 and F3 sound 5–7 cents flat. Each short note is rendered alone, heard the way the
+ * sampler hears a harmonic instrument (median of its partials from 150 Hz to 2.5 kHz) and played
+ * that much higher. Longer notes are left as the sampler tunes them (within 1.5 cents here).
+ */
+function heardInTune(name: InstrumentName, notes: Note[]): Note[] {
+  const inst = instrument(name);
+  const eighth = 60 / THEME_BPM;
+  const out = notes.map((n) => {
+    const m = num(n);
+    if (n.d * eighth >= 0.5) return n;
+    const left = new Float32Array(RATE);
+    const right = new Float32Array(RATE);
+    renderNotes(inst, [{ time: 0, dur: n.d * eighth, note: m, vel: n.v ?? 0.7 }], left, right, RATE, 1, 0);
+    const mono = left.map((x, i) => x + right[i]!);
+    const hz = 440 * 2 ** ((m - 69) / 12);
+    const reads = [1, 2, 3, 4, 5, 6, 7, 8]
+      .filter((k) => k * hz >= 150 && k * hz <= Math.max(2500, hz * 4.5))
+      .map((k) => centsHeard(mono, RATE, m, k))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    return reads.length ? { ...n, n: m - reads[Math.floor(reads.length / 2)]! / 100 } : n;
+  });
+  // Measuring played the notes through the sampler: start its round robins over.
+  inst.resetRoundRobin();
+  return out;
+}
+
+/**
  * The brass recordings take 30–110 ms to speak (most about 50), against the drum's and the
  * piano's instant attacks: start brass notes this many eighths early, as players do.
  */
 const SPEAK = 0.15;
 const early = (notes: Note[]): Note[] => notes.map((n) => ({ ...n, t: n.t - SPEAK }));
 
-// Horn countermelody in each B section: it climbs while the tune falls, falls while it climbs,
-// and holds the 7th of C7 (B flat) resolving to A as the tune comes home. In pass 2 it is the top
-// of the brass hymn, and it resolves into its harmony line under the euphonium (below).
+// Horn countermelody in each B section: it climbs while the tune falls, holding its D over the
+// change to C (a 9-8 suspension, resolving down to C), falls while the tune climbs, and holds the
+// 7th of C7 (B flat) resolving to A as the tune comes home. In pass 2 it is the top of the brass
+// hymn, and it resolves into its harmony line under the euphonium (below). It peaks on D4: this
+// layer's top recording is C4, and further above a recording a horn sounds stretched.
 const HORN_LINE: [number, number, string][] = [
-  [0, 3, "Bb3"], [3, 3, "D4"],
-  [6, 3, "E4"], [9, 2, "C4"], [11, 1, "Bb3"],
+  [0, 3, "Bb3"], [3, 6, "D4"],
+  [9, 2, "C4"], [11, 1, "Bb3"],
   [12, 3, "A3"], [15, 2, "F3"], [17, 1, "A3"],
   [18, 6, "Bb3"],
   [24, 4, "A3"],
 ];
-const HORN_SWELL = [0.62, 0.66, 0.7, 0.66, 0.6, 0.62, 0.6, 0.58, 0.64, 0.56];
+const HORN_SWELL = [0.62, 0.68, 0.66, 0.6, 0.62, 0.6, 0.58, 0.64, 0.56];
 const horn: Note[] = [];
 for (let pass = 0; pass < 2; pass++) {
   HORN_LINE.forEach(([t, d, n], i) => {
@@ -448,9 +481,9 @@ for (let pass = 0; pass < 2; pass++) {
 }
 
 // The euphonium in the hymn: the horn's line mostly a sixth below (thirds where the horn dips to
-// F3, the tritone of C7 at the end), on the same rhythm, so the two sing as a pair over the tuba.
-// From B flat to C (bar 26) it falls to C3 instead, a tenth under the horn: rising F3 to G3 there
-// with the tuba's B flat to C would be parallel fifths, the whole band moving up as one block.
+// F3, the tritone of C7 at the end), so the two sing as a pair over the tuba. From B flat to C
+// (bar 26) it falls to C3 instead, under the horn's suspended D: rising F3 to G3 there with the
+// tuba's B flat to C would be parallel fifths, the whole band moving up as one block.
 // Its middle layer (1/3 <= v < 2/3).
 const EUPH_LINE: [number, number, string][] = [
   [0, 3, "D3"], [3, 3, "F3"],
@@ -537,7 +570,8 @@ const roll: Note[] = [
 // doesn't play), so on a phone these strokes are the drummer.
 const snare: Note[] = [{ t: at(29), d: 1, n: "D2", v: 0.5 }];
 for (let bar = 29; bar <= 32; bar++) for (const e of bar < 32 ? [2, 5] : [2]) snare.push({ t: at(bar, e), d: 1, n: "D2", v: 0.44 });
-const cymbals: Note[] = [{ t: at(29), d: 1, n: "C#3", v: 0.5 }];
+// The clash in the pair's ff layer (v >= 0.5; the mf one is under 0.5).
+const cymbals: Note[] = [{ t: at(29), d: 1, n: "C#3", v: 0.6 }];
 
 const song: Song = {
   name: "christmas",
@@ -549,16 +583,16 @@ const song: Song = {
     { inst: "flute", notes: flute, gain: 1.0, pan: 0, reverb: 0.3, humanize: 0.25, lowpass: 7000 },
     { inst: "glockenspiel", notes: glockSolo, gain: 19, pan: 0.1, reverb: 0.35 },
     { inst: "glockenspiel", notes: twinkle, gain: 0.8, pan: 0.25, reverb: 0.4 },
-    { inst: "piano", notes: pianoTune, gain: 0.27, pan: 0.05, reverb: 0.32, humanize: 0.2, lowpass: 5000 },
-    { inst: "piano", notes: pianoLeft, gain: 0.09, pan: 0.05, reverb: 0.32, humanize: 0.2, lowpass: 5000 },
-    { inst: "piano", notes: pianoChords, gain: 0.13, pan: 0.15, reverb: 0.32, humanize: 0.2, lowpass: 5000 },
-    { inst: "harp", notes: harp, gain: 0.9, pan: 0.35, reverb: 0.35, humanize: 0.25 },
+    { inst: "piano", notes: pianoTune, gain: 0.27, pan: 0.05, reverb: 0.32, humanize: 0.2, lowpass: 5000, label: "piano (tune)" },
+    { inst: "piano", notes: pianoLeft, gain: 0.09, pan: 0.05, reverb: 0.32, humanize: 0.2, lowpass: 5000, label: "piano (left hand)" },
+    { inst: "piano", notes: pianoChords, gain: 0.13, pan: 0.15, reverb: 0.32, humanize: 0.2, lowpass: 5000, label: "piano (chords)" },
+    ...damped({ inst: "harp", notes: harp, gain: 0.9, pan: 0.35, reverb: 0.35, humanize: 0.25, label: "harp" }),
     { inst: "violins", notes: violins, gain: 0.27, pan: -0.3, reverb: 0.4, humanize: 0.15 },
     { inst: "vibraphone", notes: vibes, gain: 0.24, pan: -0.2, reverb: 0.4, humanize: 0.15 },
-    { inst: "horn", notes: early(horn), gain: 0.75, pan: -0.15, reverb: 0.35, humanize: 0.15, lowpass: 4500 },
-    ...evenTracks({ inst: "horn", notes: early(hornLow), gain: 2, pan: -0.2, reverb: 0.35, humanize: 0.15, lowpass: 4500 }, HORN_LOW_DB),
-    ...euphonium(early(euphHymn), { gain: 2.9, pan: 0.15, reverb: 0.32, humanize: 0.15 }),
-    ...euphonium(early(euphTune), { gain: 12, pan: 0.1, reverb: 0.32, humanize: 0.15 }),
+    { inst: "horn", notes: early(heardInTune("horn", horn)), gain: 0.75, pan: -0.15, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (countermelody)" },
+    ...evenTracks({ inst: "horn", notes: early(heardInTune("horn", hornLow)), gain: 2, pan: -0.2, reverb: 0.35, humanize: 0.15, lowpass: 4500, label: "horn (harmony)" }, HORN_LOW_DB),
+    ...euphonium(early(euphHymn), { gain: 2.9, pan: 0.15, reverb: 0.32, humanize: 0.15, label: "euphonium (hymn)" }),
+    ...euphonium(early(euphTune), { gain: 12, pan: 0.1, reverb: 0.32, humanize: 0.15, label: "euphonium (tune)" }),
     { inst: "tuba", notes: early(tuba), gain: 1, pan: 0.05, reverb: 0.2, humanize: 0.15 },
     { inst: "cellos", notes: cellos, gain: 0.18, pan: 0.3, reverb: 0.25, humanize: 0.15 },
     { inst: "bassPizz", notes: bass, gain: 0.45, pan: 0.15, reverb: 0.12 },
