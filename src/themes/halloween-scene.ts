@@ -99,44 +99,53 @@ function moon(ctx: CanvasRenderingContext2D, s: Scene): void {
 function farHills(ctx: CanvasRenderingContext2D, s: Scene): void {
   const gy = layerGround(s, 0.12) - s.u * 0.06;
   if (gy - s.u * 0.4 > s.cssH) return;
-  ctx.fillStyle = "#3a2252";
-  ctx.beginPath();
-  ctx.moveTo(0, s.cssH);
-  for (let x = 0; x <= s.cssW; x += 8) {
-    const y = gy - s.u * (0.08 + 0.05 * Math.sin(x / (s.u * 0.18)) + 0.03 * Math.sin(x / (s.u * 0.07) + 1));
-    ctx.lineTo(x, y);
-  }
-  ctx.lineTo(s.cssW, s.cssH);
-  ctx.closePath();
-  ctx.fill();
+  const hillY = (x: number) =>
+    gy - s.u * (0.08 + 0.05 * Math.sin(x / (s.u * 0.18)) + 0.03 * Math.sin(x / (s.u * 0.07) + 1));
 
-  // Mansion on the right-hand hill.
+  // Mansion first, so the hill covers its foundation and it sits *in* the hill.
   const hx = s.cssW * 0.8;
-  const hb = gy - s.u * 0.1;
   const hw = s.u * 0.16;
+  let lowest = 0;
+  for (let x = hx - hw / 2; x <= hx + hw / 2; x += 2) lowest = Math.max(lowest, hillY(x));
+  const hb = lowest + hw * 0.05;
   ctx.fillStyle = "#24143a";
-  ctx.fillRect(hx - hw / 2, hb - hw * 0.55, hw, hw * 0.6);
+  ctx.fillRect(hx - hw / 2, hb - hw * 0.62, hw, hw * 0.62);
   ctx.beginPath();
-  ctx.moveTo(hx - hw * 0.6, hb - hw * 0.55);
-  ctx.lineTo(hx, hb - hw * 0.95);
-  ctx.lineTo(hx + hw * 0.6, hb - hw * 0.55);
+  ctx.moveTo(hx - hw * 0.6, hb - hw * 0.62);
+  ctx.lineTo(hx, hb - hw * 1.02);
+  ctx.lineTo(hx + hw * 0.6, hb - hw * 0.62);
   ctx.fill();
-  ctx.fillRect(hx + hw * 0.32, hb - hw * 1.05, hw * 0.16, hw * 0.55); // tower
+  ctx.fillRect(hx + hw * 0.32, hb - hw * 1.12, hw * 0.16, hw * 0.6); // tower
   ctx.beginPath();
-  ctx.moveTo(hx + hw * 0.28, hb - hw * 1.05);
-  ctx.lineTo(hx + hw * 0.4, hb - hw * 1.3);
-  ctx.lineTo(hx + hw * 0.52, hb - hw * 1.05);
+  ctx.moveTo(hx + hw * 0.28, hb - hw * 1.12);
+  ctx.lineTo(hx + hw * 0.4, hb - hw * 1.37);
+  ctx.lineTo(hx + hw * 0.52, hb - hw * 1.12);
   ctx.fill();
   ctx.fillStyle = "#ffd860";
   const win = hw * 0.1;
   for (const [fx, fy] of [
-    [-0.3, -0.4],
-    [-0.05, -0.4],
-    [0.18, -0.25],
-    [0.37, -0.9],
+    [-0.3, -0.45],
+    [-0.05, -0.45],
+    [0.18, -0.3],
+    [0.37, -0.97],
   ] as const) {
     if (Math.sin(s.t * 0.7 + fx * 9) > -0.6) ctx.fillRect(hx + hw * fx, hb + hw * fy, win, win * 1.3);
   }
+
+  ctx.fillStyle = "#3a2252";
+  ctx.beginPath();
+  ctx.moveTo(0, s.cssH);
+  for (let x = 0; x <= s.cssW; x += 6) ctx.lineTo(x, hillY(x));
+  ctx.lineTo(s.cssW, hillY(s.cssW));
+  ctx.lineTo(s.cssW, s.cssH);
+  ctx.closePath();
+  ctx.fill();
+  // Faint moonlit rim on the hilltops
+  ctx.strokeStyle = "rgba(200, 170, 255, 0.18)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let x = 0; x <= s.cssW; x += 6) (x === 0 ? ctx.moveTo : ctx.lineTo).call(ctx, x, hillY(x));
+  ctx.stroke();
 }
 
 function deadTree(ctx: CanvasRenderingContext2D, x: number, y: number, len: number, angle: number, depth: number, seed: number): void {
@@ -244,50 +253,320 @@ function tombstone(ctx: CanvasRenderingContext2D, x: number, groundY: number, w:
   ctx.fillText("RIP", x + w / 2, groundY - h * 0.45);
 }
 
-/** The graveyard the tower stands on: ground, iron fence, tombstones. */
+const SILHOUETTE = "#07040b";
+const BONE = "#e9e1c9";
+const DIRT = "#2b1b26";
+const ZOMBIE_SKIN = "#86b35c";
+
+/** 0..1..0 envelope over a repeating cycle: rise, hold, sink, rest. */
+function emerge(t: number, period: number, offset: number): number {
+  const p = (((t + offset) % period) + period) % period / period;
+  if (p < 0.2) return easeOut(p / 0.2);
+  if (p < 0.65) return 1;
+  if (p < 0.8) return 1 - easeOut((p - 0.65) / 0.15);
+  return 0;
+}
+
+function easeOut(x: number): number {
+  return 1 - (1 - x) * (1 - x);
+}
+
+function dirtMound(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.fillStyle = DIRT;
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.32, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+  ctx.beginPath();
+  ctx.ellipse(x - r * 0.2, y - r * 0.12, r * 0.5, r * 0.1, 0, Math.PI, 0);
+  ctx.fill();
+}
+
+/** A bony arm clawing up out of a mound. `up` 0..1 is how far it has come out. */
+function skeletonArm(ctx: CanvasRenderingContext2D, x: number, y: number, len: number, up: number, t: number, seed: number): void {
+  if (up <= 0.01) return;
+  const sway = Math.sin(t * 2.2 + seed) * 0.35;
+  const a = -0.15 + sway * up; // radians from vertical
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x - len * 2, y - len * 3, len * 4, len * 3); // only above the soil
+  ctx.clip();
+  const reach = len * up;
+  const ex = x + Math.sin(a) * reach * 0.55;
+  const ey = y - Math.cos(a) * reach * 0.55;
+  const wx = ex + Math.sin(a * 1.6) * reach * 0.45;
+  const wy = ey - Math.cos(a * 1.6) * reach * 0.45;
+  ctx.strokeStyle = BONE;
+  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(2, len * 0.09);
+  ctx.beginPath();
+  ctx.moveTo(x, y + 2);
+  ctx.lineTo(ex, ey);
+  ctx.lineTo(wx, wy);
+  ctx.stroke();
+  ctx.fillStyle = BONE;
+  ctx.beginPath();
+  ctx.arc(ex, ey, len * 0.06, 0, Math.PI * 2); // elbow
+  ctx.arc(wx, wy, len * 0.08, 0, Math.PI * 2); // palm
+  ctx.fill();
+  // Fingers curl open and shut.
+  const curl = 0.5 + 0.5 * Math.sin(t * 3 + seed * 2);
+  ctx.lineWidth = Math.max(1.2, len * 0.045);
+  ctx.beginPath();
+  for (let f = 0; f < 4; f++) {
+    const fa = a * 1.6 - 0.55 + f * 0.37;
+    const k1x = wx + Math.sin(fa) * len * 0.13;
+    const k1y = wy - Math.cos(fa) * len * 0.13;
+    const fa2 = fa + curl * 0.9;
+    ctx.moveTo(wx, wy);
+    ctx.lineTo(k1x, k1y);
+    ctx.lineTo(k1x + Math.sin(fa2) * len * 0.1, k1y - Math.cos(fa2) * len * 0.1);
+  }
+  // Thumb
+  ctx.moveTo(wx, wy);
+  ctx.lineTo(wx + Math.sin(a * 1.6 - 1.3) * len * 0.12, wy - Math.cos(a * 1.6 - 1.3) * len * 0.12);
+  ctx.stroke();
+  ctx.restore();
+  ctx.lineCap = "butt";
+}
+
+/** A zombie pushing up out of its grave. `up` 0..1 is how far out it is. */
+function zombie(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, up: number, t: number): void {
+  if (up <= 0.01) return;
+  const lean = Math.sin(t * 1.4) * 0.08 * up;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x - size * 2, y - size * 3, size * 4, size * 3);
+  ctx.clip();
+  ctx.translate(x, y + (1 - up) * size * 1.9);
+  ctx.rotate(lean);
+
+  // Torso in a torn shirt
+  ctx.fillStyle = "#4b3d63";
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.42, 0);
+  ctx.lineTo(-size * 0.38, -size * 0.95);
+  ctx.lineTo(size * 0.38, -size * 0.95);
+  ctx.lineTo(size * 0.42, 0);
+  ctx.lineTo(size * 0.2, -size * 0.15);
+  ctx.lineTo(0, 0);
+  ctx.lineTo(-size * 0.2, -size * 0.18);
+  ctx.closePath();
+  ctx.fill();
+
+  // Arms reaching forward, bobbing out of step.
+  ctx.strokeStyle = ZOMBIE_SKIN;
+  ctx.lineCap = "round";
+  ctx.lineWidth = size * 0.18;
+  for (const side of [-1, 1]) {
+    const bob = Math.sin(t * 2.6 + side) * size * 0.12;
+    ctx.beginPath();
+    ctx.moveTo(side * size * 0.32, -size * 0.85);
+    ctx.lineTo(side * size * 0.55 + size * 0.35, -size * 1.05 + bob);
+    ctx.lineTo(side * size * 0.45 + size * 0.85, -size * 1.0 + bob);
+    ctx.stroke();
+  }
+
+  // Head
+  const hy = -size * 1.25;
+  ctx.fillStyle = ZOMBIE_SKIN;
+  ctx.beginPath();
+  ctx.ellipse(0, hy, size * 0.3, size * 0.34, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#1d2a14";
+  ctx.beginPath();
+  ctx.arc(-size * 0.11, hy - size * 0.04, size * 0.07, 0, Math.PI * 2);
+  ctx.arc(size * 0.12, hy - size * 0.06, size * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ff5a3c";
+  ctx.fillRect(-size * 0.12, hy - size * 0.05, size * 0.025, size * 0.025);
+  ctx.fillRect(size * 0.11, hy - size * 0.07, size * 0.025, size * 0.025);
+  ctx.strokeStyle = "#1d2a14";
+  ctx.lineWidth = size * 0.04;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.1, hy + size * 0.16);
+  ctx.lineTo(size * 0.12, hy + size * 0.13);
+  ctx.stroke();
+  // Scraggly hair
+  ctx.strokeStyle = "#20162a";
+  ctx.lineWidth = size * 0.05;
+  ctx.beginPath();
+  for (let i = -2; i <= 2; i++) {
+    ctx.moveTo(i * size * 0.08, hy - size * 0.3);
+    ctx.lineTo(i * size * 0.1 + size * 0.03, hy - size * 0.45);
+  }
+  ctx.stroke();
+  ctx.restore();
+  ctx.lineCap = "butt";
+
+  // Dirt flying while it claws out.
+  if (up < 0.98) {
+    ctx.fillStyle = DIRT;
+    for (let i = 0; i < 6; i++) {
+      const k = (t * 1.7 + i / 6) % 1;
+      const dx = (hash(i) - 0.5) * size * 1.6 * k;
+      const dy = -size * 0.9 * k + size * 1.4 * k * k;
+      ctx.fillRect(x + dx, y + dy - 2, size * 0.08, size * 0.08);
+    }
+  }
+}
+
+function flyingWitch(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, dir: 1 | -1, t: number): void {
+  ctx.save();
+  ctx.translate(x, y + Math.sin(t * 2) * size * 0.15);
+  ctx.scale(dir, 1);
+  ctx.rotate(-0.08);
+  ctx.fillStyle = SILHOUETTE;
+  ctx.strokeStyle = SILHOUETTE;
+  ctx.lineCap = "round";
+  // Broomstick and bristles
+  ctx.lineWidth = Math.max(1.5, size * 0.07);
+  ctx.beginPath();
+  ctx.moveTo(-size * 1.1, size * 0.15);
+  ctx.lineTo(size * 1.0, -size * 0.05);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.95, size * 0.12);
+  ctx.lineTo(-size * 1.6, -size * 0.12);
+  ctx.lineTo(-size * 1.7, size * 0.22);
+  ctx.lineTo(-size * 1.55, size * 0.45);
+  ctx.closePath();
+  ctx.fill();
+  // Cape streaming behind, fluttering
+  const flap = Math.sin(t * 9) * size * 0.12;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.15, -size * 0.55);
+  ctx.quadraticCurveTo(-size * 0.5, -size * 0.6 + flap, -size * 1.0, -size * 0.25 + flap);
+  ctx.lineTo(-size * 0.7, -size * 0.1 - flap * 0.5);
+  ctx.lineTo(-size * 0.85, size * 0.05 + flap * 0.3);
+  ctx.lineTo(-size * 0.1, size * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  // Body hunched over the broom
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.25, size * 0.08);
+  ctx.quadraticCurveTo(-size * 0.1, -size * 0.6, size * 0.25, -size * 0.55);
+  ctx.lineTo(size * 0.35, size * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  // Arm to the broom, leg dangling
+  ctx.lineWidth = Math.max(1.5, size * 0.09);
+  ctx.beginPath();
+  ctx.moveTo(size * 0.2, -size * 0.35);
+  ctx.lineTo(size * 0.55, size * 0.0);
+  ctx.moveTo(-size * 0.05, size * 0.08);
+  ctx.lineTo(size * 0.05, size * 0.4);
+  ctx.lineTo(size * 0.2, size * 0.42);
+  ctx.stroke();
+  // Head, nose and hat
+  ctx.beginPath();
+  ctx.arc(size * 0.3, -size * 0.68, size * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(size * 0.42, -size * 0.7);
+  ctx.lineTo(size * 0.58, -size * 0.62);
+  ctx.lineTo(size * 0.42, -size * 0.62);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(size * 0.0, -size * 0.78);
+  ctx.lineTo(size * 0.6, -size * 0.82);
+  ctx.lineTo(size * 0.38, -size * 0.85);
+  ctx.lineTo(size * 0.1, -size * 1.3);
+  ctx.lineTo(size * 0.05, -size * 1.15);
+  ctx.lineTo(size * 0.2, -size * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  ctx.lineCap = "butt";
+}
+
+function witches(ctx: CanvasRenderingContext2D, s: Scene): void {
+  // Two witches on different loops; the first crosses the moon.
+  const passes = [
+    { period: 13, offset: 0, y: 0.1, size: 0.05, dir: 1 as const },
+    { period: 19, offset: 7, y: 0.33, size: 0.035, dir: -1 as const },
+  ];
+  for (const w of passes) {
+    const p = ((s.t + w.offset) % w.period) / w.period;
+    const span = s.cssW + s.u * 0.4;
+    const along = p * span - s.u * 0.2;
+    const x = w.dir === 1 ? along : s.cssW - along;
+    const y = s.cssH * w.y + Math.sin(p * Math.PI * 2) * s.u * 0.03;
+    flyingWitch(ctx, x, y, s.u * w.size, w.dir, s.t);
+  }
+}
+
+/** The graveyard the tower stands on: fence, ground, graves, and things climbing out of them. */
 function ground(ctx: CanvasRenderingContext2D, s: Scene): void {
   if (s.groundY - s.u * 0.2 > s.cssH) return;
   const gy = s.groundY;
+  const u = s.u;
 
   // Iron fence behind the tower.
-  ctx.strokeStyle = "#1a1226";
-  ctx.fillStyle = "#1a1226";
-  ctx.lineWidth = Math.max(1.5, s.u * 0.006);
-  const fh = s.u * 0.09;
+  ctx.strokeStyle = "#1e1430";
+  ctx.fillStyle = "#1e1430";
+  ctx.lineWidth = Math.max(1.5, u * 0.006);
+  const fh = u * 0.09;
   ctx.beginPath();
   ctx.moveTo(0, gy - fh * 0.75);
   ctx.lineTo(s.cssW, gy - fh * 0.75);
   ctx.moveTo(0, gy - fh * 0.25);
   ctx.lineTo(s.cssW, gy - fh * 0.25);
-  for (let x = s.u * 0.02; x < s.cssW; x += s.u * 0.035) {
+  for (let x = u * 0.02; x < s.cssW; x += u * 0.035) {
     ctx.moveTo(x, gy);
     ctx.lineTo(x, gy - fh);
   }
   ctx.stroke();
-  for (let x = s.u * 0.02; x < s.cssW; x += s.u * 0.035) {
+  for (let x = u * 0.02; x < s.cssW; x += u * 0.035) {
     ctx.beginPath();
-    ctx.moveTo(x - s.u * 0.008, gy - fh);
-    ctx.lineTo(x, gy - fh - s.u * 0.018);
-    ctx.lineTo(x + s.u * 0.008, gy - fh);
+    ctx.moveTo(x - u * 0.008, gy - fh);
+    ctx.lineTo(x, gy - fh - u * 0.018);
+    ctx.lineTo(x + u * 0.008, gy - fh);
     ctx.fill();
   }
 
-  ctx.fillStyle = "#1a1226";
+  // Ground, lit from the moon along its edge.
+  const g = ctx.createLinearGradient(0, gy - u * 0.03, 0, gy + u * 0.6);
+  g.addColorStop(0, "#2c1c3e");
+  g.addColorStop(1, "#130b1d");
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.moveTo(0, gy + s.u * 0.04);
-  ctx.quadraticCurveTo(s.cssW / 2, gy - s.u * 0.03, s.cssW, gy + s.u * 0.04);
+  ctx.moveTo(0, gy + u * 0.04);
+  ctx.quadraticCurveTo(s.cssW / 2, gy - u * 0.03, s.cssW, gy + u * 0.04);
   ctx.lineTo(s.cssW, s.cssH);
   ctx.lineTo(0, s.cssH);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "#4a2f5e";
+  ctx.strokeStyle = "rgba(190, 160, 240, 0.35)";
   ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, gy + u * 0.04);
+  ctx.quadraticCurveTo(s.cssW / 2, gy - u * 0.03, s.cssW, gy + u * 0.04);
   ctx.stroke();
 
-  const tw = s.u * 0.09;
-  tombstone(ctx, s.baseX - tw * 2.1, gy + s.u * 0.02, tw, tw * 1.35);
-  tombstone(ctx, s.baseX + s.baseW + tw * 1.2, gy + s.u * 0.025, tw * 0.85, tw * 1.15);
-  tombstone(ctx, s.baseX - tw * 3.6, gy + s.u * 0.03, tw * 0.7, tw * 0.95);
+  // Graves beside the tower, and a jack-o'-lantern keeping watch behind it.
+  const tw = u * 0.09;
+  tombstone(ctx, s.baseX - tw * 1.9, gy + u * 0.02, tw, tw * 1.35);
+  tombstone(ctx, s.baseX + s.baseW + tw * 1.35, gy + u * 0.025, tw * 0.85, tw * 1.15);
+  jackOLantern(ctx, s.baseX + s.baseW + tw * 0.62, gy + u * 0.02, u * 0.035, s.t);
+
+  // Lower graveyard: a zombie breaking out and skeleton arms clawing up.
+  const zx = s.cssW * 0.2;
+  const zy = gy + u * 0.24;
+  tombstone(ctx, zx - tw * 0.45, zy - u * 0.05, tw * 0.9, tw * 1.1);
+  zombie(ctx, zx, zy, u * 0.075, emerge(s.t, 9, 0), s.t);
+  dirtMound(ctx, zx, zy + 2, u * 0.11);
+
+  for (const [fx, dy, len, seed] of [
+    [0.78, 0.14, 0.11, 1],
+    [0.6, 0.26, 0.09, 2],
+    [0.9, 0.3, 0.08, 3],
+  ] as const) {
+    const ax = s.cssW * fx;
+    const ay = gy + u * dy;
+    skeletonArm(ctx, ax, ay, u * len, emerge(s.t, 7 + seed, seed * 2.3), s.t, seed);
+    dirtMound(ctx, ax, ay + 2, u * len * 0.7);
+  }
 }
 
 export function background(ctx: CanvasRenderingContext2D, s: Scene): void {
@@ -295,8 +574,10 @@ export function background(ctx: CanvasRenderingContext2D, s: Scene): void {
   moon(ctx, s);
   farHills(ctx, s);
 
+  witches(ctx, s);
+
   // Bats crossing the sky, in screen space.
-  ctx.fillStyle = "#07040b";
+  ctx.fillStyle = SILHOUETTE;
   for (let i = 0; i < 3; i++) {
     const span = s.cssW + 120;
     const speed = 28 + i * 11;
@@ -310,49 +591,24 @@ export function background(ctx: CanvasRenderingContext2D, s: Scene): void {
   ground(ctx, s);
 }
 
-/** Drawn in front of the tower: drops away faster than the tower as you climb. */
-export function foreground(ctx: CanvasRenderingContext2D, s: Scene): void {
-  const top = layerGround(s, 1.6) + s.u * 0.12;
-  if (top > s.cssH) return;
-  ctx.fillStyle = "#0b0612";
-  ctx.beginPath();
-  ctx.moveTo(0, top - s.u * 0.02);
-  ctx.quadraticCurveTo(s.cssW * 0.3, top + s.u * 0.05, s.cssW * 0.55, top + s.u * 0.02);
-  ctx.quadraticCurveTo(s.cssW * 0.8, top - s.u * 0.01, s.cssW, top + s.u * 0.04);
-  ctx.lineTo(s.cssW, s.cssH + 10);
-  ctx.lineTo(0, s.cssH + 10);
-  ctx.closePath();
-  ctx.fill();
-
-  // Grass blades along the mound's edge.
-  ctx.strokeStyle = "#0b0612";
-  ctx.lineWidth = Math.max(1.5, s.u * 0.006);
-  ctx.beginPath();
-  for (let i = 0; i < 60; i++) {
-    const gx = (i / 60) * s.cssW + hash(i) * 6;
-    const t01 = gx / s.cssW;
-    const edge = top + s.u * (0.02 * Math.sin(t01 * Math.PI * 2) + 0.01);
-    const len = s.u * (0.015 + hash(i + 50) * 0.03);
-    ctx.moveTo(gx, edge + 2);
-    ctx.lineTo(gx + (hash(i + 7) - 0.5) * len, edge - len);
-  }
-  ctx.stroke();
-
-  // A big glowing jack-o'-lantern in the left corner.
-  const px = s.cssW * 0.11;
-  const pr = s.u * 0.075;
-  const py = top + pr * 0.55;
+function jackOLantern(ctx: CanvasRenderingContext2D, px: number, bottom: number, pr: number, t: number): void {
+  const py = bottom - pr;
   ctx.save();
   ctx.shadowColor = "#ff8a1f";
-  ctx.shadowBlur = pr * 0.8;
+  ctx.shadowBlur = pr * 1.2;
   ctx.fillStyle = "#e0661a";
   ctx.beginPath();
   ctx.ellipse(px, py, pr * 1.15, pr, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+  ctx.strokeStyle = "rgba(120, 40, 0, 0.45)";
+  ctx.lineWidth = Math.max(1, pr * 0.08);
+  ctx.beginPath();
+  ctx.ellipse(px, py, pr * 0.45, pr * 0.98, 0, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.fillStyle = "#2b5a1a";
   ctx.fillRect(px - pr * 0.08, py - pr * 1.25, pr * 0.16, pr * 0.35);
-  const flicker = 0.75 + 0.25 * Math.sin(s.t * 9) * Math.sin(s.t * 5.3);
+  const flicker = 0.75 + 0.25 * Math.sin(t * 9) * Math.sin(t * 5.3);
   ctx.fillStyle = `rgba(255, 216, 96, ${flicker})`;
   for (const side of [-1, 1]) {
     ctx.beginPath();
@@ -369,4 +625,36 @@ export function foreground(ctx: CanvasRenderingContext2D, s: Scene): void {
   ctx.lineTo(px - pr * 0.45, py + pr * 0.6);
   ctx.closePath();
   ctx.fill();
+}
+
+/** Drawn in front of the tower: a low grassy rise that drops away faster than the tower. */
+export function foreground(ctx: CanvasRenderingContext2D, s: Scene): void {
+  const top = layerGround(s, 1.6) + s.u * 0.32;
+  if (top - s.u * 0.06 > s.cssH) return;
+  ctx.fillStyle = "#0b0612";
+  ctx.beginPath();
+  ctx.moveTo(0, top - s.u * 0.03);
+  ctx.quadraticCurveTo(s.cssW * 0.25, top + s.u * 0.04, s.cssW * 0.55, top + s.u * 0.03);
+  ctx.quadraticCurveTo(s.cssW * 0.85, top + s.u * 0.01, s.cssW, top - s.u * 0.04);
+  ctx.lineTo(s.cssW, s.cssH + 10);
+  ctx.lineTo(0, s.cssH + 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Grass and weeds along the edge, taller at the sides to frame the tower.
+  ctx.strokeStyle = "#0b0612";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (let i = 0; i < 70; i++) {
+    const gx = (i / 70) * s.cssW + hash(i) * 6;
+    const t01 = gx / s.cssW;
+    const edge = top + s.u * (0.035 * Math.sin(t01 * Math.PI) - 0.02);
+    const side = Math.abs(t01 - 0.5) * 2; // 0 center, 1 edges
+    const len = s.u * (0.015 + hash(i + 50) * 0.03 + side * side * 0.06);
+    ctx.lineWidth = Math.max(1.5, s.u * 0.006);
+    ctx.moveTo(gx, edge + 3);
+    ctx.quadraticCurveTo(gx, edge - len * 0.6, gx + (hash(i + 7) - 0.5) * len, edge - len);
+  }
+  ctx.stroke();
+  ctx.lineCap = "butt";
 }

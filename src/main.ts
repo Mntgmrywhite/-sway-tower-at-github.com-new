@@ -83,6 +83,8 @@ window.addEventListener("keydown", (e) => {
   }
 });
 window.addEventListener("resize", resize);
+// Canvas text only uses a web font once it's loaded; ask for it up front.
+document.fonts?.load("40px Creepster").catch(() => {});
 resize();
 
 let last = performance.now();
@@ -100,4 +102,5 @@ function frame(now: number): void {
 requestAnimationFrame(frame);
 
 // Debug/inspection hook for automated checks.
-(window as unknown as { __game: () => GameState }).__game = () => state;
+(window as unknown as { __game: () => GameState; __view: () => View }).__game = () => state;
+(window as unknown as { __view: () => View }).__view = () => view;

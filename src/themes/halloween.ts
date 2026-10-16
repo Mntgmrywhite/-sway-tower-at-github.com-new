@@ -92,6 +92,7 @@ export const halloween: Theme = {
   foreground,
   block,
   hud: {
+    display: "Creepster, Impact, 'Arial Black', sans-serif",
     score: "#ffb347",
     muted: "rgba(255, 228, 190, 0.75)",
     life: "#ff8a1f",

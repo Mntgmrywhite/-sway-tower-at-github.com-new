@@ -26,6 +26,8 @@ export interface Theme {
   /** Draw one block with its top-left at (x, y), w × h pixels. `level` picks its look. */
   block(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, level: number): void;
   hud: {
+    /** Font family for titles and the PERFECT pop. */
+    display: string;
     score: string;
     muted: string;
     life: string;

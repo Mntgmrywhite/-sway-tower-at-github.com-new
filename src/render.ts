@@ -2,12 +2,14 @@ import { BLOCK_HEIGHT, LIVES, WORLD_WIDTH, tuning } from "./config";
 import { swayOffset, type Block, type GameState } from "./game";
 import { classic } from "./themes/classic";
 import { halloween } from "./themes/halloween";
-import { roundRectPath, type Scene } from "./themes/theme";
+import { roundRectPath, type Scene, type Theme } from "./themes/theme";
 
 /** World units visible horizontally; a little wider than the slider's travel. */
 const VIEW_WIDTH = WORLD_WIDTH * 1.5;
 /** Keep the tower top this fraction of the screen down from the top. */
 const TOP_ANCHOR = 0.38;
+/** Until the tower is tall enough, hold the ground this far down the screen. */
+const GROUND_START = 0.7;
 const CAMERA_EASE = 6; // per second
 // Cosmetic falling pieces only; slow enough to watch the chop happen.
 const GRAVITY = 55; // world units/sec^2
@@ -93,8 +95,11 @@ export function render(
   const scale = u / VIEW_WIDTH;
   const offsetX = (cssW - WORLD_WIDTH * scale) / 2;
   const anchorPx = cssH * TOP_ANCHOR;
+  // Early on, sit the ground low so the sky gets the room; the follow camera takes over
+  // smoothly once the tower is taller than that.
+  const cameraY = Math.max(view.cameraY, ((GROUND_START - TOP_ANCHOR) * cssH) / scale);
   const sx = (x: number) => offsetX + x * scale;
-  const sy = (y: number) => anchorPx - (y - view.cameraY) * scale;
+  const sy = (y: number) => anchorPx - (y - cameraY) * scale;
 
   const theme = tuning.halloween ? halloween : classic;
   const base = state.blocks[0];
@@ -104,8 +109,8 @@ export function render(
     u,
     scale,
     t: view.t,
-    rise: Math.max(0, (view.cameraY - BLOCK_HEIGHT) * scale),
-    altitude: view.cameraY,
+    rise: Math.max(0, sy(0) - cssH * GROUND_START),
+    altitude: cameraY,
     groundY: sy(0),
     baseX: base ? sx(base.x) : 0,
     baseW: base ? base.w * scale : 0,
@@ -118,7 +123,7 @@ export function render(
     theme.block(ctx, sx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
 
   // Only draw blocks that can be on screen.
-  const firstVisible = Math.max(0, Math.floor(view.cameraY / BLOCK_HEIGHT - cssH / h - 2));
+  const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - cssH / h - 2));
   for (let i = firstVisible; i < state.blocks.length; i++) {
     const b = state.blocks[i];
     if (b) drawBlock(b.x + swayOffset(state, i), b.w, i);
@@ -182,7 +187,7 @@ export function render(
     const size = Math.round(u * 0.065 * (1 + 0.25 * Math.min(1, f.streak / 5)));
     ctx.save();
     ctx.globalAlpha = 1 - k * k;
-    ctx.font = `800 ${size}px system-ui, sans-serif`;
+    ctx.font = `800 ${size}px ${theme.hud.display}`;
     ctx.textAlign = "center";
     ctx.lineJoin = "round";
     ctx.lineWidth = Math.max(3, size * 0.18);
@@ -203,40 +208,104 @@ export function render(
   ctx.save();
   ctx.shadowColor = "rgba(10, 5, 20, 0.6)";
   ctx.shadowBlur = Math.round(u * 0.02);
-  ctx.fillStyle = theme.hud.score;
   ctx.textAlign = "center";
-  ctx.font = `700 ${Math.round(u * 0.14)}px system-ui, sans-serif`;
-  ctx.fillText(String(state.score), cssW / 2, cssH * 0.14);
+  const top = cssH * 0.14;
+
+  if (state.phase === "over") {
+    drawGameOver(ctx, cssW, cssH, u, state, best, theme);
+    ctx.restore();
+    return;
+  }
+
+  if (state.score === 0) {
+    // Start screen: the name instead of a zero.
+    ctx.font = `400 ${Math.round(u * 0.15)}px ${theme.hud.display}`;
+    ctx.fillStyle = theme.hud.score;
+    ctx.fillText("Sway Stack", cssW / 2, top);
+  } else {
+    ctx.font = `700 ${Math.round(u * 0.14)}px system-ui, sans-serif`;
+    ctx.fillStyle = theme.hud.score;
+    ctx.fillText(String(state.score), cssW / 2, top);
+  }
   ctx.font = `500 ${Math.round(u * 0.04)}px system-ui, sans-serif`;
   ctx.fillStyle = theme.hud.muted;
-  ctx.fillText(`best ${best}`, cssW / 2, cssH * 0.14 + u * 0.06);
+  ctx.fillText(`best ${best}`, cssW / 2, top + u * 0.06);
 
   // Lives
   const r = u * 0.014;
   for (let i = 0; i < LIVES; i++) {
     ctx.beginPath();
-    ctx.arc(cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, cssH * 0.14 + u * 0.1, r, 0, Math.PI * 2);
+    ctx.arc(cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, top + u * 0.1, r, 0, Math.PI * 2);
     ctx.fillStyle = i < state.lives ? theme.hud.life : theme.hud.lifeLost;
     ctx.fill();
   }
 
-  // Perfect counter: total this game, plus the current run.
-  const perfY = cssH * 0.14 + u * 0.17;
-  ctx.font = `700 ${Math.round(u * 0.045)}px system-ui, sans-serif`;
-  ctx.fillStyle = theme.hud.streak;
-  ctx.fillText(`★ ${state.perfects} perfect`, cssW / 2, perfY);
-  if (state.streak >= 2) {
-    ctx.font = `600 ${Math.round(u * 0.038)}px system-ui, sans-serif`;
-    ctx.fillStyle = theme.hud.muted;
-    ctx.fillText(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.05);
+  // Perfect counter: total this game, plus the current run. Hidden until the first one.
+  if (state.perfects > 0) {
+    const perfY = top + u * 0.17;
+    ctx.font = `700 ${Math.round(u * 0.045)}px system-ui, sans-serif`;
+    ctx.fillStyle = theme.hud.streak;
+    ctx.fillText(`★ ${state.perfects} perfect`, cssW / 2, perfY);
+    if (state.streak >= 2) {
+      ctx.font = `600 ${Math.round(u * 0.038)}px system-ui, sans-serif`;
+      ctx.fillStyle = theme.hud.muted;
+      ctx.fillText(`×${state.streak} in a row`, cssW / 2, perfY + u * 0.05);
+    }
   }
 
-  const hint =
-    state.phase === "over" ? "tap to restart" : state.score === 0 ? "tap to drop" : "";
-  if (hint) {
+  if (state.score === 0) {
     ctx.font = `600 ${Math.round(u * 0.055)}px system-ui, sans-serif`;
     ctx.fillStyle = theme.hud.score;
-    ctx.fillText(hint, cssW / 2, cssH * 0.9);
+    ctx.globalAlpha = 0.65 + 0.35 * Math.sin(view.t * 3);
+    ctx.fillText("tap to drop", cssW / 2, cssH * 0.9);
   }
   ctx.restore();
+}
+
+function drawGameOver(
+  ctx: CanvasRenderingContext2D,
+  cssW: number,
+  cssH: number,
+  u: number,
+  state: GameState,
+  best: number,
+  theme: Theme,
+): void {
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "rgba(10, 5, 20, 0.55)";
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  const w = Math.min(cssW - 32, u * 0.82);
+  const h = u * 0.62;
+  const x = (cssW - w) / 2;
+  const y = cssH * 0.42 - h / 2;
+  roundRectPath(ctx, x, y, w, h, u * 0.04);
+  ctx.fillStyle = "rgba(24, 14, 36, 0.94)";
+  ctx.fill();
+  ctx.lineWidth = Math.max(4, u * 0.02);
+  ctx.strokeStyle = theme.hud.streak + "44";
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1.5, u * 0.006);
+  ctx.strokeStyle = theme.hud.streak;
+  ctx.stroke();
+
+  const cx = cssW / 2;
+  ctx.textAlign = "center";
+  ctx.fillStyle = theme.hud.score;
+  ctx.font = `400 ${Math.round(u * 0.1)}px ${theme.hud.display}`;
+  ctx.fillText("Game Over", cx, y + h * 0.22);
+
+  ctx.font = `700 ${Math.round(u * 0.16)}px system-ui, sans-serif`;
+  ctx.fillText(String(state.score), cx, y + h * 0.53);
+
+  const newBest = state.score > 0 && state.score >= best;
+  ctx.font = `600 ${Math.round(u * 0.042)}px system-ui, sans-serif`;
+  ctx.fillStyle = newBest ? theme.hud.streak : theme.hud.muted;
+  ctx.fillText(newBest ? "New best!" : `best ${best}`, cx, y + h * 0.66);
+  ctx.fillStyle = theme.hud.streak;
+  ctx.fillText(`★ ${state.perfects} perfect`, cx, y + h * 0.78);
+
+  ctx.font = `600 ${Math.round(u * 0.05)}px system-ui, sans-serif`;
+  ctx.fillStyle = theme.hud.score;
+  ctx.fillText("tap to play again", cx, y + h + u * 0.1);
 }

@@ -29,7 +29,9 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
 - `src/themes/` — visual themes (`classic`, `halloween`) behind a small `Theme` interface: background, optional foreground (drawn in front of the tower), block drawer, HUD colors. Purely cosmetic; switched by `tuning.halloween`.
   - `halloween.ts` — neon bars: dark tinted fill, glowing edge tube, bright end caps (edges must stay easy to read), a row of neon Halloween icons; 12 hues cycle so neighbors contrast.
   - `halloween-icons.ts` — stroke-built neon icons (pumpkin, witch hat, candy corn, ghost, bat, tombstone, mummy, moon, skull, fangs, spider, house).
-  - `halloween-scene.ts` — parallax scenery: layer ground = `groundY - rise * (1 - p)`; far hills/mansion (p 0.12), dead trees (0.45), fog/clouds/ghosts at fixed heights (0.6), graveyard (1), foreground mound + jack-o'-lantern (1.6). Sky darkens and stars come out with altitude.
+  - `halloween-scene.ts` — parallax scenery: layer ground = `groundY - rise * (1 - p)`; far hills + mansion seated in the hill (p 0.12), dead trees (0.45), fog/clouds/ghosts at fixed heights (0.6), graveyard with fence, tombstones, jack-o'-lantern behind the tower, a zombie breaking out and skeleton arms clawing up (1), grassy foreground rise (1.6). Witches and bats fly across the sky. Sky darkens and stars come out with altitude.
+- Camera: the ground starts at `GROUND_START` (70%) of the screen so the sky gets the room; the follow camera takes over once the tower is taller.
+- HUD: title on the start screen (theme display font, Creepster for Halloween, loaded from Google Fonts), perfect counter appears after the first perfect, game-over card.
 - `src/render.ts` — draws a state to a canvas via the active theme. Cosmetic-only effects (falling sliced pieces, camera easing) live here, never in logic.
 - `src/main.ts` — wiring: canvas sizing, input, RAF loop, best score.
 - Tests sit next to code as `*.test.ts`. The bot test proves the game is beatable with perfect timing.
