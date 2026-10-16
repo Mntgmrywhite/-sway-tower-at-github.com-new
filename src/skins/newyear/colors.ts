@@ -1,21 +1,25 @@
 import { mix } from "../../base/draw";
 
 // Shared New Year's colors: Manhattan and The Great Gatsby, Art Deco in black and gold, drawn
-// in the bright cartoon style. Gold, champagne, emerald and ivory on a deep indigo night;
-// lacquer black for the Deco props (never as dark as the ink, so outlines still read); one
-// faded indigo for the distant city; and the green light across the bay.
+// in the bright cartoon style. A midnight-navy night (blue, never purple) with GOLD as the hero
+// color — gilded crowns, lit windows, searchlights, confetti — champagne and ivory as the
+// lights, a touch of emerald for the green light, and Deco black lacquer for the towers and
+// props (a step lighter than the ink, so outlines still read).
 
 /* ---------------------------------------------------------------- sky */
 
-export const SKY_TOP = "#29236b";
-export const SKY_MID = "#3e3494";
-export const SKY_BOTTOM = "#7a5fb4";
+export const SKY_TOP = "#080e26";
+export const SKY_MID = "#11234f";
+/** The horizon: a clear royal navy, so the black towers stand out against it. */
+export const SKY_BOTTOM = "#2b5296";
 
 /* ---------------------------------------------------------------- jewels */
 
 export const GOLD = "#ffc93c";
 export const GOLD_LIGHT = "#ffe58f";
 export const GOLD_DARK = "#c98a1e";
+/** Deep bronze-gold for the shaded side of gilded crowns. */
+export const GOLD_DEEP = "#9a6414";
 export const CHAMPAGNE = "#f7dc98";
 export const IVORY = "#fbf3dc";
 export const EMERALD = "#1fbf86";
@@ -33,27 +37,33 @@ export const SILVER = "#dde3f4";
 export const GREEN_LIGHT = "#59ffaa";
 
 /** Deco black: lacquer and patent leather, a step lighter than the ink so outlines read. */
-export const LACQUER = "#3b3260";
+export const LACQUER = "#1f2540";
 
 /** Outline for everything up close. */
-export const INK = "#1d1636";
+export const INK = "#0b0d1c";
 
-/* ---------------------------------------------------------------- far city */
+/* ---------------------------------------------------------------- Manhattan */
 
-/** The distant city: one flat indigo a little darker than the sky at the horizon, no outlines. */
-export const FAR = "#463b93";
-/** The back row of the city, hazier still. */
-export const FAR_BACK = "#5c4ca7";
+/** The hazy back row of the city: a flat navy just under the horizon sky, no outlines. */
+export const FAR_BACK = "#20407a";
+/** palette.far, and the haze the mansion across the bay is mixed toward. */
+export const FAR = "#152a57";
+/** The middle row: dark shafts under gilded crowns, well clear of the navy sky behind them. */
+export const MID_ROW = "#0f1f47";
+/** The hero towers: black lacquer bodies with gold outlines. */
+export const TOWER = "#0d1631";
+/** Fluted piers up the hero towers, a shade off the lacquer. */
+export const TOWER_PIER = "#1a2a52";
 
 /* ---------------------------------------------------------------- water and terrace */
 
-export const WATER_FAR = "#4a3f9c";
-export const WATER_NEAR = "#2c2a7a";
-export const MARBLE_FAR = "#e6d6b4";
-export const MARBLE_NEAR = "#d2bd92";
+export const WATER_FAR = "#1c3a73";
+export const WATER_NEAR = "#0b1736";
+export const MARBLE_FAR = "#efe1c0";
+export const MARBLE_NEAR = "#dcc69a";
 
-/** Firework / confetti colors, in a fixed order so hash() can pick from them. */
-export const PARTY = [GOLD, IVORY, EMERALD, ROSE, SAPPHIRE, CHAMPAGNE] as const;
+/** Firework / confetti colors, in a fixed order so hash() can pick from them. Gold leads. */
+export const PARTY = [GOLD, IVORY, EMERALD, GOLD_LIGHT, ROSE, CHAMPAGNE] as const;
 
 export const TAU = Math.PI * 2;
 

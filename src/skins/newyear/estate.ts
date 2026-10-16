@@ -6,23 +6,27 @@ import { CHAMPAGNE, EMERALD, EMERALD_DARK, FAR, GOLD, GOLD_LIGHT, GREEN_LIGHT, I
 // Across the bay, out on a grassy point at the left: a château-style mansion with a tower on
 // one side (Gatsby's "imitation of some Hôtel de Ville in Normandy") throwing a party — every
 // window lit, strings of lights swagged across its front, glitter over the roofs — and a
-// little dock running out toward us with the green light at its end, its reflection wavering
-// on the water. Mid-distance: flat fills hazed a little toward the city, a light outline.
+// little dock running out toward us with the green light at its end, its glow and its
+// reflection wavering on the water bright enough to read from across the bay. Mid-distance:
+// flat fills hazed a little toward the night, a light outline.
 // Everything here stays left of the tower column, in front of the cloud bank.
 
 /** The point runs in from the left edge between these depths, to just short of the column. */
 const POINT_FAR = 16;
 const POINT_NEAR = 10;
+/** The point's tip (u from the screen center): just short of the tower column. */
+const TIP_DX = -0.212;
 /** How far (u) the point runs back from its tip: just past the poplar beside the house. */
-const POINT_LEN = 0.42;
+const POINT_LEN = 0.3;
 const MANSION_Z = 12.5;
-/** The mansion is drawn larger than its depth alone would make it: a grand house. */
-const MANSION_SIZE = 1.45;
+/** The mansion is drawn larger than its depth alone would make it: a grand house, the
+ *  brightest thing across the bay. */
+const MANSION_SIZE = 1.75;
 /** Mansion center, in u left of the screen center. */
-const MANSION_DX = -0.36;
+const MANSION_DX = -0.345;
 /** The dock: from the point's near edge to its end, as screen offsets (u) and depths. */
-const DOCK_ROOT_DX = -0.335;
-const DOCK_END_DX = -0.3;
+const DOCK_ROOT_DX = -0.318;
+const DOCK_END_DX = -0.272;
 const DOCK_ROOT_Z = POINT_NEAR + 0.3;
 const DOCK_END_Z = 6.6;
 /** Half the dock's width (world units, like the tower's foot at 0.6). */
@@ -34,7 +38,7 @@ const LAWN = mix(EMERALD_DARK, HAZE, 0.3);
 const LAWN_LIT = mix(EMERALD, HAZE, 0.28);
 const SEAWALL = mix(IVORY, HAZE, 0.25);
 const TREE = mix(EMERALD_DARK, HAZE, 0.42);
-const WALL = mix(IVORY, HAZE, 0.12);
+const WALL = mix(IVORY, HAZE, 0.05);
 const WALL_SHADE = mix(CHAMPAGNE, HAZE, 0.35);
 const ROOF = mix(LACQUER, HAZE, 0.3);
 const ROOF_LIT = mix(ROOF, GOLD_LIGHT, 0.2);
@@ -46,9 +50,9 @@ const DOCK = mix(CHAMPAGNE, HAZE, 0.12);
 const PLANKS = mix(CHAMPAGNE, INK, 0.35);
 const POSTS = mix(LACQUER, HAZE, 0.2);
 const BULBS = [GOLD_LIGHT, ROSE, GREEN_LIGHT, IVORY, SAPPHIRE] as const;
-const GREEN_GLOW_OUT = alpha(GREEN_LIGHT, 0.13);
-const GREEN_GLOW_IN = alpha(GREEN_LIGHT, 0.26);
-const GREEN_REFLECT = alpha(GREEN_LIGHT, 0.8);
+const GREEN_GLOW_OUT = alpha(GREEN_LIGHT, 0.2);
+const GREEN_GLOW_IN = alpha(GREEN_LIGHT, 0.38);
+const GREEN_REFLECT = alpha(GREEN_LIGHT, 0.85);
 const GREEN_CORE = "#eafff2";
 
 /** Mansion massing: [x0, x1, wall top] for the left wing, the main block and the tower (U). */
@@ -222,6 +226,23 @@ function dockX(s: Scene, z: number): number {
   return s.cssW / 2 + (DOCK_ROOT_DX + (DOCK_END_DX - DOCK_ROOT_DX) * f) * s.u;
 }
 
+/** The mansion's lit windows wavering on the bay in front of the point, added to the current
+ *  path (the bay fills them with its own gold glints). `ye` is the terrace's edge. */
+export function mansionReflections(ctx: Ctx, s: Scene, ye: number): void {
+  const u = s.u;
+  const U = ((u * TOWER_DEPTH) / MANSION_Z) * MANSION_SIZE;
+  const mx = s.cssW / 2 + MANSION_DX * u;
+  const yN = fieldY(s, POINT_NEAR);
+  for (let i = 0; i < 7; i++) {
+    const yy = yN + 3 + i * Math.max(2, (ye - yN) * 0.09);
+    if (yy > ye - 3) break;
+    for (let j = 0; j < 3; j++) {
+      const wx = mx + (WING[0] + 0.06 + j * 0.15) * U + Math.sin(s.t * 1.9 + i * 1.3 + j * 2.1) * u * 0.005;
+      ctx.rect(wx, yy, U * (0.07 - i * 0.008), Math.max(1, u * 0.0035));
+    }
+  }
+}
+
 /** The point with its trees, the mansion, the dock and the green light at its end. `ye` is
  *  the terrace's edge: the light's reflection runs down to it. */
 export function estate(ctx: Ctx, s: Scene, ye: number): void {
@@ -229,7 +250,7 @@ export function estate(ctx: Ctx, s: Scene, ye: number): void {
   const cx = s.cssW / 2;
   const yF = fieldY(s, POINT_FAR);
   const yN = fieldY(s, POINT_NEAR);
-  const tip = cx - u * 0.262;
+  const tip = cx + u * TIP_DX;
   const lw = Math.max(1, u * 0.0026);
   const r = (yN - yF) * 0.5;
 
@@ -237,15 +258,19 @@ export function estate(ctx: Ctx, s: Scene, ye: number): void {
   const lx = dockX(s, DOCK_END_Z);
   const ly = fieldY(s, DOCK_END_Z);
   ctx.beginPath();
-  for (let i = 0; i < 8; i++) {
-    const f = i / 7;
+  for (let i = 0; i < 9; i++) {
+    const f = i / 8;
     const yy = ly + 2 + (ye - ly) * f;
     if (yy > ye - 2) break;
-    const w = u * (0.024 - f * 0.012);
-    ctx.rect(lx - w / 2 + Math.sin(s.t * 2.2 + i * 1.7) * u * 0.004, yy, w, Math.max(1.2, u * 0.0045));
+    const w = u * (0.034 - f * 0.016);
+    ctx.rect(lx - w / 2 + Math.sin(s.t * 2.2 + i * 1.7) * u * 0.004, yy, w, Math.max(1.4, u * 0.005));
   }
   ctx.fillStyle = GREEN_REFLECT;
   ctx.fill();
+
+  const U = ((u * TOWER_DEPTH) / MANSION_Z) * MANSION_SIZE;
+  const mx = cx + MANSION_DX * u;
+  const my = fieldY(s, MANSION_Z);
 
   // The point: from off the left edge on a phone; on a wide screen it ends in a rounded
   // headland of its own just past the poplar, rather than running on as a thin strip.
@@ -276,9 +301,6 @@ export function estate(ctx: Ctx, s: Scene, ye: number): void {
   ctx.stroke();
 
   // Poplars and round topiary beside the house
-  const U = ((u * TOWER_DEPTH) / MANSION_Z) * MANSION_SIZE;
-  const mx = cx + MANSION_DX * u;
-  const my = fieldY(s, MANSION_Z);
   ctx.beginPath();
   oval(ctx, mx - 0.3 * U, my - 0.12 * U, 0.028 * U, 0.115 * U);
   circle(ctx, mx + 0.29 * U, my - 0.03 * U, 0.03 * U);
@@ -337,16 +359,19 @@ export function estate(ctx: Ctx, s: Scene, ye: number): void {
   ctx.lineWidth = Math.max(1.5, u * 0.007 * k);
   ctx.stroke();
   const pulse = 1 + 0.1 * Math.sin(s.t * 1.6);
-  const lr = Math.max(3, u * 0.022 * k);
+  const lr = Math.max(3.5, u * 0.03 * k);
   const gy = top - lr * 0.7;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
   ctx.beginPath();
-  circle(ctx, lx, gy, lr * 3.1 * pulse);
+  circle(ctx, lx, gy, lr * 3.4 * pulse);
   ctx.fillStyle = GREEN_GLOW_OUT;
   ctx.fill();
   ctx.beginPath();
-  circle(ctx, lx, gy, lr * 1.9 * pulse);
+  circle(ctx, lx, gy, lr * 2 * pulse);
   ctx.fillStyle = GREEN_GLOW_IN;
   ctx.fill();
+  ctx.restore();
   ctx.beginPath();
   circle(ctx, lx, gy, lr);
   outlined(ctx, GREEN_LIGHT, Math.max(1, lw * 0.9), MID_INK);

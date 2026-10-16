@@ -1,9 +1,9 @@
 import { alpha, circle, hash, mix, type Ctx } from "../../base/draw";
 import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
-import { MID_SPAN, PEAK_LEFT, PEAK_RIGHT, SKYLINE_MID } from "./city";
-import { CHAMPAGNE, clamp01, GOLD, GOLD_LIGHT, IVORY, PARTY, ROSE, TAU } from "./colors";
+import { CHAMPAGNE, clamp01, GOLD, GOLD_LIGHT, INK, IVORY, PARTY, ROSE, TAU } from "./colors";
 import { barbPath, PLUME, PLUME_HALF, plumePath, quillPath } from "./plume";
+import { cloudTop, MID_SPAN, skylineTop } from "./skyline";
 
 // The New Year's sky: a pale-gold full moon ringed with flat Deco halos, bright cartoon
 // fireworks (fat dots of flat color, no outlines; gold willows for Gatsby) that come faster
@@ -53,15 +53,25 @@ function moonR(s: Scene): number {
   return s.u * (MOON_R_MIN + altitude01(s) * (MOON_R_MAX - MOON_R_MIN));
 }
 
-/** Left of the HUD columns, never off the screen. */
+/** Left of the HUD columns with a little air before the tilt gauge, never off the screen. */
 function moonX(s: Scene, r: number): number {
-  return Math.max(r + s.u * 0.02, Math.min(s.cssW * HUD_X0 - r - s.u * 0.01, s.cssW / 2 - s.u * 0.3));
+  return Math.max(r + s.u * 0.02, Math.min(s.cssW * HUD_X0 - r - s.u * 0.03, s.cssW / 2 - s.u * 0.3));
 }
 
 /** Just under the title's row (render.ts puts its baseline at cssH * TITLE_Y), so the wide
  *  start-screen title never hides it; the HUD columns beside it stay clear. */
 function moonY(s: Scene): number {
   return s.cssH * TITLE_Y + s.u * (MOON_DROP + MOON_R_MAX);
+}
+
+/** How high (u over the horizon) anything between screen x0 and x1 may rise and stay clear of
+ *  the moon and its halo, or Infinity when the moon is not above that span. */
+export function underMoon(s: Scene, x0: number, x1: number): number {
+  const r = moonR(s);
+  const R = r * MOON_HALO;
+  const x = moonX(s, r);
+  if (x1 < x - R || x0 > x + R) return Infinity;
+  return (s.horizonY - moonY(s) - R) / s.u - 0.015;
 }
 
 /** A full moon in flat pale gold, ringed by two flat Deco halos. */
@@ -157,10 +167,21 @@ function cubicOut(x: number): number {
 /** Once the camera follows the tower, the slider row sits here (of cssH); bursts stay off it. */
 const SLIDER_ROW = 0.38;
 
+/** The lowest a burst reaching `r` either side of screen x may come down to: above every
+ *  rooftop and the cloud bank under it, so neither ever slices it. */
+function floorAt(s: Scene, x: number, r: number): number {
+  const { cssW: W, u } = s;
+  const x0 = x - r;
+  const x1 = x + r;
+  const side = Math.min(1, Math.max(Math.abs(x0 / W - 0.5), Math.abs(x1 / W - 0.5)) * 2);
+  const roof = skylineTop((x0 - W / 2) / u, (x1 - W / 2) / u);
+  return Math.min(s.cssH * 0.84, s.horizonY - u * (Math.max(roof, cloudTop(side)) + 0.02));
+}
+
 /**
  * Choose where a burst goes: over the short tower early on, up in a corner beside the HUD,
  * or low on either side of the tower. Never in the HUD zone, over the start-screen title,
- * on the moon, or (once the camera follows the tower) across the slider's row.
+ * on the moon, below a rooftop, or (once the camera follows the tower) across the slider's row.
  * Returns how visible the burst is: 0 when there is no room this time.
  */
 function place(s: Scene, seed: number, a: number): number {
@@ -171,12 +192,7 @@ function place(s: Scene, seed: number, a: number): number {
   const follow = clamp01(s.rise / (u * 0.25));
   const rowTop = hudBottom + (H * SLIDER_ROW - u * 0.1 - hudBottom) * follow;
   const rowBottom = hudBottom + (H * SLIDER_ROW + u * 0.08 - hudBottom) * follow;
-  // Above the cloud bank, which piles up highest at the sides; in the middle, above every
-  // rooftop, and at the sides above the landmarks, so no building ever slices a burst.
-  const midFloor = Math.min(H * 0.84, s.horizonY - u * (SKYLINE_MID + 0.02));
-  const sideFloor = Math.min(H * 0.84, s.horizonY - u * 0.4);
   const left = hash(seed + 5) < 0.5;
-  const peak = s.horizonY - u * (left ? PEAK_LEFT : PEAK_RIGHT);
   const below = hash(seed + 8) >= WILLOW_AT ? BELOW_WILLOW : BELOW;
 
   // Bursts over the tower fade out as the camera starts to follow it; from then on, that
@@ -185,49 +201,53 @@ function place(s: Scene, seed: number, a: number): number {
   const overTower = hash(seed + 1) < 0.32;
   if (overTower && follow < 0.5) {
     const show = 1 - follow * 2;
-    const R = Math.min(u * (0.075 + hash(seed + 3) * 0.03), (midFloor - hudBottom) / (ABOVE + below));
+    const reach = MID_SPAN * u;
+    const floor = floorAt(s, cx, reach);
+    const R = Math.min(u * (0.075 + hash(seed + 3) * 0.03), (floor - hudBottom) / (ABOVE + below));
     if (R < u * 0.035) return 0;
     const y0 = hudBottom + R * ABOVE;
-    const y1 = midFloor - R * below;
-    SPOT.x = cx + (hash(seed + 2) - 0.5) * 2 * (MID_SPAN * u - R * ABOVE);
+    const y1 = floor - R * below;
+    SPOT.x = cx + (hash(seed + 2) - 0.5) * 2 * (reach - R * ABOVE);
     SPOT.y = y0 + hash(seed + 4) * Math.max(0, y1 - y0);
     SPOT.r = R;
     return show;
   }
 
-  // Low beside the tower column
+  // Low beside the tower column, over the rooftops on that side
   const R = u * (0.085 + hash(seed + 3) * 0.04 + a * 0.02);
+  const xMin = R + u * 0.02;
+  // Mostly clear of the tower: at most a sliver of the burst slips behind the bars.
+  const xMax = Math.max(xMin, cx - u * 0.25 - R * 0.2);
+  const lx = xMin + hash(seed + 2) * (xMax - xMin);
+  const lowX = left ? lx : W - lx;
   const lowY0 = rowBottom + R * ABOVE;
-  const lowY1 = Math.min(sideFloor - R * 0.2, peak - R * below);
+  const lowY1 = floorAt(s, lowX, R * ABOVE) - R * below;
   // Up in a corner beside the HUD: a smaller, more distant burst
   const cR = u * (0.055 + hash(seed + 3) * 0.02);
   const cxMin = cR + u * 0.02;
   const cxMax = W * HUD_X0 - cR - 2;
+  const kx = cxMin + hash(seed + 2) * Math.max(0, cxMax - cxMin);
+  const cornerX = left ? kx : W - kx;
   const title = H * 0.05 + (H * TITLE_Y + u * 0.04 - H * 0.05) * titleOn(s);
   const cY0 = title + cR * ABOVE;
   // On the left the moon fills the corner under the title's row, so bursts there go above it
   // (once the title has gone).
   const moonTop = H * TITLE_Y + u * (MOON_DROP - MOON_R_MAX * (MOON_HALO - 1) - 0.02);
-  const floor = left ? moonTop - cR * below : hudBottom;
-  const cY1 = Math.min(floor, rowTop - cR * below * follow, peak - cR * below);
+  const ceiling = left ? moonTop - cR * below : hudBottom;
+  const cY1 = Math.min(ceiling, rowTop - cR * below * follow, floorAt(s, cornerX, cR * ABOVE) - cR * below);
   const lowOK = lowY1 >= lowY0;
   const cornerOK = cxMax > cxMin && cY1 >= cY0;
-  let x: number;
   if (cornerOK && (!lowOK || hash(seed + 6) < 0.4)) {
-    x = cxMin + hash(seed + 2) * (cxMax - cxMin);
+    SPOT.x = cornerX;
     SPOT.y = cY0 + hash(seed + 4) * (cY1 - cY0);
     SPOT.r = cR;
   } else if (lowOK) {
-    const xMin = R + u * 0.02;
-    // Mostly clear of the tower: at most a sliver of the burst slips behind the bars.
-    const xMax = Math.max(xMin, cx - u * 0.25 - R * 0.2);
-    x = xMin + hash(seed + 2) * (xMax - xMin);
+    SPOT.x = lowX;
     SPOT.y = lowY0 + hash(seed + 4) * (lowY1 - lowY0);
     SPOT.r = R;
   } else {
     return 0;
   }
-  SPOT.x = left ? x : W - x;
   return overTower ? clamp01(follow * 2 - 1) : 1;
 }
 
@@ -359,7 +379,9 @@ const CONFETTI = Array.from({ length: 44 }, (_, i) => ({
   size: 0.016 + hash(i * 3.7 + 17) * 0.008,
   color: i % PARTY.length,
 }));
-const CONFETTI_BACK = PARTY.map((c) => mix(c, "#5a4a8a", 0.35));
+/** The confetti's foil backs: antique gold, so a tumbling piece flashes (a grey back read as
+ *  ash against the navy). */
+const CONFETTI_BACK = mix(GOLD, INK, 0.35);
 
 /** Where a falling piece is: x and y in CSS px, or y > floor when it is out of sight. */
 const AT = { x: 0, y: 0, d: 0 };
@@ -377,53 +399,61 @@ function fall(s: Scene, fx01: number, phase: number, speed: number, reach: numbe
   AT.y = top + AT.d;
 }
 
-/** Confetti drifting down the sky, tumbling so each piece flashes its darker back. */
-function confettiFall(ctx: Ctx, s: Scene): void {
+/** Add one tumbling confetti piece to the current path, if it is in sight and showing the
+ *  wanted face (front, or its back). Returns whether it was added. */
+function confettiPiece(ctx: Ctx, s: Scene, i: number, floor: number, back: boolean): boolean {
   const u = s.u;
+  const p = CONFETTI[i]!;
+  fall(s, p.x, p.phase, p.speed, p.sway + p.size * 0.6);
+  const y = AT.y;
+  if (y > floor) return false;
+  const flip = Math.cos(s.t * p.spin + i);
+  if ((flip < 0) !== back) return false;
+  const grow = clamp01(AT.d / (u * 0.05));
+  const x = AT.x + Math.sin(s.t * 1.3 + i) * p.sway * u;
+  const w = p.size * u * grow * Math.max(0.15, Math.abs(flip));
+  const h = p.size * u * grow * 0.55;
+  const rot = p.turn + s.t * p.spin * 0.25;
+  const ca = Math.cos(rot);
+  const sa = Math.sin(rot);
+  const ax = (ca * w) / 2;
+  const ay = (sa * w) / 2;
+  const bx = (-sa * h) / 2;
+  const by = (ca * h) / 2;
+  ctx.moveTo(x - ax - bx, y - ay - by);
+  ctx.lineTo(x + ax - bx, y + ay - by);
+  ctx.lineTo(x + ax + bx, y + ay + by);
+  ctx.lineTo(x - ax + bx, y - ay + by);
+  ctx.closePath();
+  return true;
+}
+
+/** Confetti drifting down the sky, tumbling so each piece flashes its foil back: the fronts in
+ *  their party colors, every back in one shared shade (one fill for all of them). */
+function confettiFall(ctx: Ctx, s: Scene): void {
   const floor = Math.min(s.cssH, s.horizonY);
   const count = Math.round(26 + 18 * altitude01(s));
   for (let c = 0; c < PARTY.length; c++) {
-    for (let side = 0; side < 2; side++) {
-      ctx.beginPath();
-      let any = false;
-      for (let i = 0; i < count; i++) {
-        const p = CONFETTI[i]!;
-        if (p.color !== c) continue;
-        fall(s, p.x, p.phase, p.speed, p.sway + p.size * 0.6);
-        const y = AT.y;
-        if (y > floor) continue;
-        const flip = Math.cos(s.t * p.spin + i);
-        if ((flip >= 0) !== (side === 0)) continue;
-        const grow = clamp01(AT.d / (u * 0.05));
-        const x = AT.x + Math.sin(s.t * 1.3 + i) * p.sway * u;
-        const w = p.size * u * grow * Math.max(0.15, Math.abs(flip));
-        const h = p.size * u * grow * 0.55;
-        const rot = p.turn + s.t * p.spin * 0.25;
-        const ca = Math.cos(rot);
-        const sa = Math.sin(rot);
-        const ax = (ca * w) / 2;
-        const ay = (sa * w) / 2;
-        const bx = (-sa * h) / 2;
-        const by = (ca * h) / 2;
-        ctx.moveTo(x - ax - bx, y - ay - by);
-        ctx.lineTo(x + ax - bx, y + ay - by);
-        ctx.lineTo(x + ax + bx, y + ay + by);
-        ctx.lineTo(x - ax + bx, y - ay + by);
-        ctx.closePath();
-        any = true;
-      }
-      if (!any) continue;
-      ctx.fillStyle = side === 0 ? PARTY[c]! : CONFETTI_BACK[c]!;
-      ctx.fill();
+    ctx.beginPath();
+    let any = false;
+    for (let i = 0; i < count; i++) {
+      if (CONFETTI[i]!.color === c && confettiPiece(ctx, s, i, floor, false)) any = true;
     }
+    if (!any) continue;
+    ctx.fillStyle = PARTY[c]!;
+    ctx.fill();
   }
+  ctx.beginPath();
+  for (let i = 0; i < count; i++) confettiPiece(ctx, s, i, floor, true);
+  ctx.fillStyle = CONFETTI_BACK;
+  ctx.fill();
 }
 
 /** Ostrich plumes: color, its shaded half, and how each one falls and see-saws. */
 const PLUME_COLORS = [IVORY, ROSE, GOLD_LIGHT, IVORY, ROSE, CHAMPAGNE] as const;
 const PLUMES = PLUME_COLORS.map((color, i) => ({
   color,
-  shade: mix(color, "#6a4a8a", 0.28),
+  shade: mix(color, "#3d4f80", 0.28),
   x: 0.08 + ((i * 0.618034 + 0.13) % 1) * 0.84,
   phase: hash(i * 7.3 + 61),
   speed: 0.045 + hash(i * 7.3 + 62) * 0.02,

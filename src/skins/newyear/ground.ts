@@ -1,13 +1,16 @@
 import { alpha, circle, hash, ink, mix, outlined, type Ctx } from "../../base/draw";
 import { fieldY, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
-import { EMERALD, GOLD, GOLD_LIGHT, INK, IVORY, LACQUER, MARBLE_FAR, MARBLE_NEAR, PARTY, ROSE, TAU, WATER_FAR, WATER_NEAR } from "./colors";
-import { estate } from "./estate";
+import { EMERALD, GOLD, GOLD_LIGHT, INK, IVORY, LACQUER, MARBLE_FAR, PARTY, ROSE, TAU, WATER_FAR, WATER_NEAR } from "./colors";
+import { estate, mansionReflections } from "./estate";
+import { friezeTop } from "./front";
+import { HERO_SPANS } from "./landmarks";
 import { barbPath, PLUME, PLUME_HALF, plumePath, quillPath } from "./plume";
 import { champagneTower, gramophone, roadster } from "./props";
 
-// The ground layer, back to front: the bay running to the city, glinting with its lights; the
-// mansion's point across it (estate.ts); then our terrace: ivory marble with a gold-and-
+// The ground layer, back to front: the bay running to the city, the hero towers' lights and
+// the mansion's windows mirrored on it in wavering gold; the mansion's point across it
+// (estate.ts); then our terrace: ivory marble with a gold-and-
 // emerald Deco sunburst inlaid around the tower's foot, confetti and fallen feathers, and the
 // props (props.ts): a gramophone, a roadster pulled up in front, a champagne tower.
 // Floor things are placed in perspective: a field row at depth z is at fieldY(scene, z) and
@@ -23,8 +26,7 @@ let gradCtx: Ctx | null = null;
 let waterFill: CanvasGradient | null = null;
 let hazeFill: CanvasGradient | null = null;
 /** Mist where the bay meets the cloud bank. */
-const HAZE = mix(WATER_FAR, "#f4e6c8", 0.45);
-let marbleFill: CanvasGradient | null = null;
+const HAZE = mix(WATER_FAR, "#5b84c2", 0.5);
 
 function gradients(ctx: Ctx): void {
   if (gradCtx === ctx) return;
@@ -35,9 +37,6 @@ function gradients(ctx: Ctx): void {
   hazeFill = ctx.createLinearGradient(0, 0, 0, REF);
   hazeFill.addColorStop(0, alpha(HAZE, 0.75));
   hazeFill.addColorStop(1, alpha(HAZE, 0));
-  marbleFill = ctx.createLinearGradient(0, 0, 0, REF);
-  marbleFill.addColorStop(0, MARBLE_FAR);
-  marbleFill.addColorStop(1, MARBLE_NEAR);
 }
 
 /** Fill the band y0..y1 across the screen with a unit-space gradient. */
@@ -64,6 +63,24 @@ const GLINT_GOLD = alpha(GOLD_LIGHT, 0.6);
 const GLINT_IVORY = alpha(IVORY, 0.45);
 const RIPPLE = alpha("#ffffff", 0.07);
 
+/** The hero towers' lights mirrored on the bay, added to the current path: wavering dashes
+ *  under each tower, narrowing toward us. */
+function towerReflections(ctx: Ctx, s: Scene, ye: number): void {
+  const hy = s.horizonY;
+  const u = s.u;
+  const cx = s.cssW / 2;
+  const rows = 7;
+  for (const [hx, hw] of HERO_SPANS) {
+    for (let i = 0; i < rows; i++) {
+      const f = i / rows;
+      const y = hy + 2 + (ye - hy) * 0.7 * f * (0.6 + f * 0.4);
+      const w = hw * u * (1.3 - f * 0.9);
+      const x = cx + hx * u + Math.sin(s.t * 1.7 + i * 1.9 + hx * 9) * u * 0.006;
+      ctx.rect(x - w / 2, y, w, Math.max(1, u * (0.003 + f * 0.002)));
+    }
+  }
+}
+
 function bay(ctx: Ctx, s: Scene, ye: number): void {
   const hy = s.horizonY;
   const u = s.u;
@@ -82,6 +99,10 @@ function bay(ctx: Ctx, s: Scene, ye: number): void {
   // City lights glinting on the water, longer toward the viewer
   for (let pass = 0; pass < 2; pass++) {
     ctx.beginPath();
+    if (pass === 0) {
+      towerReflections(ctx, s, ye);
+      mansionReflections(ctx, s, ye);
+    }
     for (const g of GLINTS) {
       if (g.ivory !== (pass === 1)) continue;
       if (Math.sin(s.t * g.rate + g.phase) < 0.1) continue;
@@ -217,7 +238,7 @@ const PEARL_LOOP = Array.from({ length: PEARL_COUNT }, (_, i) => {
   return [Math.cos(a) * r, Math.sin(a) * r * 0.42] as const;
 });
 const PEARL = mix(IVORY, "#ffffff", 0.4);
-const PEARL_SHADE = mix(IVORY, "#c9b8e8", 0.45);
+const PEARL_SHADE = mix(IVORY, "#c3cde6", 0.45);
 
 /** The dropped pearls: a loop of beads, inked as one shape, with a little glint on each. */
 function floorPearls(ctx: Ctx, x: number, y: number, R: number, lw: number): void {
@@ -260,28 +281,33 @@ function terrace(ctx: Ctx, s: Scene, ye: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
   const yb = s.cssH;
-  band(ctx, s, marbleFill!, ye, Math.max(yb, ye + 1));
+  // The marble itself is the base world's field (palette.fieldFar/fieldNear, with its faint
+  // slab-wide stripes), so the terrace only adds its joints, inlay, coping and things on it.
 
   // Slab joints: converging on the vanishing point, and cross rows widening toward the viewer.
+  // Hairlines, filled as thin slivers (cheaper than stroking), stopping at the frieze.
   const depth = s.groundY - hy;
+  const stop = Math.min(yb, friezeTop(s) + 2);
   ctx.beginPath();
-  const near = (yb - hy) / depth;
+  const near = (stop - hy) / depth;
   const far = (ye - hy) / depth;
   for (const X of JOINTS) {
     const xb = cx + X * u * near;
     if (xb < -s.cssW || xb > s.cssW * 2) continue;
-    ctx.moveTo(cx + X * u * far, ye);
-    ctx.lineTo(xb, yb);
+    const xt = cx + X * u * far;
+    ctx.moveTo(xt - 0.5, ye);
+    ctx.lineTo(xt + 0.5, ye);
+    ctx.lineTo(xb + 0.5, stop);
+    ctx.lineTo(xb - 0.5, stop);
+    ctx.closePath();
   }
   for (const z of ROWS) {
     const y = fieldY(s, z);
-    if (y < ye || y > yb) continue;
-    ctx.moveTo(0, y);
-    ctx.lineTo(s.cssW, y);
+    if (y < ye || y > stop) continue;
+    ctx.rect(0, y - 0.5, s.cssW, 1);
   }
-  ctx.strokeStyle = JOINT;
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  ctx.fillStyle = JOINT;
+  ctx.fill();
 
   sunburst(ctx, s);
 

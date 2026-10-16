@@ -56,6 +56,9 @@ const BUBBLE = alpha(IVORY, 0.9);
 const GLINT = alpha("#ffffff", 0.85);
 const BUBBLY = tones(CHAMPAGNE, 0.45, 0.22);
 const SURFACE = GOLD_LIGHT;
+const SPILL = mix(GOLD_LIGHT, GOLD, 0.35);
+/** How far down toward the glass below a pour runs before it breaks into drops. */
+const POUR = 0.5;
 const GOLD_T = tones(GOLD, 0.45, 0.3);
 const TABLE_TOP = tones(LACQUER, 0.25, 0.2);
 /** Coupe sizes (U): bowl half-width and depth, stem, foot half-width and height. */
@@ -137,24 +140,28 @@ function sideTable(ctx: Ctx, x: number, y: number, U: number, lw: number): numbe
 
 /** Champagne spilling over a coupe's rim into the one below: a ribbon with drops riding it. */
 function spill(ctx: Ctx, s: Scene, x: number, y0: number, y1: number, dir: number, U: number, lw: number, seed: number): void {
-  const w = Math.max(1.2, U * 0.0045);
+  // A slim pour curling out over the lip and breaking into drops that fall into the glass
+  // below (whose center sits right under this rim). It stops short of that glass, so it never
+  // reads as a handle joining the two.
+  const w = Math.max(1, U * 0.0034);
+  const out = x + dir * 0.006 * U;
+  const end = y0 + (y1 - y0) * POUR;
   ctx.beginPath();
-  ctx.moveTo(x - dir * 0.002 * U, y0);
-  ctx.quadraticCurveTo(x + dir * 0.004 * U, y0 + (y1 - y0) * 0.1, x + dir * 0.002 * U, y1);
-  ink(ctx, w + lw * 1.2, INK);
-  ctx.strokeStyle = GOLD;
+  ctx.moveTo(x - dir * 0.003 * U, y0);
+  ctx.quadraticCurveTo(out, y0 - 0.003 * U, out, y0 + (y1 - y0) * 0.3);
+  ctx.lineTo(out, end);
+  ink(ctx, w + lw * 0.8, INK);
+  ctx.strokeStyle = SPILL;
   ctx.lineWidth = w;
   ctx.stroke();
-  // Two bright drops sliding down it
+  // Drops falling on from the end of the pour
+  const dr = Math.max(1, w * 0.6);
   ctx.beginPath();
   for (let i = 0; i < 2; i++) {
-    const p = (s.t * 1.3 + i * 0.5 + seed * 0.27) % 1;
-    const yy = y0 + (y1 - y0) * p;
-    const xx = x + dir * 0.003 * U * Math.sin(p * Math.PI * 0.9);
-    circle(ctx, xx, yy, Math.max(0.8, w * 0.4));
+    const p = (s.t * 1.6 + i * 0.5 + seed * 0.27) % 1;
+    circle(ctx, out, end + dr * 2 + (y1 - end - dr * 2) * p, dr);
   }
-  ctx.fillStyle = GOLD_LIGHT;
-  ctx.fill();
+  outlined(ctx, SPILL, Math.max(0.8, lw * 0.5), INK);
 }
 
 export function champagneTower(ctx: Ctx, s: Scene, x: number, y: number, k: number): void {
@@ -213,7 +220,7 @@ export function champagneTower(ctx: Ctx, s: Scene, x: number, y: number, k: numb
 const CABINET = tones(LACQUER, 0.22, 0.25);
 const HORN = tones(GOLD, 0.45, 0.25);
 const HORN_INSIDE = mix(GOLD_DARK, INK, 0.25);
-const RECORD = "#2a2340";
+const RECORD = "#1a1f33";
 const NOTE = GOLD_LIGHT;
 /** The horn: throat and mouth center (U, from the cabinet's top center), mouth radius. */
 const THROAT_X = 0.04;
@@ -360,7 +367,7 @@ export function gramophone(ctx: Ctx, s: Scene, x: number, y: number, k: number):
 
 const CREAM = tones(CHAMPAGNE, 0.5, 0.22);
 const FENDER = tones(EMERALD, 0.4, 0.3);
-const TIRE = "#2b2440";
+const TIRE = "#1c2236";
 const WHITEWALL = IVORY;
 const HUB = mix(GOLD_LIGHT, IVORY, 0.4);
 const SEAMS = mix(CHAMPAGNE, INK, 0.5);
