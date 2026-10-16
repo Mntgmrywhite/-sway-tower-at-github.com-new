@@ -15,7 +15,7 @@ Node lives in `~/.local/node` (user install). If `node` is not on PATH: `export 
 - `npm run check` — typecheck + lint + test; run before every commit
 - `npm run build` — typecheck, then static bundle to `dist/`
 - `npm run preview` — serve the built bundle
-- `npm run snap -- <skinId>` — render a skin offscreen to `preview/<skin>-{start,climb,high,over,bars}.png` (fallback fonts; look at them with an image viewer). Use this to check visual work.
+- `npm run snap -- <skinId>` — render a skin offscreen to `preview/<skin>-{start,climb,high,over,hard,hardClimb,topple,toppled,bars}.png` (fallback fonts; look at them with an image viewer). Use this to check visual work.
 - `npm run build:artifact` — build, then inline everything into `dist/sway-tower.html` for publishing as the claude.ai Artifact (https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3); republish that file to keep the same link
 - `npm run ios` — build, then copy the bundle into the iOS app (`cap sync ios`); build and run it from Xcode (`npm run ios:open`) or with `xcodebuild -project ios/App/App.xcodeproj -scheme App`
 - `npm run ios:art` — redraw the placeholder app icon and launch image (`scripts/ios-art.ts`)
@@ -41,9 +41,9 @@ Vite + TypeScript (strict) + Canvas 2D. No framework, no physics engine, no runt
   - `src/skins/<id>.ts` (+ optional `src/skins/<id>/` folder) — `classic` (default cartoon), `neon`, `halloween`, `thanksgiving`, `christmas`, `newyear`. `src/skins/glyphs.ts` — geometric symbols shared by Classic and Neon.
   - `src/preview/shots.ts` — deterministic game moments shared by `npm run snap` and the render smoke test.
 - **Cartoon art rules:** bright, saturated, high-contrast — readability first (the user found heavy neon impossible to see). Near things: flat fills, a light top / shaded bottom, ink outline (palette.ink). Far things: faded flat silhouettes, no outline. No glow-heavy effects, no dark muddy scenes. Bright flashes are for feedback moments (perfect drops), not the scenery.
-- `src/render.ts` — draws a state to a canvas via the active style kit: the world, the tower, the perfect-drop seam flash and gold tint, falling pieces, the slider, the PERFECT pop, the HUD (score, best, lives, perfect counter and the current run) and the game-over card. `addFlash` (a perfect: flash + pop) and `addFalling` (a cut) are what main.ts feeds it. Cosmetic-only effects (falling pieces, flash, pop, camera easing) live here and in `src/fx/`, never in logic.
-- `src/fx/` — renderer-only feedback: `pops.ts` (the PERFECT pop: "PERFECT ×n" on a streak, a little bigger as the streak grows; a new pop cuts the older one short so words never stack; it never rises into the HUD) and `falling.ts` (cut pieces tumbling away). Deterministic from the drops and the dt they are fed.
-- `src/main.ts` — wiring: canvas sizing, input, RAF loop, best score, and each drop's sound (`src/audio/sounds.ts`) and haptic (`dropHaptic` in `src/haptics.ts`).
+- `src/render.ts` — draws a state to a canvas via the active style kit: the world, the tower, the perfect-drop seam flash and gold tint, falling pieces, the slider, the PERFECT pop, the HUD (score, best, lives, perfect counter and the current run) and the game-over card. `addFlash` (a perfect: flash + pop), `addFalling` (a cut) and `addTopple` (Hard: the tower tipped) are what main.ts feeds it; `render(…, songTime)` passes the music position on as `Scene.songTime`. Cosmetic-only effects (falling pieces, flash, pop, camera easing) live here and in `src/fx/`, never in logic.
+- `src/fx/` — renderer-only feedback: `pops.ts` (the PERFECT pop: "PERFECT ×n" on a streak, a little bigger as the streak grows; a new pop cuts the older one short so words never stack; it never rises into the HUD) `falling.ts` (cut pieces tumbling away) and `topple.ts` (Hard: the slab above the failing interface swings about the contact corner, speeding up, and its bars peel off from the top into falling pieces; `TOPPLE_TIME` later the game-over card comes). Deterministic from the drops and the dt they are fed.
+- `src/main.ts` — wiring: canvas sizing, input, RAF loop, the mode (`sway-stack:mode`) and its best score (`sway-stack:best` for Normal, `sway-stack:best:hard`), each drop's sound (`src/audio/sounds.ts`) and haptic (`dropHaptic` in `src/haptics.ts`), and the music's tempo (`audio.setTempo(musicTempo(state))` every frame) and position (`audio.position()` → `Scene.songTime`).
 - Tests sit next to code as `*.test.ts`. The bot test proves the game is beatable with perfect timing.
 
 ## Identity
@@ -78,13 +78,23 @@ Evoke each reference's setting, era, mood, palette and motifs — never copy cop
 
 - Sway = base wave scaled by height (perfect drops add no energy, but taller towers move more at the top) + a damped-spring "kick".
 - A sloppy drop kicks the tower toward the overhang side, proportional to the overhang; the sway calms after the chop. Kicks change velocity only, never position, so the tower never jumps.
-- Placed blocks never topple. Cut pieces fall visibly and tumble (cosmetic, renderer-only).
+- In Normal, placed blocks never topple. Cut pieces fall visibly and tumble (cosmetic, renderer-only).
 - Kick damping is capped at critical (an overdamped spring settles slower, so higher "decay" past that would feel worse).
 - A perfect drop calms the tower: sway (base and kick) scales by `1 - perfectCalm * calm`, where `calm` eases to 1 for `CALM_TIME` then back to 0. Smooth, so no jumps. Shown with a seam flash and a gold tint on the block, the PERFECT word (PERFECT ×n on a streak), and a chime that climbs with the streak.
 - Every slice is pushed onto `cuts`; each perfect drop pops the newest and wins it back on the tower edge that receded, so a run of perfects rebuilds a sliver to the exact original bar. Misses are not slices.
 - A miss does not end the game: it costs one of `LIVES` (3); game over at 0.
 - Haptics follow the core loop: a light tap on every sliced drop, a crisp double on a perfect, a firm thud on a miss, two heavy thuds when the last life goes.
 - `src/game.ts` stays deterministic: no `Math.random`/`Date.now` (lint rule).
+
+### Modes (decided by the owner)
+
+The rules above are **Normal**. **Hard** is "actual physics, no extra lives, and the music speeds up in sync with the bar. Otherwise the same rules apply." Picked in the Options sheet (Mode: Normal / Hard), saved as `sway-stack:mode`; switching starts a fresh run. Each mode keeps its own best. No unlock gate. `newGame(mode)`; Normal is the default and stays bit-identical to the shipped rules (`src/testing/shipped-game.ts` is a frozen copy, A/B-replayed in `src/normal-parity.test.ts`; re-freeze it only when Normal changes on purpose).
+
+- **No slicing, real balance:** an off-center bar keeps its full width where it landed (tower-local, like any placed bar), so bars never shrink and the slider always has the top bar's width. Each bar weighs in proportion to its width. After every placement, for each interface between bar i-1 and bar i, the combined center of mass of bars i..top must lie within their contact span (`balanceFailure(blocks)`); if not, the part above the **lowest** failing interface tips toward the side its center of mass passed: game over (the toppling bar doesn't score). The check uses rest positions, so sway alone never tips a tower; sway still moves where a drop lands in world space, exactly as in Normal. On screen: the slab swings about the contact corner and the bars peel off and fall (~1.2 s, no text), then the normal game-over card; a tap waits for the card.
+- **One life** (`HARD_LIVES`): a drop with no overlap is a miss and ends the run.
+- **Same as Normal otherwise:** sloppy drops kick the sway by the overhang; a perfect snaps centered on the bar below, calms the sway, flashes, shows PERFECT (×n), chimes and buzzes (nothing to rebuild: nothing is sliced); the slider speeds up with the score.
+- **Music keeps pace with the bar, same pitch:** tempo = clamp(`sliderSpeed / tuning.slideSpeed`, 1, `HARD_TEMPO_MAX` 1.35) while a Hard run is played (`musicTempo(state)`); 1 in Normal and on the title and game-over screens. `audio.setTempo` rounds it to semitone steps of speed (`src/audio/tempo.ts`), a Web Worker time-stretches the song's loop to that step (`src/audio/stretch.ts`, circular WSOLA, seamless; inlined into the bundle), and the switch lands on the next bar line at a point both versions play, with a 60 ms crossfade. No worker, a failed stretch or a song without loop points: the music stays as written.
+- Hard's title screen shows a small HARD under the name; while stacking nothing extra (one life dot).
 
 ## Skin requirements from playtesting (decided)
 

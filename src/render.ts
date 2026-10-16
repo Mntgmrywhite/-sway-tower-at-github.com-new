@@ -1,11 +1,12 @@
-import { BLOCK_HEIGHT, LIVES, WORLD_WIDTH } from "./config";
-import { swayOffset, type Block, type GameState } from "./game";
+import { BLOCK_HEIGHT, WORLD_WIDTH } from "./config";
+import { startLives, swayOffset, type Block, type GameState, type Tip } from "./game";
 import { roundRectPath } from "./base/draw";
 import { kitFor } from "./base/style";
 import { horizonFor } from "./base/world";
 import type { Scene, Skin } from "./skins/skin";
-import { addFalling as pushFalling, stepFalling, type Falling } from "./fx/falling";
+import { addFalling as pushFalling, FALL_ALPHA, stepFalling, type Falling } from "./fx/falling";
 import { addPop, drawPops, stepPops, type Pop } from "./fx/pops";
+import { slabPoses, startTopple, stepTopple, toppling, type Topple } from "./fx/topple";
 
 export const GAME_NAME = "Sway Tower";
 
@@ -19,6 +20,8 @@ const CAMERA_EASE = 6; // per second
 /** Perfect-drop flash: light bursts along the seam and the block glows in the accent color. */
 const FLASH_TIME = 0.5; // seconds
 const SEAM_SPREAD = 0.6; // how far the seam light reaches past the block edges, in block widths
+/** While a Hard-mode tower falls, the camera keeps its pivot at most this far below the anchor, world units. */
+const TOPPLE_CAMERA_ROOM = 12 * BLOCK_HEIGHT;
 
 interface Flash {
   level: number;
@@ -31,12 +34,24 @@ export interface View {
   flashes: Flash[];
   /** The PERFECT word over the block that just landed (src/fx/pops.ts). */
   pops: Pop[];
+  /** Hard mode: the tower tipping over (src/fx/topple.ts); the game-over card waits for it. */
+  topple: Topple | null;
   /** Animation clock for background effects, seconds. */
   t: number;
 }
 
 export function newView(): View {
-  return { cameraY: BLOCK_HEIGHT, falling: [], flashes: [], pops: [], t: 0 };
+  return { cameraY: BLOCK_HEIGHT, falling: [], flashes: [], pops: [], topple: null, t: 0 };
+}
+
+/** Call after a drop tipped the tower (Hard mode): the slab above the failing interface falls. */
+export function addTopple(view: View, state: GameState, tip: Tip): void {
+  view.topple = startTopple(state, tip);
+}
+
+/** True while a toppled tower is still falling: the game-over card (and a restart) wait for it. */
+export function isToppling(view: View): boolean {
+  return toppling(view.topple);
 }
 
 /** `towerX` is the world x of the tower top's center; pieces tumble away from it. */
@@ -57,9 +72,13 @@ export function updateView(view: View, state: GameState, dt: number): void {
   view.t += dt;
   for (const f of view.flashes) f.age += dt;
   if (view.flashes.some((f) => f.age >= FLASH_TIME)) view.flashes = view.flashes.filter((f) => f.age < FLASH_TIME);
-  const target = (state.blocks.length + 1) * BLOCK_HEIGHT;
+  let target = (state.blocks.length + 1) * BLOCK_HEIGHT;
+  // A tower that tips low down: bring the pivot into view.
+  if (view.topple) target = Math.min(target, view.topple.py + TOPPLE_CAMERA_ROOM);
   view.cameraY += (target - view.cameraY) * Math.min(1, CAMERA_EASE * dt);
   view.falling = stepFalling(view.falling, dt, view.cameraY);
+  // After the falling step, so a bar that peels off this frame starts exactly where the slab had it.
+  if (view.topple) stepTopple(view.topple, dt, view.falling);
   stepPops(view.pops, dt);
 }
 
@@ -71,6 +90,8 @@ export function render(
   view: View,
   best: number,
   skin: Skin,
+  /** Seconds into the current music loop (audio.position()); NaN when silent. */
+  songTime = NaN,
 ): void {
   // A zero-size canvas (a hidden tab, a web view not laid out yet) has nothing to draw, and the
   // scale below would divide by zero: the NaNs would throw and stop the frame loop for good.
@@ -101,10 +122,12 @@ export function render(
     horizonY: horizonFor(groundY, rise, u),
     baseX: base ? sx(base.x) : 0,
     baseW: base ? base.w * scale : 0,
+    songTime,
   };
   const kit = kitFor(skin);
   const h = BLOCK_HEIGHT * scale;
-  const hud = hudLayout(cssH, u, state);
+  const titleScreen = state.phase === "playing" && state.score === 0;
+  const hud = hudLayout(cssH, u, state, titleScreen);
 
   kit.world(ctx, scene);
 
@@ -112,16 +135,42 @@ export function render(
   const drawBlock = (x: number, w: number, level: number) =>
     kit.bar(ctx, sx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
 
-  // Only draw blocks that can be on screen.
+  /** A bar off the tower (falling, or swinging with a toppled slab), centered at world (cx, cy). */
+  const drawLoose = (cx: number, cy: number, w: number, angle: number, level: number, alpha: number) => {
+    const pw = w * scale;
+    ctx.save();
+    ctx.translate(sx(cx), sy(cy));
+    ctx.rotate(angle);
+    ctx.globalAlpha = alpha;
+    kit.bar(ctx, -pw / 2, -h / 2, pw, h, level);
+    ctx.restore();
+  };
+  /**
+   * Whether a loose bar centered at world (cx, cy) can touch the screen at any angle. A tall
+   * tower that tips from low down sends hundreds of bars falling far above the view; drawing
+   * them all would cost frames for seconds behind the game-over card.
+   */
+  const onScreen = (cx: number, cy: number, w: number) => {
+    const reach = (w * scale) / 2 + h;
+    const x = sx(cx);
+    const y = sy(cy);
+    return x > -reach && x < cssW + reach && y > -reach && y < cssH + reach;
+  };
+
+  // Only draw blocks that can be on screen. A toppled tower's slab is drawn by its fall instead.
+  const standing = state.toppled ? state.toppled.level : state.blocks.length;
   const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - cssH / h - 2));
-  for (let i = firstVisible; i < state.blocks.length; i++) {
+  for (let i = firstVisible; i < standing; i++) {
     const b = state.blocks[i];
     if (b) drawBlock(b.x + swayOffset(state, i), b.w, i);
+  }
+  if (view.topple) {
+    for (const p of slabPoses(view.topple)) if (onScreen(p.cx, p.cy, p.w)) drawLoose(p.cx, p.cy, p.w, p.angle, p.level, 1);
   }
 
   // Perfect-drop flash: accent tint on the block, light along the seam below it.
   for (const f of view.flashes) {
-    const b = state.blocks[f.level];
+    const b = f.level < standing ? state.blocks[f.level] : undefined;
     if (!b) continue;
     if (f.age >= FLASH_TIME) continue;
     const k = f.age / FLASH_TIME; // 0 → 1
@@ -158,13 +207,9 @@ export function render(
   }
 
   for (const f of view.falling) {
-    const w = f.w * scale;
-    ctx.save();
-    ctx.translate(sx(f.x) + w / 2, sy(f.y) - h / 2);
-    ctx.rotate(f.angle);
-    ctx.globalAlpha = 0.9;
-    kit.bar(ctx, -w / 2, -h / 2, w, h, f.level);
-    ctx.restore();
+    const cx = f.x + f.w / 2;
+    const cy = f.y + BLOCK_HEIGHT / 2;
+    if (onScreen(cx, cy, f.w)) drawLoose(cx, cy, f.w, f.angle, f.level, f.alpha ?? FALL_ALPHA);
   }
 
   // The slider is in world space: it does not sway.
@@ -186,27 +231,33 @@ export function render(
   const text = (t: string, x: number, y: number, fill: string, outline: number) =>
     kit.text(ctx, t, x, y, fill, outline);
 
-  if (state.phase === "over") {
+  // A toppled tower falls first; the card comes once it has gone over.
+  if (state.phase === "over" && !toppling(view.topple)) {
     drawGameOver(ctx, cssW, cssH, u, state, best, skin);
     ctx.restore();
     return;
   }
 
-  if (state.score === 0) {
+  if (titleScreen) {
     // Start screen: the name instead of a zero.
     const size = fitFont(ctx, GAME_NAME, `400 {px}px ${skin.hud.display}`, u * 0.13, cssW * 0.88);
     text(GAME_NAME, cssW / 2, top, skin.hud.title, Math.max(3, size * 0.12));
+    if (state.mode === "hard") {
+      ctx.font = `700 ${Math.round(u * 0.04)}px ${body}`;
+      text("HARD", cssW / 2, top + u * 0.062, skin.hud.accent, u * 0.01);
+    }
   } else {
     ctx.font = `700 ${Math.round(u * 0.13)}px ${body}`;
     text(String(state.score), cssW / 2, top, "#ffffff", u * 0.016);
   }
   ctx.font = `600 ${Math.round(u * 0.038)}px ${body}`;
-  text(`best ${best}`, cssW / 2, top + u * 0.065, "#e8e4ff", u * 0.009);
+  text(`best ${best}`, cssW / 2, hud.bestY, "#e8e4ff", u * 0.009);
 
   // Lives
   const r = u * 0.016;
-  for (let i = 0; i < LIVES; i++) {
-    kit.life(ctx, cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, top + u * 0.11, r, i < state.lives);
+  const lives = startLives(state.mode);
+  for (let i = 0; i < lives; i++) {
+    kit.life(ctx, cssW / 2 + (i - (lives - 1) / 2) * r * 3.5, hud.livesY, r, i < state.lives);
   }
 
   // Perfect counter: total this game, hidden until the first one. (The PERFECT ×N word
@@ -216,7 +267,7 @@ export function render(
     text(`★ ${state.perfects} perfect`, cssW / 2, hud.perfY, skin.hud.accent, u * 0.011);
   }
 
-  if (state.score === 0) {
+  if (titleScreen) {
     ctx.font = `600 ${Math.round(u * 0.055)}px ${body}`;
     ctx.globalAlpha = 0.7 + 0.3 * Math.sin(view.t * 3);
     text("tap to drop", cssW / 2, cssH * 0.9, "#ffffff", u * 0.013);
@@ -226,22 +277,28 @@ export function render(
 }
 
 interface HudLayout {
-  /** Score baseline. */
+  /** Score (or title) baseline. */
   top: number;
+  /** "best N" baseline and the lives' center line. */
+  bestY: number;
+  livesY: number;
   /** "★ N perfect" baseline. */
   perfY: number;
   /** Lowest HUD pixel this frame: the PERFECT pop stays below it. */
   bottom: number;
 }
 
-/** Top-center HUD stack: score, best, lives, perfect counter. */
-function hudLayout(cssH: number, u: number, state: GameState): HudLayout {
+/** Top-center HUD stack: score, best, lives, perfect counter. Hard's title screen adds a HARD line. */
+function hudLayout(cssH: number, u: number, state: GameState, titleScreen: boolean): HudLayout {
   const top = cssH * 0.14;
+  const hardLine = titleScreen && state.mode === "hard" ? u * 0.05 : 0;
+  const bestY = top + u * 0.065 + hardLine;
+  const livesY = top + u * 0.11 + hardLine;
   const perfY = top + u * 0.18;
   // The lowest line showing: the run, the perfect counter, else the lives.
-  let bottom = top + u * 0.13;
+  let bottom = livesY + u * 0.02;
   if (state.perfects > 0) bottom = perfY + u * 0.012;
-  return { top, perfY, bottom };
+  return { top, bestY, livesY, perfY, bottom };
 }
 
 function drawGameOver(

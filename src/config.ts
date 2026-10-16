@@ -15,6 +15,14 @@ export const PERFECT_TOLERANCE = 1.5;
 /** Misses allowed before game over. */
 export const LIVES = 3;
 
+// Hard mode: one life, real balance (nothing is sliced; a tower whose upper part's center of mass
+// passes a contact edge tips over), and the music's tempo follows the slider.
+export const HARD_LIVES = 1;
+/** The music never plays faster than this many times its written tempo. */
+export const HARD_TEMPO_MAX = 1.35;
+/** Float slack for the balance check: a center of mass exactly on a contact edge still stands. */
+export const BALANCE_EPSILON = 1e-9;
+
 // Sway. Displacement of the block at `level`:
 //   tuning.swayBase * sin(angle) * bend(level)  +  kick * kickBend(level)
 // where angle advances 2π per tuning.swayPeriod seconds.

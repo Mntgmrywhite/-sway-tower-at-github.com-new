@@ -1,19 +1,21 @@
 import { audio } from "./audio/engine";
-import { dropSounds } from "./audio/sounds";
+import { dropSounds, type SoundCue } from "./audio/sounds";
 import { tuning } from "./config";
 import { BASE_FONTS, loadFonts } from "./fonts";
-import { drop, newGame, step, swayOffset, top, type GameState } from "./game";
+import { drop, musicTempo, newGame, step, swayOffset, top, type DropOutcome, type GameState, type Mode } from "./game";
 import { buzz, dropHaptic } from "./haptics";
 import { createOptions } from "./options";
 import { createPanel } from "./panel";
-import { addFalling, addFlash, newView, render, updateView, type View } from "./render";
+import { addFalling, addFlash, addTopple, isToppling, newView, render, updateView, type View } from "./render";
 import { resolveSkin } from "./skins";
 import type { Skin } from "./skins/skin";
 import { keepSaves } from "./storage";
 
-// Storage keys keep the game's original working name so saved scores survive renames.
-const BEST_KEY = "sway-stack:best";
-/** Ignore taps for this long after game over so a mistap doesn't instantly restart. */
+// Storage keys keep the game's original working name so saved scores survive renames. Normal's
+// best keeps the original key; Hard has its own.
+const BEST_KEYS: Record<Mode, string> = { normal: "sway-stack:best", hard: "sway-stack:best:hard" };
+const MODE_KEY = "sway-stack:mode";
+/** Ignore taps for this long after the game-over card comes up so a mistap doesn't instantly restart. */
 const RESTART_GUARD_MS = 400;
 
 // In the iOS app, keep a copy of the saves where iOS won't purge them (restored if it did).
@@ -24,26 +26,44 @@ if (!canvas) throw new Error("missing #game canvas");
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("2d context unavailable");
 
-function loadBest(): number {
+function loadBest(mode: Mode): number {
   try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0;
+    return Number(localStorage.getItem(BEST_KEYS[mode])) || 0;
   } catch {
     return 0;
   }
 }
 
-function saveBest(n: number): void {
+function saveBest(mode: Mode, n: number): void {
   try {
-    localStorage.setItem(BEST_KEY, String(n));
+    localStorage.setItem(BEST_KEYS[mode], String(n));
   } catch {
     // Storage blocked (private mode etc.); best score just won't persist.
   }
 }
 
-let state: GameState = newGame();
+function loadMode(): Mode {
+  try {
+    return localStorage.getItem(MODE_KEY) === "hard" ? "hard" : "normal";
+  } catch {
+    return "normal";
+  }
+}
+
+function saveMode(mode: Mode): void {
+  try {
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // Storage blocked; the mode just won't persist.
+  }
+}
+
+let mode: Mode = loadMode();
+let state: GameState = newGame(mode);
 let view: View = newView();
-let best = loadBest();
-let overAt = 0;
+let best = loadBest(mode);
+/** When the game-over card came up (performance.now() ms), or 0 while it isn't showing. */
+let cardAt = 0;
 let cssW = 0;
 let cssH = 0;
 
@@ -63,18 +83,44 @@ function resize(): void {
 }
 
 function restart(): void {
-  state = newGame();
+  state = newGame(mode);
   view = newView();
+  cardAt = 0;
+}
+
+/** Switching mode starts a fresh run in it. */
+function setMode(next: Mode): void {
+  if (next === mode) return;
+  mode = next;
+  saveMode(mode);
+  best = loadBest(mode);
+  restart();
 }
 
 const panel = createPanel(restart);
-const options = createOptions();
+const options = createOptions({ mode: () => mode, setMode });
 /** True while an overlay is open: input goes to the overlay and the game pauses. */
 const paused = () => panel.isOpen() || options.isOpen();
 
+/**
+ * Sounds for a drop. Hard mode slices nothing: an off-center bar just lands, and a drop that tips
+ * the tower lands and goes over.
+ */
+function dropCues(r: DropOutcome, streak: number): SoundCue[] {
+  switch (r.kind) {
+    case "placed":
+      return [{ sound: "land" }];
+    case "toppled":
+      return [{ sound: "land" }, { sound: "miss" }];
+    default:
+      return dropSounds(r, streak);
+  }
+}
+
 function tap(): void {
   if (state.phase === "over") {
-    if (performance.now() - overAt < RESTART_GUARD_MS) return;
+    // A toppled tower falls before the card comes up; then a beat so a mistap doesn't restart.
+    if (!cardAt || performance.now() - cardAt < RESTART_GUARD_MS) return;
     restart();
     return;
   }
@@ -83,17 +129,18 @@ function tap(): void {
   const towerX = under.x + under.w / 2 + swayOffset(state, level - 1);
   const r = drop(state);
   if (!r) return;
-  const over = r.kind === "miss" && state.lives <= 0; // last life gone
-  for (const cue of dropSounds(r, state.streak)) audio.play(cue.sound, cue);
-  const feel = dropHaptic(r.kind, state.streak, over);
+  const over = r.kind === "toppled" || (r.kind === "miss" && state.lives <= 0); // tower went over, or last life gone
+  for (const cue of dropCues(r, state.streak)) audio.play(cue.sound, cue);
+  // Hard's off-center landing is an ordinary landing (silent); a topple is the run ending.
+  const feel = dropHaptic(r.kind === "perfect" || r.kind === "miss" ? r.kind : "sliced", state.streak, over);
   if (feel) buzz(feel);
   if (r.kind === "perfect") addFlash(view, level, state.streak);
-  else addFalling(view, r.cut, level, towerX);
+  else if (r.kind === "sliced" || r.kind === "miss") addFalling(view, r.cut, level, towerX);
+  else if (r.kind === "toppled") addTopple(view, state, r.tip);
   if (state.score > best) {
     best = state.score;
-    saveBest(best);
+    saveBest(mode, best);
   }
-  if (over) overAt = performance.now();
 }
 
 canvas.addEventListener("pointerdown", (e) => {
@@ -146,7 +193,10 @@ function frame(now: number): void {
     // The music steps back while a run is played, and comes forward on the title and game over.
     audio.setFocus(state.phase === "playing" && state.score > 0);
   }
-  render(ctx!, cssW, cssH, state, view, best, currentSkin());
+  if (state.phase === "over" && !cardAt && !isToppling(view)) cardAt = now;
+  // Hard mode: the music keeps pace with the bar (1 otherwise; the engine skips unchanged rates).
+  audio.setTempo(musicTempo(state));
+  render(ctx!, cssW, cssH, state, view, best, currentSkin(), audio.position());
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

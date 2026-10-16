@@ -1,7 +1,10 @@
 import {
+  BALANCE_EPSILON,
   BASE_WIDTH,
   CALM_EASE,
   CALM_TIME,
+  HARD_LIVES,
+  HARD_TEMPO_MAX,
   LIVES,
   PERFECT_TOLERANCE,
   SLIDE_RANGE,
@@ -28,7 +31,22 @@ export interface Slider extends Block {
 
 export type Phase = "playing" | "over";
 
+/**
+ * Normal: the standard rules (overhangs are sliced off, LIVES lives).
+ * Hard: real balance (nothing is sliced: a bar keeps its full width where it lands, and the tower
+ * tips over when an upper part's center of mass passes its contact edge), one life, and the
+ * music's tempo follows the slider. Everything else is the same.
+ */
+export type Mode = "normal" | "hard";
+
+/** Where a tower tips: the part from bar `level` up falls toward `dir` (-1 left, 1 right). */
+export interface Tip {
+  level: number;
+  dir: -1 | 1;
+}
+
 export interface GameState {
+  mode: Mode;
   phase: Phase;
   /**
    * blocks[0] is the base; the last entry is the tower top.
@@ -51,6 +69,8 @@ export interface GameState {
   /** 0..1, eases toward 1 after a perfect drop and back to 0 when calmTimer runs out. */
   calm: number;
   calmTimer: number;
+  /** Hard mode: the tip that ended the run (its bars are falling away), else null. */
+  toppled: Tip | null;
 }
 
 /** Placed is tower-local; cut is world space (it has left the tower). */
@@ -58,6 +78,21 @@ export type DropResult =
   | { kind: "perfect"; placed: Block; regained: number }
   | { kind: "sliced"; placed: Block; cut: Block }
   | { kind: "miss"; cut: Block };
+
+/**
+ * Everything a drop can do. Hard mode adds "placed" (an off-center bar keeps its full width where
+ * it landed; `overhang` is how far it hangs past the bar below, world units) and "toppled" (the
+ * bar landed and the tower tipped over: game over).
+ */
+export type DropOutcome =
+  | DropResult
+  | { kind: "placed"; placed: Block; overhang: number }
+  | { kind: "toppled"; placed: Block; tip: Tip };
+
+/** Lives a run starts with. */
+export function startLives(mode: Mode): number {
+  return mode === "hard" ? HARD_LIVES : LIVES;
+}
 
 export function top(state: GameState): Block {
   const b = state.blocks[state.blocks.length - 1];
@@ -127,9 +162,10 @@ function spawnSlider(under: Block, level: number): Slider {
   return { x: fromLeft ? minX : maxX, w: under.w, dir: fromLeft ? 1 : -1 };
 }
 
-export function newGame(): GameState {
+export function newGame(mode: Mode = "normal"): GameState {
   const base: Block = { x: (WORLD_WIDTH - BASE_WIDTH) / 2, w: BASE_WIDTH };
   return {
+    mode,
     phase: "playing",
     blocks: [base],
     slider: spawnSlider(base, 0),
@@ -137,12 +173,13 @@ export function newGame(): GameState {
     streak: 0,
     perfects: 0,
     cuts: [],
-    lives: LIVES,
+    lives: startLives(mode),
     swayAngle: 0,
     kick: 0,
     kickVel: 0,
     calm: 0,
     calmTimer: 0,
+    toppled: null,
   };
 }
 
@@ -171,7 +208,7 @@ export function step(state: GameState, dt: number): void {
 }
 
 /** Drop the slider onto the tower. Returns what happened for the renderer. */
-export function drop(state: GameState): DropResult | null {
+export function drop(state: GameState): DropOutcome | null {
   if (state.phase !== "playing") return null;
   const underLevel = state.blocks.length - 1;
   const newLevel = state.blocks.length;
@@ -191,6 +228,7 @@ export function drop(state: GameState): DropResult | null {
     state.slider = spawnSlider(under, newLevel);
     return { kind: "miss", cut };
   }
+  if (state.mode === "hard") return dropHard(state, underX, overlap);
 
   // Convert world x back to tower-local at the new block's level, so it
   // stays exactly where it was dropped.
@@ -222,4 +260,82 @@ export function drop(state: GameState): DropResult | null {
   state.score += 1;
   state.slider = spawnSlider(result.placed, state.score);
   return result;
+}
+
+/**
+ * Hard mode, after a drop that touched the tower: nothing is sliced. A perfect snaps centered on
+ * the bar below (calm, streak, PERFECT, as in Normal); any other drop keeps the whole bar where it
+ * landed and kicks the sway by the overhang. Then the tower's balance is checked at rest.
+ */
+function dropHard(state: GameState, underX: number, overlap: number): DropOutcome {
+  const under = top(state);
+  const s = state.slider;
+  const perfect = Math.abs(s.x - underX) <= PERFECT_TOLERANCE;
+  // Back to tower-local at the new bar's level, so it stays exactly where it was dropped.
+  const placed = perfect
+    ? { x: under.x + (under.w - s.w) / 2, w: s.w }
+    : { x: s.x - swayOffset(state, state.blocks.length), w: s.w };
+  state.blocks.push(placed);
+
+  const tip = balanceFailure(state.blocks);
+  if (tip) {
+    // The bar landed, then the tower went over: it does not score, and the one life is gone.
+    state.toppled = tip;
+    state.streak = 0;
+    state.lives = 0;
+    state.phase = "over";
+    return { kind: "toppled", placed, tip };
+  }
+
+  let result: DropOutcome;
+  if (perfect) {
+    state.streak += 1;
+    state.perfects += 1;
+    state.calmTimer = CALM_TIME;
+    result = { kind: "perfect", placed, regained: 0 };
+  } else {
+    const overhang = s.w - overlap;
+    state.streak = 0;
+    if (tuning.swayOn) addKick(state, overhang * tuning.kickPerUnit, s.x < underX ? -1 : 1);
+    result = { kind: "placed", placed, overhang };
+  }
+  state.score += 1;
+  state.slider = spawnSlider(placed, state.score);
+  return result;
+}
+
+/**
+ * Real balance, with every bar's weight proportional to its width (uniform density). For each
+ * interface between bar i-1 and bar i, the combined center of mass of bars i..top must lie within
+ * their contact span (the overlap of the two bars). Returns the LOWEST interface that fails (the
+ * part from bar `level` up tips over toward `dir`, the side its center of mass passed), or null if
+ * the tower stands. Uses the bars' rest positions: sway alone never tips a tower.
+ */
+export function balanceFailure(blocks: readonly Block[]): Tip | null {
+  // Weight and moment of bars i..top, built from the top down; the lowest failure is kept.
+  let weight = 0;
+  let moment = 0;
+  let lowest: Tip | null = null;
+  for (let i = blocks.length - 1; i >= 1; i--) {
+    const bar = blocks[i]!;
+    const below = blocks[i - 1]!;
+    weight += bar.w;
+    moment += bar.w * (bar.x + bar.w / 2);
+    const com = moment / weight;
+    const left = Math.max(bar.x, below.x);
+    const right = Math.min(bar.x + bar.w, below.x + below.w);
+    if (com < left - BALANCE_EPSILON || com > right + BALANCE_EPSILON) {
+      lowest = { level: i, dir: com < (left + right) / 2 ? -1 : 1 };
+    }
+  }
+  return lowest;
+}
+
+/**
+ * How fast the music plays, as a multiple of its written tempo. Hard mode: it follows the slider
+ * (1 at the start, up to HARD_TEMPO_MAX). Normal mode, the title screen and game over: 1.
+ */
+export function musicTempo(state: GameState): number {
+  if (state.mode !== "hard" || state.phase !== "playing" || state.score === 0) return 1;
+  return Math.max(1, Math.min(HARD_TEMPO_MAX, sliderSpeed(state) / tuning.slideSpeed));
 }

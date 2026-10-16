@@ -136,6 +136,17 @@
   gap: 8px;
 }
 
+/* Mode: Normal and Hard side by side. */
+#options .modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+#options .choice.mode {
+  align-items: flex-start;
+}
+
 #options .choice {
   display: flex;
   align-items: center;

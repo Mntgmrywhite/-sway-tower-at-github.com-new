@@ -27,6 +27,12 @@ export interface Scene {
   /** Screen x and width of the base block. */
   baseX: number;
   baseW: number;
+  /**
+   * Seconds into the current music loop as written (audio.position()), for visuals that keep time
+   * with the music; NaN when no music is playing. Optional only so hand-built test scenes needn't
+   * set it: read it as `s.songTime ?? NaN`.
+   */
+  songTime?: number;
 }
 
 /** A symbol drawn on a bar, centered at (cx, cy), about `s` pixels tall, with the current stroke/fill style. */

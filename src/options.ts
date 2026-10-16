@@ -1,13 +1,21 @@
 import "./options.css";
 import { audio } from "./audio/engine";
 import { tuning } from "./config";
+import type { Mode } from "./game";
 import { saveTuning } from "./panel";
 import { AUTO, SKINS, skinForDate } from "./skins";
 import type { Skin } from "./skins/skin";
 
-// Player-facing options: an Options button (top-left) that opens a sheet with sound switches
-// (music, effects) and a skin picker. Picking a skin applies it immediately behind the sheet;
-// everything is saved on the device.
+// Player-facing options: an Options button (top-left) that opens a sheet with the game mode
+// (Normal / Hard), sound switches (music, effects) and a skin picker. Picking a skin applies it
+// immediately behind the sheet; picking a mode starts a fresh run in it. Everything is saved on the
+// device (main.ts owns the mode and its save).
+
+/** The mode choices, in order, with a one-line summary each. */
+const MODES: { value: Mode; title: string; sub: string }[] = [
+  { value: "normal", title: "Normal", sub: "3 lives · overhangs slice off" },
+  { value: "hard", title: "Hard", sub: "1 life · real balance · the music speeds up" },
+];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -34,7 +42,13 @@ export interface Options {
   isOpen(): boolean;
 }
 
-export function createOptions(): Options {
+/** The current mode, and switching it (which starts a fresh run). */
+export interface ModeControl {
+  mode(): Mode;
+  setMode(mode: Mode): void;
+}
+
+export function createOptions(modes: ModeControl): Options {
   const button = document.createElement("button");
   button.id = "options-toggle";
   button.type = "button";
@@ -60,6 +74,8 @@ export function createOptions(): Options {
       <h2 id="options-title">Options</h2>
       <button type="button" class="close" aria-label="Close">✕</button>
     </div>
+    <h3>Mode</h3>
+    <div class="modes" role="radiogroup" aria-label="Mode"></div>
     <h3>Sound</h3>
     <div class="toggles"></div>
     <h3>Skins</h3>
@@ -67,6 +83,29 @@ export function createOptions(): Options {
   backdrop.append(sheet);
   const list = sheet.querySelector<HTMLElement>(".list")!;
   const toggles = sheet.querySelector<HTMLElement>(".toggles")!;
+  const modeList = sheet.querySelector<HTMLElement>(".modes")!;
+
+  const modeChoices: { value: Mode; el: HTMLButtonElement }[] = [];
+  for (const m of MODES) {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "choice mode";
+    el.setAttribute("role", "radio");
+    const text = document.createElement("span");
+    text.className = "text";
+    const name = document.createElement("strong");
+    name.textContent = m.title;
+    const sub = document.createElement("small");
+    sub.textContent = m.sub;
+    text.append(name, sub);
+    el.append(text);
+    el.addEventListener("click", () => {
+      modes.setMode(m.value);
+      refresh();
+    });
+    modeList.append(el);
+    modeChoices.push({ value: m.value, el });
+  }
 
   const switches: { el: HTMLButtonElement; on: () => boolean }[] = [];
   const addSwitch = (label: string, on: () => boolean, set: (on: boolean) => void) => {
@@ -117,6 +156,7 @@ export function createOptions(): Options {
   const refresh = () => {
     auto.when.textContent = `Matches the date · today: ${skinForDate(new Date()).name}`;
     for (const c of choices) c.el.setAttribute("aria-checked", String(c.value === tuning.skin));
+    for (const c of modeChoices) c.el.setAttribute("aria-checked", String(c.value === modes.mode()));
     for (const sw of switches) sw.el.setAttribute("aria-checked", String(sw.on()));
   };
 
