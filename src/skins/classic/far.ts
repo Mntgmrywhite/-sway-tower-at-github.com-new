@@ -1,183 +1,174 @@
-import { alpha, mix, type Ctx } from "../../base/draw";
+import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { PALETTE } from "./colors";
+import { cloud, LONG_CLOUD } from "./shapes";
+import { DAY_HIGH, smooth, type Tone } from "./tone";
 
-// The far side of the valley, standing on the horizon behind the cloud bank: a hazy range of
-// flat-topped hills with rounded shoulders, faint checker strata on their faces and thin
-// waterfalls streaking down them; rolling blue-green hills in front, and a little castle on a
-// hilltop to the right, a rival keep across the valley with its flag flying. Flat faded
-// silhouettes, no outlines; only the grassy rims, the falls and the flag are a shade lighter
-// or brighter.
+// The far layer, standing on the horizon: two rows of soft rolling hills and the meadow far
+// below, with a few groves of treetops and two small clouds drifting low over it. Above the
+// start the cloud sea gathers below you and covers the land: from then on its puffy top is the
+// horizon. All of it is faded and flat, with no outline.
 
-const BACK = mix(mix(PALETTE.far, PALETTE.skyBottom, 0.12), "#5f9ad8", 0.25);
-const RIM = mix(BACK, "#c8f7a8", 0.55);
-const FALLS = mix(BACK, "#ffffff", 0.6);
-const HILLS = mix(PALETTE.far, PALETTE.fieldFar, 0.36);
-const HILL_RIM = mix(HILLS, "#e8ffc0", 0.3);
-const RIDGE = mix(HILLS, PALETTE.fieldFar, 0.32);
-const KEEP = mix(PALETTE.far, "#5a6fa8", 0.25);
-const FLAG = mix("#e2364f", PALETTE.far, 0.35);
-const LIT_WINDOW = alpha("#ffffff", 0.35);
-
-/** Plateaus: x in u from the screen center, half width of the flat top, height, shoulder radius (u). */
-const PLATEAUS = [
-  [-1.45, 0.22, 0.2, 0.07],
-  [-0.95, 0.12, 0.15, 0.05],
-  [-0.52, 0.12, 0.25, 0.06],
-  [-0.22, 0.07, 0.31, 0.05],
-  [0.05, 0.09, 0.2, 0.05],
-  [0.3, 0.1, 0.27, 0.06],
-  [0.68, 0.14, 0.33, 0.07],
-  [1.1, 0.12, 0.19, 0.05],
-  [1.55, 0.22, 0.24, 0.07],
-] as const;
-
-/** Thin falls down the plateaus' faces: x (u from center), width (u). */
-const FAR_FALLS = [
-  [-0.24, 0.014],
-  [-0.48, 0.009],
-  [0.27, 0.011],
-  [0.33, 0.007],
-  [0.66, 0.012],
-] as const;
-
-/** Height (u) at x (u from center): the tallest plateau there, flat on top with rounded shoulders. */
-function plateau(xu: number): number {
-  let h = 0;
-  for (const [px, hw, ph, sh] of PLATEAUS) {
-    const d = Math.abs(xu - px) - hw;
-    let v: number;
-    if (d <= 0) v = ph * (1 + 0.025 * Math.sin(xu * 41 + px));
-    else if (d < sh) v = ph - sh + Math.sqrt(sh * sh - d * d);
-    else continue;
-    if (v > h) h = v;
-  }
-  return h;
+/** Where the cloud sea's top edge is: below the screen at the start, at the horizon once you are above the clouds. */
+export function seaTop(s: Scene, lvl: number): number {
+  const k = smooth(16, DAY_HIGH, lvl);
+  const below = s.cssH + s.u * 0.14;
+  return below + (s.horizonY + s.u * 0.01 - below) * k;
 }
 
-function foothill(xu: number): number {
-  return 0.045 + 0.02 * Math.sin(xu * 6.3 + 1.2) + 0.012 * Math.sin(xu * 15 + 0.4);
-}
+// ---------------------------------------------------------------- hills and meadow
 
-function hill(xu: number): number {
-  return 0.085 + 0.03 * Math.sin(xu * 4.1 + 0.7) + 0.022 * Math.sin(xu * 9.3 + 2.1) + castleHill(xu);
-}
+const HILL_STEP = 0.035;
 
-/** The rival castle's hill: a rounded bump under it. */
-const CASTLE_X = 0.33;
-function castleHill(xu: number): number {
-  const d = (xu - CASTLE_X) / 0.17;
-  return d * d < 1 ? 0.075 * (1 - d * d) : 0;
-}
-
-/** Sample spacing in u: fine for the plateaus' rounded shoulders, coarser for smooth hills. */
-const STEP = 0.014;
-const HILL_STEP = 0.025;
-
-/** A ridge's silhouette standing on the horizon, its top lowered by `drop` px (for a rim under it). */
-function ridgePath(ctx: Ctx, s: Scene, f: (xu: number) => number, drop: number, step = HILL_STEP): void {
+/** A row of rolling hills on the horizon, filled down to `bottom`. */
+function hills(ctx: Ctx, s: Scene, base: number, height: number, f1: number, f2: number, ph: number, bottom: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
-  const base = s.horizonY + 2;
-  const x0 = -cx / u - step;
-  const x1 = cx / u + step;
   ctx.beginPath();
-  ctx.moveTo(cx + x0 * u, base);
-  for (let xu = x0; xu <= x1 + step; xu += step) ctx.lineTo(cx + xu * u, Math.min(base, s.horizonY - f(xu) * u + drop));
-  ctx.lineTo(cx + x1 * u + step * u, base);
-  ctx.closePath();
-}
-
-/** The plateaus: a grassy rim (the silhouette in rim green, the body a little lower), thin falls. */
-function plateaus(ctx: Ctx, s: Scene): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const hy = s.horizonY;
-  ridgePath(ctx, s, plateau, 0, STEP);
-  ctx.fillStyle = RIM;
-  ctx.fill();
-  ridgePath(ctx, s, plateau, u * 0.012, STEP);
-  ctx.fillStyle = BACK;
-  ctx.fill();
-  // Falls from each rim to the haze.
-  ctx.fillStyle = FALLS;
-  for (const [fx, fw] of FAR_FALLS) {
-    const top = hy - plateau(fx) * u + u * 0.006;
-    ctx.fillRect(cx + (fx - fw / 2) * u, top, fw * u, hy - top);
+  ctx.moveTo(-1, bottom);
+  for (let x = -1; ; x += u * HILL_STEP) {
+    const X = (x - cx) / u;
+    const y = base - u * height * (0.6 + 0.3 * Math.sin(X * f1 + ph) + 0.18 * Math.sin(X * f2 + ph * 2.3));
+    ctx.lineTo(x, y);
+    if (x > s.cssW + 1) break;
   }
+  ctx.lineTo(s.cssW + 1, bottom);
+  ctx.closePath();
+  ctx.fill();
 }
 
-/** The rival keep's towers: [x offset, half width, height, cone height] in u. */
-const FAR_TOWERS = [
-  [-0.075, 0.016, 0.065, 0.04],
-  [0.075, 0.016, 0.06, 0.038],
-  [-0.012, 0.022, 0.1, 0.055],
+/**
+ * Groves of treetops on the meadow: x (u from the center), depth below the horizon (u), size
+ * (u). Smaller than the island's own tree, so they read as far below. The left ones keep
+ * clear of the kite's string, which runs up from the island's edge.
+ */
+const GROVES = [
+  { x: -0.45, d: 0.06, r: 0.013 },
+  { x: -0.43, d: 0.25, r: 0.017 },
+  { x: 0.33, d: 0.07, r: 0.014 },
+  { x: 0.43, d: 0.13, r: 0.017 },
 ] as const;
 
-/** The rival keep on its hill: towers with cones and a flag, all one faded color. */
-function farCastle(ctx: Ctx, s: Scene): void {
+export function groves(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
-  const x = s.cssW / 2 + CASTLE_X * u;
-  const g = s.horizonY - hill(CASTLE_X) * u + u * 0.004;
-  ctx.beginPath();
-  // Curtain wall with merlons
-  const wl = x - u * 0.075;
-  const wr = x + u * 0.075;
-  const wt = g - u * 0.035;
-  ctx.moveTo(wl, g);
-  ctx.lineTo(wl, wt);
-  for (let mx = wl; mx < wr - 1; mx += u * 0.016) {
-    ctx.lineTo(mx, wt - u * 0.008);
-    ctx.lineTo(mx + u * 0.009, wt - u * 0.008);
-    ctx.lineTo(mx + u * 0.009, wt);
-    ctx.lineTo(Math.min(wr, mx + u * 0.016), wt);
+  const cx = s.cssW / 2;
+  // Shade first, then the lit crowns shifted up, three treetops to a grove.
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.fillStyle = pass ? tone.grove : tone.groveShade;
+    ctx.beginPath();
+    for (const g of GROVES) {
+      const x = cx + g.x * u;
+      const y = s.horizonY + g.d * u;
+      const r = g.r * u;
+      const up = pass ? r * 0.18 : 0;
+      const k = pass ? 0.86 : 1;
+      circle(ctx, x - r * 0.9, y - up, r * 0.8 * k);
+      circle(ctx, x, y - r * 0.4 - up, r * k);
+      circle(ctx, x + r * 0.95, y - up, r * 0.75 * k);
+    }
+    ctx.fill();
   }
-  ctx.lineTo(wr, g);
-  ctx.closePath();
-  for (const [ox, hw, h, cone] of FAR_TOWERS) {
-    const tx = x + ox * u;
-    const top = g - h * u;
-    ctx.moveTo(tx - hw * u, g);
-    ctx.lineTo(tx - hw * u, top);
-    ctx.lineTo(tx - hw * u * 1.3, top);
-    ctx.lineTo(tx, top - cone * u);
-    ctx.lineTo(tx + hw * u * 1.3, top);
-    ctx.lineTo(tx + hw * u, top);
-    ctx.lineTo(tx + hw * u, g);
-    ctx.closePath();
-  }
-  ctx.fillStyle = KEEP;
-  ctx.fill();
-  // Flagpole and a small fluttering flag on the tall tower.
-  const px = x - u * 0.012;
-  const pt = g - u * 0.19;
-  ctx.fillRect(px - 0.5, pt, Math.max(1, u * 0.003), u * 0.04);
-  const wave = Math.sin(s.t * 3) * u * 0.003;
-  ctx.beginPath();
-  ctx.moveTo(px, pt);
-  ctx.quadraticCurveTo(px + u * 0.012, pt - u * 0.002 + wave, px + u * 0.026, pt + u * 0.004 + wave);
-  ctx.lineTo(px, pt + u * 0.014);
-  ctx.closePath();
-  ctx.fillStyle = FLAG;
-  ctx.fill();
-  // Two tiny lit windows.
-  ctx.fillStyle = LIT_WINDOW;
-  ctx.fillRect(x - u * 0.016, g - u * 0.07, u * 0.007, u * 0.012);
-  ctx.fillRect(x + u * 0.068, g - u * 0.045, u * 0.006, u * 0.01);
 }
 
-export function far(ctx: Ctx, s: Scene): void {
-  if (s.horizonY - s.u * 0.45 > s.cssH) return;
-  plateaus(ctx, s);
-  ridgePath(ctx, s, hill, 0);
-  ctx.fillStyle = HILL_RIM;
-  ctx.fill();
-  ridgePath(ctx, s, hill, s.u * 0.008);
-  ctx.fillStyle = HILLS;
-  ctx.fill();
-  // A lighter, nearer ridge of rolling foothills.
-  ridgePath(ctx, s, foothill, 0);
-  ctx.fillStyle = RIDGE;
-  ctx.fill();
-  farCastle(ctx, s);
+/** Two small clouds low over the meadow, either side of the island: you are high above it. */
+const LOW_CLOUDS = [
+  { x: -0.435, d: 0.37, r: 0.028 },
+  { x: 0.44, d: 0.31, r: 0.03 },
+] as const;
+
+export function lowClouds(ctx: Ctx, s: Scene, tone: Tone): void {
+  const u = s.u;
+  for (const c of LOW_CLOUDS) {
+    const x = s.cssW / 2 + c.x * u + Math.sin(s.t * 0.15 + c.x * 7) * u * 0.008;
+    cloud(ctx, LONG_CLOUD, x, s.horizonY + c.d * u, c.r * u, tone.cloudShade, tone.cloud, tone.cloudLight);
+  }
 }
+
+/** A wavy edge across the screen at `y` (continues the path, left to right). */
+function rolling(ctx: Ctx, s: Scene, y: number, amp: number, f: number, ph: number): void {
+  const u = s.u;
+  for (let x = 0; ; x += u * 0.05) {
+    const X = (x - s.cssW / 2) / u;
+    ctx.lineTo(x, y + u * amp * (Math.sin(X * f + ph) + 0.5 * Math.sin(X * f * 2.3 + ph * 1.7)));
+    if (x > s.cssW) break;
+  }
+}
+
+/** The meadow below the hills, in two rolling bands of green: lighter far off, deeper near. */
+function meadow(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void {
+  const u = s.u;
+  const hz = s.horizonY;
+  ctx.fillStyle = tone.meadow;
+  ctx.beginPath();
+  ctx.moveTo(0, bottom);
+  rolling(ctx, s, hz + u * 0.05, 0.012, 5, 2.1);
+  ctx.lineTo(s.cssW, bottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = tone.meadowShade;
+  ctx.beginPath();
+  ctx.moveTo(0, bottom);
+  rolling(ctx, s, hz + u * 0.17, 0.02, 6, 0.8);
+  ctx.lineTo(s.cssW, bottom);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ---------------------------------------------------------------- cloud sea
+
+/** Puffs along the cloud sea's top edge, repeating every SEA_SPAN of them. */
+const SEA_SPAN = 9;
+const SEA = Array.from({ length: SEA_SPAN }, (_, i) => ({ r: 0.05 + hash(i + 1200) * 0.035, dy: hash(i + 1300) * 0.025 }));
+
+/** The cloud sea: a row of cel-shaded puffs drifting slowly along its top, solid below. */
+function sea(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
+  const u = s.u;
+  const step = u * 0.085;
+  const off = (s.t * u * 0.004) % (step * SEA_SPAN);
+  const n = Math.ceil(s.cssW / step) + 1;
+  for (let pass = 0; pass < 3; pass++) {
+    ctx.fillStyle = pass === 0 ? tone.cloudShade : pass === 1 ? tone.cloud : tone.cloudLight;
+    ctx.beginPath();
+    for (let j = -SEA_SPAN; j <= n; j++) {
+      const x = j * step + off;
+      if (x < -step || x > s.cssW + step) continue;
+      const p = SEA[((j % SEA_SPAN) + SEA_SPAN) % SEA_SPAN]!;
+      const r = p.r * u;
+      const y = top + p.dy * u + r * 0.35;
+      if (pass === 0) circle(ctx, x, y, r);
+      else if (pass === 1) circle(ctx, x - r * 0.06, y - r * 0.12, r * 0.9);
+      else circle(ctx, x - r * 0.25, y - r * 0.42, r * 0.42);
+    }
+    if (pass === 0) ctx.rect(0, top + u * 0.05, s.cssW, s.cssH - top);
+    if (pass === 1) ctx.rect(0, top + u * 0.035, s.cssW, u * 0.035);
+    ctx.fill();
+  }
+}
+
+/** Where the sky stops: below this the hills and meadow, or the cloud sea, cover everything. */
+export function skyBottom(s: Scene, seaY: number): number {
+  return landShows(s, seaY) ? s.horizonY : seaY + s.u * 0.06;
+}
+
+/** The land below shows only until the cloud sea covers it. */
+function landShows(s: Scene, seaY: number): boolean {
+  return seaY > s.horizonY + s.u * 0.02;
+}
+
+/** Everything on the horizon, back to front. */
+export function farLayer(ctx: Ctx, s: Scene, tone: Tone, seaY: number): void {
+  const hz = s.horizonY;
+  if (hz - s.u * 0.3 < s.cssH) {
+    if (landShows(s, seaY)) {
+      const bottom = Math.min(s.cssH, seaY + s.u * 0.06);
+      ctx.fillStyle = tone.far;
+      hills(ctx, s, hz + s.u * 0.004, 0.085, 4.2, 9.5, 1.1, bottom);
+      ctx.fillStyle = tone.meadowHaze;
+      hills(ctx, s, hz + s.u * 0.012, 0.03, 6.5, 13, 3.4, bottom);
+      meadow(ctx, s, tone, bottom);
+      groves(ctx, s, tone);
+      lowClouds(ctx, s, tone);
+    }
+  }
+  if (seaY < s.cssH + s.u * 0.1) sea(ctx, s, tone, seaY);
+}
+
