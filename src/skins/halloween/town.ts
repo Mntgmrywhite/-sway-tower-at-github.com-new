@@ -1,13 +1,16 @@
-import { alpha, hash, mix, neonStroke, type Ctx } from "../../base/draw";
+import { hash, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { AMBER, CANDLE, GREEN, INK, VIOLET } from "./common";
+import { PALETTE } from "./common";
 
 // The haunted town on the horizon: one continuous skyline of crooked houses, a church with a
-// spire, a dead tree, and the haunted mansion with its tower. Every building stands on the
-// horizon line (each outline is closed along it), filled dark and rimmed in violet neon, with
-// flickering lit windows.
+// spire, a gnarled dead tree, and the haunted mansion with its witch-hat tower. Everything is
+// far away, so it is one faded flat color with no outline; only the lit windows are lighter.
+// Every building stands on the horizon line (each outline is closed along it), and the cloud
+// bank in front hides the foot of the town, so nothing ever floats.
 //
-// Layout is precomputed once, in units of u measured from the screen center (y up from the horizon).
+// Layout is precomputed once, in units of u measured from the screen center (y up from the
+// horizon). The mansion sits just right of the tower so its tower still peeks out beside the
+// bars as they climb; the church and the dead tree are left of center, above the low clouds.
 
 type Kind = "house" | "church" | "mansion";
 
@@ -60,22 +63,25 @@ function landmark(kind: Kind, x0: number, x1: number, h: number, roof: number): 
   return { kind, x0, x1, h, roof, lean: 0, skew: 0, chim: 0, joined: false };
 }
 
-const CHURCH_X = -0.39;
-const MANSION_X = 0.15;
-const MANSION_W = 0.265;
+const CHURCH_X = -0.17;
+const CHURCH_W = 0.13;
+const MANSION_X = 0.03;
+const MANSION_W = 0.3;
+/** Mansion tower, as fractions of the mansion's width. */
+const TOWER_L = 0.68;
+const TOWER_R = 0.9;
 
-// Hand-placed middle of the skyline (what a phone shows): the church left, the mansion right.
+// Hand-placed middle of the skyline (what a phone shows).
 const MIDDLE: Bldg[] = [
-  house(-0.53, -0.455, 0.085, 0.05, 0.012, 0.7, false, 1),
-  house(-0.455, -0.405, 0.055, 0.035, -0.01, 0, true, 2),
-  landmark("church", CHURCH_X, -0.27, 0.075, 0.045),
-  house(-0.27, -0.205, 0.062, 0.04, 0.012, 0.28, true, 3),
-  house(-0.105, -0.045, 0.045, 0.034, -0.01, 0, false, 4),
-  house(-0.045, 0.028, 0.07, 0.046, 0.01, 0.74, true, 5),
-  house(0.028, 0.085, 0.05, 0.032, -0.014, 0, true, 6),
-  landmark("mansion", MANSION_X, MANSION_X + MANSION_W, 0.115, 0.055),
-  house(0.43, 0.5, 0.075, 0.045, -0.012, 0.3, false, 7),
-  house(0.5, 0.56, 0.05, 0.035, 0.01, 0, true, 8),
+  house(-0.5, -0.43, 0.085, 0.05, 0.012, 0.7, false, 1),
+  house(-0.43, -0.37, 0.058, 0.036, -0.01, 0, true, 2),
+  house(-0.37, -0.3, 0.07, 0.044, 0.01, 0.3, true, 9),
+  landmark("church", CHURCH_X, CHURCH_X + CHURCH_W, 0.075, 0.045),
+  house(-0.04, MANSION_X, 0.095, 0.05, 0.008, 0.74, true, 5),
+  landmark("mansion", MANSION_X, MANSION_X + MANSION_W, 0.12, 0.055),
+  house(0.36, 0.43, 0.075, 0.045, -0.012, 0.3, false, 7),
+  house(0.43, 0.49, 0.05, 0.035, 0.01, 0, true, 8),
+  house(0.49, 0.56, 0.068, 0.04, -0.01, 0.65, true, 10),
 ];
 
 /** Hashed (deterministic) houses out to either side, for screens wider than a phone. */
@@ -104,35 +110,32 @@ function filler(dir: 1 | -1, start: number, neighbor: Bldg): Bldg[] {
   return out;
 }
 
-const TOWN: Bldg[] = [
-  ...filler(-1, -0.53, MIDDLE[0]!),
-  ...MIDDLE,
-  ...filler(1, 0.56, MIDDLE[MIDDLE.length - 1]!),
-];
+const TOWN: Bldg[] = [...filler(-1, -0.5, MIDDLE[0]!), ...MIDDLE, ...filler(1, 0.56, MIDDLE[MIDDLE.length - 1]!)];
 
-// Church windows: two in the nave, one up the tower.
+// Church windows: two tall ones in the nave, one up the tower.
 WINDOWS.push(
-  { x: -0.326, y: 0.03, w: 0.012, h: 0.03, seed: 61, green: false },
-  { x: -0.29, y: 0.03, w: 0.012, h: 0.03, seed: 62, green: false },
-  { x: -0.366, y: 0.1, w: 0.012, h: 0.022, seed: 63, green: false },
+  { x: CHURCH_X + 0.068, y: 0.03, w: 0.012, h: 0.03, seed: 61, green: false },
+  { x: CHURCH_X + 0.102, y: 0.03, w: 0.012, h: 0.03, seed: 62, green: false },
+  { x: CHURCH_X + 0.024, y: 0.1, w: 0.012, h: 0.022, seed: 63, green: false },
 );
-// Mansion windows: two floors, the gable, and three up the tower (the top one a mad-lab green).
-for (const fx of [0.09, 0.22, 0.35, 0.48, 0.92]) {
-  for (const [i, fy] of [0.025, 0.074].entries()) {
+// Mansion windows: two floors across the main house, and three up the tower (the top one a
+// mad-lab green).
+for (const fx of [0.1, 0.24, 0.38, 0.52]) {
+  for (const [i, fy] of [0.025, 0.075].entries()) {
     WINDOWS.push({ x: MANSION_X + MANSION_W * fx, y: fy, w: 0.018, h: 0.026, seed: 70 + fx * 40 + i * 13, green: false });
   }
 }
 {
-  const tm = MANSION_X + MANSION_W * 0.72;
+  const tm = MANSION_X + MANSION_W * ((TOWER_L + TOWER_R) / 2);
   WINDOWS.push(
-    { x: MANSION_X + MANSION_W * 0.38, y: 0.172, w: 0.012, h: 0.017, seed: 91, green: false },
-    { x: tm, y: 0.05, w: 0.018, h: 0.028, seed: 92, green: false },
-    { x: tm, y: 0.115, w: 0.018, h: 0.028, seed: 93, green: false },
-    { x: tm, y: 0.182, w: 0.018, h: 0.028, seed: 94, green: true },
+    { x: MANSION_X + MANSION_W * 0.38, y: 0.178, w: 0.012, h: 0.017, seed: 91, green: false },
+    { x: tm, y: 0.055, w: 0.018, h: 0.028, seed: 92, green: false },
+    { x: tm, y: 0.125, w: 0.018, h: 0.028, seed: 93, green: false },
+    { x: tm, y: 0.195, w: 0.018, h: 0.028, seed: 94, green: true },
   );
 }
 
-// A gnarled dead tree between the church and the houses. Segments in u, y up from the horizon.
+// A gnarled dead tree left of the church, under the moon. Segments in u, y up from the horizon.
 interface Seg {
   x0: number;
   y0: number;
@@ -157,10 +160,12 @@ function grow(x: number, y: number, ang: number, len: number, depth: number, see
     grow(x1, y1, a + side * spread + (hash(seed + 5) - 0.5) * 0.3, nextLen, depth - 1, seed * 2 + side + 3);
   }
 }
-grow(0, 0, -0.06, 0.05, 4, 1);
-const TREE_X = -0.155;
-const TREE_WIDTH = [0.011, 0.006, 0.0032];
-const TREE_GLOW = alpha(VIOLET, 0.16);
+grow(0, 0, -0.06, 0.095, 4, 1);
+const TREE_X = -0.245;
+const TREE_WIDTH = [0.018, 0.0095, 0.005];
+
+const WINDOW = mix(PALETTE.far, "#ffd27a", 0.42);
+const WINDOW_GREEN = mix(PALETTE.far, "#a8ff6a", 0.42);
 
 // ---------------------------------------------------------------- drawing
 
@@ -229,21 +234,25 @@ function profile(ctx: Ctx, b: Bldg, cx: number, base: number, u: number): void {
   // Mansion: hipped roof with chimneys and a center gable; a tower with a witch-hat cone.
   const ridge = top - b.roof * u;
   const e = u * 0.008;
-  const tx0 = x0 + w * 0.6;
-  const tx1 = x0 + w * 0.84;
-  const tTop = base - u * 0.235;
+  const tx0 = x0 + w * TOWER_L;
+  const tx1 = x0 + w * TOWER_R;
+  const tTop = base - u * 0.25;
   const tm = (tx0 + tx1) / 2;
-  const tip = tTop - u * 0.085;
+  const tip = tTop - u * 0.09;
   ctx.lineTo(x0, top);
   ctx.lineTo(x0 - e, top);
   ctx.lineTo(x0 + w * 0.1, ridge);
-  ctx.lineTo(x0 + w * 0.17, ridge);
-  ctx.lineTo(x0 + w * 0.17, ridge - u * 0.04);
-  ctx.lineTo(x0 + w * 0.22, ridge - u * 0.04);
-  ctx.lineTo(x0 + w * 0.22, ridge);
+  ctx.lineTo(x0 + w * 0.15, ridge);
+  ctx.lineTo(x0 + w * 0.15, ridge - u * 0.04);
+  ctx.lineTo(x0 + w * 0.2, ridge - u * 0.04);
+  ctx.lineTo(x0 + w * 0.2, ridge);
   ctx.lineTo(x0 + w * 0.3, ridge);
-  ctx.lineTo(x0 + w * 0.38, ridge - u * 0.048);
+  ctx.lineTo(x0 + w * 0.38, ridge - u * 0.05);
   ctx.lineTo(x0 + w * 0.46, ridge);
+  ctx.lineTo(x0 + w * 0.56, ridge);
+  ctx.lineTo(x0 + w * 0.56, ridge - u * 0.032);
+  ctx.lineTo(x0 + w * 0.6, ridge - u * 0.032);
+  ctx.lineTo(x0 + w * 0.6, ridge);
   ctx.lineTo(tx0, ridge);
   ctx.lineTo(tx0, tTop);
   ctx.lineTo(tx0 - e, tTop);
@@ -253,11 +262,7 @@ function profile(ctx: Ctx, b: Bldg, cx: number, base: number, u: number): void {
   ctx.quadraticCurveTo(tm + u * 0.012, tTop - u * 0.03, tx1 + e, tTop);
   ctx.lineTo(tx1, tTop);
   ctx.lineTo(tx1, ridge);
-  ctx.lineTo(x0 + w * 0.88, ridge);
-  ctx.lineTo(x0 + w * 0.88, ridge - u * 0.032);
-  ctx.lineTo(x0 + w * 0.925, ridge - u * 0.032);
-  ctx.lineTo(x0 + w * 0.925, ridge);
-  ctx.lineTo(x1 - w * 0.05, ridge);
+  ctx.lineTo(x1 - w * 0.03, ridge);
   ctx.lineTo(x1 + e, top);
   ctx.lineTo(x1, top);
 }
@@ -267,20 +272,6 @@ function lit(w: Win, t: number): boolean {
   return Math.sin(t * 0.45 + w.seed * 2.7) >= -0.75;
 }
 
-/** Lit window panes (or their glow, when `grow` > 0) for one color, as one path. */
-function windowRects(ctx: Ctx, cx: number, base: number, s: Scene, green: boolean, grow: number): void {
-  const u = s.u;
-  ctx.beginPath();
-  for (const w of WINDOWS) {
-    if (w.green !== green || !lit(w, s.t)) continue;
-    const x = cx + w.x * u;
-    if (x < -u * 0.05 || x > s.cssW + u * 0.05) continue;
-    const ww = w.w * u;
-    const wh = w.h * u;
-    ctx.rect(x - ww / 2 - grow, base - w.y * u - wh - grow, ww + grow * 2, wh + grow * 2);
-  }
-}
-
 export function town(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const hy = s.horizonY;
@@ -288,32 +279,25 @@ export function town(ctx: Ctx, s: Scene): void {
   const base = hy + 1;
   const cx = s.cssW / 2;
   const t = s.t;
-  const rim = Math.max(1.1, u * 0.0034);
+  const far = PALETTE.far;
 
-  // The dead tree, behind the houses: fat violet stroke, then the dark branch on top.
+  // The dead tree, behind the houses
   const tx = cx + TREE_X * u;
-  ctx.save();
+  ctx.strokeStyle = far;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (let pass = 0; pass < 3; pass++) {
-    const extra = pass === 0 ? rim * 4 : pass === 1 ? rim * 2 : 0;
-    ctx.strokeStyle = pass === 0 ? TREE_GLOW : pass === 1 ? VIOLET : INK;
-    for (let level = 0; level < 3; level++) {
-      ctx.beginPath();
-      for (const sg of TREE) {
-        if (sg.level !== level) continue;
-        ctx.moveTo(tx + sg.x0 * u, base - sg.y0 * u);
-        ctx.lineTo(tx + sg.x1 * u, base - sg.y1 * u);
-      }
-      ctx.lineWidth = (TREE_WIDTH[level] ?? 0.004) * u + extra;
-      ctx.stroke();
+  for (let level = 0; level < 3; level++) {
+    ctx.beginPath();
+    for (const sg of TREE) {
+      if (sg.level !== level) continue;
+      ctx.moveTo(tx + sg.x0 * u, base - sg.y0 * u);
+      ctx.lineTo(tx + sg.x1 * u, base - sg.y1 * u);
     }
+    ctx.lineWidth = Math.max(1, (TREE_WIDTH[level] ?? 0.004) * u);
+    ctx.stroke();
   }
-  ctx.restore();
 
-  // Skyline: one outline per run of joined buildings, closed along the horizon. The rim goes
-  // down first and the dark fill on top, so only its outer half shows: a clean outline around
-  // each run, with no seams inside where joined (differently leaning) houses overlap.
+  // Skyline: one outline per run of joined buildings, closed along the horizon, one fill.
   ctx.beginPath();
   let open = false;
   let lastX = 0;
@@ -337,35 +321,31 @@ export function town(ctx: Ctx, s: Scene): void {
     ctx.lineTo(lastX, base);
     ctx.closePath();
   }
-  const fill = ctx.createLinearGradient(0, hy - u * 0.3, 0, hy);
-  fill.addColorStop(0, "#170a2a");
-  fill.addColorStop(1, INK);
-  neonStroke(ctx, VIOLET, rim * 2, 1.5);
-  ctx.fillStyle = fill;
+  // Cross on the church spire, in the same path
+  const sx = cx + (CHURCH_X + 0.024) * u;
+  const sy = base - u * 0.255;
+  const bar = Math.max(1, u * 0.005);
+  ctx.rect(sx - bar / 2, sy - u * 0.032, bar, u * 0.034);
+  ctx.rect(sx - u * 0.011, sy - u * 0.022, u * 0.022, bar);
+  ctx.fillStyle = far;
   ctx.fill();
 
-  // Cross on the church spire
-  const sx = cx + (CHURCH_X + 0.024) * u;
-  const sy = base - u * 0.26;
-  ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.lineTo(sx, sy - u * 0.03);
-  ctx.moveTo(sx - u * 0.01, sy - u * 0.019);
-  ctx.lineTo(sx + u * 0.01, sy - u * 0.019);
-  neonStroke(ctx, AMBER, Math.max(1, u * 0.003), 3);
-
-  // Lit windows: a warm glow, the pane, then dark mullions. Some go dark for a while.
-  const flick = 0.82 + 0.18 * Math.sin(t * 7.3) * Math.sin(t * 3.1);
+  // Lit windows, a faded warm glow (and one green), some going dark for a while.
   for (let g = 0; g < 2; g++) {
     const green = g === 1;
-    const color = green ? GREEN : AMBER;
-    windowRects(ctx, cx, base, s, green, u * 0.007);
-    ctx.fillStyle = alpha(color, 0.22 * flick);
-    ctx.fill();
-    windowRects(ctx, cx, base, s, green, 0);
-    ctx.fillStyle = alpha(mix(color, CANDLE, 0.35), 0.75 + 0.25 * flick);
+    ctx.beginPath();
+    for (const w of WINDOWS) {
+      if (w.green !== green || !lit(w, t)) continue;
+      const x = cx + w.x * u;
+      if (x < -u * 0.05 || x > s.cssW + u * 0.05) continue;
+      const ww = w.w * u;
+      const wh = w.h * u;
+      ctx.rect(x - ww / 2, base - w.y * u - wh, ww, wh);
+    }
+    ctx.fillStyle = green ? WINDOW_GREEN : WINDOW;
     ctx.fill();
   }
+  // Mullions on the bigger panes
   ctx.beginPath();
   for (const w of WINDOWS) {
     const x = cx + w.x * u;
@@ -376,14 +356,8 @@ export function town(ctx: Ctx, s: Scene): void {
     ctx.moveTo(x - (w.w * u) / 2, y - w.h * u * 0.55);
     ctx.lineTo(x + (w.w * u) / 2, y - w.h * u * 0.55);
   }
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = Math.max(0.8, u * 0.0022);
+  ctx.strokeStyle = far;
+  ctx.lineWidth = Math.max(0.8, u * 0.0024);
+  ctx.lineCap = "butt";
   ctx.stroke();
-
-  // Low mist along the foot of the town
-  const mist = ctx.createLinearGradient(0, hy - u * 0.05, 0, hy);
-  mist.addColorStop(0, alpha("#7a3bd0", 0));
-  mist.addColorStop(1, alpha("#7a3bd0", 0.3));
-  ctx.fillStyle = mist;
-  ctx.fillRect(0, hy - u * 0.05, s.cssW, u * 0.05 + 1);
 }

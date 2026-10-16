@@ -1,26 +1,10 @@
-import { alpha, circle, mix, neonStroke, type Ctx } from "../../base/draw";
-import { LIGHTS, SNOW_LIT, SNOW_SHADE, WHITE } from "./colors";
+import { alpha, circle, ink, mix, type Ctx } from "../../base/draw";
+import { INK, LIGHTS, RED, SNOW, SNOW_SHADE } from "./colors";
 
 // Path builders and small drawing routines shared by the Christmas layers.
 // Path builders only add subpaths (no beginPath), so callers can batch several shapes.
 
 export const TAU = Math.PI * 2;
-
-/**
- * A lighter neon rim for small, distant shapes: soft glow and a slightly whitened core,
- * without the separate hot center (too thin to see at this size, and one stroke cheaper).
- */
-export function thinRim(ctx: Ctx, color: string, width: number): void {
-  ctx.save();
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = alpha(color, 0.22);
-  ctx.lineWidth = width * 3;
-  ctx.stroke();
-  ctx.strokeStyle = mix(color, "#ffffff", 0.3);
-  ctx.lineWidth = width;
-  ctx.stroke();
-  ctx.restore();
-}
 
 /** A five-point star as its own subpath. */
 export function starPath(ctx: Ctx, x: number, y: number, r: number, inner = 0.42): void {
@@ -32,6 +16,16 @@ export function starPath(ctx: Ctx, x: number, y: number, r: number, inner = 0.42
     if (i === 0) ctx.moveTo(px, py);
     else ctx.lineTo(px, py);
   }
+  ctx.closePath();
+}
+
+/** A four-point sparkle (concave diamond) as its own subpath. */
+export function sparklePath(ctx: Ctx, x: number, y: number, r: number): void {
+  ctx.moveTo(x, y - r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.quadraticCurveTo(x, y, x - r, y);
+  ctx.quadraticCurveTo(x, y, x, y - r);
   ctx.closePath();
 }
 
@@ -84,73 +78,111 @@ function moundTop(ctx: Ctx, x: number, y: number, w: number, h: number): void {
   ctx.bezierCurveTo(x + w * 0.34, y - h * 0.82, x + w * 0.42, y - h * 0.5, x + w / 2, y);
 }
 
-/** Snow drift outline: an uneven hump `h` tall whose feet sit at y, with a slight belly below. */
-function moundPath(ctx: Ctx, x: number, y: number, w: number, h: number): void {
+/**
+ * A snow drift planted on the field: an uneven hump `w` wide and `h` tall with its feet at y.
+ * Lit snow on top shading to blue at the feet, inked along its top edge only, so it reads
+ * as part of the snowfield rather than a sticker on it.
+ */
+export function mound(ctx: Ctx, x: number, y: number, w: number, h: number, lw: number): void {
+  ctx.beginPath();
   ctx.moveTo(x - w / 2, y);
   moundTop(ctx, x, y, w, h);
-  ctx.quadraticCurveTo(x, y + h * 0.45, x - w / 2, y);
+  ctx.quadraticCurveTo(x, y + h * 0.6, x - w / 2, y);
   ctx.closePath();
-}
-
-/** Draw snow drifts (x, y, w, h quads): moonlit fill, bright neon crest. */
-export function drawMounds(ctx: Ctx, mounds: readonly number[], lineW: number): void {
-  if (mounds.length === 0) return;
-  let top = Infinity;
-  let bottom = -Infinity;
-  ctx.beginPath();
-  for (let i = 0; i + 3 < mounds.length; i += 4) {
-    const x = mounds[i]!;
-    const y = mounds[i + 1]!;
-    const w = mounds[i + 2]!;
-    const h = mounds[i + 3]!;
-    moundPath(ctx, x, y, w, h);
-    top = Math.min(top, y - h);
-    bottom = Math.max(bottom, y + h * 0.3);
-  }
-  const g = ctx.createLinearGradient(0, top, 0, bottom);
-  g.addColorStop(0, SNOW_LIT);
-  g.addColorStop(0.5, "#5f88c4");
+  const g = ctx.createLinearGradient(0, y - h, 0, y + h * 0.3);
+  g.addColorStop(0, SNOW);
+  g.addColorStop(0.55, SNOW);
   g.addColorStop(1, SNOW_SHADE);
   ctx.fillStyle = g;
   ctx.fill();
-
   ctx.beginPath();
-  for (let i = 0; i + 3 < mounds.length; i += 4) {
-    const x = mounds[i]!;
-    const y = mounds[i + 1]!;
-    const w = mounds[i + 2]!;
-    const h = mounds[i + 3]!;
-    ctx.moveTo(x - w / 2, y);
-    moundTop(ctx, x, y, w, h);
+  ctx.moveTo(x - w / 2, y);
+  moundTop(ctx, x, y, w, h);
+  ink(ctx, lw, INK);
+}
+
+/** Each light color in a few brightness steps, dim to lit, worked out once. */
+const BULB_STEPS = 6;
+const BULB_SHADES = LIGHTS.map((c) =>
+  Array.from({ length: BULB_STEPS }, (_, i) => {
+    const tw = i / (BULB_STEPS - 1);
+    return mix(mix(c, "#ffffff", 0.35 * tw), INK, 0.4 * (1 - tw));
+  }),
+);
+const BULB_GLINT = alpha("#ffffff", 0.85);
+
+/**
+ * Twinkling light bulbs in the Christmas colors. `pts` holds x, y pairs already in screen
+ * space; bulb i takes color i % 4. Each color brightens and dims in turn, so the lights
+ * chase. Flat cartoon bulbs: a faint flat halo when lit, an ink rim and a white glint.
+ */
+export function drawBulbs(ctx: Ctx, pts: readonly number[], r: number, t: number, speed = 3, lw = 1): void {
+  const n = LIGHTS.length;
+  for (let c = 0; c < n; c++) {
+    const color = LIGHTS[c]!;
+    const tw = 0.5 + 0.5 * Math.sin(t * speed - c * (TAU / n));
+    if (tw > 0.45) {
+      ctx.beginPath();
+      for (let i = c * 2; i + 1 < pts.length; i += n * 2) circle(ctx, pts[i]!, pts[i + 1]!, r * 1.9);
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.3 * (tw - 0.45);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.beginPath();
+    for (let i = c * 2; i + 1 < pts.length; i += n * 2) circle(ctx, pts[i]!, pts[i + 1]!, r);
+    ctx.fillStyle = BULB_SHADES[c]![Math.round(tw * (BULB_STEPS - 1))]!;
+    ctx.fill();
   }
-  ctx.save();
-  ctx.globalAlpha = 0.85;
-  neonStroke(ctx, WHITE, lineW, 2.6);
-  ctx.restore();
+  ctx.beginPath();
+  for (let i = 0; i + 1 < pts.length; i += 2) circle(ctx, pts[i]!, pts[i + 1]!, r);
+  ink(ctx, lw, INK);
+  ctx.beginPath();
+  for (let i = 0; i + 1 < pts.length; i += 2) circle(ctx, pts[i]! - r * 0.3, pts[i + 1]! - r * 0.3, r * 0.32);
+  ctx.fillStyle = BULB_GLINT;
+  ctx.fill();
 }
 
 /**
- * Twinkling light bulbs in the four Christmas colors. `pts` holds x, y pairs already in
- * screen space; bulb i takes color i % 4. The colors chase each other over time.
+ * Add a candy cane: shaft from its foot (x, base) up `h`, hook bending toward `dir`
+ * (1 right, -1 left), the whole cane leaning by `tilt` radians (positive leans right).
  */
-export function drawBulbs(ctx: Ctx, pts: readonly number[], r: number, t: number, speed = 3): void {
-  for (let c = 0; c < LIGHTS.length; c++) {
-    const color = LIGHTS[c]!;
-    const tw = 0.55 + 0.45 * Math.sin(t * speed - c * (Math.PI / 2));
-    ctx.beginPath();
-    for (let i = c * 2; i + 1 < pts.length; i += LIGHTS.length * 2) circle(ctx, pts[i]!, pts[i + 1]!, r * 2.6);
-    ctx.fillStyle = alpha(color, 0.12 + 0.2 * tw);
-    ctx.fill();
-    ctx.beginPath();
-    for (let i = c * 2; i + 1 < pts.length; i += LIGHTS.length * 2) circle(ctx, pts[i]!, pts[i + 1]!, r);
-    ctx.fillStyle = color;
-    ctx.globalAlpha = 0.5 + 0.5 * tw;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  // Hot centers on all bulbs at once.
-  ctx.beginPath();
-  for (let i = 0; i + 1 < pts.length; i += 2) circle(ctx, pts[i]!, pts[i + 1]!, r * 0.45);
-  ctx.fillStyle = alpha("#ffffff", 0.75);
-  ctx.fill();
+export function canePath(ctx: Ctx, x: number, base: number, h: number, dir: number, tilt: number): void {
+  const r = h * 0.18;
+  const sin = Math.sin(tilt);
+  const cos = Math.cos(tilt);
+  const top = -h + r;
+  ctx.moveTo(x, base);
+  ctx.lineTo(x - top * sin, base + top * cos);
+  const ax = dir * r;
+  ctx.arc(
+    x + ax * cos - top * sin,
+    base + ax * sin + top * cos,
+    r,
+    (dir > 0 ? Math.PI : 0) + tilt,
+    (dir > 0 ? 0 : Math.PI) + tilt,
+    dir < 0,
+  );
+  const tx = dir * r * 2;
+  const ty = top + r * 0.75;
+  ctx.lineTo(x + tx * cos - ty * sin, base + tx * sin + ty * cos);
+}
+
+/** Reused dash pattern for the cane stripes. */
+const STRIPES = [0, 0];
+
+/** Stroke the current path as an inked candy cane: ink rim, white tube, red stripes. */
+export function caneStroke(ctx: Ctx, w: number, lw: number): void {
+  ctx.save();
+  ink(ctx, w + lw * 2, INK);
+  ctx.strokeStyle = "#fff6f6";
+  ctx.lineWidth = w;
+  ctx.stroke();
+  ctx.lineCap = "butt";
+  STRIPES[0] = w * 0.75;
+  STRIPES[1] = w * 0.75;
+  ctx.setLineDash(STRIPES);
+  ctx.strokeStyle = RED;
+  ctx.stroke();
+  ctx.restore();
 }

@@ -1,44 +1,42 @@
-import { alpha, circle, hash, neonStroke, type Ctx } from "../../base/draw";
+import { alpha, circle, hash, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { GOLD, GREEN, ICE, LAMP, NIGHT, PINE, SNOW, WHITE } from "./colors";
-import { drawBulbs, firOutline, firPath, starPath, thinRim } from "./shapes";
+import { FAR, FAR_BACK, FAR_BACK_SNOW, FAR_LAMP, FAR_SNOW, LIGHTS, SKY_BOTTOM } from "./colors";
+import { firOutline, firPath, starPath } from "./shapes";
+import { sleigh } from "./sky";
 
-// On the horizon: a low line of snowy firs, taller firs framing both edges, and a little
-// village in between — cottages with lit windows, a church spire, and strings of colored
-// lights draped from roof to roof. Everything stands on horizonY.
+// On the horizon, as faded flat silhouettes with no outlines: a low line of snowy firs,
+// taller firs framing both edges behind the cloud bank, and a little village in between —
+// tall gabled houses with lit windows and smoking chimneys, a church spire with a star, and
+// strings of lights between the roofs. Everything stands on horizonY.
 // Village positions are in u from the screen center, framing firs in u from each screen
 // edge (so they are never cut off); heights in u.
 
 const FIR = firOutline(
   [
-    { top: -1, bottom: -0.6, half: 0.17 },
-    { top: -0.74, bottom: -0.34, half: 0.24 },
-    { top: -0.47, bottom: -0.07, half: 0.31 },
+    { top: -1, bottom: -0.7, half: 0.1 },
+    { top: -0.82, bottom: -0.5, half: 0.14 },
+    { top: -0.64, bottom: -0.3, half: 0.18 },
+    { top: -0.46, bottom: -0.1, half: 0.22 },
   ],
-  0.04,
+  0.03,
 );
 
 /** Snow ledges on the lower tiers of FIR: [tier top, tier half width]. */
 const FIR_LEDGES = [
-  [-0.74, 0.24],
-  [-0.47, 0.31],
+  [-0.82, 0.14],
+  [-0.64, 0.18],
+  [-0.46, 0.22],
 ] as const;
 
 /**
- * A cluster of framing firs, measured inward from a screen edge: [distance to the trunk, height]
- * in u. The two shorter firs are drawn first, behind the village; the tall one after it, in
- * front. Firs in the same pass never overlap, so one fir's snow never lands on another, and
- * every fir keeps its whole outline (and glow) on screen.
+ * Framing firs, measured inward from a screen edge: [distance to the trunk, height] in u.
+ * Their tips peek over the cloud bank piled at the sides (more so on wide screens), and they
+ * stay below the moon and the sleigh's path. Each keeps its whole outline on screen.
  */
-const CLUSTER_BACK = [
-  [0.14, 0.155],
-  [0.215, 0.1],
+const FRAMING = [
+  [0.075, 0.3],
+  [0.205, 0.24],
 ] as const;
-const CLUSTER_FRONT = [[0.08, 0.22]] as const;
-/** Width of one cluster in u; wide screens repeat clusters inward toward the village. */
-const CLUSTER_W = 0.25;
-/** Half width of the village in u (clusters may tuck a little behind its end houses). */
-const VILLAGE_HALF = 0.3;
 
 interface House {
   x: number;
@@ -46,18 +44,35 @@ interface House {
   h: number;
   roof: number;
   chimney: number; // -1 left slope, 1 right slope, 0 none
+  rows: number; // rows of windows
 }
 
+/**
+ * Tall gabled houses, taller toward the ends of the village where the clouds pile higher,
+ * so their snowy roofs and top windows always show above the cloud bank.
+ */
 const HOUSES: House[] = [
-  { x: -0.285, w: 0.085, h: 0.045, roof: 0.04, chimney: 1 },
-  { x: -0.17, w: 0.1, h: 0.052, roof: 0.046, chimney: -1 },
-  { x: -0.055, w: 0.075, h: 0.04, roof: 0.036, chimney: 0 },
-  { x: 0.06, w: 0.095, h: 0.056, roof: 0.046, chimney: 1 },
-  { x: 0.165, w: 0.07, h: 0.04, roof: 0.034, chimney: 0 },
+  { x: -0.235, w: 0.075, h: 0.17, roof: 0.05, chimney: 1, rows: 4 },
+  { x: -0.145, w: 0.085, h: 0.13, roof: 0.05, chimney: -1, rows: 3 },
+  { x: -0.055, w: 0.075, h: 0.115, roof: 0.045, chimney: 0, rows: 3 },
+  { x: 0.035, w: 0.08, h: 0.125, roof: 0.05, chimney: 1, rows: 3 },
+  { x: 0.25, w: 0.075, h: 0.175, roof: 0.05, chimney: -1, rows: 4 },
 ];
 const EAVE = 0.012; // roof overhang
 
-const CHURCH = { x: 0.27, w: 0.075, h: 0.055, roof: 0.04, towerW: 0.032, towerH: 0.105, spire: 0.08 };
+const CHURCH = { x: 0.15, w: 0.085, h: 0.13, roof: 0.045, towerW: 0.04, towerH: 0.23, spire: 0.09 };
+
+/** Windows per house, as (x, y) in u relative to (center, horizon), precomputed. */
+const WINDOWS: number[] = (() => {
+  const out: number[] = [];
+  for (const h of HOUSES) {
+    for (let r = 0; r < h.rows; r++) {
+      const y = -h.h + 0.026 + r * 0.036;
+      out.push(h.x - h.w * 0.24, y, h.x + h.w * 0.24, y);
+    }
+  }
+  return out;
+})();
 
 /**
  * Strings of lights draped from roof to roof and on to the church tower, precomputed in u
@@ -68,14 +83,15 @@ const { WIRES, BULBS } = (() => {
   const wires: number[] = [];
   const bulbs: number[] = [];
   const anchors: [number, number][] = HOUSES.map((h) => [h.x, -(h.h + h.roof)]);
-  anchors.push([CHURCH.x - CHURCH.towerW / 2, -(CHURCH.towerH * 0.62)]);
+  anchors.push([CHURCH.x - CHURCH.w / 2 + CHURCH.towerW / 2, -(CHURCH.towerH * 0.8)]);
+  anchors.sort((a, b) => a[0] - b[0]);
   for (let i = 0; i + 1 < anchors.length; i++) {
     const [ax, ay] = anchors[i]!;
     const [bx, by] = anchors[i + 1]!;
     const cx = (ax + bx) / 2;
-    const cy = Math.max(ay, by) + 0.028 + 0.012 * hash(i + 40);
+    const cy = Math.max(ay, by) + 0.03 + 0.012 * hash(i + 40);
     wires.push(ax, ay, cx, cy, bx, by);
-    const n = Math.max(3, Math.round(Math.hypot(bx - ax, by - ay) / 0.017));
+    const n = Math.max(3, Math.round(Math.hypot(bx - ax, by - ay) / 0.016));
     for (let k = 1; k < n; k++) {
       const t = k / n;
       bulbs.push(
@@ -87,19 +103,24 @@ const { WIRES, BULBS } = (() => {
   return { WIRES: wires, BULBS: bulbs };
 })();
 
-/** Reused screen-space buffer for bulbs. */
-const bulbBuf: number[] = [];
+/** Faded versions of the light colors: lit and dim. */
+const FAR_LIGHTS = LIGHTS.map((c) => mix(c, FAR, 0.25));
+const FAR_LIGHTS_DIM = FAR_LIGHTS.map((c) => mix(c, FAR, 0.6));
+const SPIRE_STAR = FAR_LAMP;
+const SPIRE_STAR_LIT = mix(FAR_LAMP, "#ffffff", 0.35);
+const SMOKE = alpha(mix(FAR, SKY_BOTTOM, 0.6), 0.6);
+const WIRE = alpha(FAR_SNOW, 0.6);
 
 /** Height of back-row fir i (taller toward the screen edges). */
 function backFirHeight(s: Scene, i: number, step: number): number {
-  const side = Math.min(1, Math.abs(i * step) / (s.u * 0.5));
-  return s.u * (0.028 + 0.034 * hash(i + 700)) * (1 + 0.5 * side * side);
+  const side = Math.min(1, Math.abs(i * step) / (s.cssW * 0.5));
+  return s.u * (0.1 + 0.05 * hash(i + 700)) * (1 + 1.25 * side * side);
 }
 
 /** A low, dense line of distant firs across the whole horizon, tipped with snow. */
 function backForest(ctx: Ctx, s: Scene, hy: number): void {
   const cx = s.cssW / 2;
-  const step = s.u * 0.026;
+  const step = s.u * 0.03;
   const n = Math.ceil(cx / step) + 2;
   ctx.beginPath();
   ctx.moveTo(-4, hy);
@@ -107,32 +128,33 @@ function backForest(ctx: Ctx, s: Scene, hy: number): void {
   for (let i = -n; i <= n; i++) {
     const h = backFirHeight(s, i, step);
     const x = cx + i * step + (hash(i + 900) - 0.5) * step * 0.4;
-    ctx.lineTo(x - step * 0.5, hy - Math.min(prev, h) * 0.18);
-    ctx.lineTo(x - h * 0.14, hy - h * 0.55);
-    ctx.lineTo(x - h * 0.07, hy - h * 0.6);
+    ctx.lineTo(x - step * 0.5, hy - Math.min(prev, h) * 0.2);
+    ctx.lineTo(x - h * 0.17, hy - h * 0.3);
+    ctx.lineTo(x - h * 0.08, hy - h * 0.36);
+    ctx.lineTo(x - h * 0.13, hy - h * 0.58);
+    ctx.lineTo(x - h * 0.05, hy - h * 0.62);
     ctx.lineTo(x, hy - h);
-    ctx.lineTo(x + h * 0.07, hy - h * 0.6);
-    ctx.lineTo(x + h * 0.14, hy - h * 0.55);
+    ctx.lineTo(x + h * 0.05, hy - h * 0.62);
+    ctx.lineTo(x + h * 0.13, hy - h * 0.58);
+    ctx.lineTo(x + h * 0.08, hy - h * 0.36);
+    ctx.lineTo(x + h * 0.17, hy - h * 0.3);
     prev = h;
   }
   ctx.lineTo(s.cssW + 4, hy);
   ctx.closePath();
-  ctx.fillStyle = "#0a1636";
+  ctx.fillStyle = FAR_BACK;
   ctx.fill();
-  ctx.strokeStyle = alpha(GREEN, 0.4);
-  ctx.lineWidth = Math.max(1, s.u * 0.0025);
-  ctx.stroke();
 
   ctx.beginPath();
   for (let i = -n; i <= n; i++) {
     const h = backFirHeight(s, i, step);
     const x = cx + i * step + (hash(i + 900) - 0.5) * step * 0.4;
     ctx.moveTo(x, hy - h);
-    ctx.lineTo(x + h * 0.08, hy - h * 0.72);
-    ctx.lineTo(x - h * 0.08, hy - h * 0.72);
+    ctx.lineTo(x + h * 0.07, hy - h * 0.74);
+    ctx.lineTo(x - h * 0.07, hy - h * 0.74);
     ctx.closePath();
   }
-  ctx.fillStyle = alpha(SNOW, 0.7);
+  ctx.fillStyle = FAR_BACK_SNOW;
   ctx.fill();
 }
 
@@ -140,63 +162,42 @@ function backForest(ctx: Ctx, s: Scene, hy: number): void {
 function firSnow(ctx: Ctx, x: number, hy: number, h: number): void {
   const y = hy - h;
   ctx.moveTo(x, y - h * 0.01);
-  ctx.lineTo(x + h * 0.09, y + h * 0.2);
-  ctx.lineTo(x + h * 0.03, y + h * 0.17);
-  ctx.lineTo(x - h * 0.02, y + h * 0.22);
-  ctx.lineTo(x - h * 0.09, y + h * 0.2);
+  ctx.lineTo(x + h * 0.06, y + h * 0.17);
+  ctx.lineTo(x + h * 0.02, y + h * 0.14);
+  ctx.lineTo(x - h * 0.015, y + h * 0.18);
+  ctx.lineTo(x - h * 0.06, y + h * 0.17);
   ctx.closePath();
   for (const [top, half] of FIR_LEDGES) {
     // Just under the notch above, along each outer slope.
-    const y0 = hy + (top + 0.12) * h;
+    const y0 = hy + (top + 0.1) * h;
     const x0 = half * 0.3 * h;
-    const x1 = half * 0.8 * h;
-    const y1 = hy + (top + 0.32) * h;
+    const x1 = half * 0.88 * h;
+    const y1 = hy + (top + 0.29) * h;
     for (let dir = -1; dir <= 1; dir += 2) {
       ctx.moveTo(x + dir * x0, y0);
       ctx.lineTo(x + dir * x1, y1);
-      ctx.lineTo(x + dir * x1 * 0.92, y1 + h * 0.045);
-      ctx.lineTo(x + dir * x0 * 0.9, y0 + h * 0.05);
+      ctx.lineTo(x + dir * x1 * 0.9, y1 + h * 0.035);
+      ctx.lineTo(x + dir * x0 * 0.9, y0 + h * 0.04);
       ctx.closePath();
     }
   }
 }
 
-/** How many fir clusters fit on each side: one at the edge, more inward on wide screens. */
-function clusterCount(s: Scene): number {
-  const room = s.cssW / 2 / s.u - VILLAGE_HALF;
-  return Math.max(1, Math.floor(room / CLUSTER_W));
-}
-
-/**
- * One pass of snowy framing firs (a cluster's back or front firs) mirrored on both edges:
- * silhouettes with a green rim, then their snow caps and ledges.
- */
-function firs(ctx: Ctx, s: Scene, hy: number, cluster: readonly (readonly [number, number])[]): void {
-  const n = clusterCount(s);
+/** Snowy firs mirrored on both edges, peeking over the cloud bank. */
+function framingFirs(ctx: Ctx, s: Scene, hy: number): void {
   ctx.beginPath();
-  for (let k = 0; k < n; k++) {
-    // Inner clusters vary a little in height so the repeats don't read as copies.
-    const scale = k === 0 ? 1 : 0.85 + 0.2 * hash(k + 300);
-    for (const [d, h] of cluster) {
-      const off = (k * CLUSTER_W + d) * s.u;
-      firPath(ctx, FIR, off, hy, h * scale * s.u);
-      firPath(ctx, FIR, s.cssW - off, hy, h * scale * s.u);
-    }
+  for (const [d, h] of FRAMING) {
+    firPath(ctx, FIR, d * s.u, hy, h * s.u);
+    firPath(ctx, FIR, s.cssW - d * s.u, hy, h * s.u);
   }
-  thinRim(ctx, GREEN, Math.max(1, s.u * 0.0035));
-  ctx.fillStyle = PINE;
+  ctx.fillStyle = FAR;
   ctx.fill();
-
   ctx.beginPath();
-  for (let k = 0; k < n; k++) {
-    const scale = k === 0 ? 1 : 0.85 + 0.2 * hash(k + 300);
-    for (const [d, h] of cluster) {
-      const off = (k * CLUSTER_W + d) * s.u;
-      firSnow(ctx, off, hy, h * scale * s.u);
-      firSnow(ctx, s.cssW - off, hy, h * scale * s.u);
-    }
+  for (const [d, h] of FRAMING) {
+    firSnow(ctx, d * s.u, hy, h * s.u);
+    firSnow(ctx, s.cssW - d * s.u, hy, h * s.u);
   }
-  ctx.fillStyle = SNOW;
+  ctx.fillStyle = FAR_SNOW;
   ctx.fill();
 }
 
@@ -211,7 +212,7 @@ function housePath(ctx: Ctx, x: number, hy: number, w: number, h: number, roof: 
   ctx.closePath();
 }
 
-/** Snow lying on a pitched roof, with a few drips along the eaves. */
+/** Snow lying on a pitched roof, with a few soft drips along the eaves. */
 function roofSnow(ctx: Ctx, x: number, hy: number, w: number, h: number, roof: number, eave: number, t: number): void {
   const l = x - w / 2 - eave * 1.3;
   const r = x + w / 2 + eave * 1.3;
@@ -231,7 +232,7 @@ function roofSnow(ctx: Ctx, x: number, hy: number, w: number, h: number, roof: n
   ctx.closePath();
 }
 
-/** Cottages and a church with lit windows, snowy roofs and strings of lights. */
+/** Cottages and a church with lit windows, snowy roofs, chimney smoke and strings of lights. */
 function village(ctx: Ctx, s: Scene, hy: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
@@ -241,7 +242,23 @@ function village(ctx: Ctx, s: Scene, hy: number): void {
   const tx = chx - c.w * 0.5 * u + c.towerW * 0.5 * u; // tower stands at the nave's left end
   const towerTop = hy - c.towerH * u;
 
-  // Silhouettes: cottages (ice rim), church (gold rim).
+  // Chimney smoke: puffs rising, swelling and fading.
+  ctx.beginPath();
+  for (let i = 0; i < HOUSES.length; i++) {
+    const h = HOUSES[i]!;
+    if (!h.chimney) continue;
+    const x0 = cx + (h.x + h.chimney * h.w * 0.25) * u;
+    const y0 = hy - (h.h + h.roof * 0.95) * u;
+    for (let k = 0; k < 4; k++) {
+      const p = (s.t * 0.18 + k / 4 + hash(i + 60)) % 1;
+      const r = u * (0.005 + 0.008 * p);
+      circle(ctx, x0 + Math.sin(p * 4 + i) * u * 0.005 + p * u * 0.02, y0 - u * 0.006 - p * u * 0.06, r);
+    }
+  }
+  ctx.fillStyle = SMOKE;
+  ctx.fill();
+
+  // Silhouettes: houses, chimneys, the church nave, tower and spire.
   ctx.beginPath();
   for (const h of HOUSES) {
     const x = cx + h.x * u;
@@ -251,128 +268,78 @@ function village(ctx: Ctx, s: Scene, hy: number): void {
       ctx.rect(chimX - 0.008 * u, hy - (h.h + h.roof * 0.95) * u, 0.016 * u, h.roof * 0.6 * u);
     }
   }
-  thinRim(ctx, ICE, Math.max(1, u * 0.0035));
-  ctx.fillStyle = NIGHT;
-  ctx.fill();
-
-  ctx.beginPath();
   housePath(ctx, chx + c.towerW * 0.4 * u, hy, (c.w - c.towerW * 0.2) * u, c.h * u, c.roof * u, eave);
   ctx.rect(tx - c.towerW * 0.5 * u, towerTop, c.towerW * u, c.towerH * u);
   ctx.moveTo(tx - c.towerW * 0.62 * u, towerTop);
   ctx.lineTo(tx, towerTop - c.spire * u);
   ctx.lineTo(tx + c.towerW * 0.62 * u, towerTop);
   ctx.closePath();
-  thinRim(ctx, GOLD, Math.max(1, u * 0.004));
-  ctx.fillStyle = NIGHT;
+  ctx.fillStyle = FAR;
   ctx.fill();
 
-  // Snow on the roofs
+  // Snow on the roofs and the tower's ledge
   const snowT = u * 0.008;
   ctx.beginPath();
   for (const h of HOUSES) roofSnow(ctx, cx + h.x * u, hy, h.w * u, h.h * u, h.roof * u, eave, snowT);
   roofSnow(ctx, chx + c.towerW * 0.4 * u, hy, (c.w - c.towerW * 0.2) * u, c.h * u, c.roof * u, eave, snowT);
-  ctx.fillStyle = SNOW;
+  ctx.rect(tx - c.towerW * 0.62 * u, towerTop - snowT * 0.6, c.towerW * 1.24 * u, snowT * 0.9);
+  ctx.fillStyle = FAR_SNOW;
   ctx.fill();
 
-  // Lit windows: a warm halo, then the panes.
-  const ww = u * 0.016;
+  // Lit windows; now and then one goes dark for a while.
+  const ww = u * 0.015;
   const wh = u * 0.018;
   ctx.beginPath();
-  for (let i = 0; i < HOUSES.length; i++) {
-    const h = HOUSES[i]!;
-    const x = cx + h.x * u;
-    const y = hy - h.h * u * 0.62;
-    if (h.w > 0.08) {
-      ctx.rect(x - h.w * u * 0.27 - ww / 2, y - wh / 2, ww, wh);
-      ctx.rect(x + h.w * u * 0.27 - ww / 2, y - wh / 2, ww, wh);
-    } else {
-      ctx.rect(x - ww / 2 + (i % 2 ? -1 : 1) * h.w * u * 0.2, y - wh / 2, ww, wh);
-    }
+  for (let i = 0; i + 1 < WINDOWS.length; i += 2) {
+    if (Math.sin(s.t * 0.35 + hash(i + 70) * 40) < -0.85) continue;
+    ctx.rect(cx + WINDOWS[i]! * u - ww / 2, hy + WINDOWS[i + 1]! * u - wh / 2, ww, wh);
   }
-  // Church: arched windows along the nave and a round window in the tower.
+  // Church: tall windows along the nave and a round window in the tower.
   for (let k = 0; k < 2; k++) {
-    const x = chx + (0.006 + k * 0.022) * u;
-    ctx.rect(x, hy - c.h * u * 0.75, u * 0.009, u * 0.024);
+    ctx.rect(chx + (0.008 + k * 0.022) * u, hy - c.h * u * 0.8, u * 0.01, u * 0.03);
   }
-  ctx.save();
-  ctx.lineWidth = u * 0.012;
-  ctx.strokeStyle = alpha(LAMP, 0.18);
-  ctx.lineJoin = "round";
-  ctx.stroke();
-  ctx.restore();
-  ctx.fillStyle = LAMP;
+  circle(ctx, tx, hy - c.towerH * u * 0.72, u * 0.01);
+  ctx.fillStyle = FAR_LAMP;
   ctx.fill();
 
+  // Star on the spire, twinkling.
+  const tw = 0.5 + 0.5 * Math.sin(s.t * 2.4);
+  const sy = towerTop - c.spire * u - u * 0.014;
   ctx.beginPath();
-  circle(ctx, tx, hy - c.towerH * u * 0.72, u * 0.009);
-  ctx.fillStyle = alpha("#ff5fb0", 0.9);
-  ctx.fill();
-  ctx.strokeStyle = GOLD;
-  ctx.lineWidth = Math.max(1, u * 0.0025);
-  ctx.stroke();
-
-  // Doors
-  ctx.beginPath();
-  for (const h of HOUSES) {
-    if (h.w <= 0.08) continue;
-    const x = cx + h.x * u;
-    ctx.rect(x - u * 0.008, hy - u * 0.024, u * 0.016, u * 0.024);
-  }
-  ctx.rect(tx - u * 0.008, hy - u * 0.026, u * 0.016, u * 0.026);
-  ctx.fillStyle = alpha(GOLD, 0.35);
+  starPath(ctx, tx, sy, u * (0.013 + 0.003 * tw), 0.45);
+  ctx.fillStyle = tw > 0.5 ? SPIRE_STAR_LIT : SPIRE_STAR;
   ctx.fill();
 
-  // Star on the spire
-  const sy = towerTop - c.spire * u - u * 0.012;
-  const tw = 0.7 + 0.3 * Math.sin(s.t * 2.4);
-  const halo = ctx.createRadialGradient(tx, sy, 0, tx, sy, u * 0.05);
-  halo.addColorStop(0, alpha(GOLD, 0.55 * tw));
-  halo.addColorStop(1, alpha(GOLD, 0));
-  ctx.fillStyle = halo;
-  ctx.fillRect(tx - u * 0.05, sy - u * 0.05, u * 0.1, u * 0.1);
-  ctx.beginPath();
-  starPath(ctx, tx, sy, u * 0.014, 0.45);
-  ctx.fillStyle = "#fff3c4";
-  ctx.fill();
-  neonStroke(ctx, GOLD, Math.max(0.8, u * 0.0022), 2.6);
-
-  // Strings of lights between the roofs
+  // Strings of lights between the roofs: a faint wire, bulbs taking turns to shine.
   ctx.beginPath();
   for (let i = 0; i + 5 < WIRES.length; i += 6) {
     ctx.moveTo(cx + WIRES[i]! * u, hy + WIRES[i + 1]! * u);
     ctx.quadraticCurveTo(cx + WIRES[i + 2]! * u, hy + WIRES[i + 3]! * u, cx + WIRES[i + 4]! * u, hy + WIRES[i + 5]! * u);
   }
-  ctx.strokeStyle = alpha(WHITE, 0.3);
-  ctx.lineWidth = Math.max(0.8, u * 0.0018);
+  ctx.strokeStyle = WIRE;
+  ctx.lineWidth = Math.max(0.8, u * 0.002);
   ctx.stroke();
-  bulbBuf.length = 0;
-  for (let i = 0; i + 1 < BULBS.length; i += 2) bulbBuf.push(cx + BULBS[i]! * u, hy + BULBS[i + 1]! * u);
-  drawBulbs(ctx, bulbBuf, Math.max(1, u * 0.0042), s.t, 3.2);
-}
-
-/** A low bank of snow along the foot of the horizon, so nothing looks pasted on. */
-function snowBank(ctx: Ctx, s: Scene, hy: number): void {
-  const step = s.u * 0.05;
-  const n = Math.ceil(s.cssW / step) + 1;
-  ctx.beginPath();
-  ctx.moveTo(-4, hy + 1);
-  for (let i = 0; i <= n; i++) {
-    const x = i * step;
-    const h = s.u * (0.006 + 0.008 * hash(i + 1200));
-    ctx.quadraticCurveTo(x - step / 2, hy - h * 1.6, x, hy - h * 0.3);
+  const r = Math.max(1, u * 0.0042);
+  for (let c4 = 0; c4 < FAR_LIGHTS.length; c4++) {
+    const lit = Math.sin(s.t * 3 - c4 * (Math.PI / 2)) > -0.3;
+    ctx.beginPath();
+    for (let i = c4 * 2; i + 1 < BULBS.length; i += FAR_LIGHTS.length * 2) circle(ctx, cx + BULBS[i]! * u, hy + BULBS[i + 1]! * u, r);
+    ctx.fillStyle = lit ? FAR_LIGHTS[c4]! : FAR_LIGHTS_DIM[c4]!;
+    ctx.fill();
   }
-  ctx.lineTo(s.cssW + 4, hy + 1);
-  ctx.closePath();
-  ctx.fillStyle = alpha(SNOW, 0.85);
-  ctx.fill();
 }
 
+/**
+ * The horizon, then Santa's sleigh: it flies in front of the distant village (so a tall
+ * spire never cuts through it on wide screens) but behind the cloud bank, which it seems
+ * to fly out of at the screen's edge.
+ */
 export function far(ctx: Ctx, s: Scene): void {
   const hy = s.horizonY;
-  if (hy - s.u * 0.3 > s.cssH) return;
-  backForest(ctx, s, hy);
-  firs(ctx, s, hy, CLUSTER_BACK);
-  village(ctx, s, hy);
-  firs(ctx, s, hy, CLUSTER_FRONT);
-  snowBank(ctx, s, hy);
+  if (hy - s.u * 0.55 <= s.cssH) {
+    backForest(ctx, s, hy);
+    framingFirs(ctx, s, hy);
+    village(ctx, s, hy);
+  }
+  sleigh(ctx, s);
 }

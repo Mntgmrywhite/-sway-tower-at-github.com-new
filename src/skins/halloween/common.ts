@@ -1,53 +1,76 @@
-import { alpha, type Ctx } from "../../base/draw";
-import type { Scene } from "../skin";
+import { fieldY, TOWER_DEPTH } from "../../base/world";
+import type { Palette, Scene } from "../skin";
 
 // Colors and small helpers shared by the Halloween layers.
 
-/** Silhouette fill: almost black, a touch of purple so it separates from pure-black shadows. */
-export const INK = "#0a0412";
-export const ORANGE = "#ff7a1a";
-export const AMBER = "#ffb21f";
-export const CANDLE = "#ffe27a";
-export const GREEN = "#6dff3a";
-export const VIOLET = "#a24bff";
-export const LAVENDER = "#c79bff";
-export const BONE = "#f3eddc";
+/** The skin's palette, kept here so every layer reads the same ink and distance colors. */
+export const PALETTE: Palette = {
+  skyTop: "#3a2a86",
+  skyMid: "#6d52c4",
+  skyBottom: "#b394ec",
+  star: "#fff6dc",
+  moon: "#fff3d2",
+  cloudShadow: "#3f9fb0",
+  cloudBase: "#5cc6bf",
+  cloudLight: "#90ecd8",
+  far: "#5e48aa",
+  fieldFar: "#5f9a7e",
+  fieldNear: "#3b6c58",
+  grass: "#a2cc48",
+  grassDark: "#668f2c",
+  stone: "#6a6290",
+  stoneLight: "#8279ab",
+  ink: "#2a1f3d",
+};
 
-/** Standard neon rim width for props. */
-export function rimW(s: Scene): number {
-  return Math.max(1.1, s.u * 0.0038);
+export const INK = PALETTE.ink;
+
+/** Witches and bats against the sky: faded like the town, a shade darker so they read. */
+export const FLYER = "#47378f";
+
+export const ORANGE = "#ff9a2e";
+export const ORANGE_LIGHT = "#ffc06a";
+export const ORANGE_DARK = "#d8681a";
+export const STEM = "#6f8f2c";
+export const CARVED = "#9a3a10";
+export const CANDLE = "#ffe46b";
+export const CANDLE_HOT = "#fff7c2";
+
+export const BONE = "#f6f0dc";
+export const BONE_SHADE = "#d6cbb0";
+
+export const STONE = "#aca8cc";
+export const STONE_LIGHT = "#d0cdea";
+export const STONE_SHADE = "#8a85ae";
+export const STONE_CUT = "#6c6792";
+
+export const MOSS = "#8cc04a";
+export const MOSS_DARK = "#5f9230";
+
+export const DIRT = "#7c5641";
+export const DIRT_LIGHT = "#9c7253";
+export const DIRT_DARK = "#5a3b2e";
+export const HOLE = "#2e1e2a";
+
+export const GRASS = PALETTE.grass;
+
+/** Ink width for a prop drawn at perspective scale `k` (1 on the tower's line). */
+export function inkW(s: Scene, k = 1): number {
+  return Math.max(1.2, s.u * 0.0056 * Math.sqrt(k));
 }
 
-/** Scratch point for `floor()`, reused so nothing allocates per frame. */
-export const P = { x: 0, y: 0 };
+/** Scratch point for `spot()`, reused so placing props allocates nothing per frame. */
+const P = { x: 0, y: 0, k: 1 };
 
 /**
- * Project a spot on the neon floor to the screen, matching the base grid's perspective.
- * `X` is the sideways offset from the tower's center at the tower's depth, in units of u;
- * `z` is depth, where 3 is the tower's own line, bigger is farther back, smaller is closer.
- * Closer rows sit lower on screen and slide away faster as the camera climbs.
+ * A spot on the field. `X` is the sideways offset from the tower's center measured at the
+ * tower's depth, in units of u; `z` is depth (TOWER_DEPTH is the tower's own line, bigger is
+ * farther back, smaller is closer). `k` is the perspective scale for anything standing there.
  */
-export function floor(s: Scene, X: number, z: number): typeof P {
-  const k = 3 / z;
+export function spot(s: Scene, X: number, z: number): typeof P {
+  const k = TOWER_DEPTH / z;
   P.x = s.cssW / 2 + X * s.u * k;
-  P.y = s.horizonY + (s.groundY - s.horizonY) * k;
+  P.y = fieldY(s, z);
+  P.k = k;
   return P;
-}
-
-/**
- * Stroke the current path as a bone: neon edge glow, colored edge, bone-white core.
- * `width` is the bone's own width; `edge` the rim around it.
- */
-export function boneStroke(ctx: Ctx, width: number, edge: number, rim: string): void {
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.strokeStyle = alpha(rim, 0.22);
-  ctx.lineWidth = width + edge * 5;
-  ctx.stroke();
-  ctx.strokeStyle = rim;
-  ctx.lineWidth = width + edge * 2;
-  ctx.stroke();
-  ctx.strokeStyle = BONE;
-  ctx.lineWidth = width;
-  ctx.stroke();
 }

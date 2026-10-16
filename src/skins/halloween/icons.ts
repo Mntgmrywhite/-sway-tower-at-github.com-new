@@ -1,11 +1,11 @@
 import { circle, oval, type Ctx } from "../../base/draw";
 import type { Icon } from "../skin";
 
-// Neon line icons for the Halloween bars. Each draws one symbol centered at (cx, cy), about
-// `s` pixels tall, with the caller's stroke/fill style. In play `s` is only ~13 px, so the
-// shapes stay bold and simple; every dot, eye and fang is its own subpath (circle/oval or a
-// moveTo + closePath) so nothing joins up. No arrays are allocated: these run hundreds of
-// times a frame.
+// Inked icons for the Halloween bars. Each draws one symbol centered at (cx, cy), about `s`
+// pixels tall, with the caller's ink stroke/fill style. In play `s` is only ~12 px, so the
+// shapes stay bold and simple, and solid silhouettes (hat, bat) are filled; every dot, eye and
+// fang is its own subpath (circle/oval or a moveTo + closePath) so nothing joins up. No
+// arrays are allocated: these run hundreds of times a frame.
 
 function eyeTriangle(ctx: Ctx, x: number, y: number, w: number, h: number): void {
   ctx.moveTo(x - w, y);
@@ -33,19 +33,16 @@ export const pumpkin: Icon = (ctx, cx, cy, s) => {
 
 export const witchHat: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
-  // Brim
-  ctx.moveTo(cx - s * 0.58, cy + s * 0.33);
-  ctx.quadraticCurveTo(cx, cy + s * 0.52, cx + s * 0.58, cy + s * 0.33);
   // Cone, its tip flopping over to the right
-  ctx.moveTo(cx - s * 0.3, cy + s * 0.35);
-  ctx.lineTo(cx - s * 0.1, cy - s * 0.16);
-  ctx.quadraticCurveTo(cx - s * 0.02, cy - s * 0.44, cx + s * 0.36, cy - s * 0.46);
-  ctx.quadraticCurveTo(cx + s * 0.1, cy - s * 0.3, cx + s * 0.12, cy - s * 0.1);
-  ctx.lineTo(cx + s * 0.3, cy + s * 0.35);
-  // Band
-  ctx.moveTo(cx - s * 0.25, cy + s * 0.18);
-  ctx.lineTo(cx + s * 0.25, cy + s * 0.18);
-  ctx.stroke();
+  ctx.moveTo(cx - s * 0.32, cy + s * 0.3);
+  ctx.lineTo(cx - s * 0.12, cy - s * 0.16);
+  ctx.quadraticCurveTo(cx - s * 0.04, cy - s * 0.46, cx + s * 0.38, cy - s * 0.48);
+  ctx.quadraticCurveTo(cx + s * 0.12, cy - s * 0.3, cx + s * 0.14, cy - s * 0.1);
+  ctx.lineTo(cx + s * 0.32, cy + s * 0.3);
+  ctx.closePath();
+  // Brim
+  oval(ctx, cx, cy + s * 0.33, s * 0.6, s * 0.11);
+  ctx.fill();
 };
 
 export const candyCorn: Icon = (ctx, cx, cy, s) => {
@@ -93,12 +90,16 @@ export const bat: Icon = (ctx, cx, cy, s) => {
   ctx.quadraticCurveTo(cx + w * 0.75, cy + s * 0.05, cx + w, cy - s * 0.15);
   ctx.quadraticCurveTo(cx + w * 0.5, cy - s * 0.42, cx, cy - s * 0.12);
   ctx.closePath();
-  // Ears
-  ctx.moveTo(cx - s * 0.1, cy - s * 0.1);
-  ctx.lineTo(cx - s * 0.14, cy - s * 0.34);
-  ctx.moveTo(cx + s * 0.1, cy - s * 0.1);
-  ctx.lineTo(cx + s * 0.14, cy - s * 0.34);
-  ctx.stroke();
+  // Ears, wound the same way as the wings so the overlap stays solid
+  ctx.moveTo(cx - s * 0.13, cy - s * 0.06);
+  ctx.lineTo(cx - s * 0.02, cy - s * 0.12);
+  ctx.lineTo(cx - s * 0.15, cy - s * 0.36);
+  ctx.closePath();
+  ctx.moveTo(cx + s * 0.13, cy - s * 0.06);
+  ctx.lineTo(cx + s * 0.15, cy - s * 0.36);
+  ctx.lineTo(cx + s * 0.02, cy - s * 0.12);
+  ctx.closePath();
+  ctx.fill();
 };
 
 export const tombstone: Icon = (ctx, cx, cy, s) => {
@@ -194,29 +195,33 @@ export const fangs: Icon = (ctx, cx, cy, s) => {
   ctx.fill();
 };
 
+// Spider legs for the right side, in units of s from the body: knee x, knee y, foot x, foot y.
+// Spread top to bottom so the legs fan out and never cross.
+const LEGS = [
+  [0.26, -0.36, 0.44, -0.16],
+  [0.36, -0.14, 0.54, 0.0],
+  [0.36, 0.08, 0.52, 0.24],
+  [0.26, 0.28, 0.38, 0.46],
+] as const;
+
 export const spider: Icon = (ctx, cx, cy, s) => {
-  const by = cy + s * 0.04;
+  const by = cy + s * 0.02;
   ctx.beginPath();
   // Thread
-  ctx.moveTo(cx, cy - s * 0.58);
-  ctx.lineTo(cx, by - s * 0.14);
-  // Four legs a side: the front pair reach up, the back pair bend down.
+  ctx.moveTo(cx, cy - s * 0.6);
+  ctx.lineTo(cx, by - s * 0.12);
   for (let side = -1; side <= 1; side += 2) {
-    for (let i = 0; i < 4; i++) {
-      const rootY = by - s * 0.06 + i * s * 0.06;
-      const kneeX = cx + side * s * (0.27 + (i === 1 || i === 2 ? 0.06 : 0));
-      const kneeY = by - s * (0.3 - i * 0.14);
-      const footX = cx + side * s * (0.5 - (i === 3 ? 0.08 : 0));
-      const footY = by - s * (0.12 - i * 0.16);
-      ctx.moveTo(cx + side * s * 0.08, rootY);
-      ctx.lineTo(kneeX, kneeY);
-      ctx.lineTo(footX, footY);
+    for (let i = 0; i < LEGS.length; i++) {
+      const [kx, ky, fx, fy] = LEGS[i]!;
+      ctx.moveTo(cx + side * s * 0.06, by + (i - 1.5) * s * 0.05);
+      ctx.lineTo(cx + side * s * kx, by + s * ky);
+      ctx.lineTo(cx + side * s * fx, by + s * fy);
     }
   }
   ctx.stroke();
   ctx.beginPath();
   circle(ctx, cx, by - s * 0.06, s * 0.11);
-  circle(ctx, cx, by + s * 0.17, s * 0.17);
+  circle(ctx, cx, by + s * 0.15, s * 0.16);
   ctx.fill();
 };
 

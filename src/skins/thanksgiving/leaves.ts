@@ -1,25 +1,22 @@
 import { mix, type Ctx } from "../../base/draw";
+import { INK } from "./colors";
 
 // Leaf outlines shared by the sky drift, the leaf litter on the floor and the maple-leaf bar icon.
 // Unit space: about 1 tall, centered, tip up (-y), stem down (+y). Flat [x, y, x, y, ...] arrays,
 // built once at load so drawing a leaf allocates nothing.
 
-/** Maple: 5 lobes with teeth, as (degrees clockwise from up, radius) for the right half. */
+/** Maple: 5 lobes with a few bold teeth, as (degrees clockwise from up, radius) for the right half. */
 const MAPLE_HALF: readonly [number, number][] = [
-  [0, 0.52],
-  [13, 0.3],
-  [21, 0.36],
-  [36, 0.16],
-  [48, 0.33],
-  [56, 0.29],
-  [66, 0.49],
-  [77, 0.3],
-  [86, 0.34],
-  [100, 0.19],
-  [113, 0.14],
-  [126, 0.3],
-  [143, 0.15],
-  [166, 0.1],
+  [0, 0.53],
+  [15, 0.27],
+  [27, 0.35],
+  [39, 0.21],
+  [62, 0.49],
+  [80, 0.27],
+  [95, 0.31],
+  [112, 0.15],
+  [131, 0.29],
+  [158, 0.1],
 ];
 
 function mapleOutline(): number[] {
@@ -59,12 +56,15 @@ function oakOutline(): number[] {
   return out;
 }
 
-/** Autumn neons shared by the drifting leaves and the leaf litter, with their dark silhouette fills. */
-export const LEAF_COLORS = ["#ffb02e", "#ff6a1a", "#ff2e4a", "#ffd84a"] as const;
-export const LEAF_FILLS = LEAF_COLORS.map((c) => mix(c, "#000000", 0.7));
+/**
+ * Autumn leaf colors shared by the drifting leaves and the leaf litter: bright fills (the face
+ * you see) and a deeper shade for the back, shown when a tumbling leaf flips over.
+ */
+export const LEAF_COLORS = ["#ff9a2a", "#f2483a", "#ffcf33", "#d9692a"] as const;
+export const LEAF_BACKS = LEAF_COLORS.map((c) => mix(c, INK, 0.22));
 
 export const MAPLE = mapleOutline();
-export const OAK = oakOutline();
+const OAK = oakOutline();
 /** Midrib + stem for each shape: x0, y0 (stem end), x1, y1 (rib end). */
 const MAPLE_RIB = [0, 0.44, 0, -0.3] as const;
 const OAK_RIB = [0, 0.46, 0, -0.38] as const;
@@ -72,7 +72,8 @@ const OAK_RIB = [0, 0.46, 0, -0.38] as const;
 /**
  * Add one leaf to the current path as its own closed subpath plus an open midrib.
  * `flip` scales across the leaf (negative mirrors it; near 0 it is edge-on, for tumbling),
- * `squash` flattens it vertically after rotating (for leaves lying on the floor).
+ * `squash` flattens it vertically after rotating (for leaves lying on the field); `rib` adds the
+ * midrib and stem (skip it on small leaves, where it only darkens them).
  */
 export function addLeaf(
   ctx: Ctx,
@@ -83,9 +84,9 @@ export function addLeaf(
   angle: number,
   flip: number,
   squash = 1,
+  rib = true,
 ): void {
   const pts = oak ? OAK : MAPLE;
-  const rib = oak ? OAK_RIB : MAPLE_RIB;
   const c = Math.cos(angle) * size;
   const sn = Math.sin(angle) * size;
   for (let i = 0; i < pts.length; i += 2) {
@@ -97,6 +98,8 @@ export function addLeaf(
     else ctx.lineTo(X, Y);
   }
   ctx.closePath();
-  ctx.moveTo(x - rib[1] * sn, y + rib[1] * c * squash);
-  ctx.lineTo(x - rib[3] * sn, y + rib[3] * c * squash);
+  if (!rib) return;
+  const r = oak ? OAK_RIB : MAPLE_RIB;
+  ctx.moveTo(x - r[1] * sn, y + r[1] * c * squash);
+  ctx.lineTo(x - r[3] * sn, y + r[3] * c * squash);
 }

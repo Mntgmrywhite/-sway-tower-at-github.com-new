@@ -1,61 +1,56 @@
-import { alpha, circle, mix, neonShape, neonStroke, type Ctx } from "../../base/draw";
+import { alpha, circle, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
+import { PALETTE } from "./colors";
 
-// The far layer: rolling farm hills on the horizon, and a farm standing on the horizon line
-// (silo and red barn on the left, windmill and farmhouse on the right), all dark silhouettes
-// with neon rims and warm lit windows. Nothing here sits in the tower's column.
+// The far layer: faded rolling farm hills, and a farm standing on the horizon behind the cloud
+// bank (silo and barn on the left, windmill and farmhouse on the right). Flat silhouettes with
+// no outlines, a little darker than the sunset sky, with a few warm lit windows.
 
 const TAU = Math.PI * 2;
 
-const HILL_BACK_FILL = "#1e0a1c";
-const HILL_BACK_RIM = "#b8467c";
-const HILL_FRONT_FILL = "#140509";
-const HILL_FRONT_RIM = "#ff7a1f";
-const CRIMSON = "#ff3348";
-const CREAM = "#ffe2b0";
-const GOLD = "#ffc23a";
-const AMBER = "#ffa62b";
-const WINDOW = "#ffcf5c";
-const WINDOW_HOT = mix(WINDOW, "#ffffff", 0.5);
-/** Weathered amber for the windmill lattice and tail vane. */
-const LATTICE = mix(AMBER, "#5a1a10", 0.25);
+const FAR = PALETTE.far;
+/** The ridge behind the farm, hazier still. */
+const FAR_BACK = mix(FAR, PALETTE.skyBottom, 0.42);
+/** Faint lighter details: barn trim, silo bands, plowed rows. */
+const TRIM = mix(FAR, "#ffffff", 0.2);
+const WINDOW = "#ffd98a";
 
-/** Hill heights in units of u at fraction fx of the screen width. Low in the middle, where the moon rises. */
+/** Ridge heights in u at fraction fx of the width: rolling, higher toward the sides. */
 function backHill(fx: number): number {
   const side = Math.abs(fx - 0.5) * 2;
-  return 0.035 + 0.12 * side * side + 0.02 * Math.sin(fx * 9.4 + 0.7) + 0.01 * Math.sin(fx * 23 + 2);
+  return 0.15 + 0.1 * side * side + 0.03 * Math.sin(fx * 8.2 + 0.4) + 0.012 * Math.sin(fx * 19 + 1.3);
 }
 
 function frontHill(fx: number): number {
-  const side = Math.abs(fx - 0.55) * 2;
-  return 0.016 + 0.045 * side * side + 0.01 * Math.sin(fx * 13 + 2.1);
+  const side = Math.abs(fx - 0.5) * 2;
+  return 0.105 + 0.07 * side * side + 0.018 * Math.sin(fx * 11 + 2.1);
 }
 
-/** Plowed rows on the near hills, as fractions of the ridge height. */
-const ROWS = [0.66, 0.36] as const;
-const HILL_STEPS = 40;
+const HILL_STEPS = 48;
 
 function hillPath(ctx: Ctx, s: Scene, h: (fx: number) => number): void {
   const hy = s.horizonY;
   ctx.beginPath();
-  ctx.moveTo(-4, hy + 1);
+  ctx.moveTo(-4, hy + 2);
   for (let i = 0; i <= HILL_STEPS; i++) {
     const fx = i / HILL_STEPS;
     ctx.lineTo(fx * s.cssW, hy - h(fx) * s.u);
   }
-  ctx.lineTo(s.cssW + 4, hy + 1);
+  ctx.lineTo(s.cssW + 4, hy + 2);
   ctx.closePath();
 }
 
+/** Plowed furrows on the near hills, as fractions of the ridge height. */
+const ROWS = [0.82, 0.64, 0.46] as const;
+
 function hills(ctx: Ctx, s: Scene): void {
-  const lw = Math.max(1, s.u * 0.0032);
   hillPath(ctx, s, backHill);
-  neonShape(ctx, HILL_BACK_FILL, HILL_BACK_RIM, lw * 0.9);
-
+  ctx.fillStyle = FAR_BACK;
+  ctx.fill();
   hillPath(ctx, s, frontHill);
-  neonShape(ctx, HILL_FRONT_FILL, HILL_FRONT_RIM, lw);
+  ctx.fillStyle = FAR;
+  ctx.fill();
 
-  // Plowed rows following the near ridge, fading toward the horizon.
   ctx.beginPath();
   for (const f of ROWS) {
     for (let i = 0; i <= HILL_STEPS; i++) {
@@ -65,29 +60,16 @@ function hills(ctx: Ctx, s: Scene): void {
       else ctx.lineTo(fx * s.cssW, y);
     }
   }
-  ctx.strokeStyle = alpha(HILL_FRONT_RIM, 0.32);
-  ctx.lineWidth = Math.max(0.8, lw * 0.6);
-  ctx.stroke();
-}
-
-function litWindow(ctx: Ctx, x: number, y: number, w: number, h: number, lw: number): void {
-  ctx.beginPath();
-  ctx.rect(x, y, w, h);
-  ctx.fillStyle = WINDOW;
-  ctx.fill();
-  ctx.strokeStyle = alpha(WINDOW, 0.28);
-  ctx.lineWidth = lw * 3.5;
-  ctx.stroke();
-  ctx.strokeStyle = WINDOW_HOT;
-  ctx.lineWidth = Math.max(0.6, lw * 0.5);
+  ctx.strokeStyle = alpha(TRIM, 0.45);
+  ctx.lineWidth = Math.max(1, s.u * 0.003);
   ctx.stroke();
 }
 
 /** Gambrel-roofed barn standing on the horizon, centered at bx. */
-function barn(ctx: Ctx, s: Scene, bx: number, lw: number): void {
+function barn(ctx: Ctx, s: Scene, bx: number): void {
   const by = s.horizonY;
-  const w = s.u * 0.15;
-  const h = s.u * 0.135;
+  const w = s.u * 0.19;
+  const h = s.u * 0.25;
   ctx.beginPath();
   ctx.moveTo(bx - w * 0.5, by);
   ctx.lineTo(bx - w * 0.5, by - h * 0.55);
@@ -99,67 +81,69 @@ function barn(ctx: Ctx, s: Scene, bx: number, lw: number): void {
   ctx.lineTo(bx + w * 0.5, by - h * 0.55);
   ctx.lineTo(bx + w * 0.5, by);
   ctx.closePath();
-  neonShape(ctx, "#240609", CRIMSON, lw);
+  ctx.fillStyle = FAR;
+  ctx.fill();
 
-  // White trim: big door with an X brace, eave line.
-  const dw = w * 0.36;
-  const dh = h * 0.4;
+  // Faint trim: eave line and the hay-loft door, with a warm lit window above it.
+  const lw = Math.max(1, s.u * 0.004);
   ctx.beginPath();
-  ctx.rect(bx - dw / 2, by - dh, dw, dh);
-  ctx.moveTo(bx - dw / 2, by - dh);
-  ctx.lineTo(bx + dw / 2, by);
-  ctx.moveTo(bx + dw / 2, by - dh);
-  ctx.lineTo(bx - dw / 2, by);
-  ctx.moveTo(bx, by - dh);
-  ctx.lineTo(bx, by);
   ctx.moveTo(bx - w * 0.5, by - h * 0.55);
   ctx.lineTo(bx + w * 0.5, by - h * 0.55);
-  neonStroke(ctx, CREAM, lw * 0.6, 2.4);
-
-  litWindow(ctx, bx - w * 0.08, by - h * 0.8, w * 0.16, h * 0.15, lw);
+  ctx.rect(bx - w * 0.13, by - h * 0.5, w * 0.26, h * 0.3);
+  ctx.moveTo(bx - w * 0.13, by - h * 0.5);
+  ctx.lineTo(bx + w * 0.13, by - h * 0.2);
+  ctx.moveTo(bx + w * 0.13, by - h * 0.5);
+  ctx.lineTo(bx - w * 0.13, by - h * 0.2);
+  ctx.strokeStyle = TRIM;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+  ctx.fillStyle = WINDOW;
+  ctx.fillRect(bx - w * 0.07, by - h * 0.8, w * 0.14, h * 0.12);
 }
 
 /** Tall silo with a domed cap, standing on the horizon. */
-function silo(ctx: Ctx, s: Scene, x: number, lw: number): void {
+function silo(ctx: Ctx, s: Scene, x: number): void {
   const by = s.horizonY;
-  const w = s.u * 0.052;
-  const h = s.u * 0.19;
+  const w = s.u * 0.065;
+  const h = s.u * 0.34;
   ctx.beginPath();
   ctx.moveTo(x - w / 2, by);
   ctx.lineTo(x - w / 2, by - h);
   ctx.arc(x, by - h, w / 2, Math.PI, 0);
   ctx.lineTo(x + w / 2, by);
   ctx.closePath();
-  neonShape(ctx, "#1d1006", GOLD, lw);
+  ctx.rect(x - s.u * 0.003, by - h - w * 0.75, s.u * 0.006, w * 0.3);
+  ctx.fillStyle = FAR;
+  ctx.fill();
 
   ctx.beginPath();
-  for (let i = 1; i <= 4; i++) {
-    const y = by - (h * i) / 5;
+  for (let i = 1; i <= 5; i++) {
+    const y = by - (h * i) / 6;
     ctx.moveTo(x - w / 2, y);
     ctx.lineTo(x + w / 2, y);
   }
-  ctx.moveTo(x, by - h - w / 2);
-  ctx.lineTo(x, by - h - w * 0.75);
-  ctx.strokeStyle = alpha(GOLD, 0.45);
-  ctx.lineWidth = Math.max(0.8, lw * 0.6);
+  ctx.strokeStyle = alpha(TRIM, 0.7);
+  ctx.lineWidth = Math.max(1, s.u * 0.003);
   ctx.stroke();
-  litWindow(ctx, x - w * 0.12, by - h * 0.9, w * 0.24, w * 0.3, lw * 0.7);
+  ctx.fillStyle = WINDOW;
+  ctx.fillRect(x - w * 0.14, by - h * 0.93, w * 0.28, w * 0.34);
 }
 
-/** Farm windmill: lattice tower and a turning fan wheel. */
-function windmill(ctx: Ctx, s: Scene, x: number, lw: number): void {
+/** Farm windmill: a tapering lattice tower and a turning fan wheel with a tail vane. */
+function windmill(ctx: Ctx, s: Scene, x: number): void {
   const by = s.horizonY;
-  const H = s.u * 0.28;
-  const bw = s.u * 0.042;
-  const tw = s.u * 0.009;
+  const H = s.u * 0.36;
+  const bw = s.u * 0.045;
+  const tw = s.u * 0.01;
   const widthAt = (f: number) => bw + (tw - bw) * f;
+  const lw = Math.max(1.2, s.u * 0.005);
 
   ctx.beginPath();
   ctx.moveTo(x - bw, by);
   ctx.lineTo(x - tw, by - H);
   ctx.moveTo(x + bw, by);
   ctx.lineTo(x + tw, by - H);
-  const n = 5;
+  const n = 6;
   for (let i = 0; i < n; i++) {
     const f0 = i / n;
     const f1 = (i + 1) / n;
@@ -172,75 +156,72 @@ function windmill(ctx: Ctx, s: Scene, x: number, lw: number): void {
     ctx.moveTo(x - widthAt(f1), y1);
     ctx.lineTo(x + widthAt(f1), y1);
   }
-  neonStroke(ctx, LATTICE, lw * 0.75, 2.6);
+  ctx.strokeStyle = FAR;
+  ctx.lineWidth = lw;
+  ctx.lineCap = "round";
+  ctx.stroke();
 
-  // Tail vane behind the wheel: a plate on a boom, widening away from the rim it hangs off.
+  // Tail vane on a boom, and the fan: wedge blades with sky between them, a hub and a rim.
   const cy = by - H - s.u * 0.006;
-  const R = s.u * 0.082;
+  const R = s.u * 0.085;
   ctx.beginPath();
-  ctx.moveTo(x + R * 1.04, cy - R * 0.05);
-  ctx.lineTo(x + R * 1.5, cy - R * 0.3);
-  ctx.lineTo(x + R * 1.5, cy + R * 0.12);
-  ctx.lineTo(x + R * 1.04, cy + R * 0.05);
+  ctx.moveTo(x + R * 0.9, cy - R * 0.05);
+  ctx.lineTo(x + R * 1.5, cy - R * 0.36);
+  ctx.lineTo(x + R * 1.5, cy + R * 0.14);
+  ctx.lineTo(x + R * 0.9, cy + R * 0.05);
   ctx.closePath();
-  ctx.moveTo(x + R * 0.9, cy);
-  ctx.lineTo(x + R * 1.5, cy - R * 0.09);
-  neonShape(ctx, "#1d0c06", LATTICE, lw * 0.7);
-
-  // Fan: blades as thin wedges, so they read as slats with sky between them.
-  const spin = s.t * 1.3;
-  const blades = 14;
-  ctx.beginPath();
+  const spin = s.t * 1.1;
+  const blades = 12;
   for (let b = 0; b < blades; b++) {
     const a = spin + (b * TAU) / blades;
-    const da = 0.13;
-    const r0 = R * 0.3;
+    const da = 0.14;
+    const r0 = R * 0.25;
     ctx.moveTo(x + Math.cos(a - da * 0.4) * r0, cy + Math.sin(a - da * 0.4) * r0);
     ctx.lineTo(x + Math.cos(a - da) * R, cy + Math.sin(a - da) * R);
     ctx.lineTo(x + Math.cos(a + da) * R, cy + Math.sin(a + da) * R);
     ctx.lineTo(x + Math.cos(a + da * 0.4) * r0, cy + Math.sin(a + da * 0.4) * r0);
     ctx.closePath();
   }
-  neonShape(ctx, "#2a1206", AMBER, lw * 0.75);
+  circle(ctx, x, cy, R * 0.2);
+  ctx.fillStyle = FAR;
+  ctx.fill();
   ctx.beginPath();
-  circle(ctx, x, cy, R * 0.18);
-  ctx.moveTo(x + R * 1.02, cy);
-  ctx.arc(x, cy, R * 1.02, 0, TAU);
-  neonStroke(ctx, GOLD, lw * 0.8, 2.6);
+  circle(ctx, x, cy, R);
+  ctx.lineWidth = lw * 0.8;
+  ctx.stroke();
+  ctx.lineCap = "butt";
 }
 
-/** Small farmhouse with a gable roof and lit windows. */
-function farmhouse(ctx: Ctx, s: Scene, x: number, lw: number): void {
+/** Small farmhouse with a gable roof, a chimney and lit windows. */
+function farmhouse(ctx: Ctx, s: Scene, x: number): void {
   const by = s.horizonY;
-  const w = s.u * 0.12;
-  const h = s.u * 0.1;
+  const w = s.u * 0.14;
+  const h = s.u * 0.2;
   ctx.beginPath();
   ctx.moveTo(x - w * 0.5, by);
-  ctx.lineTo(x - w * 0.5, by - h * 0.55);
-  ctx.lineTo(x - w * 0.58, by - h * 0.52);
+  ctx.lineTo(x - w * 0.5, by - h * 0.58);
+  ctx.lineTo(x - w * 0.6, by - h * 0.55);
   ctx.lineTo(x, by - h);
-  ctx.lineTo(x + w * 0.58, by - h * 0.52);
-  ctx.lineTo(x + w * 0.5, by - h * 0.55);
+  ctx.lineTo(x + w * 0.6, by - h * 0.55);
+  ctx.lineTo(x + w * 0.5, by - h * 0.58);
   ctx.lineTo(x + w * 0.5, by);
   ctx.closePath();
-  // Chimney
-  ctx.moveTo(x + w * 0.22, by - h * 0.75);
-  ctx.lineTo(x + w * 0.22, by - h * 0.98);
-  ctx.lineTo(x + w * 0.32, by - h * 0.98);
-  ctx.lineTo(x + w * 0.32, by - h * 0.67);
-  neonShape(ctx, "#1b0812", "#ff8a3d", lw);
-  litWindow(ctx, x - w * 0.34, by - h * 0.42, w * 0.16, h * 0.18, lw * 0.8);
-  litWindow(ctx, x + w * 0.1, by - h * 0.42, w * 0.16, h * 0.18, lw * 0.8);
-  litWindow(ctx, x - w * 0.05, by - h * 0.78, w * 0.1, h * 0.12, lw * 0.6);
+  ctx.rect(x + w * 0.2, by - h * 1.0, w * 0.12, h * 0.3);
+  ctx.fillStyle = FAR;
+  ctx.fill();
+  ctx.fillStyle = WINDOW;
+  ctx.fillRect(x - w * 0.3, by - h * 0.48, w * 0.15, h * 0.14);
+  ctx.fillRect(x + w * 0.12, by - h * 0.48, w * 0.15, h * 0.14);
+  ctx.fillRect(x - w * 0.06, by - h * 0.8, w * 0.12, h * 0.1);
 }
 
 export function farm(ctx: Ctx, s: Scene): void {
-  if (s.horizonY - s.u * 0.45 > s.cssH) return;
-  const lw = Math.max(1, s.u * 0.0034);
+  if (s.horizonY - s.u * 0.5 > s.cssH) return;
   hills(ctx, s);
   const W = s.cssW;
-  silo(ctx, s, W * 0.055, lw);
-  barn(ctx, s, W * 0.165, lw);
-  farmhouse(ctx, s, W * 0.975, lw);
-  windmill(ctx, s, W * 0.855, lw);
+  // The cloud bank piles high at the sides, so the farm gathers toward the middle to peek over it.
+  silo(ctx, s, W * 0.17);
+  barn(ctx, s, W * 0.3);
+  farmhouse(ctx, s, W * 0.53);
+  windmill(ctx, s, W * 0.8);
 }

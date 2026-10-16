@@ -1,69 +1,74 @@
-import type { Skin } from "./skin";
+import type { CartoonSkin } from "./skin";
 import { city } from "./newyear/city";
-import { CYAN, GOLD, MAGENTA, SILVER, VIOLET } from "./newyear/colors";
-import { partyFloor } from "./newyear/ground";
+import { BLUE, CYAN, FAR, GOLD, INK, LIME, MAGENTA, MINT, ORANGE, PINK, RED, SILVER, VIOLET } from "./newyear/colors";
+import { partyPlaza } from "./newyear/ground";
 import {
   balloon,
   bowTie,
   burst,
-  cheers,
   clock,
   confetti,
-  crescent,
   discoBall,
+  flute,
   horn,
   partyHat,
   sparkle,
   star,
 } from "./newyear/icons";
-import { mirrorBall, newYearSky } from "./newyear/sky";
+import { newYearSky, partyMoon } from "./newyear/sky";
 
-// New Year's: a midnight city celebration in neon. Black-and-violet night, a mirror ball
-// rising over the skyline where the synthwave sun would be, fireworks that get busier as you
-// climb, a clock tower creeping toward twelve while the ball drops down its mast, and
-// champagne, a party popper, gifts and a bulb-lit marquee on the cyan grid.
+// New Year's: a festive midnight city in the bright cartoon style. An indigo-to-violet sky
+// with a party-hatted moon, cartoon fireworks that get busier as you climb and confetti
+// drifting down; a faded skyline with a clock tower creeping toward twelve and a ball sliding
+// down its mast; pink clouds piled at the sides; and on the violet-grey plaza, champagne
+// popping in an ice bucket, a party popper, a stack of gifts and a bulb-lit marquee.
 
-export const newYear: Skin = {
+export const newYear: CartoonSkin = {
   id: "newyear",
-  style: "neon",
+  style: "cartoon",
   name: "New Year's",
   dates: [{ from: [12, 28], to: [1, 6] }],
-  fonts: ["Bungee Shade"],
+  fonts: ["Luckiest Guy"],
   palette: {
-    skyTop: "#030109",
-    skyMid: "#150628",
-    skyBottom: "#3c0b52",
-    horizon: "#ff2fa8",
-    grid: "#29e6ff",
-    floorFar: "#1a0733",
-    floorNear: "#04010a",
-    sunTop: "#ffe08a",
-    sunBottom: "#ff2fa8",
+    skyTop: "#2a2672",
+    skyMid: "#4c3cab",
+    skyBottom: "#8a5ccc",
     star: "#fff4dc",
+    moon: "#fff3cf",
+    cloudShadow: "#c0559f",
+    cloudBase: "#ee86c4",
+    cloudLight: "#ffc2e2",
+    far: FAR,
+    fieldFar: "#ad97c2",
+    fieldNear: "#7a6793",
+    grass: "#ffcf3a",
+    grassDark: "#e09a1c",
+    stone: "#5a5488",
+    stoneLight: "#746ea4",
+    ink: INK,
   },
   bars: [
-    { color: GOLD, icon: cheers },
-    { color: MAGENTA, icon: burst },
+    { color: PINK, icon: burst },
+    { color: GOLD, icon: flute },
     { color: CYAN, icon: clock },
     { color: VIOLET, icon: partyHat },
+    { color: ORANGE, icon: star },
     { color: SILVER, icon: discoBall },
-    { color: MAGENTA, icon: balloon },
-    { color: GOLD, icon: star },
-    { color: CYAN, icon: horn },
-    { color: VIOLET, icon: bowTie },
-    { color: SILVER, icon: sparkle },
-    { color: MAGENTA, icon: confetti },
-    { color: CYAN, icon: crescent },
+    { color: RED, icon: balloon },
+    { color: MINT, icon: sparkle },
+    { color: MAGENTA, icon: horn },
+    { color: BLUE, icon: bowTie },
+    { color: LIME, icon: confetti },
   ],
   hud: {
-    display: "'Bungee Shade', Monoton, Audiowide, 'Arial Black', sans-serif",
-    title: "#ffd75e",
-    ui: "#ff2fa8",
-    accent: "#3ef0ff",
-    life: "#ff2fa8",
+    display: "'Luckiest Guy', 'Arial Black', Impact, sans-serif",
+    title: "#ffd23f",
+    ui: "#55309c",
+    accent: "#ffe45c",
+    life: "#ff4f9a",
   },
-  celestial: mirrorBall,
+  celestial: partyMoon,
   sky: newYearSky,
   far: city,
-  ground: partyFloor,
+  ground: partyPlaza,
 };

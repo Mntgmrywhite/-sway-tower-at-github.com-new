@@ -2,10 +2,10 @@ import { circle, oval, type Ctx } from "../../base/draw";
 import type { Icon } from "../skin";
 import { TAU } from "./colors";
 
-// Neon line-art glyphs for the bars. Each fits a box about `s` tall centered on (cx, cy)
-// and only builds paths and strokes/fills them with the style the bar has already set.
-// Kept bold and simple: on a phone they are drawn about 13 px tall, a few hundred times a
-// frame, so dots are tiny round-capped segments inside the one stroke instead of extra fills.
+// Inked symbols for the bars. Each fits a box about `s` tall centered on (cx, cy) and only
+// builds paths and strokes/fills them with the ink the bar has already set. On a phone they
+// are drawn about 12 px tall, so each is one bold silhouette: solid shapes where a line would
+// blur, no fine detail, and dots made by the stroke's round caps instead of extra fills.
 
 /** A dot drawn by the stroke itself (the bar strokes with round caps). */
 function dot(ctx: Ctx, x: number, y: number, s: number): void {
@@ -13,83 +13,55 @@ function dot(ctx: Ctx, x: number, y: number, s: number): void {
   ctx.lineTo(x + s * 0.012, y);
 }
 
+/** Closed polygon from unit-space points. */
+function poly(ctx: Ctx, pts: readonly (readonly [number, number])[], cx: number, cy: number, s: number): void {
+  for (const [i, [x, y]] of pts.entries()) {
+    if (i === 0) ctx.moveTo(cx + x * s, cy + y * s);
+    else ctx.lineTo(cx + x * s, cy + y * s);
+  }
+  ctx.closePath();
+}
+
+// Rays turned off the axes (so it never reads as a snowflake), long and short in turn, with a
+// gap around a small core so it reads as a burst rather than a sun.
 const BURST_DIRS = Array.from({ length: 8 }, (_, i) => {
-  const a = -Math.PI / 2 + (i * TAU) / 8 + 0.2;
-  return [Math.cos(a), Math.sin(a), i % 2 === 0] as const;
+  const a = -Math.PI / 2 + Math.PI / 8 + (i * TAU) / 8;
+  return [Math.cos(a), Math.sin(a), i % 2 ? 0.33 : 0.46] as const;
 });
 
-/** Firework: streaking rays with a spark at each tip. */
+/** Firework: eight rays flying out from a small core. */
 export const burst: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
-  for (const [dx, dy, long] of BURST_DIRS) {
-    const r1 = s * (long ? 0.32 : 0.26);
-    const r2 = s * (long ? 0.44 : 0.37);
-    ctx.moveTo(cx + dx * s * 0.12, cy + dy * s * 0.12);
-    ctx.lineTo(cx + dx * r1, cy + dy * r1);
-    dot(ctx, cx + dx * r2, cy + dy * r2, s);
+  for (const [dx, dy, r] of BURST_DIRS) {
+    ctx.moveTo(cx + dx * s * 0.2, cy + dy * s * 0.2);
+    ctx.lineTo(cx + dx * s * r, cy + dy * s * r);
   }
   ctx.stroke();
+  ctx.beginPath();
+  circle(ctx, cx, cy, s * 0.075);
+  ctx.fill();
 };
 
-// Two flutes clinking, in unit space: each flute is tilted toward the other and the paths
-// are baked once at load so drawing is plain moveTo/lineTo/quadraticCurveTo calls.
-type Cmd = ["M" | "L", number, number] | ["Q", number, number, number, number] | ["Z"];
-
-const FLUTE: Cmd[] = [
-  ["M", -0.15, -0.46],
-  ["Q", -0.17, 0.02, 0, 0.06],
-  ["Q", 0.17, 0.02, 0.15, -0.46],
-  ["M", 0, 0.06],
-  ["L", 0, 0.38],
-  ["M", -0.14, 0.44],
-  ["Q", 0, 0.34, 0.14, 0.44],
-];
-/** The champagne: the bowl below the fill line. */
-const LIQUID: Cmd[] = [
-  ["M", -0.148, -0.24],
-  ["Q", -0.127, 0.03, 0, 0.06],
-  ["Q", 0.127, 0.03, 0.148, -0.24],
-  ["Z"],
-];
-
-/** Rotate by `a`, scale by `k`, then move by (tx, ty): unit-space commands baked once. */
-function bakeOne(cmds: Cmd[], a: number, tx: number, ty: number, k = 1): Cmd[] {
-  const c = Math.cos(a) * k;
-  const sn = Math.sin(a) * k;
-  const X = (x: number, y: number) => tx + x * c - y * sn;
-  const Y = (x: number, y: number) => ty + x * sn + y * c;
-  return cmds.map((cmd): Cmd => {
-    if (cmd[0] === "Z") return cmd;
-    if (cmd[0] === "Q") return ["Q", X(cmd[1], cmd[2]), Y(cmd[1], cmd[2]), X(cmd[3], cmd[4]), Y(cmd[3], cmd[4])];
-    return [cmd[0], X(cmd[1], cmd[2]), Y(cmd[1], cmd[2])];
-  });
-}
-
-/** Both flutes, each leaning toward the other. */
-function bake(cmds: Cmd[]): Cmd[] {
-  return [...bakeOne(cmds, 0.22, -0.22, 0.04, 0.95), ...bakeOne(cmds, -0.22, 0.22, 0.04, 0.95)];
-}
-
-const CHEERS_LINES = bake(FLUTE);
-const CHEERS_FILL = bake(LIQUID);
-
-function trace(ctx: Ctx, cmds: Cmd[], cx: number, cy: number, s: number): void {
-  for (const c of cmds) {
-    if (c[0] === "M") ctx.moveTo(cx + c[1] * s, cy + c[2] * s);
-    else if (c[0] === "L") ctx.lineTo(cx + c[1] * s, cy + c[2] * s);
-    else if (c[0] === "Q") ctx.quadraticCurveTo(cx + c[1] * s, cy + c[2] * s, cx + c[3] * s, cy + c[4] * s);
-    else ctx.closePath();
-  }
-}
-
-/** Two flutes clinking, the champagne filled in so it reads at phone size. */
-export const cheers: Icon = (ctx, cx, cy, s) => {
+/** Champagne flute: tall bowl filled to the brim, stem, foot, and bubbles rising. */
+export const flute: Icon = (ctx, cx, cy, s) => {
+  const x = cx - s * 0.08;
   ctx.beginPath();
-  trace(ctx, CHEERS_LINES, cx, cy, s);
-  dot(ctx, cx, cy - s * 0.5, s); // clink
+  ctx.moveTo(x - s * 0.2, cy - s * 0.46);
+  ctx.quadraticCurveTo(x - s * 0.21, cy + s * 0.02, x, cy + s * 0.07);
+  ctx.quadraticCurveTo(x + s * 0.21, cy + s * 0.02, x + s * 0.2, cy - s * 0.46);
+  ctx.moveTo(x, cy + s * 0.07);
+  ctx.lineTo(x, cy + s * 0.38);
+  ctx.moveTo(x - s * 0.17, cy + s * 0.44);
+  ctx.lineTo(x + s * 0.17, cy + s * 0.44);
+  dot(ctx, cx + s * 0.3, cy - s * 0.44, s);
+  dot(ctx, cx + s * 0.36, cy - s * 0.18, s);
   ctx.stroke();
+  // The champagne, below a clear band at the rim
   ctx.beginPath();
-  trace(ctx, CHEERS_FILL, cx, cy, s);
+  ctx.moveTo(x - s * 0.2, cy - s * 0.22);
+  ctx.quadraticCurveTo(x - s * 0.19, cy + s * 0.01, x, cy + s * 0.05);
+  ctx.quadraticCurveTo(x + s * 0.19, cy + s * 0.01, x + s * 0.2, cy - s * 0.22);
+  ctx.closePath();
   ctx.fill();
 };
 
@@ -101,147 +73,155 @@ const HOUR_HAND = [Math.cos(-Math.PI / 2 - TAU / 144), Math.sin(-Math.PI / 2 - T
 export const clock: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
   circle(ctx, cx, cy, s * 0.43);
-  ctx.moveTo(cx + MINUTE_HAND[0] * s * 0.31, cy + MINUTE_HAND[1] * s * 0.31);
+  ctx.moveTo(cx + MINUTE_HAND[0] * s * 0.3, cy + MINUTE_HAND[1] * s * 0.3);
   ctx.lineTo(cx, cy);
   ctx.lineTo(cx + HOUR_HAND[0] * s * 0.22, cy + HOUR_HAND[1] * s * 0.22);
-  dot(ctx, cx + s * 0.33, cy, s);
-  dot(ctx, cx - s * 0.33, cy, s);
-  dot(ctx, cx, cy + s * 0.33, s);
+  dot(ctx, cx + s * 0.31, cy, s);
+  dot(ctx, cx - s * 0.31, cy, s);
+  dot(ctx, cx, cy + s * 0.31, s);
   ctx.stroke();
 };
+
+const STAR_PTS = Array.from({ length: 10 }, (_, i) => {
+  const a = -Math.PI / 2 + (i * Math.PI) / 5;
+  const r = i % 2 ? 0.2 : 0.48;
+  return [Math.cos(a) * r, Math.sin(a) * r + 0.04] as const;
+});
 
 /** Five-point star. */
 export const star: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const r = i % 2 ? s * 0.2 : s * 0.48;
-    const x = cx + Math.cos(a) * r;
-    const y = cy + Math.sin(a) * r + s * 0.03;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
+  poly(ctx, STAR_PTS, cx, cy, s);
   ctx.stroke();
 };
 
-/** Cone party hat with a pom-pom and a stripe. */
+/** Cone party hat: a stripe, a pom-pom on top, a curved brim. */
 export const partyHat: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
   ctx.moveTo(cx - s * 0.3, cy + s * 0.4);
-  ctx.lineTo(cx, cy - s * 0.32);
+  ctx.lineTo(cx, cy - s * 0.3);
   ctx.lineTo(cx + s * 0.3, cy + s * 0.4);
   ctx.quadraticCurveTo(cx, cy + s * 0.52, cx - s * 0.3, cy + s * 0.4);
-  ctx.moveTo(cx - s * 0.16, cy + s * 0.06);
-  ctx.lineTo(cx + s * 0.2, cy + s * 0.2);
-  circle(ctx, cx, cy - s * 0.4, s * 0.085);
+  ctx.moveTo(cx - s * 0.17, cy + s * 0.1);
+  ctx.lineTo(cx + s * 0.19, cy + s * 0.22);
   ctx.stroke();
+  ctx.beginPath();
+  circle(ctx, cx, cy - s * 0.38, s * 0.1);
+  ctx.fill();
 };
 
-/** Balloon on a curly string. */
+/** Balloon on a curly string, with a shine. */
 export const balloon: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
   oval(ctx, cx, cy - s * 0.13, s * 0.25, s * 0.31);
-  ctx.moveTo(cx - s * 0.06, cy + s * 0.24);
-  ctx.lineTo(cx + s * 0.06, cy + s * 0.24);
-  ctx.lineTo(cx, cy + s * 0.18);
-  ctx.closePath();
-  ctx.moveTo(cx, cy + s * 0.24);
-  ctx.quadraticCurveTo(cx - s * 0.16, cy + s * 0.36, cx + s * 0.05, cy + s * 0.5);
-  // Shine
-  ctx.moveTo(cx - s * 0.14, cy - s * 0.24);
-  ctx.quadraticCurveTo(cx - s * 0.13, cy - s * 0.33, cx - s * 0.04, cy - s * 0.36);
+  ctx.moveTo(cx, cy + s * 0.2);
+  ctx.quadraticCurveTo(cx - s * 0.16, cy + s * 0.34, cx + s * 0.05, cy + s * 0.5);
+  ctx.moveTo(cx - s * 0.13, cy - s * 0.25);
+  ctx.quadraticCurveTo(cx - s * 0.12, cy - s * 0.32, cx - s * 0.05, cy - s * 0.34);
   ctx.stroke();
+  // Knot
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.16);
+  ctx.lineTo(cx + s * 0.07, cy + s * 0.25);
+  ctx.lineTo(cx - s * 0.07, cy + s * 0.25);
+  ctx.closePath();
+  ctx.fill();
 };
 
-/** Four-point sparkle with a small twin. */
-export const sparkle: Icon = (ctx, cx, cy, s) => {
-  const x = cx - s * 0.06;
-  const y = cy + s * 0.05;
-  const r = s * 0.42;
-  const k = s * 0.06;
-  ctx.beginPath();
+function fourPoint(ctx: Ctx, x: number, y: number, r: number, k: number): void {
   ctx.moveTo(x, y - r);
   ctx.quadraticCurveTo(x + k, y - k, x + r * 0.8, y);
   ctx.quadraticCurveTo(x + k, y + k, x, y + r);
   ctx.quadraticCurveTo(x - k, y + k, x - r * 0.8, y);
   ctx.quadraticCurveTo(x - k, y - k, x, y - r);
   ctx.closePath();
-  const sx = cx + s * 0.34;
-  const sy = cy - s * 0.32;
-  const sr = s * 0.13;
-  ctx.moveTo(sx, sy - sr);
-  ctx.lineTo(sx, sy + sr);
-  ctx.moveTo(sx - sr, sy);
-  ctx.lineTo(sx + sr, sy);
-  ctx.stroke();
+}
+
+/** Solid four-point sparkle with a small twin. */
+export const sparkle: Icon = (ctx, cx, cy, s) => {
+  ctx.beginPath();
+  fourPoint(ctx, cx - s * 0.07, cy + s * 0.05, s * 0.44, s * 0.07);
+  fourPoint(ctx, cx + s * 0.33, cy - s * 0.3, s * 0.17, s * 0.03);
+  ctx.fill();
 };
 
-/** Mirror ball on its hanger. */
+/** Mirror ball on its hanger, with a glint. */
 export const discoBall: Icon = (ctx, cx, cy, s) => {
+  const x = cx - s * 0.04;
   const y = cy + s * 0.08;
-  const r = s * 0.37;
+  const r = s * 0.36;
   ctx.beginPath();
-  circle(ctx, cx, y, r);
-  // Meridian and two latitude chords
-  oval(ctx, cx, y, r * 0.42, r);
-  ctx.moveTo(cx - r, y);
-  ctx.lineTo(cx + r, y);
-  ctx.moveTo(cx - r * 0.8, y - r * 0.6);
-  ctx.lineTo(cx + r * 0.8, y - r * 0.6);
-  ctx.moveTo(cx - r * 0.8, y + r * 0.6);
-  ctx.lineTo(cx + r * 0.8, y + r * 0.6);
-  ctx.moveTo(cx, y - r);
-  ctx.lineTo(cx, cy - s * 0.5);
+  circle(ctx, x, y, r);
+  oval(ctx, x, y, r * 0.42, r);
+  ctx.moveTo(x - r, y);
+  ctx.lineTo(x + r, y);
+  ctx.moveTo(x, y - r);
+  ctx.lineTo(x, cy - s * 0.5);
   ctx.stroke();
+  ctx.beginPath();
+  fourPoint(ctx, cx + s * 0.36, cy - s * 0.3, s * 0.15, s * 0.025);
+  ctx.fill();
 };
 
 const HORN_TILT = -0.42;
-const HORN_LINES: Cmd[] = bakeOne(
-  [
-    ["M", -0.5, -0.045],
-    ["L", -0.34, -0.06],
-    ["L", 0.26, -0.22],
-    ["M", -0.5, 0.045],
-    ["L", -0.34, 0.06],
-    ["L", 0.26, 0.22],
-    ["M", -0.1, -0.125],
-    ["L", -0.1, 0.125],
-    ["M", 0.08, -0.17],
-    ["L", 0.08, 0.17],
-  ],
-  HORN_TILT,
-  0,
-  0.04,
-);
-const HORN_BELL_X = 0.27 * Math.cos(HORN_TILT);
-const HORN_BELL_Y = 0.04 + 0.27 * Math.sin(HORN_TILT);
+const HORN_C = Math.cos(HORN_TILT);
+const HORN_S = Math.sin(HORN_TILT);
+/** Party horn in unit space before the tilt: mouthpiece on the left, flared bell on the right. */
+const HORN_OUTLINE: readonly (readonly [number, number])[] = [
+  [-0.48, -0.05],
+  [-0.32, -0.06],
+  [0.24, -0.2],
+  [0.3, -0.24],
+  [0.3, 0.24],
+  [0.24, 0.2],
+  [-0.32, 0.06],
+  [-0.48, 0.05],
+];
+const HORN_BODY = HORN_OUTLINE.map(([x, y]) => [x * HORN_C - y * HORN_S, x * HORN_S + y * HORN_C + 0.04] as const);
+const HORN_STRIPES = [-0.1, 0.08].map((x) => {
+  const h = 0.06 + (x + 0.32) * 0.25; // the cone's half-height at x
+  return [
+    [x * HORN_C + h * HORN_S, x * HORN_S - h * HORN_C + 0.04],
+    [x * HORN_C - h * HORN_S, x * HORN_S + h * HORN_C + 0.04],
+  ] as const;
+});
 
 /** Party horn: mouthpiece, striped cone, flared bell; tipped upward. */
 export const horn: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
-  trace(ctx, HORN_LINES, cx, cy, s);
-  oval(ctx, cx + HORN_BELL_X * s, cy + HORN_BELL_Y * s, s * 0.07, s * 0.23, HORN_TILT);
+  poly(ctx, HORN_BODY, cx, cy, s);
+  for (const [[x0, y0], [x1, y1]] of HORN_STRIPES) {
+    ctx.moveTo(cx + x0 * s, cy + y0 * s);
+    ctx.lineTo(cx + x1 * s, cy + y1 * s);
+  }
   ctx.stroke();
 };
 
-/** Bow tie. */
+const BOW_TIE: readonly (readonly [number, number])[] = [
+  [-0.47, -0.27],
+  [-0.08, -0.08],
+  [0.08, -0.08],
+  [0.47, -0.27],
+  [0.47, 0.27],
+  [0.08, 0.08],
+  [-0.08, 0.08],
+  [-0.47, 0.27],
+];
+
+/** Bow tie: a solid silhouette with the knot picked out. */
 export const bowTie: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
-  for (const d of [-1, 1]) {
-    ctx.moveTo(cx + d * s * 0.09, cy - s * 0.08);
-    ctx.lineTo(cx + d * s * 0.47, cy - s * 0.27);
-    ctx.lineTo(cx + d * s * 0.47, cy + s * 0.27);
-    ctx.lineTo(cx + d * s * 0.09, cy + s * 0.08);
-  }
-  ctx.rect(cx - s * 0.09, cy - s * 0.12, s * 0.18, s * 0.24);
+  poly(ctx, BOW_TIE, cx, cy, s);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.rect(cx - s * 0.1, cy - s * 0.13, s * 0.2, s * 0.26);
   ctx.stroke();
 };
 
 const CONFETTI_BITS: readonly (readonly [number, number, number])[] = [
   [-0.3, -0.28, 0.6],
-  [0.12, -0.36, -0.5],
-  [0.34, -0.06, 1.2],
+  [0.12, -0.34, -0.5],
+  [0.34, -0.04, 1.2],
   [-0.08, 0.06, -1.0],
   [-0.36, 0.26, 0.1],
   [0.18, 0.32, 0.7],
@@ -257,45 +237,8 @@ export const confetti: Icon = (ctx, cx, cy, s) => {
     ctx.moveTo(px - Math.cos(a) * l, py - Math.sin(a) * l);
     ctx.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l);
   }
-  dot(ctx, cx + s * 0.4, cy + s * 0.34, s);
-  dot(ctx, cx - s * 0.02, cy - s * 0.42, s);
-  dot(ctx, cx - s * 0.42, cy - s * 0.02, s);
-  ctx.stroke();
-};
-
-// Crescent: the outer circle minus an offset inner one; arc angles solved once.
-const C1 = { x: -0.06, y: 0, r: 0.42 };
-const C2 = { x: 0.12, y: -0.1, r: 0.36 };
-const CRESCENT = (() => {
-  const dx = C2.x - C1.x;
-  const dy = C2.y - C1.y;
-  const d = Math.hypot(dx, dy);
-  const a = (C1.r * C1.r - C2.r * C2.r + d * d) / (2 * d);
-  const h = Math.sqrt(C1.r * C1.r - a * a);
-  const mx = C1.x + (a * dx) / d;
-  const my = C1.y + (a * dy) / d;
-  const p = { x: mx - (h * dy) / d, y: my + (h * dx) / d }; // lower right point
-  const q = { x: mx + (h * dy) / d, y: my - (h * dx) / d }; // upper point
-  return {
-    o0: Math.atan2(q.y - C1.y, q.x - C1.x),
-    o1: Math.atan2(p.y - C1.y, p.x - C1.x),
-    i0: Math.atan2(p.y - C2.y, p.x - C2.x),
-    i1: Math.atan2(q.y - C2.y, q.x - C2.x),
-  };
-})();
-
-/** Crescent moon with a little star. */
-export const crescent: Icon = (ctx, cx, cy, s) => {
-  ctx.beginPath();
-  ctx.arc(cx + C1.x * s, cy + C1.y * s, C1.r * s, CRESCENT.o0, CRESCENT.o1, true);
-  ctx.arc(cx + C2.x * s, cy + C2.y * s, C2.r * s, CRESCENT.i0, CRESCENT.i1, false);
-  ctx.closePath();
-  const sx = cx + s * 0.3;
-  const sy = cy + s * 0.12;
-  const sr = s * 0.09;
-  ctx.moveTo(sx, sy - sr);
-  ctx.lineTo(sx, sy + sr);
-  ctx.moveTo(sx - sr, sy);
-  ctx.lineTo(sx + sr, sy);
+  dot(ctx, cx + s * 0.4, cy + s * 0.36, s);
+  dot(ctx, cx - s * 0.02, cy - s * 0.44, s);
+  dot(ctx, cx - s * 0.44, cy - s * 0.02, s);
   ctx.stroke();
 };

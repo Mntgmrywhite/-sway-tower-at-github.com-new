@@ -2,9 +2,9 @@ import { circle, oval, type Ctx } from "../../base/draw";
 import type { Icon } from "../skin";
 import { starPath } from "./shapes";
 
-// Neon line-art symbols for the Christmas bars. Each is centered at (cx, cy) and about
-// `s` pixels tall, drawn with the stroke/fill style the bar sets. Bars are short, so the
-// shapes stay bold and simple enough to read at ~13px.
+// Line-art symbols for the Christmas bars, inked onto the face by the base bar. Each is
+// centered at (cx, cy) and about `s` pixels tall, drawn with the stroke/fill style the bar
+// sets. Bars are short, so the shapes stay bold and simple enough to read at ~12px.
 
 export const snowflake: Icon = (ctx, cx, cy, s) => {
   const r = s * 0.5;
@@ -119,27 +119,26 @@ function leaf(ctx: Ctx, bx: number, by: number, tx: number, ty: number, w: numbe
   const len = Math.hypot(dx, dy) || 1;
   const nx = (-dy / len) * w;
   const ny = (dx / len) * w;
-  // Scalloped edges: three points per side, pulled in between.
+  // Pointed almond with a little nick in each side, so it reads as holly, not a petal.
   ctx.moveTo(bx, by);
-  ctx.quadraticCurveTo(bx + dx * 0.15 + nx * 1.1, by + dy * 0.15 + ny * 1.1, bx + dx * 0.35 + nx * 1.05, by + dy * 0.35 + ny * 1.05);
-  ctx.quadraticCurveTo(bx + dx * 0.5 + nx * 0.7, by + dy * 0.5 + ny * 0.7, bx + dx * 0.68 + nx * 0.95, by + dy * 0.68 + ny * 0.95);
-  ctx.quadraticCurveTo(bx + dx * 0.85 + nx * 0.5, by + dy * 0.85 + ny * 0.5, tx, ty);
-  ctx.quadraticCurveTo(bx + dx * 0.85 - nx * 0.5, by + dy * 0.85 - ny * 0.5, bx + dx * 0.68 - nx * 0.95, by + dy * 0.68 - ny * 0.95);
-  ctx.quadraticCurveTo(bx + dx * 0.5 - nx * 0.7, by + dy * 0.5 - ny * 0.7, bx + dx * 0.35 - nx * 1.05, by + dy * 0.35 - ny * 1.05);
-  ctx.quadraticCurveTo(bx + dx * 0.15 - nx * 1.1, by + dy * 0.15 - ny * 1.1, bx, by);
-  ctx.moveTo(bx, by);
-  ctx.lineTo(bx + dx * 0.8, by + dy * 0.8);
+  ctx.quadraticCurveTo(bx + dx * 0.2 + nx * 1.3, by + dy * 0.2 + ny * 1.3, bx + dx * 0.5 + nx * 0.9, by + dy * 0.5 + ny * 0.9);
+  ctx.quadraticCurveTo(bx + dx * 0.8 + nx * 0.9, by + dy * 0.8 + ny * 0.9, tx, ty);
+  ctx.quadraticCurveTo(bx + dx * 0.8 - nx * 0.9, by + dy * 0.8 - ny * 0.9, bx + dx * 0.5 - nx * 0.9, by + dy * 0.5 - ny * 0.9);
+  ctx.quadraticCurveTo(bx + dx * 0.2 - nx * 1.3, by + dy * 0.2 - ny * 1.3, bx, by);
+  ctx.closePath();
+  ctx.moveTo(bx + dx * 0.2, by + dy * 0.2);
+  ctx.lineTo(bx + dx * 0.72, by + dy * 0.72);
 }
 
 export const holly: Icon = (ctx, cx, cy, s) => {
   ctx.beginPath();
-  leaf(ctx, cx - s * 0.06, cy + s * 0.1, cx - s * 0.52, cy - s * 0.12, s * 0.17);
-  leaf(ctx, cx + s * 0.06, cy + s * 0.1, cx + s * 0.5, cy - s * 0.3, s * 0.17);
+  leaf(ctx, cx - s * 0.05, cy + s * 0.1, cx - s * 0.48, cy - s * 0.34, s * 0.15);
+  leaf(ctx, cx + s * 0.05, cy + s * 0.1, cx + s * 0.48, cy - s * 0.34, s * 0.15);
   ctx.stroke();
   ctx.beginPath();
-  circle(ctx, cx - s * 0.1, cy + s * 0.2, s * 0.11);
-  circle(ctx, cx + s * 0.12, cy + s * 0.22, s * 0.11);
-  circle(ctx, cx + s * 0.01, cy + s * 0.39, s * 0.11);
+  circle(ctx, cx - s * 0.11, cy + s * 0.26, s * 0.105);
+  circle(ctx, cx + s * 0.11, cy + s * 0.26, s * 0.105);
+  circle(ctx, cx, cy + s * 0.09, s * 0.105);
   ctx.fill();
 };
 
@@ -182,23 +181,32 @@ export const gingerbread: Icon = (ctx, cx, cy, s) => {
 };
 
 export const wreath: Icon = (ctx, cx, cy, s) => {
-  const y = cy - s * 0.05;
+  const y = cy - s * 0.1;
+  const r = s * 0.3;
+  // A thick ring of greenery, open at the bottom where the bow is tied...
+  ctx.save();
+  ctx.lineWidth *= 1.9;
   ctx.beginPath();
-  circle(ctx, cx, y, s * 0.4);
-  circle(ctx, cx, y, s * 0.25);
+  ctx.arc(cx, y, r, Math.PI / 2 + 0.5, Math.PI * 2.5 - 0.5);
   ctx.stroke();
-  // Berries on the ring and a bow at the bottom
+  ctx.restore();
+  // ...and the bow: two loops, a knot and two tails.
+  const by = y + r;
   ctx.beginPath();
-  circle(ctx, cx - s * 0.3, y - s * 0.14, s * 0.065);
-  circle(ctx, cx + s * 0.25, y - s * 0.24, s * 0.065);
+  ctx.moveTo(cx, by);
+  ctx.lineTo(cx - s * 0.22, by - s * 0.12);
+  ctx.lineTo(cx - s * 0.22, by + s * 0.12);
+  ctx.closePath();
+  ctx.moveTo(cx, by);
+  ctx.lineTo(cx + s * 0.22, by - s * 0.12);
+  ctx.lineTo(cx + s * 0.22, by + s * 0.12);
+  ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  oval(ctx, cx - s * 0.15, y + s * 0.38, s * 0.15, s * 0.09, -0.35);
-  oval(ctx, cx + s * 0.15, y + s * 0.38, s * 0.15, s * 0.09, 0.35);
-  ctx.moveTo(cx - s * 0.04, y + s * 0.42);
-  ctx.lineTo(cx - s * 0.14, y + s * 0.56);
-  ctx.moveTo(cx + s * 0.04, y + s * 0.42);
-  ctx.lineTo(cx + s * 0.14, y + s * 0.56);
+  ctx.moveTo(cx - s * 0.02, by);
+  ctx.lineTo(cx - s * 0.1, by + s * 0.25);
+  ctx.moveTo(cx + s * 0.02, by);
+  ctx.lineTo(cx + s * 0.1, by + s * 0.25);
   ctx.stroke();
 };
 

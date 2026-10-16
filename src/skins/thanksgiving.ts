@@ -1,6 +1,7 @@
-import type { Skin } from "./skin";
+import type { CartoonSkin } from "./skin";
+import { PALETTE } from "./thanksgiving/colors";
 import { farm } from "./thanksgiving/farm";
-import { harvest, leafLitter } from "./thanksgiving/harvest";
+import { harvest } from "./thanksgiving/harvest";
 import {
   acorn,
   apple,
@@ -17,48 +18,40 @@ import {
 } from "./thanksgiving/icons";
 import { driftingLeaves, geese, harvestMoon } from "./thanksgiving/sky";
 
-// Thanksgiving: an autumn harvest night in neon. Plum-dark sky over an amber grid, a huge
-// striped harvest moon rising behind the farm on the horizon, leaves tumbling down, geese
-// crossing the moon, and hay, pumpkins, corn shocks and a scarecrow beside the tower.
+// Thanksgiving: a warm autumn evening in the bright cartoon style. A sunset-amber to dusky
+// violet sky with a huge harvest moon rising behind a faded farm (silo, barn, windmill,
+// farmhouse) on rolling hills, rose-and-peach clouds, leaves tumbling down and geese crossing
+// the moon; on the golden stubble field, a scarecrow behind hay bales, corn shocks and a pile of
+// pumpkins and gourds beside the tower.
 
-export const thanksgiving: Skin = {
+export const thanksgiving: CartoonSkin = {
   id: "thanksgiving",
-  style: "neon",
+  style: "cartoon",
   name: "Thanksgiving",
   dates: [{ from: [11, 2], to: [11, 30] }],
   fonts: ["Rye"],
-  palette: {
-    skyTop: "#090310",
-    skyMid: "#2a0b24",
-    skyBottom: "#6a2118",
-    horizon: "#ffa21f",
-    grid: "#f2741a",
-    floorFar: "#280c08",
-    floorNear: "#0a0304",
-    sunTop: "#ffd45a",
-    sunBottom: "#ff4f1f",
-    star: "#ffe7c2",
-  },
-  // Warm neons, with teal, blue, lime and violet dropped in so every seam reads.
+  palette: PALETTE,
+  // Candy-bright harvest colors; warm hues alternate with teal, blue, lime and violet so every
+  // seam reads.
   bars: [
-    { color: "#ffa62b", icon: turkey },
-    { color: "#ff2b4e", icon: mapleLeaf },
-    { color: "#ffe04a", icon: corn },
-    { color: "#36e7d4", icon: pie },
-    { color: "#ff6f1a", icon: pumpkin },
-    { color: "#ff3fa0", icon: cranberry },
-    { color: "#ffd34d", icon: wheat },
-    { color: "#5f8dff", icon: pilgrimHat },
-    { color: "#ff3838", icon: apple },
-    { color: "#a6ff45", icon: gourd },
-    { color: "#ff8a2a", icon: acorn },
-    { color: "#b86bff", icon: cornucopia },
+    { color: "#ffb347", icon: turkey },
+    { color: "#ff5a5f", icon: mapleLeaf },
+    { color: "#ffd93f", icon: corn },
+    { color: "#4fd6c4", icon: pie },
+    { color: "#ff8a2a", icon: pumpkin },
+    { color: "#ff6fae", icon: cranberry },
+    { color: "#f5e663", icon: wheat },
+    { color: "#6f8cff", icon: pilgrimHat },
+    { color: "#ff5252", icon: apple },
+    { color: "#a6e05a", icon: gourd },
+    { color: "#c58bff", icon: acorn },
+    { color: "#3fd6a0", icon: cornucopia },
   ],
   hud: {
     display: "Rye, 'Rockwell Extra Bold', Georgia, 'Times New Roman', serif",
     title: "#ffd36b",
-    ui: "#ff2b4e",
-    accent: "#ffb21f",
+    ui: "#7a3424",
+    accent: "#ffc23a",
     life: "#ff7a1a",
   },
   celestial: harvestMoon,
@@ -68,5 +61,4 @@ export const thanksgiving: Skin = {
   },
   far: farm,
   ground: harvest,
-  foreground: leafLitter,
 };
