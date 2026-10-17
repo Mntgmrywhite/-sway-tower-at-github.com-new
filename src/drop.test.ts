@@ -1,5 +1,6 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TEMPO_STEPS, tempoStep } from "./audio/tempo";
 import { kitFor } from "./base/style";
 import {
   BLOCK_HEIGHT,
@@ -9,6 +10,8 @@ import {
   PERFECT_TOLERANCE,
   SLIDE_RANGE,
   SLIDE_SPEED_MAX,
+  SLIDE_SPEED_PER_LEVEL,
+  TEMPO_FROM_SCORE,
   TEMPO_MAX,
   resetTuning,
   tuning,
@@ -365,20 +368,136 @@ describe("Drop lands by Slide's rules", () => {
 });
 
 describe("music tempo", () => {
-  it.each<Mode>(["normal", "hard"])("%s: keeps pace with the slider, from as written at the run's start up to the cap", (mode) => {
+  /** The slider's speed when the music starts to speed up (bar TEMPO_FROM_SCORE). */
+  const from = () => tuning.slideSpeed + TEMPO_FROM_SCORE * SLIDE_SPEED_PER_LEVEL;
+  /** How far up its ramp the music is: 0 until bar TEMPO_FROM_SCORE, 1 at the slider's cap. */
+  const ramp = (g: GameState) => Math.max(0, (sliderSpeed(g) - from()) / (SLIDE_SPEED_MAX - from()));
+  /** The bar (score) at which the slider first reaches its cap. */
+  const capBar = () => Math.ceil((SLIDE_SPEED_MAX - tuning.slideSpeed) / SLIDE_SPEED_PER_LEVEL);
+
+  it.each<Mode>(["normal", "hard"])("%s: as written on the title screen and at the run's start", (mode) => {
     const g = newGame(mode);
-    expect(musicTempo(g)).toBe(1); // title screen, and the run's start
-    let last = 1;
-    for (let i = 0; i < 60; i++) {
-      aim(g, 0);
-      land(g);
-      const rate = musicTempo(g);
-      if (i === 0) expect(rate).toBeLessThan(1.1); // the first drop barely moves it
-      expect(rate).toBeCloseTo(Math.min(TEMPO_MAX, sliderSpeed(g) / tuning.slideSpeed), 12);
-      expect(rate).toBeGreaterThanOrEqual(last);
-      last = rate;
+    expect(musicTempo(g)).toBe(1);
+    sway(g, 2); // the slider runs, nothing dropped yet
+    expect(g.score).toBe(0);
+    expect(musicTempo(g)).toBe(1);
+  });
+
+  it.each<Mode>(["normal", "hard"])(
+    "%s: as written up to bar 40, then keeping pace with the slider, reaching the cap exactly when the slider does",
+    (mode) => {
+      const g = newGame(mode);
+      let last = 1;
+      let firstRise = -1;
+      let firstCap = -1;
+      for (let i = 0; i < capBar() + 15; i++) {
+        aim(g, 0);
+        land(g);
+        expect(g.phase).toBe("playing");
+        const rate = musicTempo(g);
+        if (g.score <= TEMPO_FROM_SCORE) {
+          expect(rate).toBe(1); // the owner: not sped up until closer to 40+ stacks
+        } else if (sliderSpeed(g) < SLIDE_SPEED_MAX) {
+          expect((rate - 1) / (TEMPO_MAX - 1)).toBeCloseTo(ramp(g), 12);
+          expect(rate).toBeGreaterThan(last); // speeding up, bar after bar
+          expect(rate).toBeLessThan(TEMPO_MAX);
+          if (firstRise < 0) firstRise = g.score;
+        } else {
+          expect(rate).toBe(TEMPO_MAX);
+          if (firstCap < 0) firstCap = g.score;
+        }
+        expect(rate).toBeGreaterThanOrEqual(last);
+        last = rate;
+      }
+      expect(firstRise).toBe(TEMPO_FROM_SCORE + 1);
+      expect(firstCap).toBe(capBar()); // bar 77 at the default tuning
+      expect(capBar()).toBeGreaterThan(TEMPO_FROM_SCORE + 20);
+    },
+  );
+
+  it.each<Mode>(["normal", "hard"])("%s: the owner's call: no speed-up through 40 stacks at the default tuning", (mode) => {
+    const g = newGame(mode);
+    for (let i = 0; i <= 40; i++) {
+      g.score = i;
+      expect(musicTempo(g), `bar ${i}`).toBe(1);
     }
-    expect(last).toBe(TEMPO_MAX);
+    g.score = 41;
+    expect(musicTempo(g)).toBeGreaterThan(1);
+  });
+
+  it("halfway from bar 40 to the slider's cap, halfway up the tempo range", () => {
+    const g = newGame();
+    const half = TEMPO_FROM_SCORE + (SLIDE_SPEED_MAX - from()) / SLIDE_SPEED_PER_LEVEL / 2;
+    const mid = (1 + TEMPO_MAX) / 2;
+    const perBar = ((TEMPO_MAX - 1) * SLIDE_SPEED_PER_LEVEL) / (SLIDE_SPEED_MAX - from());
+    g.score = Math.floor(half);
+    const below = musicTempo(g);
+    g.score = Math.ceil(half);
+    const above = musicTempo(g);
+    expect(below).toBeLessThan(mid);
+    expect(above).toBeGreaterThan(mid);
+    expect(mid - below).toBeLessThan(perBar);
+    expect(above - mid).toBeLessThan(perBar);
+  });
+
+  it("follows the live tuning: a faster starting slider has a shorter ramp, and the music follows it", () => {
+    tuning.slideSpeed = 60;
+    const g = newGame();
+    g.score = TEMPO_FROM_SCORE;
+    expect(musicTempo(g)).toBe(1);
+    g.score = capBar() - 1;
+    expect(musicTempo(g)).toBeGreaterThan(1);
+    expect(musicTempo(g)).toBeLessThan(TEMPO_MAX);
+    g.score = capBar();
+    expect(musicTempo(g)).toBe(TEMPO_MAX);
+    // Changed mid-run, it applies at once.
+    g.score = 60;
+    const fast = musicTempo(g);
+    resetTuning();
+    expect(musicTempo(g)).toBeLessThan(fast);
+    expect(musicTempo(g)).toBeCloseTo(1 + (TEMPO_MAX - 1) * ramp(g), 12);
+  });
+
+  it.each<Mode>(["normal", "hard"])("%s: at any starting speed, plain to bar 40, then an even climb that tops out with the slider", (mode) => {
+    for (let start = 20; start < SLIDE_SPEED_MAX + 10; start += 5) {
+      tuning.slideSpeed = start;
+      const g = newGame(mode);
+      expect(musicTempo(g)).toBe(1);
+      const climbs = from() < SLIDE_SPEED_MAX;
+      const perBar = ((TEMPO_MAX - 1) * SLIDE_SPEED_PER_LEVEL) / (SLIDE_SPEED_MAX - from());
+      let last = 1;
+      for (let i = 1; i <= 160; i++) {
+        g.score = i;
+        const rate = musicTempo(g);
+        if (!climbs || i <= TEMPO_FROM_SCORE) {
+          expect(rate).toBe(1); // a slider that caps by bar 40 never speeds the music up
+        } else if (sliderSpeed(g) < SLIDE_SPEED_MAX) {
+          expect(rate - last).toBeCloseTo(perBar, 12);
+          expect(rate).toBeLessThan(TEMPO_MAX);
+        } else {
+          expect(rate).toBe(TEMPO_MAX); // from the slider's first capped bar on, never before
+        }
+        last = rate;
+      }
+    }
+  });
+
+  it("climbs through every step of the music's speed-up, one at a time, after bar 40", () => {
+    const g = newGame();
+    let current = 0;
+    const seen: number[] = [];
+    for (let i = 0; i <= capBar() + 5; i++) {
+      g.score = i;
+      current = tempoStep(musicTempo(g), current);
+      seen.push(current);
+    }
+    for (let i = 1; i < seen.length; i++) expect(seen[i]! - seen[i - 1]!).toBeGreaterThanOrEqual(0);
+    for (let i = 1; i < seen.length; i++) expect(seen[i]! - seen[i - 1]!).toBeLessThanOrEqual(1);
+    expect(seen.at(-1)).toBe(TEMPO_STEPS.length - 1);
+    expect(seen.indexOf(1)).toBeGreaterThan(TEMPO_FROM_SCORE); // no step before bar 40
+    // Spread out: each step lasts a good run of bars, and the top one waits for the last stretch.
+    for (let k = 2; k < TEMPO_STEPS.length; k++) expect(seen.indexOf(k) - seen.indexOf(k - 1)).toBeGreaterThan(4);
+    expect(seen.indexOf(TEMPO_STEPS.length - 1)).toBeGreaterThan((capBar() * 3) / 4);
   });
 
   it("the same in both modes at the same height", () => {
@@ -391,18 +510,36 @@ describe("music tempo", () => {
       }
       expect(musicTempo(d)).toBe(musicTempo(s));
     }
+    // And across the whole ramp and past it.
+    for (let i = 0; i <= capBar() + 20; i++) {
+      d.score = s.score = i;
+      expect(musicTempo(d)).toBe(musicTempo(s));
+    }
   });
 
-  it.each<Mode>(["normal", "hard"])("%s: never slower than written, even with a slider tuned past the speed cap", (mode) => {
-    tuning.slideSpeed = 200;
+  it.each<Mode>(["normal", "hard"])("%s: never below 1 or above the cap, at any height", (mode) => {
     const g = newGame(mode);
-    aim(g, 0);
-    land(g);
-    expect(musicTempo(g)).toBe(1);
+    for (let i = 0; i <= 500; i++) {
+      g.score = i;
+      expect(musicTempo(g)).toBeGreaterThanOrEqual(1);
+      expect(musicTempo(g)).toBeLessThanOrEqual(TEMPO_MAX);
+    }
+  });
+
+  it.each<Mode>(["normal", "hard"])("%s: never slower than written, even with a slider tuned at or past the speed cap", (mode) => {
+    for (const speed of [SLIDE_SPEED_MAX, 200]) {
+      tuning.slideSpeed = speed;
+      const g = newGame(mode);
+      aim(g, 0);
+      land(g);
+      expect(musicTempo(g)).toBe(1);
+      g.score = 100;
+      expect(musicTempo(g)).toBe(1); // the slider never speeds up, so neither does the music
+    }
   });
 
   it.each<Mode>(["normal", "hard"])("%s: back to 1 at game over", (mode) => {
-    const g = tower(mode, 20);
+    const g = tower(mode, TEMPO_FROM_SCORE + 10);
     expect(musicTempo(g)).toBeGreaterThan(1);
     while (g.phase === "playing") {
       aim(g, 500);

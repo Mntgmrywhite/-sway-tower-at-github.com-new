@@ -11,6 +11,11 @@
 // line with a short crossfade that keeps the musical position. Each song keeps at most its decoded original and one stretched
 // version (plus, for the length of a crossfade, the version it is leaving). Without workers, or
 // if a stretch fails, the music just stays as written.
+//
+// A song can keep time with the scene (setMusic's `sync`; New Year's: the song's crowd countdown
+// with the screen's): it starts where the scene is, cuts there when the scene starts over or goes
+// on after standing still (realign) or the music comes back on, unless it is about there already,
+// and otherwise plays on without re-seeking.
 
 import manifest from "./music/manifest.json";
 import { loopPoints, type LoopInfo } from "./loop";
@@ -20,7 +25,8 @@ import { barSeconds, nextBar, TEMPO_STEPS, tempoStep } from "./tempo";
 
 const MUSIC = import.meta.glob("./music/*.mp4", { query: "?inline", import: "default", eager: true }) as Record<string, string>;
 const SFX = import.meta.glob("./sfx/*.mp4", { query: "?inline", import: "default", eager: true }) as Record<string, string>;
-const LOOPS = manifest as Record<string, LoopInfo>;
+/** Loop points, and for some songs named moments in them (seconds as written: "countdownStart"). */
+const LOOPS = manifest as Record<string, LoopInfo & { cues?: Record<string, number> }>;
 
 export type Sound = "land" | "slice" | "miss" | "click" | "chime" | "boom";
 
@@ -50,6 +56,17 @@ const SHARED_REACH = 0.04;
 const STRETCH_TIMEOUT = 20000;
 /** Shortest wait before re-checking a transition that has not finished (ms). */
 const RECHECK_MS = 100;
+/**
+ * A cut within a song (a song that keeps time with the scene jumping to where it is): the new
+ * place fades in this fast (just enough to never click) and the old one fades out over JUMP_OUT
+ * (seconds).
+ */
+const JUMP_IN = 0.015;
+const JUMP_OUT = 0.1;
+/** A song this close to where the scene is (seconds) is left alone: not worth a cut. */
+const REALIGN_SLACK = 0.15;
+
+const mod = (x: number, n: number): number => ((x % n) + n) % n;
 
 /** Every song name that has rendered music. */
 export const SONGS = Object.keys(MUSIC).map((p) => p.replace(/^.*\/|\.mp4$/g, ""));
@@ -58,6 +75,33 @@ export const SONGS = Object.keys(MUSIC).map((p) => p.replace(/^.*\/|\.mp4$/g, ""
 export function pickSong(name: string, fallback = "classic", songs: readonly string[] = SONGS): string {
   if (songs.includes(name)) return name;
   return songs.includes(fallback) ? fallback : "classic";
+}
+
+/**
+ * A song that keeps time with the scene: its `cue` (a moment named in manifest.json) plays at the
+ * top of every `cycle` seconds of the scene clock `time()`.
+ */
+export interface SceneSync {
+  cue: string;
+  cycle: number;
+  /** The scene clock, seconds (0 when the scene starts). */
+  time: () => number;
+}
+
+/** A song's named moment (seconds into it as written), if it has one. */
+export function songCue(song: string, cue: string): number | undefined {
+  return LOOPS[song]?.cues?.[cue];
+}
+
+/**
+ * Where a song should be (seconds as written, in [0, length)) when the scene is `sceneTime` into
+ * it, for its `cue` to play at the top of every `cycle` seconds: the cue plus how far into its
+ * cycle the scene is. When that runs past the loop's end, a cycle earlier instead: the song's cue
+ * then comes with the scene's next cycle, rather than the song starting over against this one.
+ */
+export function cuedPosition(cue: number, sceneTime: number, cycle: number, length: number): number {
+  const here = cue + mod(sceneTime, cycle);
+  return mod(here < length ? here : here - cycle, length);
 }
 
 function bytes(dataUrl: string): ArrayBuffer {
@@ -125,8 +169,6 @@ interface Voice {
   offset: number;
 }
 
-const mod = (x: number, n: number): number => ((x % n) + n) % n;
-
 function makeSong(name: string, buffer: AudioBuffer): Song {
   const info = LOOPS[name];
   const sr = buffer.sampleRate;
@@ -134,6 +176,11 @@ function makeSong(name: string, buffer: AudioBuffer): Song {
   const original: Version = { step: 0, buffer, map: null, start: loop?.start ?? 0, end: loop?.end ?? buffer.duration, loops: !!loop };
   const stretchable = !!loop && Math.round(loop.start * sr) + Math.round((loop.end - loop.start) * sr) <= buffer.length;
   return { name, original, bar: info ? barSeconds(info) : 2, stretchable, fast: null };
+}
+
+/** The song's loop as written, seconds. */
+function loopLength(song: Song): number {
+  return song.original.end - song.original.start;
 }
 
 /** Buffer time (s) a voice plays at context time t. */
@@ -225,7 +272,8 @@ class Stretcher {
   }
 }
 
-class GameAudio {
+/** The game's audio (one instance, `audio`; exported for tests). */
+export class GameAudio {
   private ctx: AudioContext | null = null;
   private musicBus: GainNode | null = null;
   private focusGain: GainNode | null = null;
@@ -243,6 +291,10 @@ class GameAudio {
   private recheck: ReturnType<typeof setTimeout> | null = null;
   private stretcher: Stretcher | null = null;
   private wanted = "";
+  /** How the wanted song keeps time with the scene, if it does. */
+  private sceneSync: SceneSync | null = null;
+  /** The wanted song should cut to where the scene is, once nothing else is under way. */
+  private realignWanted = false;
   /** Tempo step asked for (index into TEMPO_STEPS). */
   private step = 0;
   private landTurn = 0;
@@ -277,6 +329,8 @@ class GameAudio {
         if (document.hidden) void this.ctx.suspend();
         else void this.ctx.resume();
       });
+      // A song that keeps time with the scene waits for the clock to run (see sync).
+      this.ctx.addEventListener("statechange", () => this.sync());
       this.sync();
     }
     if (this.ctx.state !== "running") void this.ctx.resume();
@@ -295,12 +349,27 @@ class GameAudio {
 
   /**
    * Play this song (crossfading from the current one). A song with no music yet plays `fallback`
-   * instead, or Classic if that has none either (pickSong).
+   * instead, or Classic if that has none either (pickSong). With `sync`, the song keeps time with
+   * the scene: it comes in where the scene is rather than at its top (a fallback ignores `sync`).
    */
-  setMusic(name: string, fallback = "classic"): void {
+  setMusic(name: string, fallback = "classic", sync?: SceneSync): void {
     const song = pickSong(name, fallback);
+    this.sceneSync = song === name ? (sync ?? null) : null;
     if (song === this.wanted) return;
     this.wanted = song;
+    this.realignWanted = false;
+    this.sync();
+  }
+
+  /**
+   * The scene and the song may have parted: the scene started over (a fresh tower), or its clock
+   * stood still under an overlay while the music played on. A song that keeps time with the scene
+   * cuts to where the scene now is, cleanly, as soon as no crossfade is under way, unless it is
+   * already within REALIGN_SLACK of it. Any other song plays on.
+   */
+  realign(): void {
+    if (!this.sceneSync || !this.current) return;
+    this.realignWanted = true;
     this.sync();
   }
 
@@ -322,8 +391,7 @@ class GameAudio {
   position(): number {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== "running" || !this.settings.music) return NaN;
-    const lag = Math.min(0.5, Math.max(0, (ctx.outputLatency || 0) + (ctx.baseLatency || 0)));
-    const t = ctx.currentTime - lag;
+    const t = ctx.currentTime - this.lag();
     let v = this.current;
     const prev = this.previous;
     // Until a tempo switch reaches its bar line (or a new song starts), report the one leaving.
@@ -332,6 +400,34 @@ class GameAudio {
     const b = bufferTime(v, t);
     if (!v.version.loops && b >= v.version.end) return NaN;
     return songAt(v.version, b, true);
+  }
+
+  /** Seconds between the context playing a sample and it being heard. */
+  private lag(): number {
+    const ctx = this.ctx;
+    return ctx ? Math.min(0.5, Math.max(0, (ctx.outputLatency || 0) + (ctx.baseLatency || 0))) : 0;
+  }
+
+  /**
+   * Where the wanted song should be now (seconds as written) to keep time with the scene; null
+   * when it doesn't keep time with it (or has no such cue).
+   */
+  private cued(song: Song): number | null {
+    const sync = this.sceneSync;
+    const cue = sync && song.name === this.wanted ? songCue(song.name, sync.cue) : undefined;
+    if (!sync || cue === undefined) return null;
+    const s = cuedPosition(cue, sync.time(), sync.cycle, loopLength(song));
+    return Number.isFinite(s) ? s : null;
+  }
+
+  /**
+   * How far (seconds as written, either way round the loop) a voice is heard ahead of `cued`,
+   * where the scene now is; negative when it is behind.
+   */
+  private drift(v: Voice, cued: number): number {
+    const len = loopLength(v.song);
+    const d = mod(songAt(v.version, bufferTime(v, this.ctx!.currentTime)) - (cued + this.lag()), len);
+    return d > len / 2 ? d - len : d;
   }
 
   /** The step to play a song at: as written when it can't be stretched or nobody hears it. */
@@ -360,19 +456,35 @@ class GameAudio {
     // Only the wanted song keeps a stretched version (voices hold on to what they play).
     for (const other of this.songs.values()) if (other !== song) other.fast = null;
     const step = this.targetStep(song);
-    let version: Version;
+    let version: Version | null = null;
     if (step === 0) version = song.original;
     else if (song.fast?.step === step) version = song.fast;
-    else if (this.stretcher?.alive ?? typeof Worker !== "undefined") {
-      this.requestStretch(song, step);
-      // Keep playing what we have (even the previous song) until the stretch is ready.
-      if (this.current) return;
-      version = song.original;
-    } else version = song.original;
+    else if (this.stretcher?.alive ?? typeof Worker !== "undefined") this.requestStretch(song, step);
+    else version = song.original;
 
     const cur = this.current;
-    if (!cur) this.begin(song, version);
-    else if (cur.song !== song) this.changeSong(song, version);
+    const cued = this.cued(song);
+    if (cued !== null) {
+      // Placed by the scene's clock: wait for the audio clock to run too (a context still
+      // starting, or suspended while the page is hidden, would play it late); statechange re-syncs.
+      if (ctx.state !== "running") return;
+      if (this.realignWanted && cur?.song === song) {
+        this.realignWanted = false;
+        // A fresh scene, or one that stood still: cut to it (at the tempo playing if the wanted
+        // one isn't ready yet), unless the song is about there already.
+        if (Math.abs(this.drift(cur, cued)) >= REALIGN_SLACK) {
+          this.jump(version ?? cur.version, cued);
+          return;
+        }
+      }
+    }
+    if (!version) {
+      // Keep playing what we have (even the previous song) until the stretch is ready.
+      if (cur) return;
+      version = song.original;
+    }
+    if (!cur) this.begin(song, version, cued);
+    else if (cur.song !== song) this.changeSong(song, version, cued);
     else if (cur.version !== version) this.changeTempo(version);
   }
 
@@ -454,21 +566,30 @@ class GameAudio {
     return { song, version, src, gain, t0: at, offset };
   }
 
-  /** First music: fade in from the top of the song. */
-  private begin(song: Song, version: Version): void {
+  /**
+   * Buffer time to start a song from now: its top, or where the scene is (`cued`, seconds as
+   * written) for a song that keeps time with it, heard in step with the screen.
+   */
+  private entry(song: Song, version: Version, cued: number | null): number {
+    this.realignWanted = false;
+    return bufferAt(version, cued === null ? 0 : mod(cued + this.lag(), loopLength(song)));
+  }
+
+  /** First music: fade in from the top of the song (or where the scene is). */
+  private begin(song: Song, version: Version, cued: number | null): void {
     const now = this.ctx!.currentTime;
-    const v = this.voice(song, version, now, bufferAt(version, 0));
+    const v = this.voice(song, version, now, this.entry(song, version, cued));
     v.gain.gain.setValueAtTime(0, now);
     v.gain.gain.linearRampToValueAtTime(1, now + CROSSFADE);
     this.current = v;
     this.settle(now + CROSSFADE);
   }
 
-  /** Another skin's song: crossfade to the top of it. */
-  private changeSong(song: Song, version: Version): void {
+  /** Another skin's song: crossfade to the top of it (or where the scene is). */
+  private changeSong(song: Song, version: Version, cued: number | null): void {
     const now = this.ctx!.currentTime;
     const old = this.current!;
-    const v = this.voice(song, version, now, bufferAt(version, 0));
+    const v = this.voice(song, version, now, this.entry(song, version, cued));
     v.gain.gain.setValueAtTime(0, now);
     v.gain.gain.linearRampToValueAtTime(1, now + CROSSFADE);
     old.gain.gain.cancelScheduledValues(now);
@@ -517,6 +638,38 @@ class GameAudio {
     this.settle(at + half + 0.05);
   }
 
+  /**
+   * Same song, another place in it: where the scene now is (`cued`, seconds as written). A quick
+   * cut on the next scheduling slot, heard in step with the screen; the new place fades in over
+   * JUMP_IN and the old one fades out under it. When the scene's count is just starting (a fresh
+   * tower: the screen's "10"), the cut starts JUMP_IN before the cue instead, so the count's first
+   * hit is heard whole, a few hundredths behind the screen, rather than clipped.
+   */
+  private jump(version: Version, cued: number): void {
+    const ctx = this.ctx!;
+    const cur = this.current!;
+    const song = cur.song;
+    const len = loopLength(song);
+    this.realignWanted = false;
+    const at = ctx.currentTime + SWITCH_LEAD;
+    // Where the scene will be once the new place is heard...
+    const ahead = SWITCH_LEAD + this.lag();
+    let from = cued + ahead;
+    // ...unless that cuts into the cue (or starts just before it, inside the fade-in).
+    const cue = this.sceneSync ? songCue(song.name, this.sceneSync.cue) : undefined;
+    if (cue !== undefined && mod(from - (cue - JUMP_IN), len) < ahead + 2 * JUMP_IN) from = cue - JUMP_IN;
+    const next = this.voice(song, version, at, bufferAt(version, mod(from, len)));
+    next.gain.gain.setValueAtTime(0, at);
+    next.gain.gain.linearRampToValueAtTime(1, at + JUMP_IN);
+    cur.gain.gain.cancelScheduledValues(at);
+    cur.gain.gain.setValueAtTime(cur.gain.gain.value, at);
+    cur.gain.gain.linearRampToValueAtTime(0, at + JUMP_OUT);
+    cur.src.stop(at + JUMP_OUT + 0.05);
+    this.previous = cur;
+    this.current = next;
+    this.settle(at + JUMP_OUT + 0.05);
+  }
+
   /** A crossfade runs until context time `until`; sync() waits for it. */
   private settle(until: number): void {
     this.busyUntil = until;
@@ -561,6 +714,8 @@ class GameAudio {
   }
 
   setMusicOn(on: boolean): void {
+    // Played on silently while off, a song that keeps time with the scene picks up where it is.
+    if (on && !this.settings.music && this.sceneSync && this.current) this.realignWanted = true;
     this.settings.music = on;
     this.save();
     this.ramp(this.musicBus, on ? MUSIC_LEVEL : 0);

@@ -30,9 +30,11 @@ export const DROP_GAP = BLOCK_HEIGHT;
 export const DROP_GRAVITY = 220;
 
 /**
- * The music keeps pace with the slider in both modes (as written at the run's starting speed), but
- * never plays faster than this many times its written tempo.
+ * The music keeps its written tempo until this many bars (the owner: "music should not be sped up
+ * until you get closer to 40+ stacks"), then keeps pace with the slider in both modes...
  */
+export const TEMPO_FROM_SCORE = 40;
+/** ...reaching this many times its written tempo when the slider reaches its cap, never faster. */
 export const TEMPO_MAX = 1.35;
 
 // Sway. Displacement of the block at `level`:

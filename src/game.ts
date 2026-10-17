@@ -13,6 +13,7 @@ import {
   SWAY_FULL_LEVEL,
   SWAY_KICK_FULL_LEVEL,
   SWAY_KICK_MAX,
+  TEMPO_FROM_SCORE,
   TEMPO_MAX,
   WORLD_WIDTH,
   tuning,
@@ -327,11 +328,18 @@ function land(state: GameState): DropResult {
 }
 
 /**
- * How fast the music plays, as a multiple of its written tempo. While a run is played (in either
- * mode) it keeps pace with the slider: as written at the run's starting speed, faster as the slider
- * speeds up, up to TEMPO_MAX. The title screen (a fresh run, nothing dropped yet) and game over: 1.
+ * The music's tempo (1 = as written), the same in both modes: as written until the slider has
+ * gained TEMPO_FROM_SCORE bars of speed (bar 40 at the default tuning; the owner wanted it plain
+ * until "closer to 40+ stacks"), then faster in proportion as the slider keeps speeding up, reaching
+ * TEMPO_MAX exactly when the slider reaches its cap (the same cap as sliderSpeed's; bar 77 at the
+ * default tuning). A slider tuned so it caps before then never speeds the music up. The title screen
+ * (a fresh run, nothing dropped yet) and game over: 1.
  */
 export function musicTempo(state: GameState): number {
-  if (state.phase !== "playing" || state.score === 0) return 1;
-  return Math.max(1, Math.min(TEMPO_MAX, sliderSpeed(state) / tuning.slideSpeed));
+  if (state.phase !== "playing") return 1;
+  const cap = Math.max(SLIDE_SPEED_MAX, tuning.slideSpeed);
+  const from = Math.min(cap, tuning.slideSpeed + TEMPO_FROM_SCORE * SLIDE_SPEED_PER_LEVEL);
+  if (!(cap > from)) return 1;
+  const ramp = (sliderSpeed(state) - from) / (cap - from);
+  return Math.max(1, Math.min(TEMPO_MAX, 1 + (TEMPO_MAX - 1) * ramp));
 }

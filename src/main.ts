@@ -1,4 +1,4 @@
-import { audio } from "./audio/engine";
+import { audio, type SceneSync } from "./audio/engine";
 import { blastSounds, dropSounds, unlockSounds, type SoundCue } from "./audio/sounds";
 import { creditBests, loadAchievements, markSeen, record, saveAchievements, type Achievement } from "./achievements";
 import { createAchievements, MEDAL_ICON } from "./achievements-sheet";
@@ -10,6 +10,7 @@ import { createOptions } from "./options";
 import { createPanel } from "./panel";
 import { isToppling, newView, render, showLanding, titleLayout, updateView, type View } from "./render";
 import { resolveSkin } from "./skins";
+import { COUNT_FROM, CYCLE } from "./skins/newyear/countdown";
 import type { Skin } from "./skins/skin";
 import { keepSaves } from "./storage";
 import { createTitle, flowStep, keyIntent, skinSong, tapIntent, type Intent, type Screen } from "./title";
@@ -111,6 +112,8 @@ function restart(): void {
   view = newView();
   cardAt = 0;
   runMedals = [];
+  // A fresh tower's scene starts over: New Year's music cuts to its countdown with the screen's.
+  audio.realign();
 }
 
 /** Switching mode starts a fresh run in it. */
@@ -273,18 +276,35 @@ function currentSkin(): Skin {
     achievements.setSkin(skin);
     // Each skin has its arrangement of the theme; a skin without one yet plays Synthwave's if it
     // is neon, else Classic's.
-    audio.setMusic(...skinSong(skin));
+    audio.setMusic(...skinSong(skin), sceneSync(skin));
   }
   return skin;
 }
 
+/**
+ * New Year's: the song's crowd countdown (its "countdownStart" cue, "10") plays with the Art Deco
+ * screen's, which counts "10" … "1" from the top of every minute of the tower's scene clock. The
+ * song comes in where the scene is and cuts to where it is when a fresh tower starts (restart) or
+ * the scene goes on after an overlay held it; other skins' music keeps its own time.
+ */
+function sceneSync(s: Skin): SceneSync | undefined {
+  return s.id === "newyear" ? { cue: "countdownStart", cycle: CYCLE, time: () => view.t - COUNT_FROM } : undefined;
+}
+
 let last = performance.now();
+/** An overlay held the scene still last frame. */
+let held = false;
 function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
   // A page can resize the canvas without resizing the window (the Artifact page pads the top by
   // the phone's safe area once it knows it): follow it, or the title's buttons drift off the logo.
   if (canvas!.clientWidth !== cssW || canvas!.clientHeight !== cssH) resize();
+  // The scene's clock stood still under the overlay (where New Year's is picked, a mode switch's
+  // fresh tower starts, or the music comes back on) while the music played on: as the scene goes
+  // on again, New Year's song lines its countdown up with the screen's again.
+  if (held && !paused()) audio.realign();
+  held = paused();
   // Paused while tuning, so values can be changed without losing the run.
   if (!paused()) {
     // The title holds the tower still (and hides the slider) until PLAY. In Drop a released bar
