@@ -26,8 +26,9 @@
 }
 
 #title {
-  /* Over the canvas exactly (main.ts sets the box): the page may push the canvas down. */
-  position: fixed;
+  /* Over the canvas exactly, in the canvas's own parent (main.ts sets the box from the canvas's
+     offset there), so it moves with the canvas however the page pads or pushes it. */
+  position: absolute;
   left: var(--box-left, 0px);
   top: var(--box-top, 0px);
   width: var(--box-w, 100vw);
@@ -178,7 +179,7 @@
 }
 
 #over-menu {
-  position: fixed;
+  position: absolute;
   top: calc(var(--box-top, 0px) + var(--menu-top));
   left: calc(var(--box-left, 0px) + var(--box-w, 100vw) / 2);
   transform: translateX(-50%);

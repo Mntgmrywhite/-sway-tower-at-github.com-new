@@ -102,7 +102,7 @@ function resize(): void {
   canvas!.height = Math.round(cssH * dpr);
   ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
   const at = titleLayout(cssW, cssH);
-  title.layout(at.u, at.top, at.menuTop, canvas!.getBoundingClientRect());
+  title.layout(at.u, at.top, at.menuTop, { left: canvas!.offsetLeft, top: canvas!.offsetTop, width: cssW, height: cssH });
 }
 
 function restart(): void {
@@ -291,6 +291,9 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
+  // A page can resize the canvas without resizing the window (the Artifact page pads the top by
+  // the phone's safe area once it knows it): follow it, or the title's buttons drift off the logo.
+  if (canvas!.clientWidth !== cssW || canvas!.clientHeight !== cssH) resize();
   // Paused while tuning, so values can be changed without losing the run.
   if (!paused()) {
     // The title holds the tower still (and hides the slider) until PLAY.

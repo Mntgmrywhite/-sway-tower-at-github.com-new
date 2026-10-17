@@ -143,7 +143,7 @@ export interface SmallButton {
   onClick(): void;
 }
 
-/** Where the canvas sits in the window (CSS px), as getBoundingClientRect gives it. */
+/** Where the canvas sits in its parent (CSS px): its offset there and its CSS size. */
 export interface CanvasBox {
   left: number;
   top: number;
@@ -160,9 +160,9 @@ export interface Title {
   /**
    * Place the overlay to match the canvas: `u` is render.ts's size unit, `top` the y the column
    * starts at (under the logo), `menuTop` the y of the game-over Menu button (CSS px, from the
-   * canvas's top), and `box` where the canvas sits in the window. The page can push the canvas
-   * down (the Artifact page pads the top by the phone's safe area), and the overlay must follow it
-   * or its column rides up over the logo.
+   * canvas's top), and `box` where the canvas sits in its parent (offsetLeft/Top, its CSS size).
+   * The page can push the canvas down (the Artifact page pads the top by the phone's safe area),
+   * and the overlay must follow it or its column rides up over the logo.
    */
   layout(u: number, top: number, menuTop: number, box?: CanvasBox): void;
   /** Colors and faces from the skin's HUD, cartoon or neon. */
@@ -293,6 +293,10 @@ export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
   });
   menu.hidden = true;
 
+  // Beside the canvas, placed from its offset in their shared parent (layout), so the overlay can't
+  // drift from the logo when the page pads or pushes the canvas.
+  const parent = canvas.parentElement;
+  if (parent && getComputedStyle(parent).position === "static") parent.style.position = "relative";
   canvas.after(root, menu);
 
   // Whether the keyboard put the focus where it is (Tab, the arrows), not a click or a tap. A
