@@ -1,11 +1,12 @@
 // Cyberpunk (skin "neon-cyber"): tech-noir for a rainy megacity at night. The Synthwave skin keeps
 // the French electro house of neon.ts; this is its dark twin, in the spirit of the 1980s tech-noir
 // film scores: slow, wet and minor, analog synths in a cavernous reverb (a polyphonic brass pad
-// that swells and sings with vibrato, a wide breathing saw pad, a sequencer pulsing under the
-// rain, a deep saw bass), gated 80s drums, and a real tenor saxophone carrying the theme, the
-// classic noir pairing, with a lonely piano. Rain falls through the whole loop and thunder rolls
-// in the distance, under everything, never over the tune. The genre only: every line here is
-// the theme's, built from its chords, or our own.
+// that swells and sings with vibrato, a wide breathing saw pad, a sequencer pulsing in the dark,
+// a deep saw bass), gated 80s drums, and a real tenor saxophone carrying the theme, the classic
+// noir pairing, with a lonely piano. Thunder rolls in the distance as the loop opens and again
+// with the break, under everything, never over the tune. No rain: the owner heard its noise as
+// crackle, so nothing noisy plays as a bed; the pad and the drone carry the quiet sections. The
+// genre only: every line here is the theme's, built from its chords, or our own.
 //
 // The theme stays in its 6/8 (the tower's sway), slowed to a dotted quarter of 64: a heavy 12/8
 // half-time groove (kick on the bar, the gated snare on its second pulse, the kick's push on the
@@ -16,44 +17,46 @@
 // last A7. D minor puts the tune (A3-F5) in the tenor's warm, breathy middle.
 //
 // 40 bars (75 s):
-//    1-4   intro: rain and a far thunder roll; the wide pad on the A section's chords, the bass
-//          a low drone, the sequencer opening behind a filter; the piano high and alone with the
-//          tune's first bars; ticking hats, then gated toms and a reversed swell into
+//    1-4   intro: a far thunder roll; the wide pad on the A section's chords, the bass a low
+//          drone, the sequencer opening behind a filter; the piano high and alone with the
+//          tune's first and third bars, and between them (bar 2) a soft, slow swell of the brass
+//          pad; ticking hats, then gated toms and a reversed swell into
 //    5-20  the theme: the tenor sax sings it all (A A' B A''). The A section half-time (bass in
 //          pulses, kick and the gated snare, hats in eighths); from A' the bass drives in
 //          eighths; in B the brass pad swells on every chord, the hats run in sixteenths and
 //          the kick pushes into each snare; gated tom fills close the phrases.
 //   21-24  break: the drums stop and the thunder breaks; the piano plays the A section in
-//          octaves over the pad and the rain, the sequencer ticking on; a gated snare build.
+//          octaves over the open pad and the drone, the sequencer ticking on; a gated snare build.
 //   25-36  the theme again from A': the sax back with the full groove, the brass under the
 //          lift and A'', the piano answering the sax's long notes from high up, a second tenor in
 //          harmony under the climax (B A'').
 //   37-40  outro: the sax sings the theme's first figure slowed to half speed over the A chords
-//          as the drums thin out, and the rain comes back up into the intro.
+//          as the drums thin out; the open pad and the drone run on through the loop point into
+//          the intro.
 //
 // Register plan (each part in its own lane): bass G1-D3 (two saws over a sine on the root) ·
-// pad D3-C4 (under the sax) · brass E3-E4 (under the tune's B section) · sax A3-F5, the second
-// tenor a third (now and then a fourth or fifth) under it, Bb3-C5 · piano: the break's tune
-// C#4-D6 in octaves over a left hand G2-A3, the intro's figure and the answers D5-E6, the
-// second pass's low octaves G2-F4 · sequencer D5-C6 (above the sax, filtered dark) · rain and
-// thunder: noise, the thunder low-passed to a rumble.
+// pad D3-C4 (under the sax) · brass E3-E4 (under the tune's B section; the intro's swell F3-D4,
+// where nothing sings) · sax A3-F5, the second tenor a third (now and then a fourth or fifth)
+// under it, Bb3-C5 · piano: the break's tune C#4-D6 in octaves over a left hand G2-A3, the
+// intro's figure and the answers D5-E6, the second pass's low octaves G2-F4 · sequencer D5-C6
+// (above the sax, filtered dark) · thunder: low-passed to a rumble.
 //
-// Mix (mix.ts, dB vs the mix per 4-bar phrase): the sax 2-3 down where it sings, the second
+// Mix (mix.ts, dB vs the mix per 4-bar phrase): the sax 1-3 down where it sings, the second
 // tenor 11; the piano 2 down in the break and 6 in the intro (3 in the bars it plays), over the
-// open pad (8-10 down there, 11-13 under the sax), the brass 11, the bass 13-15, the sequencer
-// 11-15, the kick 8-10 and the gated snare 12-13; the rain 10-13 down in the intro, break and
-// outro and 16-18 under the sax, the thunder 12-13 in its phrases. In the band of whatever
-// carries the tune (250-3500 Hz) no other part comes within 8 dB of it: the gated snare cracks
-// where the tune starts a note on every bar's second pulse, and the theme's tom fills run under
-// the sax's pickups, so both sit lower than an 80s mix would put them. Everything bright is
-// low-passed: the sax at 3.6 kHz (the owner hears harshness), the sequencer, snare, hats,
-// cymbals and rain at 2.4-6 kHz, so the 2-8 kHz band sits among the other songs' (-14.2 dB of
-// the whole; they run -12.2 to -20.2), not above them. Tuning as heard (tuning.ts): the saxes
-// within half a cent, the piano within 1.6 cents, the synths within 3.1.
+// open pad (8-10 down there, 11-13 under the sax), the brass 11 and the intro's swell 11, the bass
+// 13-15, the sequencer 11-15, the kick 8-10 and the gated snare 11-13, the thunder 12 in its
+// phrases. In the band of whatever carries the tune (250-3500 Hz) no other part comes within 8 dB
+// of it, but for the intro's pad (5-8 under the piano's figure) and the piano's answers (6 under
+// the sax's long notes). The gated snare cracks where the tune starts a note on every bar's second
+// pulse, and the theme's tom fills run under the sax's pickups, so both sit lower than an 80s mix
+// would put them. Everything bright is low-passed: the sax at 3.6 kHz (the owner hears harshness), the
+// sequencer, snare, hats and cymbals at 2.4-6 kHz, so the 2-8 kHz band sits among the other
+// songs' (-16.4 dB of the whole; they run -12.3 to -20.2), not above them. Tuning as heard
+// (tuning.ts): the saxes within half a cent, the piano within 1.5 cents, the synths within 3.1.
 
 import { midi } from "../sampler";
 import { transpose, type Note, type Song, type Track } from "../song";
-import { SYNTHS, type DrumPatch, type HissPatch, type MembranePatch, type Patch, type RattlePatch, type VoicePatch } from "../synth";
+import { SYNTHS, type DrumPatch, type MembranePatch, type Patch, type VoicePatch } from "../synth";
 import { CHORDS, melody, minorize } from "../theme";
 
 const BPM = 192; // eighths a minute: a dotted quarter of 64
@@ -214,7 +217,7 @@ const saxHarmony: Note[] = sax2
 const pianoHigh: Note[] = []; // the intro's figure, the answers
 const pianoTune: Note[] = []; // the break's tune, in octaves
 const pianoLow: Note[] = []; // the left hand
-// Intro: the tune's first and third bars an octave above the sax's, alone in the rain (bars 1
+// Intro: the tune's first and third bars an octave above the sax's, alone over the pad (bars 1
 // and 3), each note left to ring into the next.
 for (const [from, at] of [[1, 1], [3, 3]] as [number, number][]) {
   for (const n of themeBars(from, from, at)) pianoHigh.push({ t: n.t, d: n.d + 1.5, n: num(n.n) + 12, v: n.t % 3 === 0 ? 0.5 : 0.42 });
@@ -364,23 +367,18 @@ crash.push({ t: bar(OUTRO), d: 1, n: "C4", v: 0.5 });
 // The reversed swell (a cymbal played backwards, as the 80s did) into the sax's entrances.
 const swell: Note[] = [4, 24, 28].map((b) => ({ t: bar(b), d: 6, n: "C4", v: 0.7 }));
 
-// ------------------------------------------------------------------ rain and thunder
+// ------------------------------------------------------------------ thunder and the intro's swell
 
-// The rain: a wash of noise (louder where nothing sings, crossfading over the patch's attack and
-// release) and a patter of drops (one steady layer, and a heavier one that steps up and down bar
-// by bar around the quiet sections). The outro's wash runs on through the loop point into the
-// intro as one note (it wraps), so the rain doesn't dip there: two notes crossfading over the
-// patch's 2.5 s would sum 3 dB low halfway (uncorrelated noise).
-const RAIN_SECTIONS: [number, number, number][] = [[OUTRO, BARS + THEME1, 0.75], [THEME1, BREAK, 0.12], [BREAK, THEME2, 0.85], [THEME2, OUTRO, 0.12]];
-const rainWash: Note[] = RAIN_SECTIONS.map(([from, to, v]) => ({ t: bar(from), d: bar(to) - bar(from), n: "C4", v }));
-const patter: Note[] = [{ t: 0, d: LOOP - 0.1, n: "C4", v: 0.6 }];
-const HEAVY: Record<number, number> = { 39: 0.3, 40: 0.55, 1: 0.6, 2: 0.8, 3: 0.6, 4: 0.35, 5: 0.15, 20: 0.2, 21: 0.6, 22: 0.8, 23: 0.7, 24: 0.4, 25: 0.15, 37: 0.15 };
-const heavy: Note[] = Object.entries(HEAVY).map(([b, v]) => ({ t: bar(Number(b)), d: BPB, n: "C4", v }));
 // Thunder: the short roll (3114, 11 s) as the loop opens, ringing out whole under the intro; the
 // long one (3181) breaking with the break, let go after 7 s to die away over the next three.
 // Played at their recorded pitch; far away, so low-passed and quiet.
 const thunderNear: Note[] = [{ t: bar(1) + 0.5, d: 1, n: "C4", v: 0.7 }];
 const thunderFar: Note[] = [{ t: bar(BREAK) + 0.3, d: 1, n: "C4", v: 0.7 }];
+// The intro's swell: the brass pad, soft and slow, rising from bar 1's second pulse under the
+// piano's figure, cresting in bar 2 (where the piano rests and the bar would stand empty) and
+// letting go as the piano comes back in bar 3. Dm's voicing, which Bbmaj7 shares over its own
+// bass: one chord carries both bars.
+const brassSwell: Note[] = Dm.brass.map((n, k) => ({ t: bar(1) + 3 + k * 0.02, d: 8.5, n: num(n), v: 0.6 }));
 
 // ------------------------------------------------------------------ patches (our own synths)
 
@@ -423,6 +421,18 @@ const BRASS: VoicePatch = {
   range: ["C3", "C6"],
   home: "C4",
 };
+/**
+ * The same brass played soft and slow, for the intro's swell: it breathes in over two seconds,
+ * its filter opening as slowly and not as far, the vibrato barely there; no noise anywhere. It
+ * lets go nearly as fast as the pad does at a chord change, so its A doesn't linger against bar
+ * 3's Gm7.
+ */
+const SOFT_BRASS: VoicePatch = {
+  ...BRASS,
+  filter: { cutoff: 480, resonance: 0.12, keyTrack: 0.5, envAmount: 1.2, env: { attack: 2.2, decay: 2.5, sustain: 0.5, release: 1.4 } },
+  lfos: [{ rate: 4.8, pitch: 5, delay: 1.2, fade: 1.5 }],
+  amp: { attack: 1.8, decay: 3, sustain: 0.85, release: 1.6 },
+};
 /** The wide pad: the super-saw pad, slower to breathe in. */
 const PAD: VoicePatch = { ...(SYNTHS.superSawPad as Patch as VoicePatch), amp: { attack: 0.6, decay: 1, sustain: 0.9, release: 1.4 } };
 /** The gated snare: a big noisy room cut off short (the track's `ring`), as the 80s gated reverb did. */
@@ -443,36 +453,6 @@ const SWELL: VoicePatch = {
   filter: { slope: 12, cutoff: 500, resonance: 0.2 },
   ramp: { cutoff: 3.2, amp: 0.98, curve: 2.5 },
   amp: { attack: 0.01, decay: 0.1, sustain: 1, release: 0.05 },
-};
-/** The rain's wash: broad noise with a soft peak, swelling in and out slowly, never quite steady. */
-const RAIN: HissPatch = {
-  ...(SYNTHS.hiss as HissPatch),
-  tone: 1800,
-  q: 0.5,
-  hp: 350,
-  lp: 4500,
-  peak: 0.25,
-  attack: 2.5,
-  release: 2.5,
-  fade: 1,
-  flutter: 0.18,
-  bend: 0,
-  width: 0.9,
-};
-/** The drops: a dense, uneven patter of tiny clicks. */
-const PATTER: RattlePatch = {
-  ...(SYNTHS.rattle as RattlePatch),
-  rate: 70,
-  jitter: 1,
-  drift: 0.6,
-  click: 0.007,
-  tone: 2600,
-  q: 0.7,
-  hp: 900,
-  lp: 5000,
-  attack: 0.04,
-  release: 0.06,
-  width: 0.7,
 };
 
 // ------------------------------------------------------------------ the song
@@ -514,8 +494,8 @@ const song: Song = {
     // The sax: the theme, the outro, the second tenor under the climax.
     { inst: "sax", notes: sax, gain: 1.7, pan: 0, reverb: 0.38, humanize: 0.3, delay: 0.08, lowpass: 3600, label: "sax" },
     { inst: "sax", notes: saxHarmony, gain: 0.7, pan: -0.3, reverb: 0.4, humanize: 0.35, lowpass: 3200, label: "sax (harmony)" },
-    // Piano: where it carries the tune (the intro's figure, the break) it sits over the open pad
-    // and the rain; its answers under the sax stay lower.
+    // Piano: where it carries the tune (the intro's figure, the break) it sits over the open pad;
+    // its answers under the sax stay lower.
     { inst: "piano", notes: pianoTune, gain: 0.28, pan: 0.05, reverb: 0.4, humanize: 0.25, delay: 0.1, label: "piano" },
     { inst: "piano", notes: pianoHigh.filter((n) => barOf(n.t) < THEME1), gain: 0.32, pan: 0.25, reverb: 0.45, humanize: 0.25, delay: 0.25, lowpass: 5000, label: "piano (high)" },
     { inst: "piano", notes: pianoHigh.filter((n) => barOf(n.t) >= THEME1), gain: 0.22, pan: 0.25, reverb: 0.45, humanize: 0.25, delay: 0.25, lowpass: 5000, label: "piano (high)" },
@@ -539,12 +519,12 @@ const song: Song = {
     { inst: "dmHatOpen", notes: hatOpen, gain: 0.8, pan: 0.2, reverb: 0.1, humanize: 0, ring: 0.25, lowpass: 6000, label: "open hat" },
     { inst: "dmCrash", notes: crash, gain: 0.8, pan: -0.25, reverb: 0.3, humanize: 0, lowpass: 6000, label: "crash" },
     { inst: "riser", patch: SWELL, notes: swell, gain: 0.6, reverb: 0.3, humanize: 0, lowpass: 5000, label: "swell" },
-    // Rain and thunder.
-    { inst: "hiss", patch: RAIN, notes: rainWash, gain: 0.35, reverb: 0.1, humanize: 0, lowpass: 3500, label: "rain" },
-    { inst: "rattle", patch: PATTER, notes: patter, gain: 0.4, pan: -0.3, reverb: 0.2, humanize: 0, lowpass: 4500, label: "rain" },
-    { inst: "rattle", patch: { ...PATTER, rate: 85, tone: 2200 }, notes: heavy, gain: 0.4, pan: 0.35, reverb: 0.2, humanize: 0, lowpass: 4000, label: "rain" },
+    // Thunder, far off.
     { inst: "thunder", notes: thunderNear, gain: 0.21, pan: 0.2, reverb: 0.4, highpass: 110, lowpass: 1500, humanize: 0, label: "thunder" },
     { inst: "thunderRoll", notes: thunderFar, gain: 0.25, pan: -0.25, reverb: 0.4, ring: 7, highpass: 110, lowpass: 1500, humanize: 0, label: "thunder" },
+    // The intro's swell, last: a track's humanizing is seeded by its place in this list, so a part
+    // added at the end leaves every part above it playing exactly as before.
+    { inst: "superSaw", patch: SOFT_BRASS, notes: brassSwell, gain: 0.42, pan: -0.1, reverb: 0.45, humanize: 0, lowpass: 2000, label: "brass (swell)" },
   ],
 };
 
