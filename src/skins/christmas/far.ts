@@ -224,14 +224,20 @@ function dome(ctx: Ctx, s: Scene, tone: Tone, cx: number, hy: number): void {
 // ---------------------------------------------------------------- the steeple
 
 const STEEPLE_X = 0.17;
-const BELL_PERIOD = 7; // seconds per peal cycle
+const BELL_PERIOD = 7; // seconds per peal cycle; the first peal starts at s.t = 0
 const BELL_RING = 3.2; // seconds of each cycle the bell swings
+
+/** 0..1: how hard the bell is swinging at time t (0 between peals). */
+export function bellOn(t: number): number {
+  const p = ((t % BELL_PERIOD) + BELL_PERIOD) % BELL_PERIOD;
+  return p < BELL_RING ? Math.sin((p / BELL_RING) * Math.PI) : 0;
+}
 
 /** The bell's 0..1 swing envelope and its angle, refilled every frame (no allocations). */
 const BELL = { on: 0, angle: 0 };
 function bellSwing(t: number): void {
   const p = ((t % BELL_PERIOD) + BELL_PERIOD) % BELL_PERIOD;
-  BELL.on = p < BELL_RING ? Math.sin((p / BELL_RING) * Math.PI) : 0;
+  BELL.on = bellOn(t);
   BELL.angle = Math.sin(p * 5.2) * 0.55 * BELL.on;
 }
 

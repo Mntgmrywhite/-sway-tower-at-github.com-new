@@ -151,6 +151,16 @@ export function kite(ctx: Ctx, s: Scene): void {
   bluebird(ctx, s, x, grassTop - u * 0.026, lw);
 }
 
+/** Seconds between the bluebird's dips, and how long one lasts (the first comes as the scene starts). */
+export const DIP_EVERY = 4.6;
+export const DIP_TIME = 0.5;
+
+/** How far the bluebird has its head down at scene time `t` (0..1): a quick dip at the start of every DIP_EVERY. */
+export function birdDip(t: number): number {
+  const cycle = t % DIP_EVERY;
+  return cycle < DIP_TIME ? Math.sin((cycle / DIP_TIME) * Math.PI) : 0;
+}
+
 /**
  * A bluebird perched on top of the kite's stake at (x, y), facing out: a round blue body with
  * a cream breast, a sunny beak and a dot of an eye. Now and then it dips its head.
@@ -158,8 +168,7 @@ export function kite(ctx: Ctx, s: Scene): void {
 function bluebird(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
   const u = s.u;
   const r = u * 0.0105;
-  const cycle = s.t % 4.6;
-  const dip = cycle < 0.5 ? Math.sin((cycle / 0.5) * Math.PI) : 0;
+  const dip = birdDip(s.t);
   const bx = x;
   const by = y - r * 0.85;
   // Tail, body, head.
@@ -351,14 +360,22 @@ export function crystals(ctx: Ctx, s: Scene, x: number, y: number, lw: number): 
   ctx.fill();
 }
 
-/** Seconds between glints on the crystals. */
-const GLINT_EVERY = 3.4;
+/** Seconds between glints on the crystals, and how long one flashes (the first comes as the scene starts). */
+export const GLINT_EVERY = 3.4;
+export const GLINT_TIME = 0.5;
+
+/** How far through its flash a glint is at scene time `t` (0..1), or -1 between glints. */
+export function glintPhase(t: number): number {
+  const n = Math.floor(t / GLINT_EVERY);
+  const k = (t - n * GLINT_EVERY) / GLINT_TIME;
+  return k < 0 || k > 1 ? -1 : k;
+}
 
 /** Now and then a glint flashes on a crystal's tip. */
 function glint(ctx: Ctx, s: Scene, x: number, y: number): void {
+  const k = glintPhase(s.t);
+  if (k < 0) return;
   const n = Math.floor(s.t / GLINT_EVERY);
-  const k = (s.t - n * GLINT_EVERY) / 0.5;
-  if (k < 0 || k > 1) return;
   const [dx, len, lean] = CRYSTALS[n % CRYSTALS.length]!;
   const u = s.u;
   const gx = x + dx * u + Math.sin(lean) * len * u * 0.8;

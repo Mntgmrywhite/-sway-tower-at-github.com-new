@@ -59,14 +59,28 @@ function fanLayer(ctx: Ctx, r: number, sp: number, tilt: number): void {
 }
 
 /**
+ * Peck: how far the head is down toward the lawn at time t (0 up .. 1 at the lawn). It dips,
+ * pecks a few times and comes back up every 3.6 + 0.7 phase seconds, staggered by `phase`; each
+ * turkey's first peck comes in the first few seconds of a scene.
+ */
+export function peckAt(t: number, phase: number): number {
+  return emerge(t, 3.6 + phase * 0.7, phase * 2.3) * (Math.sin(t * 11 + phase) * 0.15 + 0.85);
+}
+
+/** Strut: how far the fan is puffed out at time t (0..1), a slow swell staggered by `phase`. */
+export function strutAt(t: number, phase: number): number {
+  return 0.5 + 0.5 * Math.sin(t * 0.7 + phase * 4);
+}
+
+/**
  * Turkey standing at (x, y), 1 turkey unit = `scale` px, facing `dir` (1 right, -1 left).
  * `phase` staggers its pecking and fan-puffing against the other turkeys.
  */
 export function turkey(ctx: Ctx, t: number, x: number, y: number, scale: number, dir: number, lw: number, phase: number): void {
   const thin = Math.max(1, lw * 0.75);
   // Peck: the head dips to the lawn and back now and then. Strut: the fan opens wider.
-  const peck = emerge(t, 3.6 + phase * 0.7, phase * 2.3) * (Math.sin(t * 11 + phase) * 0.15 + 0.85);
-  const strut = 0.5 + 0.5 * Math.sin(t * 0.7 + phase * 4);
+  const peck = peckAt(t, phase);
+  const strut = strutAt(t, phase);
   const bob = Math.sin(t * 2.2 + phase) * 0.012 * (1 - peck);
   pen(x, y, scale, 50 + Math.round(phase * 10), dir);
 

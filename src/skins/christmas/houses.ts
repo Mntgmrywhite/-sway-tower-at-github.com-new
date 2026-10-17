@@ -515,8 +515,11 @@ const CH_CHIMNEY = { x: 0.042, w: 0.05 };
 /** The signboard starts right of the lamp post. */
 const CH_SIGN_X = 0.06;
 
-/** 0..1: Marley's face shimmering in the knocker, now and then, briefly and gently. */
-function marley(t: number): number {
+/**
+ * 0..1: Marley's face shimmering in the knocker, now and then, briefly and gently: first at
+ * 7.5-9.1 s of s.t, then every 9.5 s.
+ */
+export function marley(t: number): number {
   const p = (((t + 2) % 9.5) + 9.5) % 9.5;
   return p < 1.6 ? Math.sin((p / 1.6) * Math.PI) : 0;
 }

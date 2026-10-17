@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { halloween } from "../halloween";
+import { LAND, TAKE_OFF } from "./flight";
 import { graveyard } from "./graveyard";
 import { piles } from "./leaves";
 import { flyers, moon } from "./sky";
@@ -68,7 +69,7 @@ describe("halloween zoomed out", () => {
     "%ix%i at zoom %s: at the start nothing is cut off by an edge",
     (W, H, z) => {
       // Moments with the crow on its stone, taking off, round the moon, and coming back in.
-      for (const t of [1, 4, 8.5, 10.4, 13.2]) {
+      for (const t of [1, TAKE_OFF + 0.6, TAKE_OFF + 5.1, TAKE_OFF + 7, LAND - 0.8]) {
         const s = sceneAt(W, H, 0, t, z);
         const field = edges(s, (ctx) => graveyard(ctx, s));
         expect(field.seen, "the town and the churchyard are drawn").toBeGreaterThan(3000);

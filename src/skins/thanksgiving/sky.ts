@@ -316,17 +316,28 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
   }
 }
 
-// A faded V of geese heading south every so often, across the open sky below the HUD.
-const GEESE_PERIOD = 28; // seconds between flights
-const GEESE_FLIGHT = 13; // seconds to cross the screen
+// A faded V of geese heading south every so often, across the open sky below the HUD. The first
+// flight sets off as the scene starts (s.t = 0), so it crosses before players climb past it.
+export const GEESE_PERIOD = 28; // seconds between flights
+export const GEESE_FLIGHT = 13; // seconds to cross the screen
 const GEESE = 7;
 const GOOSE = mix(PALETTE.far, "#4a3a6e", 0.35);
 
+/** Which flight of geese time t falls in (one sets off every GEESE_PERIOD seconds, the first at t = 0). */
+export function geeseCycle(t: number): number {
+  return Math.floor(t / GEESE_PERIOD);
+}
+
+/** How far across the screen the geese are at time t (0 setting off .. 1 gone), or -1 between flights. */
+export function geeseAcross(t: number): number {
+  const tt = t - geeseCycle(t) * GEESE_PERIOD;
+  return tt > GEESE_FLIGHT ? -1 : tt / GEESE_FLIGHT;
+}
+
 export function geese(ctx: Ctx, s: Scene): void {
-  const cycle = Math.floor(s.t / GEESE_PERIOD);
-  const tt = s.t - cycle * GEESE_PERIOD;
-  if (tt > GEESE_FLIGHT) return;
-  const k = tt / GEESE_FLIGHT;
+  const cycle = geeseCycle(s.t);
+  const k = geeseAcross(s.t);
+  if (k < 0) return;
   const dir = hash(cycle * 7 + 3) < 0.6 ? -1 : 1;
   const g = s.u * 0.042; // body length
   const span = s.cssW + g * 14;

@@ -169,10 +169,15 @@ function hill(ctx: Ctx, s: Scene): void {
 
 // ---------------------------------------------------------------- the Horseman's ride
 
-/** Seconds per loop, seconds of it spent riding, and the shift that puts him on the moon at the start. */
+/**
+ * Seconds per loop, seconds of it spent riding, and the shift that starts his first ride as a
+ * scene starts: out of the mist from the first frame, past the moon's face by ~3.3 s, into the
+ * bridge by ~4.9 s, so the crow's two turns round the moon (flight.ts) fit between his first two
+ * rides and are done by 10 s. Players watch the first 10 s, then climb past.
+ */
 const RIDE_LOOP = 10;
 const RIDE_TIME = 5.6;
-const RIDE_SHIFT = 9.4;
+const RIDE_SHIFT = 0.6;
 /**
  * His ride, in u from the center: out of the mist on the left, past the moon, down the hill
  * and into the covered bridge's portal (the bridge is drawn over him, so he rides in behind

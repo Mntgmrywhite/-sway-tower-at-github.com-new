@@ -346,6 +346,7 @@ export function snow(ctx: Ctx, s: Scene, yMin: number, yMax: number): void {
 
 const FLOCK_PERIOD = 21; // seconds between passes
 const FLOCK_TIME = 9; // seconds on screen
+/** At s.t = 0 the flock is already crossing: it is gone by 5 s, back at 17 s (actions.test.ts). */
 const FLOCK_OFFSET = 4;
 /** Each bird: offset behind the leader and below it (u), flap phase. */
 const FLOCK = Array.from({ length: 7 }, (_, i) => ({
@@ -355,14 +356,19 @@ const FLOCK = Array.from({ length: 7 }, (_, i) => ({
   size: 0.85 + hash(i + 7400) * 0.3,
 }));
 
+/** 0..1: how far the flock has crossed the sky at time t (from the right edge), or -1 while it's away. */
+export function flockProgress(t: number): number {
+  const p = (((t + FLOCK_OFFSET) % FLOCK_PERIOD) + FLOCK_PERIOD) % FLOCK_PERIOD;
+  return p > FLOCK_TIME ? -1 : p / FLOCK_TIME;
+}
+
 /**
  * A loose flock of pigeons crossing right to left above the rooftops, wings beating, rising
  * gently. Drawn by the far layer, so it passes in front of the skyline but behind the fog.
  */
 export function pigeonFlock(ctx: Ctx, s: Scene): void {
-  const p = (((s.t + FLOCK_OFFSET) % FLOCK_PERIOD) + FLOCK_PERIOD) % FLOCK_PERIOD;
-  if (p > FLOCK_TIME) return;
-  const k = p / FLOCK_TIME;
+  const k = flockProgress(s.t);
+  if (k < 0) return;
   const u = s.u;
   const span = s.cssW + u * 0.7;
   const lead = s.cssW + u * 0.1 - span * k;

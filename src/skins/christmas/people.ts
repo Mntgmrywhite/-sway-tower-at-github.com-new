@@ -379,7 +379,10 @@ export function carolers(ctx: Ctx, f: Frame): void {
 
 // ---------------------------------------------------------------- lamplighter
 
-/** 0..1: how high the lamplighter's pole is raised (he reaches up now and then), eased. */
+/**
+ * 0..1: how high the lamplighter's pole is raised (he reaches up now and then), eased: from
+ * s.t = 0 he raises it (1.2 s), holds it to the burner and lowers it by 5.4 s; every 11 s.
+ */
 export function lighterReach(t: number): number {
   const p = ((t % 11) + 11) % 11;
   const r = p < 1.2 ? p / 1.2 : p < 4.2 ? 1 : p < 5.4 ? 1 - (p - 4.2) / 1.2 : 0;

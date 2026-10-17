@@ -53,7 +53,7 @@ const HEIGHT = 0.15;
 
 // Left group (back to front), then the right group. Positions keep every kid between the
 // tower's column and the screen edge, below the houses and above the graves.
-const KIDS: readonly Kid[] = [
+export const KIDS: readonly Kid[] = [
   { costume: "cat", X: -0.44 * (3.42 / 3), z: 3.42, hand: 1, phase: 0.3 },
   { costume: "skeleton", X: -0.37 * (3.36 / 3), z: 3.36, hand: 1, phase: 4.0 },
   { costume: "witch", X: -0.3 * (3.3 / 3), z: 3.3, hand: -1, phase: 2.1 },
@@ -548,6 +548,15 @@ function hero(ctx: Ctx, t: number, k: Kid, swing: number): void {
 
 const DRAW = { witch, skeleton, cat, pumpkin, hero } as const;
 
+/**
+ * Now and then a little hop of excitement (0..1, the bag swings with it): every kid hops every
+ * 3.7 s, each at its own `phase`, so all of them have hopped in the opening seconds.
+ */
+export function hopAt(t: number, phase: number): number {
+  const c = Math.sin(t * 1.7 + phase);
+  return c > 0.75 ? Math.sin(((c - 0.75) / 0.25) * Math.PI * 0.5) : 0;
+}
+
 /** Both groups of trick-or-treaters, back to front. */
 export function kids(ctx: Ctx, s: Scene): void {
   const t = s.t;
@@ -564,9 +573,7 @@ export function kids(ctx: Ctx, s: Scene): void {
     const p = spot(s, k.X, k.z);
     K.h = HEIGHT * s.u * p.k;
     if (p.y - K.h * 1.5 > s.cssH) continue;
-    // Now and then a little hop of excitement; the bag swings with it.
-    const c = Math.sin(t * 1.7 + k.phase);
-    const hop = c > 0.75 ? Math.sin(((c - 0.75) / 0.25) * Math.PI * 0.5) : 0;
+    const hop = hopAt(t, k.phase);
     K.x = p.x;
     K.y = p.y - hop * K.h * 0.07;
     K.lw = inkW(s, p.k);

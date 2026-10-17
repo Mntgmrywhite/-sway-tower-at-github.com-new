@@ -174,6 +174,15 @@ const EDGES = [
 const PX = new Float64Array(8);
 const PY = new Float64Array(8);
 
+/** A holo billboard's pictures (the eye, the koi, the cube, the equalizer), each shown this many seconds in turn. */
+export const HOLO_PICTURES = 4;
+export const HOLO_PICTURE_TIME = 4.5;
+
+/** Which picture a billboard shows at `t`: each one starts its round at its own point. */
+export function holoPicture(t: number, seed: number): number {
+  return Math.floor(t / HOLO_PICTURE_TIME + seed * 1.7) % HOLO_PICTURES;
+}
+
 /** The current picture on a billboard, added to the path, centered in the panel. */
 function holoContent(ctx: Ctx, kind: number, cx: number, cy: number, w: number, h: number, t: number): void {
   const m = Math.min(w, h);
@@ -307,7 +316,7 @@ export function holoBillboard(
   ctx.globalAlpha = 0.85 * flick;
   tube(ctx, color, Math.max(1, Math.min(w, h) * 0.025), 2.2);
 
-  const kind = Math.floor(t / 4.5 + seed * 1.7) % 4;
+  const kind = holoPicture(t, seed);
   const cx = x + w / 2;
   const cy = y + h / 2;
   const lw = Math.max(1, Math.min(w, h) * 0.03);

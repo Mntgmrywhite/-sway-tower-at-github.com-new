@@ -31,7 +31,7 @@ const TREE = { X: 0.76, z: 6, size: 1.25 } as const;
 const FENCE = { X0: 0.24, X1: 0.38, z: 2.4, posts: 3 } as const;
 /** Turkeys: X, z, size (turkey units in local units), facing, phase. The first is in the yard
  * behind the fence, standing clear of it; the hen and her poult are out on the lawn. */
-const TURKEYS = [
+export const TURKEYS = [
   [0.372, 3.6, 0.1, -1, 0.0],
   [0.19, 1.6, 0.075, -1, 0.6],
   [0.116, 1.74, 0.048, -1, 1.7],

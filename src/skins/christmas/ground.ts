@@ -47,21 +47,42 @@ const FOLK_SCALE = 0.8;
 const CART_Z = 1.55;
 const CART_PERIOD = 30;
 const CART_TIME = 17;
+/**
+ * At s.t = 0 the carriage is already driving in from the left: it passes in front of the tower
+ * at 4 s and the last pigeon settles before 10 s (actions.test.ts), then it comes round every
+ * CART_PERIOD.
+ */
 const CART_OFFSET = 4.5;
 
 /** Where the carriage is (screen x of its middle, units travelled), reused every frame. */
 const CART = { x: 0, dist: 0 };
 
+/**
+ * 0..1: how far across the screen the carriage is at time t (0: driving in at the left edge,
+ * 0.5: its middle on the tower's line, 1: gone at the right), or -1 while it's off screen.
+ */
+export function carriageProgress(t: number): number {
+  const p = (((t + CART_OFFSET) % CART_PERIOD) + CART_PERIOD) % CART_PERIOD;
+  return p > CART_TIME ? -1 : p / CART_TIME;
+}
+
 /** Updates CART; false while the carriage is off screen. */
 function placeCarriage(s: Scene): boolean {
-  const p = (((s.t + CART_OFFSET) % CART_PERIOD) + CART_PERIOD) % CART_PERIOD;
-  if (p > CART_TIME) return false;
+  const k = carriageProgress(s.t);
+  if (k < 0) return false;
   const U = unit(s, CART_Z);
   const len = RIG_LENGTH * U;
-  const k = p / CART_TIME;
   CART.x = -len * 0.55 + (s.cssW + len * 1.1) * k;
   CART.dist = (CART.x - s.cssW / 2) / U;
   return true;
+}
+
+/** 0..1: how high pigeon i (of PIGEONS) flutters up off the cobbles as the carriage nears it. */
+export function pigeonLift(s: Scene, i: number): number {
+  if (!placeCarriage(s)) return 0;
+  const [z, dx] = PIGEONS[i]!;
+  const d = Math.abs(CART.x - rowX(s, dx, z)) / s.u;
+  return d < 0.3 ? Math.min(1, (0.3 - d) / 0.12) : 0;
 }
 
 /** One frame object handed to every house and figure, refilled per call (no allocations). */
@@ -114,16 +135,9 @@ export function props(ctx: Ctx, s: Scene): void {
   mound(ctx, rightX, ly + LU * 0.004, LU * 0.048, LU * 0.012, lw);
 
   // Pigeons on the cobbles in front of the tower; they flutter up as the carriage nears.
-  const cart = placeCarriage(s);
-  for (const [z, dx, dir, phase] of PIGEONS) {
-    const U = unit(s, z);
-    const x = rowX(s, dx, z);
-    let lift = 0;
-    if (cart) {
-      const d = Math.abs(CART.x - x) / s.u;
-      lift = d < 0.3 ? Math.min(1, (0.3 - d) / 0.12) : 0;
-    }
-    pigeon(ctx, x, fieldY(s, z), U, lw * 0.85, dir, t, phase, lift);
+  for (let i = 0; i < PIGEONS.length; i++) {
+    const [z, dx, dir, phase] = PIGEONS[i]!;
+    pigeon(ctx, rowX(s, dx, z), fieldY(s, z), unit(s, z), lw * 0.85, dir, t, phase, pigeonLift(s, i));
   }
 
   {
@@ -139,7 +153,7 @@ export function props(ctx: Ctx, s: Scene): void {
   mound(ctx, rowX(s, 0.182, fz) + FU * 0.05, fy + FU * 0.004, FU * 0.17, FU * 0.014, lw);
 
   // The carriage, nearest the viewer.
-  if (cart) carriage(ctx, CART.x, fieldY(s, CART_Z), unit(s, CART_Z), lw, CART.dist, t);
+  if (placeCarriage(s)) carriage(ctx, CART.x, fieldY(s, CART_Z), unit(s, CART_Z), lw, CART.dist, t);
 }
 
 // ---------------------------------------------------------------- snow glints
