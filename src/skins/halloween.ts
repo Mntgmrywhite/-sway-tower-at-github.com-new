@@ -13,7 +13,8 @@ import type { CartoonSkin } from "./skin";
 // weathered headstones and open graves where skeleton parts pop up at random, with a big
 // jack-o'-lantern glowing behind it. Beyond the town lies the misty hollow: a covered bridge,
 // a giant gnarled tree, the church steeple in the fog, crows, and on the hill under the
-// harvest moon the Headless Horseman galloping past with his flaming pumpkin held high.
+// harvest moon the Headless Horseman galloping past with his flaming pumpkin held high, down
+// into the bridge, then charging back up the hill and away into the mist.
 
 export const halloween: CartoonSkin = {
   id: "halloween",

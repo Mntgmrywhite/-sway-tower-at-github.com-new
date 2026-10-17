@@ -18,8 +18,8 @@ import { houseBox } from "./town";
 // column, the screen's left edge, the moon, the porch house, the HUD), so it fits every screen: it
 // never enters the tower's column above the floor line, never reaches a screen edge, only ever
 // passes the kids and the house (never circles over them), and it is over the moon only after the
-// Headless Horseman has passed it, and gone before he is back (his loop is 10 s; the crow's is
-// three of them; a flight is timed in the middle of the gap between his rides). As the camera
+// Headless Horseman has passed it, and gone before he charges back across it (his loop is 15 s;
+// the crow's is two of them; a flight is timed in the gap while he is in the bridge). As the camera
 // climbs, the whole flight rides down with the churchyard (it is a near thing) and leaves the view
 // with it. All of it is a pure function of the scene: time, size, climb.
 
@@ -27,18 +27,18 @@ import { houseBox } from "./town";
 export const PERCH = { kind: "stone", X: 0.09, z: 1.64, w: 0.06, h: 0.066, stone: "round", seed: 3 } as const;
 export const CROW_SIZE = 0.06;
 
-/** Seconds per flight cycle (one flight each): a whole number of the Horseman's 10 s rides. */
+/** Seconds per flight cycle (one flight each): a whole number of the Horseman's 15 s rides. */
 export const CYCLE = 30;
 /**
  * When it takes off and when it lands, seconds into the cycle. The first flight is part of the
  * opening (players watch the first 10 s, then climb past): it leaves its stone while the Horseman
  * gallops across the moon, reaches the moon as he rides down into the bridge, and its two turns
- * round the moon are done by 10 s.
+ * round the moon are done by 10 s, as he charges back out of the bridge.
  */
 export const TAKE_OFF = 1.9;
 export const LAND = 12.5;
-/** A late flight starts this much later in its cycle: one of the Horseman's 10 s rides. */
-const LATE = 10;
+/** A late flight starts this much later in its cycle: one of the Horseman's 15 s rides. */
+const LATE = 15;
 /** Below this sideways speed (u/s) it is squeezed, turning. */
 const TURN_SPEED = 0.035;
 /**
@@ -304,8 +304,8 @@ function cawAt(t: number): number {
 
 /**
  * Seconds into this cycle's flight plan. The first cycle flies early (just after the start of a
- * run); after that each cycle's hash picks whether it flies in its first or second third, so the
- * crow sits on its stone for anything from 9 to 29 s between flights. Both keep its turn round
+ * run); after that each cycle's hash picks whether it flies in its first or second half, so the
+ * crow sits on its stone for anything from 4 to 34 s between flights. Both keep its turn round
  * the moon clear of the Horseman's rides (they are a whole ride apart).
  */
 export function cycleTime(t: number): number {

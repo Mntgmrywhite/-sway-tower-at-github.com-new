@@ -1,18 +1,23 @@
 import { alpha, circle, mix, oval, type Ctx } from "../../base/draw";
 import { CANDLE, FLAME, FLAME_HOT, ORANGE, ORANGE_DARK, RIDER } from "./common";
 
-// The Headless Horseman, our own design: a flat dark silhouette galloping to the right on a
-// big-chested horse with a streaming mane and tail, a tattered cape billowing behind a rider
-// whose high flared collar holds nothing at all, one arm raised with a flaming
-// jack-o'-lantern. The pumpkin, its fire and the horse's ember eye are the only lit things.
+// The Headless Horseman, our own design: a flat dark silhouette galloping on a big-chested
+// horse with a streaming mane and tail, a tattered cape billowing behind a rider whose high
+// flared collar holds nothing at all, one arm raised with a flaming jack-o'-lantern. The
+// pumpkin, its fire and the horse's ember eye are the only lit things. Charging, he gallops
+// harder, the pumpkin thrust up at arm's length.
 //
-// Local space: origin on the ground under the horse's middle, facing +x, up is -y, in units
-// of `s` (the horse is about 3 long and the raised pumpkin about 3 up). Everything is a fixed
-// outline animated from `t`; nothing allocates per frame.
+// Local space: origin on the ground under the horse's middle, facing +x (mirrored to face
+// left), up is -y, in units of `s` (the horse is about 3 long and the raised pumpkin about 3
+// up). Everything is a fixed outline animated from `t`; nothing allocates per frame.
 
 const TAU = Math.PI * 2;
-/** Strides per second. */
+/** Strides per second, and how much faster he gallops charging. */
 const STRIDE = 1.7;
+const CHARGE_STRIDE = 0.4;
+/** Charging, the pumpkin's hand is this much higher and farther forward, in his size unit. */
+export const CHARGE_RAISE = 0.2;
+const CHARGE_REACH = 0.1;
 const EMBER = mix(FLAME, "#ffffff", 0.25);
 const GLOW = alpha(FLAME, 0.2);
 
@@ -31,11 +36,22 @@ function leg(ctx: Ctx, x: number, y: number, a: number, ua: number, b: number, l
 
 /**
  * The Horseman at (x, y) (ground under his middle), `s` = his size unit, tilted by `tilt`
- * radians (the slope he rides), at opacity `vis`.
+ * radians (the slope he rides), at opacity `vis`, facing `dir` (1 right, -1 left), charging
+ * by `charge` (0..1; hold it steady through a ride, as it sets the gallop's pace).
  */
-export function horseman(ctx: Ctx, x: number, y: number, s: number, t: number, tilt: number, vis: number): void {
+export function horseman(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  s: number,
+  t: number,
+  tilt: number,
+  vis: number,
+  dir = 1,
+  charge = 0,
+): void {
   if (vis <= 0.01) return;
-  const ph = t * STRIDE * TAU;
+  const ph = t * STRIDE * (1 + CHARGE_STRIDE * charge) * TAU;
   const bob = -0.06 * Math.sin(ph + 0.4);
   const pitch = 0.04 * Math.sin(ph + 1.1);
 
@@ -43,7 +59,7 @@ export function horseman(ctx: Ctx, x: number, y: number, s: number, t: number, t
   ctx.globalAlpha = vis;
   ctx.translate(x, y);
   ctx.rotate(tilt);
-  ctx.scale(s, s);
+  ctx.scale(s * dir, s);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.fillStyle = RIDER;
@@ -177,13 +193,13 @@ export function horseman(ctx: Ctx, x: number, y: number, s: number, t: number, t
   ctx.closePath();
   ctx.fill();
 
-  // Raised arm, holding the pumpkin high
+  // Raised arm, holding the pumpkin high (charging, thrust up at arm's length)
   const sway = 0.05 * Math.sin(ph + 0.5);
-  const hx = 0.5 + sway;
-  const hy = -2.74;
+  const hx = 0.5 + sway + CHARGE_REACH * charge;
+  const hy = -2.74 - CHARGE_RAISE * charge;
   ctx.beginPath();
   ctx.moveTo(0.22, -1.96);
-  ctx.lineTo(0.52, -2.36);
+  ctx.lineTo(0.52 - 0.08 * charge, -2.36 - 0.1 * charge);
   ctx.lineTo(hx, hy);
   ctx.lineWidth = 0.15;
   ctx.stroke();

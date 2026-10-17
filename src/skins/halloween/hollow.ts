@@ -2,13 +2,14 @@ import { alpha, circle, hash, mix, type Ctx } from "../../base/draw";
 import { HORIZON_P } from "../../base/world";
 import type { Scene } from "../skin";
 import { INK, LAMP, PALETTE, RIDGE, smooth } from "./common";
-import { horseman } from "./horseman";
+import { CHARGE_RAISE, horseman } from "./horseman";
 import { moonAt } from "./sky";
 import { toneOf } from "./tone";
 
 // Beyond the town lies Sleepy Hollow, faded by distance and mist: a long hill under the moon
 // with dead trees on its crest, where the Headless Horseman gallops past the moon's face and
-// rides down into the old covered bridge; a giant gnarled tree; and the steeple
+// rides down into the old covered bridge, then charges back up the hill and away into the
+// mist; a giant gnarled tree; and the steeple
 // of the old church rising out of the fog on the right. The hill is farther than the horizon
 // (it drops more slowly as you climb); everything else stands on horizonY. Bases sink into
 // the cloud bank (the mist), which is drawn over this layer.
@@ -170,18 +171,25 @@ function hill(ctx: Ctx, s: Scene): void {
 // ---------------------------------------------------------------- the Horseman's ride
 
 /**
- * Seconds per loop, seconds of it spent riding, and the shift that starts his first ride as a
- * scene starts: out of the mist from the first frame, past the moon's face by ~3.3 s, into the
- * bridge by ~4.9 s, so the crow's two turns round the moon (flight.ts) fit between his first two
- * rides and are done by 10 s. Players watch the first 10 s, then climb past.
+ * Seconds per loop. His ride starts as a scene starts: out of the mist from the first frame,
+ * past the moon's face by ~3.3 s, down the hill and into the covered bridge by ~4.9 s. While the
+ * crow takes its two turns round the moon (flight.ts) he is in the bridge; at ~9.4 s, as the crow
+ * dives away, he bursts back out of its portal, turned round, and charges back up the hill the
+ * other way, galloping hard with the pumpkin thrust up high, onto the moon's face only once the
+ * crow has left it (~10 s), across it (~11.1 s) and into the mist he came from by ~12.2 s.
+ * Players watch the first 10 s, then climb past.
  */
-const RIDE_LOOP = 10;
+export const RIDE_LOOP = 15;
+/** His ride out takes this long, and starts this long before the loop does (scene seconds). */
 const RIDE_TIME = 5.6;
 const RIDE_SHIFT = 0.6;
+/** His charge back up the hill: when it starts in the loop, and how long it takes (scene seconds). */
+const CHARGE_START = 9.35;
+const CHARGE_TIME = 2.9;
 /**
  * His ride, in u from the center: out of the mist on the left, past the moon, down the hill
  * and into the covered bridge's portal (the bridge is drawn over him, so he rides in behind
- * its gable end and fades there rather than on the open hillside).
+ * its gable end and fades there rather than on the open hillside). He charges back the same way.
  */
 const RIDE_FROM = -0.47;
 const RIDE_TO = -0.035;
@@ -189,31 +197,51 @@ const RIDE_TO = -0.035;
 const RIDER_SIZE = 0.046;
 
 /** Scratch result of `riderAt`. */
-const R = { x: 0, y: 0, size: 0, tilt: 0, vis: 0 };
+const R = { x: 0, y: 0, size: 0, tilt: 0, vis: 0, dir: 1, charge: 0 };
 
-/** Where the Horseman is (ground under his middle, size unit, tilt, opacity); vis 0 while he is off his ride. */
+/**
+ * Where the Horseman is (ground under his middle, size unit, tilt, opacity, facing, charging);
+ * vis 0 while he is off his ride.
+ */
 function ride(s: Scene): typeof R {
-  const p = ((((s.t + RIDE_SHIFT) % RIDE_LOOP) + RIDE_LOOP) % RIDE_LOOP) / RIDE_TIME;
+  const c = (((s.t + RIDE_SHIFT) % RIDE_LOOP) + RIDE_LOOP) % RIDE_LOOP;
+  const back = c - RIDE_SHIFT - CHARGE_START;
   R.vis = 0;
-  if (p >= 1) return R;
+  // How far along the road he is, from the mist (0) to the bridge (1), and where he fades into
+  // the mist: charging back, he faces it, so he goes on a little deeper before he is gone.
+  let p: number;
+  let mist: number;
+  if (c < RIDE_TIME) {
+    p = c / RIDE_TIME;
+    mist = 0.1;
+    R.dir = 1;
+    R.charge = 0;
+  } else if (back >= 0 && back < CHARGE_TIME) {
+    p = 1 - back / CHARGE_TIME;
+    mist = 0.03;
+    R.dir = -1;
+    R.charge = 1;
+  } else {
+    return R;
+  }
   R.x = G.cx + (RIDE_FROM + (RIDE_TO - RIDE_FROM) * p) * G.u;
   R.y = crest(R.x) + s.u * 0.003;
   const d = s.u * 0.03;
   R.tilt = Math.max(-0.4, Math.min(0.4, Math.atan2(crest(R.x + d) - crest(R.x - d), 2 * d)));
   R.size = s.u * RIDER_SIZE;
-  R.vis = smooth(0.1, 0.24, p) * (1 - smooth(0.84, 0.99, p));
+  R.vis = smooth(mist, mist + 0.14, p) * (1 - smooth(0.84, 0.99, p));
   return R;
 }
 
 function rider(ctx: Ctx, s: Scene): void {
   const r = ride(s);
-  horseman(ctx, r.x, r.y, r.size, s.t, r.tilt, r.vis);
+  horseman(ctx, r.x, r.y, r.size, s.t, r.tilt, r.vis, r.dir, r.charge);
 }
 
 /**
  * Where the Headless Horseman is in this scene (for keeping other things clear of him): ground
- * under his middle, size unit, tilt, and his opacity (0 while he is off his ride or the hollow
- * has faded).
+ * under his middle, size unit, tilt, his opacity (0 while he is off his ride or the hollow has
+ * faded), which way he faces (1 right, -1 left) and whether he is charging (1) back up the hill.
  */
 export function riderAt(s: Scene): Readonly<typeof R> {
   if (!geometry(s)) {
@@ -225,7 +253,10 @@ export function riderAt(s: Scene): Readonly<typeof R> {
   return r;
 }
 
-/** His drawing's reach in his size unit, from the ground under his middle (facing right, untilted). */
+/**
+ * His drawing's reach in his size unit, from the ground under his middle (facing right, untilted,
+ * not charging: charging, the pumpkin rises by CHARGE_RAISE).
+ */
 const RIDER_REACH = { x0: -1.9, x1: 1.45, y0: -3.95, y1: 0.2 };
 
 /** The screen box the Horseman covers this frame, tilt included; null while he is out of sight. */
@@ -235,8 +266,8 @@ export function riderBox(s: Scene): { x0: number; y0: number; x1: number; y1: nu
   const c = Math.cos(r.tilt);
   const n = Math.sin(r.tilt);
   const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-  for (const lx of [RIDER_REACH.x0, RIDER_REACH.x1]) {
-    for (const ly of [RIDER_REACH.y0, RIDER_REACH.y1]) {
+  for (const lx of [RIDER_REACH.x0 * r.dir, RIDER_REACH.x1 * r.dir]) {
+    for (const ly of [RIDER_REACH.y0 - CHARGE_RAISE * r.charge, RIDER_REACH.y1]) {
       const x = r.x + (lx * c - ly * n) * r.size;
       const y = r.y + (lx * n + ly * c) * r.size;
       box.x0 = Math.min(box.x0, x);
