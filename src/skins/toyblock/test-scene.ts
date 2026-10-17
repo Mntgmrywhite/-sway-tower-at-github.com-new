@@ -45,10 +45,10 @@ export function sceneAt(W: number, H: number, lvl: number, t: number, u = Math.m
   };
 }
 
-/** The scene the start shot renders with, `t` seconds later. */
+/** The scene the start shot renders with, at scene time `t` (the scene's clock: 0 as it starts). */
 export function startScene(W: number, H: number, t: number): Scene {
   const shot = shots().find((s) => s.name === "start")!;
-  shot.view.t += t;
+  shot.view.t = t;
   let scene: Scene | undefined;
   const spy: CartoonSkin = { ...toyBlock, ground: (_, s) => (scene = { ...s }) };
   const canvas = createCanvas(W, H);

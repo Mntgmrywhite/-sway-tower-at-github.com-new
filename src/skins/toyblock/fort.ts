@@ -9,10 +9,11 @@ import { block, inkedBlock } from "./shapes";
 // floor), two red pillars either side of a yellow arch block with the gate, blue walls, and
 // two purple cylinder turrets under red cone roofs (purple, not green: a green cylinder with a
 // lit stripe would recall a certain game's pipes). Beside it, a lollipop tree on its peg and a
-// tree of stacked rings, and down in front a little wind-up mouse whose key turns slowly. All
-// of it is near: flat two-tone fills and one ink weight. Nothing rises above the base block's
-// top, so the slider's first pass never sweeps over it, and nothing above the floor line
-// stands in the tower's column.
+// tree of stacked rings, and down in front a little wind-up mouse, freshly wound as the scene
+// starts: it waddles a short way in toward the gate and runs down, then rests, the key in its
+// back turning slowly. All of it is near: flat two-tone fills and one ink weight. Nothing rises
+// above the base block's top, so the slider's first pass never sweeps over it, and nothing
+// above the floor line stands in the tower's column.
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
@@ -285,63 +286,135 @@ export function ringTree(ctx: Ctx, s: Scene): void {
 
 // ---------------------------------------------------------------- the wind-up mouse
 
-/** Where the mouse sits, in u from the center line; its feet are this far below the floor line. */
+/** Where the mouse starts, in u from the center line; its feet are this far below the floor line. */
 const MOUSE_X = 0.3;
 const MOUSE_FEET = 0.285;
+/** Its body's half length and height (u). */
+const MOUSE_BW = 0.05;
+const MOUSE_BH = 0.03;
+/**
+ * The body's back, from its tail end up over the top: a quadratic curve's three points as
+ * (bw, bh) multiples from the body's middle (x, cy). The key is seated on this curve.
+ */
+const BACK = [
+  [1, 1],
+  [1.05, -0.15],
+  [0.3, -0.05],
+] as const;
+/** The key: where along the back it sits (bw right of the middle), how much stem shows above the back and how far it goes in (u). */
+const KEY_AT = 0.55;
+const KEY_STEM = 0.014;
+const KEY_SINK = 0.008;
+
+/**
+ * The run-down, the meadow's one action, over by RUN_DOWN seconds (the owner's rule: any action
+ * within the first 10 s, as players soon climb past). Freshly wound as the scene starts, the
+ * mouse scoots SCOOT (u) in toward the gate, waddling on its wheels, its key spinning fast, and
+ * slows to a stop; then it rests and its key turns slowly on (calm idle motion).
+ */
+export const RUN_DOWN = 8;
+const SCOOT = 0.06;
+/** The waddle: how fast it rocks (rad/s) and how far at full wind (rad). */
+const WADDLE = 9;
+const ROCK = 0.07;
+/** The key's speed freshly wound and at rest (rad/s). */
+const KEY_FAST = 12;
+const KEY_IDLE = 1.4;
+
+export interface MouseRun {
+  /** How far it has scooted in toward the gate (u). */
+  scoot: number;
+  /** Its rock about its wheels (rad). */
+  rock: number;
+  /** How far its key has turned (rad). */
+  key: number;
+}
+
+/**
+ * Where the run-down is at time t: the spring's wind `w` falls from 1 to 0 over RUN_DOWN, and the
+ * mouse's speed and its key's (over its idle turn) go with w and w² — so it starts briskly, slows
+ * smoothly and stops without a jerk.
+ */
+export function mouseRun(t: number): MouseRun {
+  const w = Math.max(0, 1 - Math.max(0, t) / RUN_DOWN);
+  return {
+    scoot: SCOOT * (1 - w * w),
+    rock: Math.sin(t * WADDLE) * ROCK * w,
+    key: t * KEY_IDLE + ((KEY_FAST - KEY_IDLE) * RUN_DOWN * (1 - w * w * w)) / 3,
+  };
+}
+
+/** A point on the body's back curve at parameter k (0 the tail end, 1 the top), in (bw, bh) multiples. */
+function backPoint(k: number): [number, number] {
+  const [p0, p1, p2] = BACK;
+  const a = (1 - k) * (1 - k);
+  const b = 2 * k * (1 - k);
+  const c = k * k;
+  return [a * p0[0] + b * p1[0] + c * p2[0], a * p0[1] + b * p1[1] + c * p2[1]];
+}
+
+/** The back curve's parameter where it passes over fx (bw from the middle): it runs right to left there. */
+function backParam(fx: number): number {
+  const [p0, p1, p2] = BACK;
+  const a = p0[0] - 2 * p1[0] + p2[0];
+  const b = 2 * (p1[0] - p0[0]);
+  const c = p0[0] - fx;
+  const d = Math.sqrt(Math.max(0, b * b - 4 * a * c));
+  const k = Math.abs(a) < 1e-9 ? -c / b : (-b - d) / (2 * a);
+  return Math.min(1, Math.max(0, k >= 0 && k <= 1 ? k : (-b + d) / (2 * a)));
+}
+
+/** Which parts of the mouse to draw: all of it, or (for tests) only its key or only its body. */
+export type MousePart = "all" | "key" | "body";
 
 /**
  * A wind-up mouse in front of the fort, facing in: a round toy body on two little wheels, a
- * round ear, a curly tail, and the key in its back turning slowly. It rocks a little as it runs
- * down, then rests (its key keeps turning).
+ * round ear, a curly tail, and the key seated in its back. It runs down as the scene starts
+ * (mouseRun), then rests, its key turning slowly.
  */
-export function windUpMouse(ctx: Ctx, s: Scene): void {
+export function windUpMouse(ctx: Ctx, s: Scene, part: MousePart = "all"): void {
   const u = s.u;
-  const x = centerX(s) + MOUSE_X * u;
+  const run = mouseRun(s.t);
+  const x = centerX(s) + (MOUSE_X - run.scoot) * u;
   const feet = s.groundY + MOUSE_FEET * u;
   if (feet - u * 0.08 > s.cssH) return;
   const lw = inkW(s);
-  const rock = Math.sin(s.t * 2.2) * 0.04 * Math.max(0, Math.sin(s.t * 0.4));
-  const bw = u * 0.05;
-  const bh = u * 0.03;
+  const bw = u * MOUSE_BW;
+  const bh = u * MOUSE_BH;
   const cy = feet - u * 0.01 - bh;
   ctx.save();
   ctx.translate(x, feet);
-  ctx.rotate(rock);
+  ctx.rotate(run.rock);
   ctx.translate(-x, -feet);
-  // Tail: a curl off the back (right).
+  if (part === "all") {
+    // Tail: a curl off the back (right).
+    ctx.beginPath();
+    ctx.moveTo(x + bw * 0.95, cy + bh * 0.5);
+    ctx.quadraticCurveTo(x + bw * 1.5, cy + bh * 0.6, x + bw * 1.35, cy - bh * 0.2);
+    ctx.quadraticCurveTo(x + bw * 1.25, cy - bh * 0.55, x + bw * 1.1, cy - bh * 0.25);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(1.2, lw * 0.7);
+    ctx.lineCap = "round";
+    ctx.stroke();
+  }
+  if (part !== "body") windUpKey(ctx, s, x, cy, bw, bh, lw, run.key);
+  if (part === "key") {
+    ctx.restore();
+    return;
+  }
+  if (part === "all") {
+    // Wheels.
+    ctx.beginPath();
+    circle(ctx, x - bw * 0.45, feet - u * 0.008, u * 0.008);
+    circle(ctx, x + bw * 0.45, feet - u * 0.008, u * 0.008);
+    ctx.fillStyle = INK;
+    ctx.fill();
+  }
+  // Body: a rounded dome, nose pointing left (in toward the fort's gate); drawn over the key's stem.
+  const [p0, p1, p2] = BACK;
   ctx.beginPath();
-  ctx.moveTo(x + bw * 0.95, cy + bh * 0.5);
-  ctx.quadraticCurveTo(x + bw * 1.5, cy + bh * 0.6, x + bw * 1.35, cy - bh * 0.2);
-  ctx.quadraticCurveTo(x + bw * 1.25, cy - bh * 0.55, x + bw * 1.1, cy - bh * 0.25);
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = Math.max(1.2, lw * 0.7);
-  ctx.lineCap = "round";
-  ctx.stroke();
-  // The key in its back: a stem and a two-lobed bow that turns (drawn edge-on as it spins).
-  const turn = Math.cos(s.t * 1.4);
-  const kx = x + bw * 0.55;
-  const ky = cy - bh * 0.9;
-  ctx.beginPath();
-  ctx.rect(kx - u * 0.003, ky, u * 0.006, bh * 0.4);
-  ctx.fillStyle = YELLOW.shade;
-  ctx.fill();
-  ink(ctx, lw * 0.7, INK);
-  ctx.beginPath();
-  oval(ctx, kx - u * 0.012 * turn, ky - u * 0.008, Math.max(u * 0.002, u * 0.011 * Math.abs(turn)), u * 0.009);
-  oval(ctx, kx + u * 0.012 * turn, ky - u * 0.008, Math.max(u * 0.002, u * 0.011 * Math.abs(turn)), u * 0.009);
-  ctx.fillStyle = YELLOW.body;
-  ctx.fill();
-  ink(ctx, lw * 0.7, INK);
-  // Wheels.
-  ctx.beginPath();
-  circle(ctx, x - bw * 0.45, feet - u * 0.008, u * 0.008);
-  circle(ctx, x + bw * 0.45, feet - u * 0.008, u * 0.008);
-  ctx.fillStyle = INK;
-  ctx.fill();
-  // Body: a rounded dome, nose pointing left (in toward the fort's gate).
-  ctx.beginPath();
-  ctx.moveTo(x + bw, cy + bh);
-  ctx.quadraticCurveTo(x + bw * 1.05, cy - bh * 0.15, x + bw * 0.3, cy - bh * 0.05);
+  ctx.moveTo(x + bw * p0[0], cy + bh * p0[1]);
+  ctx.quadraticCurveTo(x + bw * p1[0], cy + bh * p1[1], x + bw * p2[0], cy + bh * p2[1]);
   ctx.quadraticCurveTo(x - bw * 0.55, cy, x - bw * 1.05, cy + bh * 0.72);
   ctx.quadraticCurveTo(x - bw * 1.12, cy + bh, x - bw * 0.9, cy + bh);
   ctx.closePath();
@@ -353,20 +426,60 @@ export function windUpMouse(ctx: Ctx, s: Scene): void {
   ctx.fillRect(x - bw * 1.2, cy - bh * 0.2, bw * 2.4, bh * 0.45);
   ctx.restore();
   ink(ctx, lw, INK);
-  // Ear, eye and nose.
+  if (part === "all") {
+    // Ear, eye and nose.
+    ctx.beginPath();
+    circle(ctx, x - bw * 0.25, cy + bh * 0.05, u * 0.011);
+    ctx.fillStyle = "#ff9fc0";
+    ctx.fill();
+    ink(ctx, lw * 0.8, INK);
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    circle(ctx, x - bw * 0.62, cy + bh * 0.45, u * 0.0035);
+    ctx.fill();
+    ctx.fillStyle = "#ff7eb3";
+    ctx.beginPath();
+    circle(ctx, x - bw * 1.08, cy + bh * 0.82, u * 0.005);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * The key, seated in the mouse's back where the back curve passes KEY_AT: its stem stands out
+ * along the back's normal from inside the body (the body, drawn next, hides the part that goes
+ * in), and its two-lobed bow turns on top, drawn edge-on as it spins.
+ */
+function windUpKey(ctx: Ctx, s: Scene, x: number, cy: number, bw: number, bh: number, lw: number, angle: number): void {
+  const u = s.u;
+  const k = backParam(KEY_AT);
+  const [fx, fy] = backPoint(k);
+  // The back's tangent there (the curve's derivative, in px), and the outward normal from it.
+  const [p0, p1, p2] = BACK;
+  const tx = (2 * (1 - k) * (p1[0] - p0[0]) + 2 * k * (p2[0] - p1[0])) * bw;
+  const ty = (2 * (1 - k) * (p1[1] - p0[1]) + 2 * k * (p2[1] - p1[1])) * bh;
+  // The curve runs right to left over the top, so (-ty, tx) points out of the body (up); turn
+  // the key's -y onto it.
+  const tilt = Math.atan2(-ty, -tx);
+  ctx.save();
+  ctx.translate(x + fx * bw, cy + fy * bh);
+  ctx.rotate(tilt);
+  // Now (0, 0) is the seat on the back and -y points straight out of it.
+  const sw = u * 0.006;
   ctx.beginPath();
-  circle(ctx, x - bw * 0.25, cy + bh * 0.05, u * 0.011);
-  ctx.fillStyle = "#ff9fc0";
+  ctx.rect(-sw / 2, -u * KEY_STEM, sw, u * (KEY_STEM + KEY_SINK));
+  ctx.fillStyle = YELLOW.shade;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
-  ctx.fillStyle = INK;
+  ink(ctx, lw * 0.7, INK);
+  const turn = Math.cos(angle);
+  const by = -u * (KEY_STEM + 0.006);
+  const rx = Math.max(u * 0.002, u * 0.011 * Math.abs(turn));
   ctx.beginPath();
-  circle(ctx, x - bw * 0.62, cy + bh * 0.45, u * 0.0035);
+  oval(ctx, -u * 0.012 * turn, by, rx, u * 0.009);
+  oval(ctx, u * 0.012 * turn, by, rx, u * 0.009);
+  ctx.fillStyle = YELLOW.body;
   ctx.fill();
-  ctx.fillStyle = "#ff7eb3";
-  ctx.beginPath();
-  circle(ctx, x - bw * 1.08, cy + bh * 0.82, u * 0.005);
-  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
   ctx.restore();
 }
 

@@ -19,7 +19,8 @@ import { toneOf } from "./tone";
 // far land, whose pieces stand in front of one another (the railway hills' trees and tunnel
 // mouths before the castle's foot), as hills do.
 
-const TIMES = [0, 1.3, 2.7, 4.1, 6.6, 9.4, 13.7] as const;
+/** Scene times: through the actions of the first 10 s (the mouse's run-down, its waddle leaning both ways; the train's run), then at rest. */
+const TIMES = [0, 0.17, 0.52, 1.3, 2.7, 4.3, 5.7, 7.1, 9.6, 12.4, 16.7] as const;
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**
@@ -57,7 +58,7 @@ const PROPS: Prop[] = [
 ];
 
 describe("toy kingdom layout", () => {
-  it.each(SIZES.flatMap(([W, H]) => TIMES.map((t) => [W, H, t] as const)))("%ix%i at t+%s: props stay clear", (W, H, t) => {
+  it.each(SIZES.flatMap(([W, H]) => TIMES.map((t) => [W, H, t] as const)))("%ix%i at t=%s: props stay clear", (W, H, t) => {
     const s = startScene(W, H, t);
     const masks = PROPS.map((p) => mask(W, H, (ctx) => p.draw(ctx, s)));
     const x0 = Math.ceil(s.baseX - s.u * 0.05);

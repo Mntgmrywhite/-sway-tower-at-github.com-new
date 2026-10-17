@@ -635,8 +635,12 @@ const CARS = [
 ] as const;
 const GAP = 0.004;
 const TRAIN = CARS.reduce((a, c) => a + c[0], 0) + GAP * (CARS.length - 1);
-/** Speed (u per second), and how long it waits in the tunnel between runs (s). */
-const TRAIN_SPEED = 0.02;
+/**
+ * Speed (u per second), and how long it waits in the tunnel between runs (s). Its first run
+ * starts as the scene does and is back underground in under 10 s (the owner's rule: any action
+ * within the first 10 s, as players soon climb past); it runs again now and then after that.
+ */
+const TRAIN_SPEED = 0.026;
 const TRAIN_WAIT = 7;
 
 /** Where the train's tail is now (u from center), or NaN while it is inside a tunnel. */
