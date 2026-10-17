@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { RAINBOW } from "./colors";
 import { BACK_X, GLIMMER_HW, glimmerGlow, PEEK, plan, POT_REACH, POT_X, potAndLeprechaun, SET_DOWN, SET_OFF, SETTLED, WATCH, watch } from "./gold";
-import { BOW_FOOT, BOW_X, rainbowArc } from "./meadow";
+import { BOW_FOOT, BOW_LEFT, BOW_X, bowBands, bowTuft, cottage, rainbowArc } from "./meadow";
 import { context, mask, overlap, sceneAt, SIZES } from "./test-scene";
-import { inkW, roundTower } from "./tower";
+import { roundTower } from "./tower";
 
 // The rainbow and the leprechaun's pot of gold. In the first seconds of a tower the rainbow
-// sweeps into a round arch over bare grass, and he lugs his pot out from behind the round tower
-// and sets it down at its right foot; from then on he keeps watch behind it, peeking out round
+// sweeps into a big round arch over the round tower, from a tuft of grass by the cottage to a
+// tuft on the bare grass at the right, and he lugs his pot out from behind the round tower and
+// sets it down at its right foot; from then on he keeps watch behind it, peeking out round
 // it and over it, and the pot never leaves again. Nothing jumps from one frame to the next, he
 // comes into sight and goes out of it only behind the round tower's drum or the pot (sliding
 // out bit by bit, never popping up over the gold), the glimmer at the rainbow's end never
@@ -179,18 +180,21 @@ describe("st. patrick's leprechaun", () => {
 });
 
 describe("st. patrick's rainbow", () => {
-  it.each(SIZES)("%ix%i: sweeps into a round arch in the first seconds, then stands still", (W, H) => {
+  it.each(SIZES)("%ix%i: sweeps into a big round arch over the round tower in the first seconds, then stands still", (W, H) => {
     const s0 = sceneAt(W, H, 0, 0);
-    const at = (t: number) => mask(W, H, (ctx) => rainbowArc(ctx, { ...s0, t }));
+    const at = (t: number) => mask(W, H, (ctx) => bowBands(ctx, { ...s0, t }));
     expect(count(at(0)), "bare at the start").toBe(0);
-    // It grows, frame by frame, and is whole by 2.5 s.
-    let prev = 0;
+    // It grows, frame by frame, and is whole by 2.5 s. (What it has drawn stays drawn: only a few
+    // anti-aliased pixels along its ink may dim below the mask's threshold as an arc closes.)
+    let prev: Uint8Array = new Uint8Array(W * H);
     for (let t = 0.05; t < 2.5; t += 0.05) {
-      const n = count(at(t));
-      expect(n, `t=${t.toFixed(2)}: shrinks`).toBeGreaterThanOrEqual(prev);
-      prev = n;
+      const m = at(t);
+      expect(count(prev) - overlap(prev, m), `t=${t.toFixed(2)}: loses what it had drawn`).toBeLessThan(s0.u * 0.1);
+      prev = m;
     }
     const whole = at(2.5);
+    expect(count(at(0.6)), "grows").toBeLessThan(count(at(1.2)));
+    expect(count(at(1.2)), "grows").toBeLessThan(count(whole));
     for (const t of [3, 7.7, 41, 600]) expect(overlap(whole, at(t)), `t=${t}: changes`).toBe(count(whole));
     expect(count(at(600))).toBe(count(whole));
 
@@ -205,7 +209,6 @@ describe("st. patrick's rainbow", () => {
     expect(runs.length, "two feet on the ground").toBe(2);
     const [left, right] = runs as [[number, number], [number, number]];
     expect(left[1] - left[0], "feet as wide as each other").toBeCloseTo(right[1] - right[0], -1);
-    expect(right[0] - left[1], "an opening between the feet").toBeGreaterThan(s0.u * 0.08);
     let top = -1;
     for (let y = 0; y < H && top < 0; y++) for (let x = 0; x < W; x++) if (whole[y * W + x]) top = y;
     let x0: number = W;
@@ -217,12 +220,30 @@ describe("st. patrick's rainbow", () => {
     }
     const mid = (left[0] + right[1]) / 2;
     expect(Math.abs((x0 + x1) / 2 - mid), "top halfway between the feet").toBeLessThan(2);
-    expect(foot - top, "an arch taller than half its width").toBeGreaterThan((right[1] - left[0]) * 0.6);
+    // A wide round arch, a little lower than a half circle (the owner asked for it bigger).
+    const width = right[1] - left[0];
+    expect(foot - top, "a round arch, not a flat one").toBeGreaterThan(width * 0.35);
+    expect(foot - top, "a little lower than a half circle").toBeLessThan(width * 0.5);
     expect((x0 + x1) / 2, "standing where it was placed").toBeCloseTo(s0.cssW / 2 + BOW_X * s0.u, -1);
+
+    // Big: it spans the round tower, its feet either side of the drum, and rises well above the
+    // floor line, behind the base block and the first bars.
+    const drum = mask(W, H, (ctx) => roundTower(ctx, s0));
+    let drumL: number = W;
+    let drumR = 0;
+    for (let x = 0; x < W; x++) {
+      if (!drum[foot * W + x]) continue;
+      drumL = Math.min(drumL, x);
+      drumR = Math.max(drumR, x);
+    }
+    expect(left[1], "its left foot left of the round tower").toBeLessThan(drumL);
+    expect(right[0], "its right foot right of the round tower").toBeGreaterThan(drumR);
+    expect(width, "as wide as most of the screen").toBeGreaterThan(s0.u * 0.7);
+    expect(s0.groundY - top, "rising well above the floor line").toBeGreaterThan(s0.u * 0.15);
 
     // Its bands in order, red outside to violet inside, read down through its top.
     const ctx = context(W, H);
-    rainbowArc(ctx, { ...s0, t: 3 });
+    bowBands(ctx, { ...s0, t: 3 });
     const column = ctx.getImageData(Math.round(mid), 0, 1, H).data;
     const seen: number[] = [];
     for (let y = top; y < foot; y++) {
@@ -232,22 +253,89 @@ describe("st. patrick's rainbow", () => {
     }
     expect(seen).toEqual(RAINBOW.map((_, i) => i));
 
-    // Clear of the round tower's drum (both feet show), of the tower's column above its floor, and of the screen's edges.
-    expect(overlap(whole, mask(W, H, (ctx) => roundTower(ctx, s0))), "behind the round tower").toBe(0);
-    const c1 = Math.floor(s0.baseX + s0.baseW + s0.u * 0.05);
-    const floor = s0.groundY - Math.ceil(inkW(s0) / 2) - 1;
-    for (let i = 0; i < whole.length; i++) {
-      if (!whole[i]) continue;
+    // Its feet stand in full view, clear of the round tower's drum: only its arch passes behind
+    // the tower's top (the floor course and the drum's shoulder).
+    const feet = whole.map((v, i) => (v && Math.floor(i / W) > s0.groundY + s0.u * 0.06 ? 1 : 0));
+    expect(count(feet), "its legs near the ground").toBeGreaterThan(s0.u * 2);
+    expect(overlap(feet, drum), "its legs behind the round tower").toBe(0);
+    // Clear of the HUD at the top, of the screen's edges, and of "tap to drop" (render.ts writes
+    // it at 0.9 of the screen's height), with its tuft.
+    const all = mask(W, H, (ctx) => rainbowArc(ctx, { ...s0, t: 3 }));
+    const hud = Math.round(H * 0.14 + s0.u * 0.13);
+    for (let i = 0; i < all.length; i++) {
+      if (!all[i]) continue;
       const x = i % W;
       const y = Math.floor(i / W);
-      if (y < floor) expect(x, `(${x}, ${y}) in the tower's column`).toBeGreaterThan(c1);
-      expect(x, "at the screen's edge").toBeLessThan(W - s0.u * 0.02);
+      expect(x, "at the screen's left edge").toBeGreaterThan(s0.u * 0.02);
+      expect(x, "at the screen's right edge").toBeLessThan(W - s0.u * 0.02);
+      expect(y, "in the HUD").toBeGreaterThan(hud);
+      expect(y, "near tap to drop").toBeLessThan(H * 0.9 - s0.u * 0.1);
     }
+  }, 60_000);
+
+  it.each(SIZES)("%ix%i: its left foot comes down into a tuft of grass, there from the start, like the right foot's", (W, H) => {
+    const s0 = sceneAt(W, H, 0, 0);
+    const u = s0.u;
+    const grass = mask(W, H, (ctx) => bowTuft(ctx, s0));
+    // Before the rainbow forms, the grass is all there is of it.
+    expect(count(mask(W, H, (ctx) => rainbowArc(ctx, s0))), "only the grass at the start").toBe(count(grass));
+    let gx0: number = W;
+    let gx1 = 0;
+    let gy0: number = H;
+    let gy1 = 0;
+    for (let i = 0; i < grass.length; i++) {
+      if (!grass[i]) continue;
+      gx0 = Math.min(gx0, i % W);
+      gx1 = Math.max(gx1, i % W);
+      gy0 = Math.min(gy0, Math.floor(i / W));
+      gy1 = Math.max(gy1, Math.floor(i / W));
+    }
+    // It stands at the left foot, on the same ground as the tuft at the pot (the right foot's).
+    const at = s0.cssW / 2 + BOW_LEFT * u;
+    expect((gx0 + gx1) / 2, "under the left foot").toBeCloseTo(at, -1);
+    const right = mask(W, H, (ctx) => potAndLeprechaun(ctx, s0));
+    let ry1 = 0;
+    for (let i = 0; i < right.length; i++) if (right[i]) ry1 = Math.max(ry1, Math.floor(i / W));
+    expect(Math.abs(gy1 - ry1), "on the same ground as the pot's tuft").toBeLessThanOrEqual(1);
+    // The bands come down into it: down every column of the foot, from above the blades to the
+    // ground, it is rainbow or grass all the way (no meadow between them), and the bands' ends
+    // are hidden in the grass, which is wider than they are.
+    const bands = mask(W, H, (ctx) => bowBands(ctx, { ...s0, t: 3 }));
+    const above = Math.floor(s0.groundY + (BOW_FOOT - 0.01) * u);
+    let bx0: number = W;
+    let bx1 = 0;
+    for (let x = 0; x < W / 2; x++) {
+      if (!bands[above * W + x]) continue;
+      bx0 = Math.min(bx0, x);
+      bx1 = Math.max(bx1, x);
+    }
+    expect(bx1 - bx0, "the left foot's width").toBeGreaterThan(u * 0.05);
+    expect(gx0, "grass either side of the foot").toBeLessThan(bx0);
+    expect(gx1, "grass either side of the foot").toBeGreaterThan(bx1);
+    for (let x = bx0 + 1; x < bx1; x++) {
+      let ground = 0;
+      for (let y = above; y <= gy1; y++) if (grass[y * W + x]) ground = y;
+      expect(ground, `column ${x}: no grass under the foot`).toBeGreaterThan(above);
+      let low = 0;
+      for (let y = above; y <= ground; y++) {
+        const i = y * W + x;
+        if (bands[i]) low = y;
+        expect(bands[i] || grass[i], `(${x}, ${y}): meadow between the rainbow and the grass`).toBe(1);
+      }
+      expect(grass[low * W + x], `(${x}, ${low}): the band's end shows below the grass`).toBe(1);
+    }
+    // And it keeps clear of the cottage and of the round tower, a little room either side.
+    const shift = (m: Uint8Array, d: number) => m.map((_, i) => (i % W) - d >= 0 && (i % W) - d < W ? m[i - d]! : 0);
+    const near = mask(W, H, (ctx) => {
+      cottage(ctx, s0);
+      roundTower(ctx, s0);
+    });
+    for (const d of [-2, 0, 2]) expect(overlap(shift(grass, d), near), `shifted ${d}: touches the cottage or the round tower`).toBe(0);
   }, 60_000);
 
   it.each(SIZES)("%ix%i: its right foot ends in the pot of gold once he sets it down", (W, H) => {
     const s0 = sceneAt(W, H, 0, 0);
-    const bow = mask(W, H, (ctx) => rainbowArc(ctx, { ...s0, t: SETTLED }));
+    const bow = mask(W, H, (ctx) => bowBands(ctx, { ...s0, t: SETTLED }));
     const foot = s0.groundY + BOW_FOOT * s0.u;
     const cx = s0.cssW / 2 + BOW_X * s0.u;
     for (const t of [SET_DOWN, SETTLED, SETTLED + 3, SETTLED + 30]) {

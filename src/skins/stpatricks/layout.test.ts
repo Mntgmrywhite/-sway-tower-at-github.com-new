@@ -18,7 +18,10 @@ import { inkW, roundTower } from "./tower";
 // in the tower's column above its floor line, nothing on the meadow beside the base block rises
 // above its top (the slider's first pass never sweeps over it), and no two overlap, except where
 // that is the design: the rainbow's right foot comes down behind the pot of gold (where the
-// leprechaun hides), and he brings the pot out from behind the round tower.
+// leprechaun hides), he brings the pot out from behind the round tower, and the rainbow (the
+// owner asked for it bigger) stands in a big arch behind the round tower, the base block and the
+// first bars, still once it has formed (gold.test.ts keeps its feet in view either side of the
+// drum, and calm.test.ts its forming sweep to the first seconds).
 
 /**
  * Moments of the scene's clock: the rainbow forming over bare grass, the leprechaun lugging the
@@ -45,7 +48,7 @@ const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean; away?
   { name: "flock", draw: flock, above: true },
   { name: "smoke", draw: smoke, above: true },
   { name: "cottage", draw: cottage, above: true, beside: true },
-  { name: "rainbow", draw: rainbowArc, above: true, beside: true, away: true },
+  { name: "rainbow", draw: rainbowArc, above: false, away: true },
   { name: "pot of gold and leprechaun", draw: potAndLeprechaun, above: true, beside: true, away: true },
   { name: "toadstool", draw: toadstool, above: true, beside: true },
   // The drum's top course is the tower's floor; the mound, ladder and doorway hang below it.
@@ -58,6 +61,8 @@ const ALLOWED = [
   ["rainbow", "pot of gold and leprechaun"],
   // He comes out from behind the round tower.
   ["pot of gold and leprechaun", "round tower base"],
+  // The rainbow's arch passes behind the round tower's top: its floor course and the drum's shoulder.
+  ["rainbow", "round tower base"],
   // The far range of mountains stands behind everything on the horizon.
   ["mountains", "round tower and high cross"],
   ["mountains", "far sheep"],

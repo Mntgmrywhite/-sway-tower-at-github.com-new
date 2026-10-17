@@ -14,11 +14,12 @@ import { roundTower } from "./stpatricks/tower";
 // stone round tower (its conical cap long gone, so you can build it higher), a ladder leaning
 // up to its raised doorway, on a meadow of emerald grass. On the left, near the wall, a
 // whitewashed cottage under golden thatch with a red half-door and a curl of turf smoke; behind
-// it, in the back pasture, two ewes graze while their lambs race, pronk and skip. On the right
-// a rainbow sweeps into a round arch over the meadow as a tower starts, and a leprechaun of our
-// own lugs his pot of gold out from behind the round tower and sets it down at its foot, then
-// keeps watch behind it for good, peeking out round it and over it; his cobbling waits on a red
-// toadstool. (Every action of the start view happens in its first ten seconds: actions.test.ts.)
+// it, in the back pasture, two ewes graze while their lambs race, pronk and skip. As a tower
+// starts, a big rainbow sweeps into a round arch behind the round tower, from a tuft of grass by
+// the cottage to the meadow on the right, and a leprechaun of our own lugs his pot of gold out
+// from behind the round tower and sets it down at its right foot, then keeps watch behind it for
+// good, peeking out round it and over it; his cobbling waits on a red toadstool. (Every action of
+// the start view happens in its first ten seconds: actions.test.ts.)
 // Beyond, hills quilted with fields, hedgerows and dry-stone walls, farmhouses on the right, on
 // the left hilltop a whole round tower and a high cross, a stream winding out under a humpbacked
 // stone bridge; and behind them the mountains: a flat-topped one with fluted flanks, and the
@@ -32,7 +33,7 @@ import { roundTower } from "./stpatricks/tower";
 // crescent moon and the odd shooting star. Then the story loops: the night gives way to a rose
 // dawn with skylarks and the morning star, and the day comes round again (tone.ts). Calm by
 // design: flat fills, one ink weight up close, faded silhouettes far away, and nothing moves
-// behind the tower.
+// behind the tower (but the rainbow as it forms, in a tower's first seconds).
 //
 // The altitude story needs every layer of the backdrop, so St. Patrick's paints all of it in
 // one pass (`backdrop`, in the ground hook). The celestial and far hooks are empty on purpose:

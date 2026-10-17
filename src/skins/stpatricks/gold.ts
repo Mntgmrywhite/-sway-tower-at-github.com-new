@@ -11,8 +11,8 @@ import { centerX, inkW } from "./tower";
 // buckle on its band.
 //
 // His story is told in the first seconds of every tower (the scene's clock starts at 0 with the
-// title screen's tower and with every new run): the rainbow sweeps into being over the meadow
-// (meadow.ts) and touches down on bare grass, in a tuft, where a glimmer marks its end; out
+// title screen's tower and with every new run): the rainbow sweeps into being over the round
+// tower (meadow.ts) and touches down on bare grass, in a tuft, where a glimmer marks its end; out
 // from behind the old round tower he comes, lugging his pot of gold, under the arch, sets it
 // down in the tuft right at the rainbow's foot (the gold glints as it lands) and slips behind
 // it, all within about five seconds. From then on he keeps watch over it for the rest of the
@@ -27,9 +27,9 @@ import { centerX, inkW } from "./tower";
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
-/** The pot's home, at the rainbow's right foot: its center and foot (u). */
+/** The pot's home, at the rainbow's right foot: its center and foot (u). The rainbow's left foot stands on the same ground (meadow.ts), as far back as his hat allows (below the floor line). */
 export const POT_X = 0.43;
-export const POT_FOOT = 0.165;
+export const POT_FOOT = 0.14;
 /** The pot: half width, rim height above its foot, and the heap of gold above the rim (u). */
 const POT_HW = 0.033;
 const POT_RIM = 0.047;
@@ -281,17 +281,17 @@ const TUFT_INKED = 0.005;
 /** How far the blades fan out toward their tips. */
 const LEAN = 1.1;
 
-/** The tuft's blades, tip to tip, from `h0` up its left edge to `h0` down its right (heights in u). */
-function tuftBlades(ctx: Ctx, x: number, foot: number, u: number, h0: number, start: boolean): void {
+/** The tuft's blades, tip to tip, from `h0` up its left edge to `h0` down its right (heights in u; `k` scales it across). */
+function tuftBlades(ctx: Ctx, x: number, foot: number, u: number, h0: number, start: boolean, k: number): void {
   const [dx0, t0] = TUFT[0];
   const [dx1, t1] = TUFT[6];
   // The outer edges run from the ground out to the outer tips, which lean outward.
-  const edge = (dx: number, h: number, side: number) => x + u * (side * TUFT_HW + (dx * LEAN - side * TUFT_HW) * (h0 / h));
+  const edge = (dx: number, h: number, side: number) => x + u * k * (side * TUFT_HW + (dx * LEAN - side * TUFT_HW) * (h0 / h));
   if (start) ctx.moveTo(edge(dx0, t0, -1), foot - u * h0);
   else ctx.lineTo(edge(dx0, t0, -1), foot - u * h0);
   TUFT.forEach(([dx, h], i) => {
-    if (i > 0) ctx.lineTo(x + u * (dx - 0.0055), foot - u * TUFT_DIP);
-    ctx.lineTo(x + u * dx * LEAN, foot - u * h);
+    if (i > 0) ctx.lineTo(x + u * k * (dx - 0.0055), foot - u * TUFT_DIP);
+    ctx.lineTo(x + u * k * dx * LEAN, foot - u * h);
   });
   ctx.lineTo(edge(dx1, t1, 1), foot - u * h0);
 }
@@ -300,17 +300,18 @@ function tuftBlades(ctx: Ctx, x: number, foot: number, u: number, h0: number, st
  * A tuft of grass at the rainbow's end, where the pot stands: the pot sits down into it, and it
  * hides the leprechaun's shoes under the pot while he crouches behind it. A clump a shade darker
  * than the meadow, rounded at its foot, inked along its blades only, so it melts into the grass.
+ * The rainbow's left foot comes down into one too, a little narrower (`k`: meadow.ts).
  */
-function tuft(ctx: Ctx, x: number, foot: number, u: number, lw: number): void {
+export function tuft(ctx: Ctx, x: number, foot: number, u: number, lw: number, k = 1): void {
   ctx.beginPath();
-  ctx.moveTo(x - u * TUFT_HW, foot);
-  tuftBlades(ctx, x, foot, u, 0, false);
-  ctx.quadraticCurveTo(x, foot + u * 0.008, x - u * TUFT_HW, foot);
+  ctx.moveTo(x - u * k * TUFT_HW, foot);
+  tuftBlades(ctx, x, foot, u, 0, false, k);
+  ctx.quadraticCurveTo(x, foot + u * 0.008, x - u * k * TUFT_HW, foot);
   ctx.closePath();
   ctx.fillStyle = GRASS.body;
   ctx.fill();
   ctx.beginPath();
-  tuftBlades(ctx, x, foot, u, TUFT_INKED, true);
+  tuftBlades(ctx, x, foot, u, TUFT_INKED, true, k);
   ink(ctx, lw * 0.7, INK);
 }
 

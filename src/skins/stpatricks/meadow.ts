@@ -1,27 +1,29 @@
 import { circle, ink, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { DOOR, FACE, GOLD, INK, IRON, OPENING, RAINBOW, SILL, THATCH, WHITEWASH, WOOD } from "./colors";
-import { bowSweep, POT_FOOT, POT_X, potAndLeprechaun } from "./gold";
+import { bowSweep, POT_FOOT, POT_X, potAndLeprechaun, tuft } from "./gold";
 import { block } from "./shapes";
 import { centerX, inkW } from "./tower";
 
 // What stands on the meadow round the round tower, all of it near (flat two-tone fills, one ink
-// weight) and none of it rising above the base block's top, so the slider's first pass never
-// sweeps over it. On the left, near the wall, a whitewashed cottage under golden thatch, its red
-// half-door between two windows, a curl of turf smoke from the chimney (the flock frolics in the
-// pasture behind it: pasture.ts). On the right a rainbow stands in a round arch on the grass,
-// between the round tower and the screen's edge; it sweeps into being in the first seconds, and
-// the leprechaun brings his black pot heaped with gold out from behind the round tower and sets
-// it down at its right foot, then keeps watch behind it (gold.ts). In front of them a red
-// toadstool with his cobbler's work left on it: a little buckled shoe and his hammer. Only the
-// faint smoke rises higher, at the screen's left edge like Classic's kite.
+// weight) and, but for the rainbow, none of it rising above the base block's top, so the
+// slider's first pass never sweeps over it. On the left, near the wall, a whitewashed cottage
+// under golden thatch, its red half-door between two windows, a curl of turf smoke from the
+// chimney (the flock frolics in the pasture behind it: pasture.ts). Over it all a big rainbow
+// stands in a round arch behind the round tower, from a tuft of grass by the cottage to the
+// meadow near the screen's right edge; it sweeps into being in the first seconds (then stands
+// still behind the base block and the first bars), and the leprechaun brings his black pot
+// heaped with gold out from behind the round tower and sets it down at its right foot, then
+// keeps watch behind it (gold.ts). In front of them a red toadstool with his cobbler's work left
+// on it: a little buckled shoe and his hammer. Only the faint smoke rises higher, at the
+// screen's left edge like Classic's kite.
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
 // ---------------------------------------------------------------- the cottage
 
 /** The cottage: its center, its foot, the walls' half width and height, the thatch. */
-const COTTAGE_X = -0.37;
+const COTTAGE_X = -0.382;
 const COTTAGE_FOOT = 0.25;
 const WALL_HW = 0.088;
 const WALL_H = 0.06;
@@ -178,29 +180,49 @@ export function smoke(ctx: Ctx, s: Scene): void {
 // ---------------------------------------------------------------- the rainbow and the pot of gold
 
 /** The rainbow's bands' width (u). */
-const BAND = 0.0085;
+const BAND = 0.0095;
 /** Half the bands' total width (u). */
 const BOW_HALF = (BAND * RAINBOW.length) / 2;
 /** The ground line its feet stand on: a little behind the pot's, where the pot's belly is wide enough to hide the right foot (u). */
 export const BOW_FOOT = POT_FOOT - 0.02;
 /**
- * Its outer radii, across and up (u): as wide as the meadow between the round tower's drum and
- * the pot of gold allows, and a little taller than half that, so its top just clears the floor
- * line well right of the tower's column.
+ * Its left foot, where it starts (the bands' middle, u): on the meadow left of the round tower,
+ * between the cottage's chimney and the drum, in a tuft of grass of its own, a little narrower
+ * than the pot's (TUFT_K) to keep clear of both. Its right foot's middle is the pot's.
  */
-export const BOW_RX = 0.108;
-export const BOW_RY = 0.165;
-/** Its center: the right foot's bands come down right behind the pot of gold. */
-export const BOW_X = POT_X + BOW_HALF - BOW_RX;
+export const BOW_LEFT = -0.268;
+const TUFT_K = 0.9;
+/**
+ * Its center and its outer radii across and up (u): a wide round arch over the round tower and
+ * the foot of the stack, from its left foot to the pot of gold, a little lower than a half circle.
+ */
+export const BOW_X = (BOW_LEFT + POT_X) / 2;
+export const BOW_RX = (POT_X - BOW_LEFT) / 2 + BOW_HALF;
+export const BOW_RY = BOW_RX * 0.8;
 
 /**
  * The rainbow: a round arch of six bands, red outside to violet inside, standing on the meadow
- * right of the round tower. Its left foot stands on the grass, its right comes down behind the
- * pot of gold (drawn after it, the pot hides the bands' ends). It forms in the first seconds:
- * band by band, outside in, each sweeps up from the left foot, over the top and down to the
- * right (gold.ts times it), and the ink follows the outer and inner bands as they go.
+ * either side of the round tower and spanning it. Its left foot comes down into a tuft of grass
+ * by the cottage, its right behind the pot of gold (drawn after it, the pot hides the bands'
+ * ends; before the pot comes, its own tuft does). It forms in the first seconds: band by band,
+ * outside in, each sweeps up from the left foot, over the top and down to the right (gold.ts
+ * times it), and the ink follows the outer and inner bands as they go. From then on it stands
+ * still: the round tower, the base block and the bars stand in front of its middle.
  */
 export function rainbowArc(ctx: Ctx, s: Scene): void {
+  bowBands(ctx, s);
+  bowTuft(ctx, s);
+}
+
+/** How far its left foot's bands run on down into the tuft, behind its blades, to just short of the ground (u). */
+const INTO_TUFT = POT_FOOT - BOW_FOOT - 0.005;
+
+/**
+ * The rainbow's bands and their ink, as far as they have swept. Each band's left end runs on
+ * straight down into the tuft (the arch is upright there), so between the blades it is the
+ * rainbow that shows, down to the grass.
+ */
+export function bowBands(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const y = s.groundY + BOW_FOOT * u;
   if (y - BOW_RY * u > s.cssH) return;
@@ -211,12 +233,15 @@ export function rainbowArc(ctx: Ctx, s: Scene): void {
   const bw = BAND * u;
   const rx = BOW_RX * u;
   const ry = BOW_RY * u;
+  const down = y + INTO_TUFT * u;
   for (let i = 0; i < n; i++) {
     const a = Math.PI * bowSweep(i, s.t);
     if (a <= 0) break;
     ctx.beginPath();
+    ctx.moveTo(x - rx + i * bw, down);
     ctx.ellipse(x, y, rx - i * bw, ry - i * bw, 0, Math.PI, Math.PI + a);
     ctx.ellipse(x, y, rx - (i + 1) * bw, ry - (i + 1) * bw, 0, Math.PI + a, Math.PI, true);
+    ctx.lineTo(x - rx + (i + 1) * bw, down);
     ctx.closePath();
     ctx.fillStyle = RAINBOW[i]!;
     ctx.fill();
@@ -224,12 +249,21 @@ export function rainbowArc(ctx: Ctx, s: Scene): void {
   // The ink along its outer and inner edges, as far as their bands have come.
   const inner = bowSweep(n - 1, s.t);
   ctx.beginPath();
+  ctx.moveTo(x - rx, down);
   ctx.ellipse(x, y, rx, ry, 0, Math.PI, Math.PI * (1 + outer));
   if (inner > 0) {
-    ctx.moveTo(x - rx + n * bw, y);
+    ctx.moveTo(x - rx + n * bw, down);
     ctx.ellipse(x, y, rx - n * bw, ry - n * bw, 0, Math.PI, Math.PI * (1 + inner));
   }
   ink(ctx, inkW(s), INK);
+}
+
+/** The tuft of grass its left foot comes down into: on the same ground as the pot's, there from the start. */
+export function bowTuft(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  const foot = s.groundY + POT_FOOT * u;
+  if (foot - u * 0.03 > s.cssH) return;
+  tuft(ctx, centerX(s) + BOW_LEFT * u, foot, u, inkW(s), TUFT_K);
 }
 
 // ---------------------------------------------------------------- the cobbler's toadstool
