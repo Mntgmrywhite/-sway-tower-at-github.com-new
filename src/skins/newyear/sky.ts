@@ -1,15 +1,18 @@
 import { alpha, circle, hash, mix, oval, type Ctx } from "../../base/draw";
-import { altitude01 } from "../../base/world";
+import { altitude01, horizonFor } from "../../base/world";
 import type { Scene } from "../skin";
 import { CHAMPAGNE, clamp01, GOLD, GOLD_LIGHT, INK, IVORY, PARTY, ROSE, SILVER, TAU } from "./colors";
+import { cycleIndex, cycleTime, MIDNIGHT } from "./countdown";
 import { barbPath, PLUME, PLUME_HALF, plumePath, quillPath } from "./plume";
 import { cloudTop, MID_SPAN, skylineTop } from "./skyline";
 import { toneOf, type Tone } from "./story";
 
 // The New Year's sky: a pale-gold full moon ringed with flat Deco halos, bright cartoon
 // fireworks (fat dots of flat color, no outlines; gold willows for Gatsby) that come faster
-// the higher you climb, confetti drifting down, and a few flapper's ostrich plumes see-sawing
-// down with it. Past the climb the night goes round (story.ts): a grand finale lighting the sky,
+// the higher you climb, and burst all at once at every midnight the Times Tower counts down to
+// (countdown.ts): a volley on the stroke of twelve and a grand finale of big bursts in quick
+// succession, lighting the sky's haze. Confetti drifts down, and a few flapper's ostrich plumes
+// see-saw down with it. Past the climb the night goes round (story.ts): a grand finale lighting the sky,
 // balloons rising after it, then snow in the small hours, then midnight again. Everything that
 // drifts keeps to the side lanes, clear of the tower column, and everything here is drawn
 // behind the city and the clouds.
@@ -124,7 +127,8 @@ function glowBand(ctx: Ctx, s: Scene, fill: CanvasGradient, a: number): void {
 }
 
 function skyGlow(ctx: Ctx, s: Scene, tone: Tone): void {
-  if (tone.glow < 0.01 && tone.silver < 0.01) return;
+  const glow = Math.max(tone.glow, midnightGlow(s));
+  if (glow < 0.01 && tone.silver < 0.01) return;
   if (glowCtx !== ctx) {
     glowCtx = ctx;
     glowFill = ctx.createLinearGradient(0, 0, 0, GREF);
@@ -136,7 +140,7 @@ function skyGlow(ctx: Ctx, s: Scene, tone: Tone): void {
   }
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  if (tone.glow >= 0.01) glowBand(ctx, s, glowFill!, tone.glow * GLOW_ALPHA);
+  if (glow >= 0.01) glowBand(ctx, s, glowFill!, glow * GLOW_ALPHA);
   if (tone.silver >= 0.01) glowBand(ctx, s, snowFill!, tone.silver * SNOW_ALPHA);
   ctx.restore();
 }
@@ -177,7 +181,7 @@ interface Launcher {
 }
 
 /** Launchers that always fire; the rest join in one by one as the tower climbs. */
-const ALWAYS = 5;
+const ALWAYS = 7;
 const LAUNCHERS: Launcher[] = Array.from({ length: 15 }, (_, i) => {
   const period = 3.3 + hash(i * 5.31 + 1) * 1.8;
   return {
@@ -221,8 +225,9 @@ const INNER_DIRS = Array.from({ length: INNER }, (_, j) => {
 });
 /** Scratch: head positions of the ring being drawn. */
 const HEADS = new Float32Array(OUTER * 2);
-/** Scratch: where the burst being placed goes. */
+/** Scratch: where the burst being placed goes, and whether place() put it in a corner. */
 const SPOT = { x: 0, y: 0, r: 0 };
+const PLACED = { corner: false };
 /** Trail tints (a step lighter than the heads), the willow's gold trail, and the cel highlight. */
 const TRAIL = PARTY.map((c) => mix(c, "#ffffff", 0.35));
 const WILLOW_HEAD = GOLD_LIGHT;
@@ -255,13 +260,42 @@ function floorAt(s: Scene, x: number, r: number): number {
   return Math.min(s.cssH * 0.84, s.horizonY - u * (Math.max(roof, cloudTop(side)) + 0.02));
 }
 
+/** The midnight finale's bursts over the short tower range this far either side of the center
+ *  (u), over the whole low skyline between the side towers; each shrinks to fit under the HUD. */
+const FINALE_REACH = 0.3;
+/** The smallest a midnight burst shrinks to fit (u). */
+const FINALE_MIN_R = 0.03;
+/** The share of the midnight finale's bursts that go over the skyline while the tower is short. */
+const FINALE_OVER = 0.5;
+/** Pixels a burst shrunk to fit may miss its room by (rounding). */
+const FIT_SLACK = 0.5;
+/** What place() returns when a burst finds no room. */
+const NO_ROOM = -1;
+/** The camera's rise (u) on the second view a midnight finale is chosen on: following the tower,
+ *  the title gone. */
+const CHOOSE_RISE = 0.3;
+
+/** The biggest burst of radius at most `R`, centered at screen x, that fits between `top` and
+ *  the rooftops under it (0 when none of at least `min` does). */
+function fitUnder(s: Scene, x: number, R: number, top: number, below: number, min: number): number {
+  let r = R;
+  for (let k = 0; k < 3; k++) r = Math.min(r, (floorAt(s, x, r * ABOVE) - top) / (ABOVE + below));
+  return r >= min ? r : 0;
+}
+
 /**
  * Choose where a burst goes: over the short tower early on, up in a corner beside the HUD,
  * or low on either side of the tower. Never in the HUD zone, over the start-screen title,
  * on the moon, below a rooftop, or (once the camera follows the tower) across the slider's row.
- * Returns how visible the burst is: 0 when there is no room this time.
+ * The midnight finale's bursts (`finale`) go over the whole low skyline while the tower is short,
+ * and shrink to fit where a sky burst would find no room.
+ * Once the camera has risen CHOOSE_RISE, a midnight burst keeps to the corner or the low lane it
+ * was chosen in (`corner`): from there on the room in both only grows as the camera climbs, so it
+ * never switches mid-flight.
+ * Returns how visible the burst is (0 while it fades across from over the tower to beside it),
+ * or NO_ROOM when there is no room for it this time; PLACED says whether it went to a corner.
  */
-function place(s: Scene, seed: number, grow: number): number {
+function place(s: Scene, seed: number, grow: number, finale = false, corner?: boolean): number {
   const { cssW: W, cssH: H, u } = s;
   const cx = W / 2;
   const hudBottom = H * HUD_BOTTOM;
@@ -275,13 +309,24 @@ function place(s: Scene, seed: number, grow: number): number {
   // Bursts over the tower fade out as the camera starts to follow it; from then on, that
   // launcher's bursts fade in beside the tower instead, so nothing jumps. They fill the band
   // between the HUD and the rooftops, shrinking (to small, distant bursts) to fit it.
-  const overTower = hash(seed + 1) < 0.32;
+  const overTower = hash(seed + 1) < (finale ? FINALE_OVER : 0.32);
+  if (overTower && follow < 0.5 && finale) {
+    const x = cx + (hash(seed + 2) - 0.5) * 2 * FINALE_REACH * u;
+    const R = fitUnder(s, x, u * (0.075 + hash(seed + 3) * 0.04), hudBottom, below, u * FINALE_MIN_R);
+    if (R === 0) return NO_ROOM;
+    const y0 = hudBottom + R * ABOVE;
+    const y1 = floorAt(s, x, R * ABOVE) - R * below;
+    SPOT.x = x;
+    SPOT.y = y0 + hash(seed + 4) * Math.max(0, y1 - y0);
+    SPOT.r = R;
+    return 1 - follow * 2;
+  }
   if (overTower && follow < 0.5) {
     const show = 1 - follow * 2;
     const reach = MID_SPAN * u;
     const floor = floorAt(s, cx, reach);
     const R = Math.min(u * (0.075 + hash(seed + 3) * 0.03), (floor - hudBottom) / (ABOVE + below));
-    if (R < u * 0.035) return 0;
+    if (R < u * 0.035) return NO_ROOM;
     const y0 = hudBottom + R * ABOVE;
     const y1 = floor - R * below;
     SPOT.x = cx + (hash(seed + 2) - 0.5) * 2 * (reach - R * ABOVE);
@@ -299,10 +344,12 @@ function place(s: Scene, seed: number, grow: number): number {
   const xMax = Math.max(xMin, cx - u * 0.25 - R * 0.2 - Math.max(0, grow - 1) * u * 0.02);
   const lx = xMin + hash(seed + 2) * (xMax - xMin);
   const lowX = left ? lx : W - lx;
-  const lowY0 = rowBottom + R * ABOVE;
-  const lowY1 = floorAt(s, lowX, R * ABOVE) - R * below;
-  // Up in a corner beside the HUD: a smaller, more distant burst
-  const cR = u * (0.055 + hash(seed + 3) * 0.02);
+  // (A midnight burst with no room shrinks to fit over the rooftops.)
+  const lowR = finale ? fitUnder(s, lowX, R, rowBottom, below, u * FINALE_MIN_R) || R : R;
+  const lowY0 = rowBottom + lowR * ABOVE;
+  const lowY1 = floorAt(s, lowX, lowR * ABOVE) - lowR * below;
+  // Up in a corner beside the HUD: a smaller, more distant burst (at midnight, as big as fits)
+  const cR = u * (finale ? 0.062 + hash(seed + 3) * 0.02 : 0.055 + hash(seed + 3) * 0.02);
   const cxMin = cR + u * 0.02;
   const cxMax = W * HUD_X0 - cR - 2;
   const kx = cxMin + hash(seed + 2) * Math.max(0, cxMax - cxMin);
@@ -314,20 +361,289 @@ function place(s: Scene, seed: number, grow: number): number {
   const moonTop = H * TITLE_Y + u * (MOON_DROP - MOON_R_MAX * (MOON_HALO - 1) - 0.02);
   const ceiling = left ? moonTop - cR * below : hudBottom;
   const cY1 = Math.min(ceiling, rowTop - cR * below * follow, floorAt(s, cornerX, cR * ABOVE) - cR * below);
-  const lowOK = lowY1 >= lowY0;
+  // (A burst shrunk to fit fills its room exactly: rounding must not flip it out and back.)
+  const lowOK = lowY1 >= lowY0 - (finale ? FIT_SLACK : 0);
   const cornerOK = cxMax > cxMin && cY1 >= cY0;
-  if (cornerOK && (!lowOK || hash(seed + 6) < 0.4)) {
+  const toCorner = corner !== undefined && s.rise >= CHOOSE_RISE * u ? corner : hash(seed + 6) < 0.4;
+  PLACED.corner = cornerOK && (!lowOK || toCorner);
+  if (PLACED.corner) {
     SPOT.x = cornerX;
     SPOT.y = cY0 + hash(seed + 4) * (cY1 - cY0);
     SPOT.r = cR;
   } else if (lowOK) {
     SPOT.x = lowX;
     SPOT.y = lowY0 + hash(seed + 4) * (lowY1 - lowY0);
-    SPOT.r = R;
+    SPOT.r = lowR;
   } else {
-    return 0;
+    return NO_ROOM;
   }
   return overTower ? clamp01(follow * 2 - 1) : 1;
+}
+
+/** Draw one firework `local` seconds after its launch (its rocket climbing for RISE, then the
+ *  burst for BLOOM) at SPOT, as place() left it, `on` visible. */
+function shell(ctx: Ctx, s: Scene, seed: number, local: number, on: number, launchY: number): void {
+  const u = s.u;
+  const { x: bx, y: by, r: R } = SPOT;
+  const ci = Math.floor(hash(seed + 7) * PARTY.length);
+  const c1 = PARTY[ci]!;
+  const c2 = PARTY[(ci + 2) % PARTY.length]!;
+  const style = hash(seed + 8);
+
+  if (local < RISE) {
+    // Rocket: an ivory head with a dotted gold trail, rising from behind the city.
+    const k = local / RISE;
+    const sx = bx + (hash(seed + 9) - 0.5) * u * 0.1;
+    ctx.globalAlpha = on;
+    ctx.beginPath();
+    for (let d = 1; d <= 4; d++) {
+      const e = cubicOut(Math.max(0, k - d * 0.05));
+      circle(ctx, sx + (bx - sx) * e, launchY + (by - launchY) * e, u * (0.0075 - d * 0.0013));
+    }
+    ctx.fillStyle = GOLD;
+    ctx.fill();
+    const e = cubicOut(k);
+    ctx.beginPath();
+    circle(ctx, sx + (bx - sx) * e, launchY + (by - launchY) * e, u * 0.008);
+    ctx.fillStyle = IVORY;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  const k = (local - RISE) / BLOOM; // 0 → 1
+  const willow = style >= WILLOW_AT;
+  const ring = style >= RING_AT && !willow;
+  const e = cubicOut(Math.min(1, k * 1.3));
+  const et = cubicOut(Math.min(1, Math.max(0, k - (willow ? 0.32 : 0.12)) * 1.3));
+  const droop = R * (willow ? 0.55 : 0.3) * k * k;
+  const droopT = R * (willow ? 0.55 : 0.3) * Math.max(0, k - 0.2) ** 2;
+  const shrink = k < 0.5 ? 1 : 1 - ((k - 0.5) / 0.5) * 0.8;
+  const pr = R * (willow ? 0.06 : ring ? 0.085 : 0.075) * shrink;
+  const squash = ring ? 0.55 + hash(seed + 10) * 0.3 : 1;
+  const tilt = ring ? (hash(seed + 11) - 0.5) * 0.9 : 0;
+  const ct = Math.cos(tilt);
+  const st = Math.sin(tilt);
+  ctx.globalAlpha = on * (k < 0.82 ? 1 : 1 - (k - 0.82) / 0.18);
+
+  // The pop: a flat ivory star at the center
+  if (k < 0.14) {
+    const fr = R * 0.38 * (1 - k / 0.14);
+    ctx.beginPath();
+    ctx.moveTo(bx + FLASH[0]![0] * fr, by + FLASH[0]![1] * fr);
+    for (let j = 1; j < FLASH.length; j++) ctx.lineTo(bx + FLASH[j]![0] * fr, by + FLASH[j]![1] * fr);
+    ctx.closePath();
+    ctx.fillStyle = IVORY;
+    ctx.fill();
+  }
+
+  // Outer ring: head positions, then fat tapered trails behind them
+  for (let j = 0; j < OUTER; j++) {
+    const [dx, dy, sp] = OUTER_DIRS[j]!;
+    const ux = dx * (ring ? 1 : sp);
+    const uy = dy * (ring ? 1 : sp) * squash;
+    HEADS[j * 2] = bx + (ux * ct - uy * st) * R * e;
+    HEADS[j * 2 + 1] = by + (ux * st + uy * ct) * R * e + droop;
+  }
+  if (!ring) {
+    ctx.beginPath();
+    for (let j = 0; j < OUTER; j++) {
+      const [dx, dy, sp] = OUTER_DIRS[j]!;
+      ctx.moveTo(bx + dx * sp * R * et, by + dy * sp * R * et + droopT);
+      ctx.lineTo(HEADS[j * 2]!, HEADS[j * 2 + 1]!);
+    }
+    ctx.lineCap = "round";
+    ctx.strokeStyle = willow ? WILLOW_TRAIL : TRAIL[ci]!;
+    ctx.lineWidth = pr * (willow ? 1.3 : 1.1);
+    ctx.stroke();
+    ctx.lineCap = "butt";
+  }
+  ctx.beginPath();
+  for (let j = 0; j < OUTER; j++) circle(ctx, HEADS[j * 2]!, HEADS[j * 2 + 1]!, pr);
+  ctx.fillStyle = willow ? WILLOW_HEAD : c1;
+  ctx.fill();
+
+  // Inner two-tone ring on peonies
+  if (!willow && !ring) {
+    ctx.beginPath();
+    for (const [dx, dy] of INNER_DIRS) circle(ctx, bx + dx * R * e * 0.52, by + dy * R * e * 0.52 + droop * 0.7, pr * 0.85);
+    ctx.fillStyle = c2;
+    ctx.fill();
+  }
+
+  // Cel highlight on each outer head
+  if (!willow) {
+    ctx.beginPath();
+    for (let j = 0; j < OUTER; j++) circle(ctx, HEADS[j * 2]! - pr * 0.3, HEADS[j * 2 + 1]! - pr * 0.3, pr * 0.38);
+    ctx.fillStyle = HIGHLIGHT;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------------------------------------------------------------- midnight */
+
+// Every midnight the Times Tower counts down to (10 s into a tower's scene, then once a minute:
+// countdown.ts), the sky erupts: a volley of shells bursting on the stroke of twelve, then the
+// grand finale, big bursts in quick succession for several seconds, the haze glowing behind
+// them. They go where every burst goes (place(): the side lanes, the corners beside the HUD, and
+// over the whole low skyline while the tower is short) and keep its rules: never across the HUD,
+// the title, the moon or the slider's row, never below a rooftop, and no further behind the bars
+// than the climb's biggest bursts. They are bigger where there is room and shrink to fit where
+// there is little, and spread out over every spot there is.
+
+/** Shells bursting on the stroke of midnight, and in all. */
+const VOLLEY = 6;
+const FINALE_SHELLS = 40;
+/** Seconds after midnight the last shell bursts. */
+export const FINALE_LEN = 7;
+/** Finale shells are this much bigger than the sky's own (as place()'s `grow`). */
+const FINALE_GROW = 1;
+/** When each shell bursts (seconds after midnight): the volley at once, then the rest in quick
+ *  succession, a little quicker early on. */
+const FINALE: readonly number[] = Array.from({ length: FINALE_SHELLS }, (_, k) => {
+  if (k < VOLLEY) return hash(k * 3.1 + 700) * 0.12;
+  const f = (k - VOLLEY) / (FINALE_SHELLS - VOLLEY - 1);
+  return 0.3 + f ** 1.15 * (FINALE_LEN - 0.3) + (hash(k * 3.1 + 701) - 0.5) * 0.18;
+});
+
+/** The haze's glow at midnight (as the tone's `glow`): up as the volley bursts, fading after the
+ *  last shell. */
+const MIDNIGHT_GLOW = 1;
+
+function midnightGlow(s: Scene): number {
+  const m = cycleTime(s) - MIDNIGHT;
+  if (m < 0) return 0;
+  return MIDNIGHT_GLOW * clamp01(m / 0.25) * clamp01((FINALE_LEN + 1.5 - m) / 2.5);
+}
+
+/** How many of the finale's shells are bursting (in bloom) at scene time `s.t`: for tests. */
+export function finaleBursting(s: Scene): number {
+  const m = cycleTime(s) - MIDNIGHT;
+  let n = 0;
+  for (const at of FINALE) if (m >= at && m < at + BLOOM) n++;
+  return n;
+}
+
+/** Tries per shell at finding a spot clear of the shells bursting with it. */
+const FINALE_TRIES = 12;
+/** Two shells in the air together keep their centers this many of their summed radii apart (they
+ *  may overlap at the edges), when there is room. */
+const FINALE_CLEAR = 1;
+/** Shells this close in time (s) are in the air together. */
+const FINALE_TOGETHER = BLOOM * 0.85;
+/** A burst this big (u) once the camera follows is as big as a finale shell need be. */
+const FINALE_BIG = 0.15;
+/** Each finale shell's seed (place() turns it into its spot on the view of the moment), and where
+ *  it went on the two views it was chosen on (x, y, r; r 0 for no room there). */
+const FINALE_SEEDS = new Float64Array(FINALE_SHELLS);
+const FINALE_CHOSEN = new Float64Array(FINALE_SHELLS * 6);
+/** Whether each shell went to a corner on the second view: it keeps to it from there on. */
+const FINALE_CORNER: boolean[] = Array.from({ length: FINALE_SHELLS }, () => false);
+/** What the choice was made for: the minute, and the screen (its size, u and resting ground
+ *  line), which stays the same all through a run. */
+const FINALE_KEY = new Float64Array(5).fill(NaN);
+/** Scratch: a try's spots on the two views. */
+const TRY = new Float64Array(6);
+
+/** Rounded to a sixteenth (of a pixel, or a world unit): the same all through a run, frame after frame. */
+function steady(x: number): number {
+  return Math.round(x * 16) / 16;
+}
+
+/** This scene's screen with the camera risen `rise` px from the resting ground line `rest`. */
+function viewAt(s: Scene, rest: number, rise: number): Scene {
+  const ground = rest + rise;
+  const altitude = steady(s.altitude - s.rise / s.scale) + rise / s.scale;
+  return { ...s, rise, groundY: ground, altitude, horizonY: horizonFor(ground, rise, s.u) };
+}
+
+/** Place a finale shell's seed on view `v` (at that view's own growth): into TRY at `o` (r 0 when
+ *  there is no room); whether it found room. */
+function tryOn(v: Scene, seed: number, o: number): boolean {
+  const on = place(v, seed, altitude01(v) + FINALE_GROW, true);
+  const room = on !== NO_ROOM && SPOT.y <= Math.min(v.horizonY, v.cssH + v.u * 0.05) - v.u * 0.05;
+  TRY[o] = SPOT.x;
+  TRY[o + 1] = SPOT.y;
+  TRY[o + 2] = room ? SPOT.r : 0;
+  return room;
+}
+
+/**
+ * Choose this minute's finale for this screen: each shell in turn takes the best of its tries:
+ * one that finds room and keeps clear of the shells bursting with it, as big as there is room
+ * for, so the bursts spread over every spot there is instead of piling up in one. The choice
+ * is made on two views that stay the same all through a run (the tower's start, and the camera
+ * just following it), never on the view of the moment, so a shell keeps its spot all through its
+ * flight while the camera climbs, as the sky's own bursts do.
+ */
+function chooseFinale(s: Scene): void {
+  const minute = cycleIndex(s);
+  const rest = steady(s.groundY - s.rise);
+  if (FINALE_KEY[0] === minute && FINALE_KEY[1] === s.cssW && FINALE_KEY[2] === s.cssH && FINALE_KEY[3] === s.u && FINALE_KEY[4] === rest) return;
+  FINALE_KEY.set([minute, s.cssW, s.cssH, s.u, rest]);
+  const views = [viewAt(s, rest, 0), viewAt(s, rest, CHOOSE_RISE * s.u)];
+  for (let k = 0; k < FINALE_SHELLS; k++) {
+    let best = -1;
+    for (let tries = 0; tries < FINALE_TRIES; tries++) {
+      const seed = 7000.5 + k * 101 + minute * 17 + tries * 0.37;
+      const rooms = Number(tryOn(views[0]!, seed, 0)) + Number(tryOn(views[1]!, seed, 3));
+      const corner = PLACED.corner;
+      // How clear this spot is of the shells already chosen that burst with it, on either view:
+      // 1 or more is clear.
+      let clear = 1;
+      for (let j = 0; j < k; j++) {
+        if (Math.abs(FINALE[j]! - FINALE[k]!) > FINALE_TOGETHER) continue;
+        for (let o = 0; o < 6; o += 3) {
+          const r = FINALE_CHOSEN[j * 6 + o + 2]!;
+          if (r === 0 || TRY[o + 2] === 0) continue;
+          const d = Math.hypot(FINALE_CHOSEN[j * 6 + o]! - TRY[o]!, FINALE_CHOSEN[j * 6 + o + 1]! - TRY[o + 1]!);
+          clear = Math.min(clear, d / ((r + TRY[o + 2]!) * FINALE_CLEAR));
+        }
+      }
+      // Room on both views first, then clear of the others, then the bigger burst once the camera
+      // follows (a low lane's over a corner's).
+      const score = rooms * 4 + clear * 2 + Math.min(1, TRY[5]! / (s.u * FINALE_BIG));
+      if (score <= best) continue;
+      best = score;
+      FINALE_SEEDS[k] = seed;
+      FINALE_CHOSEN.set(TRY, k * 6);
+      FINALE_CORNER[k] = corner;
+    }
+  }
+}
+
+/** Where the finale's shell k goes at scene `s` (in SPOT), and how visible it is (0: nowhere). */
+function finaleSpot(s: Scene, k: number, grow: number, launchY: number): number {
+  const on = place(s, FINALE_SEEDS[k]!, grow + FINALE_GROW, true, FINALE_CORNER[k]);
+  return on > 0 && SPOT.y <= launchY - s.u * 0.05 ? on : 0;
+}
+
+/** The finale's shells in bloom at scene `s` (the sky's own `grow` and launch line): where each
+ *  is and how visible, by shell. For tests. */
+export function finaleSpots(s: Scene, grow: number): { k: number; x: number; y: number; r: number; on: number }[] {
+  const m = cycleTime(s) - MIDNIGHT;
+  const launchY = Math.min(s.horizonY, s.cssH + s.u * 0.05);
+  chooseFinale(s);
+  const out = [];
+  for (let k = 0; k < FINALE_SHELLS; k++) {
+    if (m < FINALE[k]! || m >= FINALE[k]! + BLOOM) continue;
+    const on = finaleSpot(s, k, grow, launchY);
+    if (on > 0) out.push({ k, x: SPOT.x, y: SPOT.y, r: SPOT.r, on });
+  }
+  return out;
+}
+
+function finale(ctx: Ctx, s: Scene, grow: number, launchY: number): void {
+  const m = cycleTime(s) - MIDNIGHT;
+  if (m < -RISE || m > FINALE_LEN + 0.2 + BLOOM) return;
+  chooseFinale(s);
+  for (let k = 0; k < FINALE_SHELLS; k++) {
+    const local = m - FINALE[k]! + RISE;
+    if (local < 0 || local > RISE + BLOOM) continue;
+    const on = finaleSpot(s, k, grow, launchY);
+    if (on > 0) shell(ctx, s, FINALE_SEEDS[k]!, local, on, launchY);
+  }
 }
 
 function fireworks(ctx: Ctx, s: Scene, tone: Tone): void {
@@ -347,104 +663,10 @@ function fireworks(ctx: Ctx, s: Scene, tone: Tone): void {
     const seed = i * 101 + cycle * 13;
     const on = join * place(s, seed, grow);
     if (on <= 0) continue;
-    const { x: bx, y: by, r: R } = SPOT;
-    if (by > launchY - u * 0.05) continue;
-
-    const ci = Math.floor(hash(seed + 7) * PARTY.length);
-    const c1 = PARTY[ci]!;
-    const c2 = PARTY[(ci + 2) % PARTY.length]!;
-    const style = hash(seed + 8);
-
-    if (local < RISE) {
-      // Rocket: an ivory head with a dotted gold trail, rising from behind the city.
-      const k = local / RISE;
-      const sx = bx + (hash(seed + 9) - 0.5) * u * 0.1;
-      ctx.globalAlpha = on;
-      ctx.beginPath();
-      for (let d = 1; d <= 4; d++) {
-        const e = cubicOut(Math.max(0, k - d * 0.05));
-        circle(ctx, sx + (bx - sx) * e, launchY + (by - launchY) * e, u * (0.0075 - d * 0.0013));
-      }
-      ctx.fillStyle = GOLD;
-      ctx.fill();
-      const e = cubicOut(k);
-      ctx.beginPath();
-      circle(ctx, sx + (bx - sx) * e, launchY + (by - launchY) * e, u * 0.008);
-      ctx.fillStyle = IVORY;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      continue;
-    }
-
-    const k = (local - RISE) / BLOOM; // 0 → 1
-    const willow = style >= WILLOW_AT;
-    const ring = style >= RING_AT && !willow;
-    const e = cubicOut(Math.min(1, k * 1.3));
-    const et = cubicOut(Math.min(1, Math.max(0, k - (willow ? 0.32 : 0.12)) * 1.3));
-    const droop = R * (willow ? 0.55 : 0.3) * k * k;
-    const droopT = R * (willow ? 0.55 : 0.3) * Math.max(0, k - 0.2) ** 2;
-    const shrink = k < 0.5 ? 1 : 1 - ((k - 0.5) / 0.5) * 0.8;
-    const pr = R * (willow ? 0.06 : ring ? 0.085 : 0.075) * shrink;
-    const squash = ring ? 0.55 + hash(seed + 10) * 0.3 : 1;
-    const tilt = ring ? (hash(seed + 11) - 0.5) * 0.9 : 0;
-    const ct = Math.cos(tilt);
-    const st = Math.sin(tilt);
-    ctx.globalAlpha = on * (k < 0.82 ? 1 : 1 - (k - 0.82) / 0.18);
-
-    // The pop: a flat ivory star at the center
-    if (k < 0.14) {
-      const fr = R * 0.38 * (1 - k / 0.14);
-      ctx.beginPath();
-      ctx.moveTo(bx + FLASH[0]![0] * fr, by + FLASH[0]![1] * fr);
-      for (let j = 1; j < FLASH.length; j++) ctx.lineTo(bx + FLASH[j]![0] * fr, by + FLASH[j]![1] * fr);
-      ctx.closePath();
-      ctx.fillStyle = IVORY;
-      ctx.fill();
-    }
-
-    // Outer ring: head positions, then fat tapered trails behind them
-    for (let j = 0; j < OUTER; j++) {
-      const [dx, dy, sp] = OUTER_DIRS[j]!;
-      const ux = dx * (ring ? 1 : sp);
-      const uy = dy * (ring ? 1 : sp) * squash;
-      HEADS[j * 2] = bx + (ux * ct - uy * st) * R * e;
-      HEADS[j * 2 + 1] = by + (ux * st + uy * ct) * R * e + droop;
-    }
-    if (!ring) {
-      ctx.beginPath();
-      for (let j = 0; j < OUTER; j++) {
-        const [dx, dy, sp] = OUTER_DIRS[j]!;
-        ctx.moveTo(bx + dx * sp * R * et, by + dy * sp * R * et + droopT);
-        ctx.lineTo(HEADS[j * 2]!, HEADS[j * 2 + 1]!);
-      }
-      ctx.lineCap = "round";
-      ctx.strokeStyle = willow ? WILLOW_TRAIL : TRAIL[ci]!;
-      ctx.lineWidth = pr * (willow ? 1.3 : 1.1);
-      ctx.stroke();
-      ctx.lineCap = "butt";
-    }
-    ctx.beginPath();
-    for (let j = 0; j < OUTER; j++) circle(ctx, HEADS[j * 2]!, HEADS[j * 2 + 1]!, pr);
-    ctx.fillStyle = willow ? WILLOW_HEAD : c1;
-    ctx.fill();
-
-    // Inner two-tone ring on peonies
-    if (!willow && !ring) {
-      ctx.beginPath();
-      for (const [dx, dy] of INNER_DIRS) circle(ctx, bx + dx * R * e * 0.52, by + dy * R * e * 0.52 + droop * 0.7, pr * 0.85);
-      ctx.fillStyle = c2;
-      ctx.fill();
-    }
-
-    // Cel highlight on each outer head
-    if (!willow) {
-      ctx.beginPath();
-      for (let j = 0; j < OUTER; j++) circle(ctx, HEADS[j * 2]! - pr * 0.3, HEADS[j * 2 + 1]! - pr * 0.3, pr * 0.38);
-      ctx.fillStyle = HIGHLIGHT;
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+    if (SPOT.y > launchY - u * 0.05) continue;
+    shell(ctx, s, seed, local, on, launchY);
   }
+  finale(ctx, s, grow, launchY);
 }
 
 /* ---------------------------------------------------------------- confetti and feathers */

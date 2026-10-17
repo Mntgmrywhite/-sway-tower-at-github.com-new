@@ -1,7 +1,7 @@
 import { circle, hash, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { clamp01, GOLD, GOLD_DEEP, GOLD_LIGHT, INK, IVORY, RUBY, TAU, TOWER } from "./colors";
-import { ballAt, clockAt, cycleTime, MIDNIGHT } from "./countdown";
+import { ballAt, clockAt, cycleTime, MIDNIGHT, secondAt } from "./countdown";
 import { marquee, SIGN } from "./marquee";
 import { cloudCover, raiseProfile, sideOf } from "./skyline";
 
@@ -9,7 +9,7 @@ import { cloudCover, raiseProfile, sideOf } from "./skyline";
 // rimmed in gold, with grids of lit gold windows and gilded crowns — readable at phone size.
 // Left of the tower column, the Sunburst: three setbacks under a gold fan crown and a needle
 // spire. Right of it, the Times Tower: a clock, the screen above it counting down to midnight
-// (marquee.ts) and the New Year's ball coming down its mast in the last minute to land at
+// (marquee.ts) and the New Year's ball coming down its mast over the last ten seconds to land at
 // midnight, all on the countdown's time (countdown.ts). Behind the column, lower: a gilded
 // ziggurat, a gold pyramid cap and a fluted tower with chevrons, kept under the cap so fireworks
 // burst over them.
@@ -201,8 +201,8 @@ const CORBELS = [[TIMES.shaft, 0.338], [0.0625, 0.346], [0.075, 0.354]] as const
 const RAY_REACH = 1.75;
 const RAY_PULSE = 0.12;
 const RAY_MIDNIGHT = 0.6;
-/** The ball's radius, and its run down the mast: from the top (a minute to midnight), its rays
- *  just under CROWN_TOP, to its foot on the top setback. */
+/** The ball's radius, and its run down the mast: from the top (ten seconds to midnight), its
+ *  rays just under CROWN_TOP, to its foot on the top setback. */
 const BALL_R = 0.021;
 const BALL_TOP = CROWN_TOP - BALL_R * (RAY_REACH + RAY_PULSE);
 const BALL_FOOT = TIMES.tiers[1][1] + BALL_R + 0.003;
@@ -362,9 +362,9 @@ const MIDNIGHT_GLOW = 4;
  * silhouettes (the rims), lacquer bodies, the ball's glow, gilding (with the clock's rim), the
  * clock face, lit windows and lit gold, shaded gold (with the clock's marks), then the ball and
  * the clock's hands, and the Times Tower's screen. The clock and the ball keep the countdown's
- * time (countdown.ts): the ball comes down its mast over the last minute and lands at midnight,
- * when the clock's hands meet on twelve and its face flashes. Nothing behind the tower column
- * moves.
+ * time (countdown.ts): the ball comes down its mast over the last ten seconds and lands at
+ * midnight, when the clock's hands meet on twelve and its face flashes. Nothing behind the tower
+ * column moves.
  */
 export function landmarks(ctx: Ctx, s: Scene): void {
   const u = s.u;
@@ -481,7 +481,7 @@ export function landmarks(ctx: Ctx, s: Scene): void {
   const mer = Math.sin(s.t * 0.8) * br * 0.55;
   ctx.moveTo(tx + mer * 0.2, by - br);
   ctx.quadraticCurveTo(tx + mer, by, tx + mer * 0.2, by + br);
-  // The hands: hour and minute from the countdown's clock (a minute to midnight, then twelve)
+  // The hands: hour and minute from the countdown's clock (ten seconds to midnight, then twelve)
   const clock = clockAt(p);
   const minute = -Math.PI / 2 + (clock / 3600) * TAU;
   const hour = -Math.PI / 2 + (clock / 43200) * TAU;
@@ -494,8 +494,8 @@ export function landmarks(ctx: Ctx, s: Scene): void {
   ctx.strokeStyle = BRONZE;
   ctx.lineWidth = Math.max(1.3, cr * 0.12);
   ctx.stroke();
-  // ...and the second hand sweeping round to meet them, in ruby
-  const second = -Math.PI / 2 + ((((clock % 60) + 60) % 60) / 60) * TAU;
+  // ...and the second hand sweeping up to meet them, in ruby
+  const second = -Math.PI / 2 + (secondAt(p) / 60) * TAU;
   ctx.beginPath();
   ctx.moveTo(tx - Math.cos(second) * cr * 0.16, clockY - Math.sin(second) * cr * 0.16);
   ctx.lineTo(tx + Math.cos(second) * cr * 0.72, clockY + Math.sin(second) * cr * 0.72);

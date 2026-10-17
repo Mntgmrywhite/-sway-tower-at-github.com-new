@@ -1,109 +1,128 @@
 import { describe, expect, it } from "vitest";
-import manifest from "../../audio/music/manifest.json";
 import type { Scene } from "../skin";
 import { newYear } from "../newyear";
 import {
   ballAt,
   clockAt,
+  COUNT,
   COUNT_FROM,
   comingYear,
   CYCLE,
+  cycleIndex,
   cycleTime,
-  DROP_FROM,
-  formatLeft,
   MIDNIGHT,
   MIDNIGHT_SHOW,
   readingAt,
-  RESET,
+  RESET_END,
+  RESET_FROM,
   SEASON_END,
+  secondAt,
   YEAR,
 } from "./countdown";
 
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12);
+const FRAME = 1 / 60;
+
+/** The cycle time a frame `dt` after cycle time p (wrapping round the minute). */
+const next = (p: number, dt = FRAME) => (((p + dt) % CYCLE) + CYCLE) % CYCLE;
 
 describe("New Year's countdown", () => {
-  it("keeps the song's time: its cues and its loop length", () => {
-    const song = (manifest as unknown as Record<string, { sr: number; L: number; cues: { countdownStart: number; midnight: number } }>).newyear!;
-    expect(COUNT_FROM).toBe(song.cues.countdownStart);
-    expect(MIDNIGHT).toBe(song.cues.midnight);
-    expect(MIDNIGHT - COUNT_FROM).toBe(10);
-    expect(CYCLE).toBeCloseTo(song.L / song.sr, 9);
-    expect(MIDNIGHT + MIDNIGHT_SHOW).toBeLessThan(CYCLE);
+  // The owner: "The countdown needs to start at 10, with lots more fireworks, then reset after a
+  // minute." Within the first ten seconds of a tower's scene, before players move on and up.
+  it("starts at 10 on a tower's first frame, strikes midnight at 10 s and starts over every minute", () => {
+    expect(CYCLE).toBe(60);
+    expect(COUNT_FROM).toBe(0);
+    expect(MIDNIGHT).toBe(10);
+    expect(COUNT).toBe(10);
+    expect(readingAt(0)).toEqual({ kind: "count", n: 10, into: 0 });
+    expect(readingAt(MIDNIGHT)).toEqual({ kind: "midnight", into: 0 });
+    const at = (t: number) => readingAt(cycleTime({ t } as Scene));
+    for (const minute of [0, 1, 2, 7]) {
+      const t0 = minute * CYCLE;
+      expect(at(t0), `minute ${minute}`).toEqual({ kind: "count", n: 10, into: 0 });
+      expect(at(t0 + MIDNIGHT - 0.01)).toMatchObject({ kind: "count", n: 1 });
+      expect(at(t0 + MIDNIGHT + 0.01).kind).toBe("midnight");
+      expect(at(t0 + CYCLE - 0.01).kind).toBe("year");
+      expect(cycleIndex({ t: t0 + 30 } as Scene)).toBe(minute);
+    }
   });
 
-  it("follows the music, and runs the same cycle on scene time when there is none", () => {
+  it("keeps the scene's time, whatever the music is doing", () => {
     const at = (t: number, songTime?: number) => cycleTime({ t, songTime } as Scene);
-    expect(at(3, 40.5)).toBe(40.5);
+    expect(at(3, 40.5)).toBe(3);
     expect(at(3, NaN)).toBe(3);
     expect(at(3)).toBe(3);
-    expect(at(CYCLE * 4 + 7.25, NaN)).toBeCloseTo(7.25, 9);
+    expect(at(CYCLE * 4 + 7.25, 12)).toBeCloseTo(7.25, 9);
   });
 
-  it("always shows something: the time left, the last ten big, MIDNIGHT, then the year", () => {
-    let last = Infinity;
-    for (let p = 0; p < CYCLE; p += 0.05) {
+  it("always shows something: 10 … 1 big, MIDNIGHT, then the year until the minute is up", () => {
+    let last = COUNT + 1;
+    for (let i = 0; i < CYCLE * 20; i++) {
+      const p = i / 20;
       const r = readingAt(p);
-      if (p < COUNT_FROM) {
-        expect(r.kind, `${p}`).toBe("left");
-        if (r.kind !== "left") continue;
-        // One minute to midnight at most, ticking down a second at a time, never skipping one
-        expect(r.secs).toBeLessThanOrEqual(60);
-        expect(r.secs).toBeGreaterThan(10);
-        expect(r.secs === last || r.secs === last - 1 || last === Infinity).toBe(true);
-        expect(r.secs).toBe(Math.min(60, Math.ceil(MIDNIGHT - p)));
-        last = r.secs;
-      } else if (p < MIDNIGHT) {
-        expect(r).toMatchObject({ kind: "count", n: Math.ceil(MIDNIGHT - p) });
+      if (p < MIDNIGHT) {
+        expect(r).toMatchObject({ kind: "count", n: COUNT - Math.floor(p) });
+        if (r.kind !== "count") continue;
+        // A second at a time, never skipping one
+        expect(r.n === last || r.n === last - 1, `${p}`).toBe(true);
+        last = r.n;
       } else if (p < MIDNIGHT + MIDNIGHT_SHOW) {
         expect(r.kind).toBe("midnight");
       } else {
         expect(r.kind).toBe("year");
       }
     }
-    expect(last).toBe(11);
-    expect(readingAt(0)).toMatchObject({ kind: "left", secs: 60 });
-    expect(readingAt(MIDNIGHT - 52)).toMatchObject({ kind: "left", secs: 52, into: 0 });
-    expect(readingAt(COUNT_FROM)).toMatchObject({ kind: "count", n: 10, into: 0 });
-    expect(readingAt(COUNT_FROM + 4.5)).toMatchObject({ kind: "count", n: 6, into: 0.5 });
-    expect(readingAt(MIDNIGHT - 0.01)).toMatchObject({ kind: "count", n: 1 });
-    expect(readingAt(MIDNIGHT)).toEqual({ kind: "midnight", into: 0 });
-    expect(readingAt(CYCLE - 0.01).kind).toBe("year");
+    expect(last).toBe(1);
+    expect(readingAt(4.5)).toMatchObject({ kind: "count", n: 6, into: 0.5 });
+    expect(readingAt(MIDNIGHT + MIDNIGHT_SHOW + 1)).toMatchObject({ kind: "year", into: 1 });
   });
 
-  it("formats the time left as m:ss", () => {
-    expect(formatLeft(60)).toBe("1:00");
-    expect(formatLeft(52)).toBe("0:52");
-    expect(formatLeft(11)).toBe("0:11");
-    expect(formatLeft(5)).toBe("0:05");
-  });
-
-  it("puts the clock on midnight at midnight, and never jumps its hands", () => {
+  it("sweeps the second hand up to meet the others on twelve at midnight, in step with the screen", () => {
+    expect(clockAt(0)).toBe(-10);
     expect(clockAt(MIDNIGHT)).toBe(0);
-    expect(clockAt(DROP_FROM)).toBe(-60);
-    expect(clockAt(COUNT_FROM)).toBe(-10);
-    // Across the cycle's wrap, and through the reset, the hands move at most a few seconds a frame.
-    const frame = 1 / 60;
-    for (let p = -1; p < CYCLE + 1; p += frame) {
-      const a = clockAt(((p % CYCLE) + CYCLE) % CYCLE);
-      const b = clockAt((((p + frame) % CYCLE) + CYCLE) % CYCLE);
-      expect(Math.abs(b - a), `${p}`).toBeLessThan(80 / (RESET * 60) * 1.6);
+    expect(secondAt(0)).toBe(50);
+    expect(secondAt(MIDNIGHT)).toBe(0);
+    // Each number on the screen comes up as the second hand passes its mark: "n" at n to twelve.
+    for (let n = COUNT; n >= 1; n--) {
+      const p = MIDNIGHT - n;
+      expect(readingAt(p)).toMatchObject({ kind: "count", n, into: 0 });
+      expect(secondAt(p)).toBeCloseTo(60 - n, 9);
+      expect(clockAt(p)).toBeCloseTo(-n, 9);
     }
   });
 
-  it("brings the ball down the mast over the last minute, landing at midnight", () => {
-    expect(ballAt(DROP_FROM)).toBe(0);
-    expect(ballAt(MIDNIGHT)).toBe(1);
-    expect(ballAt(CYCLE - 0.001)).toBe(1);
-    expect(ballAt(0)).toBe(1);
-    expect(MIDNIGHT - DROP_FROM).toBe(60);
-    let prev = 0;
-    for (let p = DROP_FROM; p <= MIDNIGHT; p += 0.25) {
-      const b = ballAt(p);
-      expect(b).toBeGreaterThanOrEqual(prev);
-      prev = b;
+  it("resets the clock while HAPPY holds: the hands never jump, and the second hand never turns back", () => {
+    // Across the minute's wrap, and through the reset, every frame.
+    for (let p = 0; p < CYCLE; p += FRAME) {
+      const q = next(p);
+      // The second hand runs on: a frame's worth forward, every frame.
+      const ds = (((secondAt(q) - secondAt(p)) % 60) + 60) % 60;
+      expect(ds, `${p}`).toBeCloseTo(FRAME, 6);
+      // The minute hand moves at most a few seconds' worth a frame (a sliver of a degree).
+      expect(Math.abs(clockAt(q) - clockAt(p)), `${p}`).toBeLessThan(0.35);
     }
-    // Back up during the reset, smoothly: no frame moves it more than a sliver.
-    for (let p = 0; p < DROP_FROM; p += 1 / 60) expect(Math.abs(ballAt(p + 1 / 60) - ballAt(p))).toBeLessThan(0.02);
+    // The setting back happens while the year is showing.
+    for (let p = RESET_FROM; p < CYCLE; p += 0.1) expect(readingAt(p).kind).toBe("year");
+    expect(clockAt(RESET_FROM)).toBeCloseTo(RESET_FROM - MIDNIGHT, 9);
+    expect(clockAt(CYCLE - 1e-9)).toBeCloseTo(clockAt(0), 6);
+  });
+
+  it("brings the ball down the mast with the count, landing at midnight, and takes it back up while HAPPY holds", () => {
+    expect(ballAt(0)).toBe(0);
+    expect(ballAt(MIDNIGHT)).toBe(1);
+    // In step with the screen: a tenth of the way down with each number.
+    for (let n = COUNT; n >= 0; n--) expect(ballAt(MIDNIGHT - n)).toBeCloseTo(1 - n / COUNT, 9);
+    let prev = 0;
+    for (let p = 0; p <= MIDNIGHT; p += 0.25) {
+      expect(ballAt(p)).toBeGreaterThanOrEqual(prev);
+      prev = ballAt(p);
+    }
+    // Landed through MIDNIGHT and most of the year, then up during the reset, waiting at the top.
+    for (let p = MIDNIGHT; p < RESET_FROM; p += 0.5) expect(ballAt(p)).toBe(1);
+    for (let p = RESET_FROM; p < CYCLE; p += 0.1) expect(readingAt(p).kind).toBe("year");
+    for (let p = RESET_END; p < CYCLE; p += 0.1) expect(ballAt(p)).toBe(0);
+    // Smoothly: no frame moves it more than a sliver, across the minute's wrap too.
+    for (let p = 0; p < CYCLE; p += FRAME) expect(Math.abs(ballAt(next(p)) - ballAt(p)), `${p}`).toBeLessThan(0.02);
   });
 
   it("greets the year the season leads into", () => {

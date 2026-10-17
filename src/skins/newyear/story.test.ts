@@ -123,7 +123,7 @@ describe("New Year's sky, over the climb and two turns of the loop", () => {
   it.each([
     [390, 844],
     [375, 667],
-  ] as const)("%ix%i: nothing in it (fireworks included) ever crosses the HUD", (W, H) => {
+  ] as const)("%ix%i: nothing in it (fireworks included, the midnight finale too) ever crosses the HUD", (W, H) => {
     const K = 0.5;
     const w = Math.round(W * K);
     const h = Math.round(H * 0.32 * K);
@@ -131,7 +131,8 @@ describe("New Year's sky, over the climb and two turns of the loop", () => {
     const ctx = canvas.getContext("2d");
     let fired = 0;
     for (let lvl = 0; lvl <= LOOP_FROM + 2 * LOOP; lvl += 2) {
-      for (const t of [1.7, 4.4, 9.9]) {
+      // The count, then midnight's volley and the finale (the next minute's too)
+      for (const t of [1.7, 4.4, 9.9, 10.3, 11.2, 12.9, 15.6, 70.8]) {
         const s = sceneAt(W, H, lvl, t);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, w, h);

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import type { Scene } from "../skin";
 import { newYear } from "../newyear";
-import { DROP_FROM, MIDNIGHT } from "./countdown";
+import { CYCLE, MIDNIGHT, RESET_END } from "./countdown";
 import { LOOP, LOOP_FROM } from "./story";
 import { sceneAt } from "./test-scene";
 
@@ -25,20 +25,19 @@ describe("New Year's city under the start screen's title", () => {
     const ctx = canvas.getContext("2d");
     const u = Math.min(W, H * 0.6);
     const rows = Math.ceil(H * 0.14 + u * 0.012);
-    // The ball at the top of its mast, then landed with its rays reaching out at midnight; the rays
-    // pulse and turn with scene time.
-    for (const song of [DROP_FROM, DROP_FROM + 0.5, MIDNIGHT + 0.4, MIDNIGHT + 2]) {
-      for (const t of [0.65, 1.9, 3.3, 7.1]) {
-        ctx.clearRect(0, 0, W, H);
-        newYear.far!(ctx as unknown as CanvasRenderingContext2D, sceneAt(W, H, 0, t, song));
-        const data = ctx.getImageData(0, 0, W, rows).data;
-        let hits = 0;
-        for (let i = 0; i < W * rows; i++) {
-          // Solid pixels only: the searchlights' faint beams fade out over the city.
-          if (data[i * 4 + 3]! > 200 && Math.abs((i % W) - W / 2) < 0.45 * u) hits++;
-        }
-        expect(hits, `song ${song}s, t ${t}`).toBe(0);
+    // The ball at the top of its mast (as the count starts, and waiting for the next one), on its
+    // way down, then landed with its rays reaching out at midnight; the rays pulse and turn too.
+    const times = [0, 0.3, 0.65, 1.9, 3.3, 7.1, MIDNIGHT + 0.4, MIDNIGHT + 1.1, MIDNIGHT + 2, MIDNIGHT + 3.3];
+    for (const t of [...times, ...times.map((t) => t + CYCLE), RESET_END, RESET_END + 0.4, RESET_END + 0.9]) {
+      ctx.clearRect(0, 0, W, H);
+      newYear.far!(ctx as unknown as CanvasRenderingContext2D, sceneAt(W, H, 0, t));
+      const data = ctx.getImageData(0, 0, W, rows).data;
+      let hits = 0;
+      for (let i = 0; i < W * rows; i++) {
+        // Solid pixels only: the searchlights' faint beams fade out over the city.
+        if (data[i * 4 + 3]! > 200 && Math.abs((i % W) - W / 2) < 0.45 * u) hits++;
       }
+      expect(hits, `t ${t}`).toBe(0);
     }
   });
 });
@@ -96,6 +95,22 @@ describe("New Year's scenery all the way up", () => {
     }
     expect(looped).toBeGreaterThan(500);
     expect(looped).toBeLessThanOrEqual(designed);
+  });
+
+  it("keeps the midnight finale's frames within a fifth over the busiest everyday frame of the climb", () => {
+    const c = counting();
+    let everyday = 0;
+    let finale = 0;
+    for (const lvl of [0, 8, 20, 40, 60, 90, LOOP_FROM + 30, LOOP_FROM + 90, 900]) {
+      for (let t = 0; t < CYCLE; t += 0.5) {
+        c.reset();
+        scenery(c.ctx, sceneAt(390, 844, lvl, t + 0.25));
+        if (t >= MIDNIGHT - 1 && t < MIDNIGHT + 10) finale = Math.max(finale, c.calls());
+        else everyday = Math.max(everyday, c.calls());
+      }
+    }
+    expect(finale).toBeGreaterThan(everyday);
+    expect(finale).toBeLessThanOrEqual(everyday * 1.2);
   });
 });
 
