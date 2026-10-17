@@ -5,7 +5,7 @@ import { centerX, inkW } from "./fort";
 import { block } from "./shapes";
 
 // More toys on the meadow around the fort, inked like everything up close: in front of it on
-// the left two of the fort's guard standing to attention, the drummer beating time; further
+// the left two drummers of the fort's guard, marching in place and drumming in step; further
 // back, beyond the lollipop tree, a wooden rocking horse (dappled cream, red saddle, a brown yarn
 // mane) rocking gently on its runner, and beyond the ring tree a striped spinning top that spins
 // and wobbles. The far ones are smaller and drawn with a lighter ink. None rises into the
@@ -165,15 +165,68 @@ export function rockingHorse(ctx: Ctx, s: Scene): void {
 // ---------------------------------------------------------------- the guard
 
 /** The guard: each soldier's x (u from the center line), and where their feet stand (u below the floor line). */
-const GUARDS = [-0.456, -0.394] as const;
-const GUARD_FEET = 0.296;
+export const GUARDS = [-0.456, -0.394] as const;
+export const GUARD_FEET = 0.296;
 /** A soldier's height (u). */
-const SOLDIER_H = 0.086;
+export const SOLDIER_H = 0.086;
 
 /**
- * Two wooden toy soldiers of the fort's guard, standing at attention on the meadow beyond the
- * lollipop tree: tall dark hats with a gold badge and a red plume, red coats with white cross
- * belts, blue trousers. The one on the right beats a drum.
+ * The march, from the scene's start: one step with each foot every MARCH seconds, the left foot
+ * (on screen) first, both soldiers in step. A step lifts the knee and the foot comes up KNEE
+ * (soldier heights) off the meadow, then stamps down on the beat.
+ */
+export const MARCH = 1;
+const KNEE = 0.17;
+/**
+ * A drum stroke, as fractions of the stick's own beat cycle (one MARCH): off the head and up over
+ * STROKE_UP, held up, then down hard over STROKE_DOWN onto the head on the beat.
+ */
+const STROKE_UP = 0.3;
+const STROKE_DOWN = 0.14;
+/** Stick and mallet length, and the mallet's felt ball (soldier heights). */
+const STICK = 0.17;
+const MALLET = 0.16;
+const BALL = 0.055;
+const SIDES = [-1, 1] as const;
+
+/** Where the march is: 0 to 1 over each MARCH, the left foot up in the first half, the right in the second. */
+function marchPhase(t: number): number {
+  const q = Math.max(0, t) / MARCH;
+  return q - Math.floor(q);
+}
+
+/** How high a foot is lifted at time t (0 on the meadow, 1 at the top of its step); side -1 is the left foot on screen. */
+export function footLift(t: number, side: -1 | 1): number {
+  const q = marchPhase(t) + (side < 0 ? 0 : 0.5);
+  return Math.max(0, Math.sin(q * Math.PI * 2));
+}
+
+/**
+ * How far a drumstick is raised at time t (0 on the drum head, 1 up). Each stick strikes as the
+ * foot on its side stamps down: side -1 (left on screen) at the middle of each MARCH, side 1 at
+ * its start (the bass drummer's mallet beats with side 1).
+ */
+export function stickRaise(t: number, side: -1 | 1): number {
+  const p = marchPhase(t) + (side < 0 ? 0.5 : 0);
+  const q = p - Math.floor(p);
+  if (q < STROKE_UP) {
+    const x = 1 - q / STROKE_UP;
+    return 1 - x * x;
+  }
+  if (q > 1 - STROKE_DOWN) {
+    const y = 1 - (1 - q) / STROKE_DOWN;
+    return 1 - y * y;
+  }
+  return 1;
+}
+
+/**
+ * Two wooden toy soldiers of the fort's guard on the meadow beyond the lollipop tree: tall dark
+ * hats with a gold badge and a red plume, red coats with white cross belts, blue trousers and
+ * black boots. They march in place, in step, knees lifting and boots stamping, and drum as they
+ * go: the left one beats a big blue bass drum with a felt mallet on every other step, the right
+ * one a yellow snare drum with two sticks, a stroke with each step. From the scene's start,
+ * forever, and they never walk away.
  */
 export function guards(ctx: Ctx, s: Scene): void {
   const u = s.u;
@@ -184,22 +237,35 @@ export function guards(ctx: Ctx, s: Scene): void {
   for (const gx of GUARDS) oval(ctx, centerX(s) + gx * u, feet, u * 0.022, u * 0.006);
   ctx.fillStyle = SHADOW;
   ctx.fill();
-  for (let i = 0; i < GUARDS.length; i++) soldier(ctx, s, centerX(s) + GUARDS[i]! * u, feet, lw, i === 1);
+  for (let i = 0; i < GUARDS.length; i++) soldier(ctx, s, centerX(s) + GUARDS[i]! * u, feet, lw, i === 0);
 }
 
-function soldier(ctx: Ctx, s: Scene, x: number, feet: number, lw: number, drummer: boolean): void {
-  const u = s.u;
-  const k = SOLDIER_H * u;
-  // Legs.
-  ctx.beginPath();
-  block(ctx, x - k * 0.15, feet - k * 0.36, k * 0.13, k * 0.36, k * 0.04);
-  block(ctx, x + k * 0.02, feet - k * 0.36, k * 0.13, k * 0.36, k * 0.04);
-  ctx.fillStyle = BLUE.body;
-  ctx.fill();
-  ink(ctx, lw, INK);
-  ctx.fillStyle = INK;
-  ctx.fillRect(x - k * 0.15, feet - k * 0.08, k * 0.3, k * 0.08);
-  // Coat with cross belts, arms at the sides.
+/** Scratch point for a hand, reused so drawing allocates nothing. */
+const HAND = { x: 0, y: 0 };
+
+/** A soldier standing at x with its feet on `feet` (px): the bass drummer or the snare drummer. */
+function soldier(ctx: Ctx, s: Scene, x: number, feet: number, lw: number, bassDrummer: boolean): void {
+  const k = SOLDIER_H * s.u;
+  // Legs, each lifted by its step: the boot comes up off the meadow and the leg shortens under the
+  // hip as the knee comes up toward us, its thigh catching the light.
+  for (const m of SIDES) {
+    const lift = footLift(s.t, m) * KNEE;
+    const lx = x + (m < 0 ? -0.15 : 0.02) * k;
+    ctx.beginPath();
+    block(ctx, lx, feet - k * 0.36, k * 0.13, k * (0.36 - lift), k * 0.04);
+    ctx.fillStyle = BLUE.body;
+    ctx.fill();
+    if (lift > 0.005) {
+      ctx.fillStyle = BLUE.light;
+      ctx.fillRect(lx + k * 0.025, feet - k * 0.34, k * 0.08, k * lift * 0.8);
+    }
+    ink(ctx, lw, INK);
+    ctx.beginPath();
+    block(ctx, lx - k * 0.01, feet - k * (lift + 0.085), k * 0.15, k * 0.085, k * 0.03);
+    ctx.fillStyle = INK;
+    ctx.fill();
+  }
+  // Coat with cross belts.
   ctx.beginPath();
   block(ctx, x - k * 0.2, feet - k * 0.72, k * 0.4, k * 0.38, k * 0.08);
   ctx.fillStyle = RED.body;
@@ -207,6 +273,7 @@ function soldier(ctx: Ctx, s: Scene, x: number, feet: number, lw: number, drumme
   ink(ctx, lw, INK);
   ctx.strokeStyle = CREAM;
   ctx.lineWidth = k * 0.06;
+  ctx.lineCap = "butt";
   ctx.beginPath();
   ctx.moveTo(x - k * 0.15, feet - k * 0.69);
   ctx.lineTo(x + k * 0.15, feet - k * 0.38);
@@ -238,31 +305,134 @@ function soldier(ctx: Ctx, s: Scene, x: number, feet: number, lw: number, drumme
   ctx.fillStyle = RED.body;
   ctx.fill();
   ink(ctx, lw * 0.8, INK);
-  if (!drummer) return;
-  // The drum on his front, and the sticks beating in turn.
-  const beat = Math.sin(s.t * 6);
+  if (bassDrummer) bass(ctx, s, x, feet, k, lw);
+  else snare(ctx, s, x, feet, k, lw);
+}
+
+/**
+ * A drum on a soldier's front: a block from y0 to y1 (soldier heights up from the feet), `hw`
+ * half wide, its shell color, the zigzag of its cords (n strands), and its head across the top.
+ */
+function drum(ctx: Ctx, x: number, feet: number, k: number, lw: number, hw: number, y0: number, y1: number, shell: string, cord: string, n: number): void {
   ctx.beginPath();
-  block(ctx, x - k * 0.2, feet - k * 0.5, k * 0.4, k * 0.24, k * 0.06);
-  ctx.fillStyle = YELLOW.body;
+  block(ctx, x - k * hw, feet - k * y1, k * hw * 2, k * (y1 - y0), k * 0.06);
+  ctx.fillStyle = shell;
   ctx.fill();
   ink(ctx, lw, INK);
-  ctx.strokeStyle = RED.body;
-  ctx.lineWidth = k * 0.05;
+  ctx.strokeStyle = cord;
+  ctx.lineWidth = k * 0.042;
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.moveTo(x - k * 0.16, feet - k * 0.47);
-  ctx.lineTo(x - k * 0.04, feet - k * 0.3);
-  ctx.lineTo(x + k * 0.08, feet - k * 0.47);
-  ctx.lineTo(x + k * 0.17, feet - k * 0.32);
+  for (let i = 0; i <= n; i++) {
+    const cx = x + k * hw * (-0.8 + (1.6 * i) / n);
+    const cy = feet - k * (i % 2 ? y0 + 0.05 : y1 - 0.045);
+    if (i === 0) ctx.moveTo(cx, cy);
+    else ctx.lineTo(cx, cy);
+  }
   ctx.stroke();
-  ctx.strokeStyle = WOOD.shade;
-  ctx.lineWidth = k * 0.045;
+  ctx.beginPath();
+  oval(ctx, x, feet - k * y1, k * (hw - 0.03), k * 0.035);
+  ctx.fillStyle = CREAM;
+  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
+}
+
+/** A hand swung from (ax, ay) on the beat to (bx, by) held up (soldier heights from the center line and the feet), by r. */
+function hand(ax: number, ay: number, bx: number, by: number, r: number): typeof HAND {
+  HAND.x = ax + (bx - ax) * r;
+  HAND.y = ay + (by - ay) * r;
+  return HAND;
+}
+
+/** A sleeve from the shoulder on side m to the hand at (hx, hy) (soldier heights). */
+function sleeve(ctx: Ctx, x: number, feet: number, k: number, lw: number, m: number, hx: number, hy: number): void {
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(x - k * 0.22, feet - k * 0.6);
-  ctx.lineTo(x - k * 0.08, feet - k * (0.52 + 0.06 * Math.max(0, beat)));
-  ctx.moveTo(x + k * 0.22, feet - k * 0.6);
-  ctx.lineTo(x + k * 0.08, feet - k * (0.52 + 0.06 * Math.max(0, -beat)));
+  ctx.moveTo(x + m * 0.16 * k, feet - 0.66 * k);
+  ctx.lineTo(x + hx * k, feet - hy * k);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = k * 0.09 + lw;
   ctx.stroke();
+  ctx.strokeStyle = RED.body;
+  ctx.lineWidth = k * 0.09;
+  ctx.stroke();
+}
+
+/** A white glove at (hx, hy) (soldier heights), gripping whatever it holds. */
+function glove(ctx: Ctx, x: number, feet: number, k: number, lw: number, hx: number, hy: number): void {
+  ctx.beginPath();
+  circle(ctx, x + hx * k, feet - hy * k, k * 0.042);
+  ctx.fillStyle = CREAM;
+  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
+}
+
+/** A wooden stick held at (hx, hy), pointing at angle a (0 right, π/2 up), `len` long (soldier heights). */
+function stick(ctx: Ctx, x: number, feet: number, k: number, lw: number, hx: number, hy: number, a: number, len: number): void {
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x + hx * k, feet - hy * k);
+  ctx.lineTo(x + (hx + Math.cos(a) * len) * k, feet - (hy + Math.sin(a) * len) * k);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = k * 0.045 + lw * 0.8;
+  ctx.stroke();
+  ctx.strokeStyle = WOOD.light;
+  ctx.lineWidth = k * 0.045;
+  ctx.stroke();
+}
+
+/**
+ * The angle (0 right, π/2 up) of a stick on side m: pointing in and down at the drum head on the
+ * stroke (r = 0), straight up beside the hat between strokes (r = 1); it swings across in the
+ * moment of the stroke.
+ */
+function stickAngle(m: number, r: number, down: number, up: number): number {
+  const a = down + (up - down) * r;
+  return m > 0 ? Math.PI - a : a;
+}
+
+/**
+ * The right-hand soldier's yellow snare drum and its two sticks, held up beside the hat between
+ * strokes: each comes down hard on the head as the foot on its side stamps, and swings back up.
+ */
+function snare(ctx: Ctx, s: Scene, x: number, feet: number, k: number, lw: number): void {
+  drum(ctx, x, feet, k, lw, 0.2, 0.27, 0.5, YELLOW.body, RED.body, 4);
+  for (const m of SIDES) {
+    const r = stickRaise(s.t, m);
+    const h = hand(m * 0.2, 0.57, m * 0.25, 0.66, r);
+    const hx = h.x;
+    const hy = h.y;
+    sleeve(ctx, x, feet, k, lw, m, hx, hy);
+    stick(ctx, x, feet, k, lw, hx, hy, stickAngle(m, r, -0.55, Math.PI / 2 - 0.08), STICK);
+    glove(ctx, x, feet, k, lw, hx, hy);
+  }
+}
+
+/**
+ * The left-hand soldier's big blue bass drum, held by its rim in one hand and beaten with a felt
+ * mallet in the other on every other step: the mallet waits up by the shoulder and comes down
+ * hard on the head as the right foot stamps.
+ */
+function bass(ctx: Ctx, s: Scene, x: number, feet: number, k: number, lw: number): void {
+  drum(ctx, x, feet, k, lw, 0.23, 0.22, 0.52, BLUE.body, YELLOW.body, 6);
+  // The holding hand on the rim, rocking a little with the step.
+  const gy = 0.5 + 0.03 * footLift(s.t, -1);
+  sleeve(ctx, x, feet, k, lw, -1, -0.22, gy);
+  glove(ctx, x, feet, k, lw, -0.22, gy);
+  const r = stickRaise(s.t, 1);
+  const h = hand(0.22, 0.62, 0.27, 0.74, r);
+  const hx = h.x;
+  const hy = h.y;
+  const a = stickAngle(1, r, -0.95, Math.PI / 2 - 0.15);
+  sleeve(ctx, x, feet, k, lw, 1, hx, hy);
+  stick(ctx, x, feet, k, lw, hx, hy, a, MALLET);
+  ctx.beginPath();
+  circle(ctx, x + (hx + Math.cos(a) * MALLET) * k, feet - (hy + Math.sin(a) * MALLET) * k, k * BALL);
+  ctx.fillStyle = YELLOW.body;
+  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
+  glove(ctx, x, feet, k, lw, hx, hy);
 }
 
 // ---------------------------------------------------------------- the spinning top

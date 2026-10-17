@@ -1,6 +1,6 @@
 import { circle, hash, mix, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { COLUMN } from "./place";
+import { COLUMN, HORIZON_UP, LAND_TOP } from "./place";
 import { smooth, type Tone } from "./tone";
 
 // The sky and what hangs in it: the colors of the hour (from tone.ts), top to bottom; a wooden-toy sun up on
@@ -8,7 +8,9 @@ import { smooth, type Tone } from "./tone";
 // cloud sea at sunset and climbs out of it again at sunrise; and at night, in the same spot, a
 // sleepy crescent moon with a little mobile of three stars hanging from it on threads, and
 // plump five-point stars across the sky, like the ones on a nursery mobile. The sun and the moon
-// keep to the left; the right lane is the toys' (drift.ts). Far away: flat fills, no outline.
+// keep to the left, and nothing ever passes over them (the owner's rule): no cloud or toy drifts
+// through their part of the lane (`lightsSpan`, drift.ts), and only the cloud sea they set into
+// and rise out of covers them. Far away: flat fills, no outline.
 
 /** Gradient stops for the four sky colors (top, middle, glow band, bottom). */
 const STOPS = [0, 0.4, 0.7, 0.92] as const;
@@ -57,19 +59,47 @@ export function skyFill(ctx: Ctx, s: Scene, bands: readonly string[], bottom: nu
 
 // ---------------------------------------------------------------- sun
 
-/** Scratch results of `sunAt` / `moonAt`, reused so placing them allocates nothing. */
+/** Scratch results of `sunAt`, `moonAt` and `lightsSpan`, reused so placing them allocates nothing. */
 const SUN = { x: 0, y: 0, r: 0 };
 const MOON_AT = { x: 0, y: 0, r: 0 };
+const LIGHTS = { x0: 0, x1: 0 };
 
 /** The sun's day spot, as a fraction of the screen height: under the HUD, over the castle's flag. */
 const SUN_Y = 0.262;
+/**
+ * How far (u) the sun's rays keep above the castle's flag as the title shows it. On a phone the
+ * sun's spot is well clear of it; on a squarer screen (a tablet, a desktop browser) the land stands
+ * taller on the screen, and the sun sits up out of its way so the flag never pokes into it.
+ */
+const SUN_CLEAR = 0.01;
 /** How far the rays reach, in disc radii. Everything the sun draws stays inside this. */
 export const SUN_REACH = 1.62;
 /** The sun's and the moon's x: up the left lane (u left of the center). */
 const CELESTIAL_X = 0.36;
+/** The sun's disc by day and the moon's (u); the sun swells by SUN_SWELL of it as it sets. */
+const SUN_R = 0.05;
+const SUN_SWELL = 0.4;
+const MOON_R = 0.05;
+/** How far the moon and its mobile reach either side of its center, in moon radii (its clip box). */
+const MOON_REACH = 1.5;
 
 function celestialX(s: Scene, reach: number): number {
   return Math.max(reach + s.u * 0.02, s.cssW / 2 - s.u * CELESTIAL_X);
+}
+
+/**
+ * The left and right edges (px) of everything the sun or the moon ever draws, at any hour (the
+ * setting sun's rays at their widest, the moon's mobile): their part of the left lane, which
+ * nothing drifts through (drift.ts), so nothing ever passes over them.
+ */
+export function lightsSpan(s: Scene): typeof LIGHTS {
+  const sunX = celestialX(s, s.u * SUN_R * SUN_REACH);
+  const sunReach = s.u * SUN_R * (1 + SUN_SWELL) * SUN_REACH;
+  const moonX = celestialX(s, s.u * MOON_R * 1.2);
+  const moonReach = s.u * MOON_R * MOON_REACH;
+  LIGHTS.x0 = Math.min(sunX - sunReach, moonX - moonReach);
+  LIGHTS.x1 = Math.max(sunX + sunReach, moonX + moonReach);
+  return LIGHTS;
 }
 
 /**
@@ -79,9 +109,12 @@ function celestialX(s: Scene, reach: number): number {
  */
 export function sunAt(s: Scene, tone: Tone, sea: number): typeof SUN {
   const k = 1 - tone.sunUp;
-  const r0 = s.u * 0.05;
-  const y0 = s.cssH * SUN_Y;
-  SUN.r = r0 * (1 + 0.4 * k);
+  const r0 = s.u * SUN_R;
+  // The land's top at the start: the floor line's start (s.groundY - s.rise stays put as the
+  // camera climbs) less the horizon's height and the flag's. The land only sinks from there.
+  const land = s.groundY - s.rise - s.u * (HORIZON_UP + LAND_TOP);
+  const y0 = Math.min(s.cssH * SUN_Y, land - r0 * SUN_REACH - s.u * SUN_CLEAR);
+  SUN.r = r0 * (1 + SUN_SWELL * k);
   SUN.x = celestialX(s, r0 * SUN_REACH);
   SUN.y = y0 + (Math.max(y0, sea) + SUN.r * SUN_REACH - y0) * k;
   return SUN;
@@ -143,7 +176,7 @@ const THREADS = [
 
 /** Where the moon hangs: up the left lane, below the title; it rises out of the sea at dusk and sinks back before dawn. */
 export function moonAt(s: Scene, tone: Tone, sea: number): typeof MOON_AT {
-  const r = s.u * 0.05;
+  const r = s.u * MOON_R;
   const y0 = s.cssH * 0.25;
   const k = 1 - tone.moonUp;
   MOON_AT.r = r;
@@ -198,7 +231,7 @@ export function moon(ctx: Ctx, s: Scene, tone: Tone, sea: number): void {
   // the bite circle, filled even-odd, is the clip).
   ctx.save();
   ctx.beginPath();
-  ctx.rect(x - r * 1.5, y - r * 1.5, r * 3, r * 3);
+  ctx.rect(x - r * MOON_REACH, y - r * MOON_REACH, r * MOON_REACH * 2, r * MOON_REACH * 2);
   circle(ctx, x + r * 0.5, y - r * 0.32, r * 0.84);
   ctx.clip("evenodd");
   ctx.fillStyle = MOON_SHADE;

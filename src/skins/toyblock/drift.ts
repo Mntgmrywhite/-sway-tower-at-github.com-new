@@ -3,6 +3,7 @@ import { layerGround } from "../../base/world";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
 import { COLUMN } from "./place";
+import { lightsSpan } from "./sky";
 import { blockCloud, LOW_CLOUD, TALL_CLOUD, type CloudShape } from "./shapes";
 import { LOOP, type Tone } from "./tone";
 import * as toy from "./toys";
@@ -11,13 +12,16 @@ import * as toy from "./toys";
 // at a height in its lane, so it comes down past you as the camera climbs, and only ever moves
 // gently in place: nothing crosses the tower's column.
 //
-// Near lanes (parallax NEAR_P): the left lane is the sun's and the moon's, so only block clouds
-// drift down it (they may pass in front of the sun or the moon, as clouds do). The right lane is
-// the toys': a loose kite, flights of paper planes, a biplane trailing bunting, a teddy in a
-// hot-air balloon, the airship with its windows lit at dusk, a satellite, the rocket that
-// launched from the pad, a ringed toy planet, a flying saucer, a toy soldier on a parachute at dawn, and
-// party balloons carrying a block away in the morning. Far lanes (FAR_P, behind the near ones): small faded clouds on
-// both sides, spreading out on wide screens.
+// The left lane is the sun's and the moon's, and nothing ever passes over them (the owner's rule:
+// clouds sliding down across the sun one after another sliced it in half). So nothing drifts down
+// the near left lane at all, and the far one only spreads into the room left of their part of the
+// lane on wide screens (`lightsSpan`, sky.ts); on a phone there is none, and it stays empty.
+// The near lane (parallax NEAR_P) is the right one: the toys, with block clouds between them: a
+// loose kite, flights of paper planes, a biplane trailing bunting, a teddy in a hot-air balloon,
+// the airship with its windows lit at dusk, a satellite, the rocket that launched from the pad, a
+// ringed toy planet, a flying saucer, a toy soldier on a parachute at dawn, and party balloons
+// carrying a block away in the morning. Far lanes (FAR_P, behind the near ones): small faded
+// clouds, spreading out on wide screens.
 //
 // The lanes start above the land (nothing comes down past the castle or the rocket before the
 // cloud sea covers them, see place.ts) and then repeat every LOOP levels, in step with the
@@ -67,7 +71,7 @@ export interface Lane {
 export const NEAR_P = 0.7;
 export const FAR_P = 0.35;
 /**
- * The near lanes start here (levels), above the land: nothing in them comes down past the
+ * The near lane starts here (levels), above the land: nothing in it comes down past the
  * castle or the rocket before the sea has covered them. The far lanes start lower: they are
  * drawn behind the land (clouds far beyond the castle), and their first lap leaves the title's
  * row clear at the start.
@@ -115,7 +119,9 @@ function drifter(spec: Spec, side: number, k: number, salt: number, far: boolean
 // dusk, the satellite and the rocket as night falls (the one that launched from the pad, on its
 // way out among the stars), the planet and the saucer in the deep night, the parachute at dawn,
 // the balloons in the morning and paper planes again. The kite and the first paper planes keep
-// above the cloud the rocket flew into on its launch (launch.ts, at the same depth).
+// above the cloud the rocket flew into on its launch (launch.ts, at the same depth). Block
+// clouds, now low and wide, now tall, come down between the toys every other gap (listed last,
+// so the toys keep their looks).
 const RIGHT: Spec[] = [
   ["kite", 9.3],
   ["paper", 12.5],
@@ -131,9 +137,11 @@ const RIGHT: Spec[] = [
   ["parachute", 107],
   ["balloons", 120],
   ["paper", 127.5],
+  ["cloud", 35.5],
+  ["cloud", 61.5],
+  ["cloud", 87.5],
+  ["cloud", 113.5],
 ];
-// The near left lane: block clouds, now low and wide, now tall, in and out a little.
-const LEFT: Spec[] = Array.from({ length: 6 }, (_, i) => ["cloud", 6 + i * (LOOP / 6) + (hash(i + 4300) - 0.5) * 5] as const);
 
 // The far lanes: small clouds taking turns either side (none passing the title's row at the start).
 const FAR_LEFT: Spec[] = [60, 86, 110, 128].map((l) => ["cloud", l] as const);
@@ -153,11 +161,10 @@ function lane(p: number, from: number, side: number, specs: Spec[], salt: number
   return { p, from, items, spread };
 }
 
-/** Far lanes first (drawn behind), then the near lanes. */
+/** Far lanes first (drawn behind), then the near lane. */
 export const LANES: readonly Lane[] = [
   lane(FAR_P, FAR_FROM, -1, FAR_LEFT, 5100, true),
   lane(FAR_P, FAR_FROM, 1, FAR_RIGHT, 5200, true, FAR_RIGHT_OMIT),
-  lane(NEAR_P, NEAR_FROM, -1, LEFT, 4000, false),
   lane(NEAR_P, NEAR_FROM, 1, RIGHT, 4100, false),
 ];
 export const FAR_LANES = 2;
@@ -175,10 +182,27 @@ export interface Placed {
 
 const PLACED: Placed = { d: null as unknown as Drifter, at: 0, lane: 0, x: 0, y: 0 };
 
-/** Screen x of an item's center: near lanes at their u offset, far ones spread over the room beside the column. */
+/**
+ * A far cloud's half width at most (u), sway included, and how far it keeps from a side of the
+ * screen and from the sun's and the moon's part of the lane (u).
+ */
+const FAR_HALF = 0.047;
+const FAR_EDGE = 0.02;
+const LIGHTS_GAP = 0.02;
+
+/**
+ * Screen x of an item's center: near lanes at their u offset, far ones spread over the room beside
+ * the column — on the left, only the room between the screen's side and the sun's and the moon's
+ * part of the lane. NaN when there is no such room (a phone): the item is not drawn.
+ */
 export function laneX(s: Scene, l: Lane, d: Drifter): number {
   if (!l.spread) return s.cssW / 2 + d.x * s.u;
   const u = s.u;
+  if (d.m < 0) {
+    const x0 = (FAR_EDGE + FAR_HALF) * u;
+    const x1 = lightsSpan(s).x0 - (LIGHTS_GAP + FAR_HALF) * u;
+    return x1 < x0 ? NaN : x0 + Math.abs(d.x) * (x1 - x0);
+  }
   const inner = COLUMN + 0.06;
   const room = Math.max(0, s.cssW / 2 / u - inner - 0.075);
   return s.cssW / 2 + d.m * (inner + Math.abs(d.x) * room) * u;
@@ -206,10 +230,12 @@ export function eachVisible(s: Scene, draw: (p: Placed) => void, only?: (lane: n
       for (const d of l.items) {
         const at = start + k * lap + d.lvl * BLOCK_HEIGHT;
         if (at < lo || at > hi) continue;
+        const x = laneX(s, l, d);
+        if (Number.isNaN(x)) continue;
         PLACED.d = d;
         PLACED.at = at;
         PLACED.lane = li;
-        PLACED.x = laneX(s, l, d);
+        PLACED.x = x;
         PLACED.y = base - at * unit;
         draw(PLACED);
       }
@@ -284,7 +310,7 @@ export function farDrifters(ctx: Ctx, s: Scene, tone: Tone): void {
   eachVisible(s, drawOne, isFar);
 }
 
-/** The near lanes. */
+/** The near lane. */
 export function nearDrifters(ctx: Ctx, s: Scene, tone: Tone): void {
   NOW.ctx = ctx;
   NOW.s = s;

@@ -7,7 +7,7 @@ import { fort, inkW, lollipopTree, ringTree, windUpMouse } from "./fort";
 import { BLUE, GREEN, ORANGE, PURPLE, RED, YELLOW } from "./colors";
 import { blocksTop, front } from "./front";
 import { rocketSky } from "./launch";
-import { guards, rockingHorse, spinningTop } from "./meadow";
+import { guards, MARCH, rockingHorse, spinningTop } from "./meadow";
 import { seaTop } from "./place";
 import { sun } from "./sky";
 import { context, mask, overlap, SIZES, startScene } from "./test-scene";
@@ -113,6 +113,44 @@ describe("toy kingdom layout", () => {
         expect(overlap(m, masks[j]!), `${prop.name} overlaps ${PROPS[j]!.name}`).toBe(0);
       }
     });
+  });
+});
+
+describe("toy kingdom guards", () => {
+  // The two soldiers march and drum all the time, so the moments above can miss a knee at the top
+  // of its step or a stick at the top of its swing: through one whole march, finely, they keep
+  // off the screen's edge, out of the slider's lane and the HUD, above the letter blocks, and clear
+  // of the lollipop tree, the fort, the rocking horse and the mouse.
+  it.each(SIZES)("%ix%i: every moment of the march stays clear", (W, H) => {
+    const s0 = startScene(W, H, 0);
+    const others = mask(W, H, (ctx) => {
+      lollipopTree(ctx, s0);
+      fort(ctx, s0);
+      rockingHorse(ctx, s0);
+      for (const t of [0, 2, 4, 6, 8, 12]) windUpMouse(ctx, { ...s0, t });
+    });
+    const shelf = Math.floor(blocksTop(s0)) - 2;
+    const baseTop = s0.groundY - BLOCK_HEIGHT * s0.scale;
+    for (let i = 0; i < 48; i++) {
+      const s = { ...s0, t: (i / 48) * MARCH };
+      const m = mask(W, H, (ctx) => guards(ctx, s));
+      let edge = 0;
+      let low = 0;
+      let high = 0;
+      for (let p = 0; p < m.length; p++) {
+        if (!m[p]) continue;
+        const x = p % W;
+        const y = Math.floor(p / W);
+        if (x <= 1 || x >= W - 2) edge++;
+        if (y >= shelf) low++;
+        if (y < baseTop) high++;
+      }
+      const what = `t=${s.t.toFixed(3)}`;
+      expect(edge, `${what}: guards' pixels at a screen edge`).toBe(0);
+      expect(low, `${what}: guards' pixels on the letter blocks`).toBe(0);
+      expect(high, `${what}: guards' pixels up in the slider's lane`).toBe(0);
+      expect(overlap(m, others), `${what}: the guards overlap another toy`).toBe(0);
+    }
   });
 });
 

@@ -19,7 +19,7 @@ const P_FAR = 0.25;
 /** Where the land's horizon sits at the start, in u above the floor line (as the base world's). */
 export const HORIZON_UP = 0.3;
 /** The highest point of the land (the castle's flag), in u above its horizon. */
-const LAND_TOP = 0.385;
+export const LAND_TOP = 0.385;
 /** How far above the land's top the sea reaches when it covers it (u). */
 const COVER_MARGIN = 0.03;
 /** The sea billows up over these levels of climbing... */
