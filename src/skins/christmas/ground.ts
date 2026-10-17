@@ -11,11 +11,15 @@ import { cobbles, gasLamp, LADDER_BAR, LAMP_BURNER, pigeon, PIGEONS, ruts } from
 
 // The street around the tower, back to front: snowy cobbles, the two townhouses framing the
 // scene, a gas lamp at each side, pigeons pecking in front of the tower, the lamplighter
-// (left) and the carolers (right), and the carriage trotting past nearest the viewer.
+// (left) and the carolers (right), and the carriage loping round the tower: past it nearest
+// the viewer, round the corner, and back the other way further up the street, behind the
+// townsfolk and low behind the tower's base.
 // Each prop stands on a field row at depth z (z = TOWER_DEPTH is the tower's line; smaller z
 // is nearer, lower and larger). Positions are `dx` in units at that depth from the center
 // line. Anything rising above the tower's floor line stays outside the tower's column
-// (|screen x - center| >= 0.25u), and anything in the column stays below the floor line.
+// (|screen x - center| >= 0.25u), and anything in the column stays below the floor line: all
+// but the carriage on its way back, whose coachman's hat and horse's ears pass low behind the
+// base block, never above its top (lap.test.ts).
 
 /** Pixels per unit at depth z. */
 function unit(s: Scene, z: number): number {
@@ -44,36 +48,78 @@ const LAMP_SCREEN_X = 0.46;
 const FOLK_Z = 1.8;
 /** Townsfolk are modelled at full size and drawn at this scale, in proportion to the doors. */
 const FOLK_SCALE = 0.8;
+/** The carriage track nearest the viewer, where it passes in front. */
 const CART_Z = 1.55;
-const CART_PERIOD = 30;
-const CART_TIME = 17;
 /**
- * At s.t = 0 the carriage is already driving in from the left: it passes in front of the tower
- * at 4 s and the last pigeon settles before 10 s (actions.test.ts), then it comes round every
- * CART_PERIOD.
+ * The lane it lopes back along, further up the street: behind the townsfolk, in front of the
+ * pigeons and the lamps. As far back as the street allows: the rig's top (0.13 units) stays
+ * under the base block's top where it passes behind the tower (from 2.05 back it would show
+ * above it).
  */
-const CART_OFFSET = 4.5;
-
-/** Where the carriage is (screen x of its middle, units travelled), reused every frame. */
-const CART = { x: 0, dist: 0 };
-
+const BACK_Z = 1.95;
+/** Seconds for the pass in front, from the left edge to gone at the right. */
+const FRONT_TIME = 4.8;
+/** Seconds round the corner out of view, at each end of the street. */
+const TURN_TIME = 1.2;
+/** Seconds for the pass back, right to left: the same pace over the longer row further back. */
+const BACK_TIME = 5.6;
+/** One lap round the tower: in front left to right, round, back right to left, round again. */
+export const CART_LAP = FRONT_TIME + TURN_TIME + BACK_TIME + TURN_TIME;
 /**
- * 0..1: how far across the screen the carriage is at time t (0: driving in at the left edge,
- * 0.5: its middle on the tower's line, 1: gone at the right), or -1 while it's off screen.
+ * How far across the front pass is at s.t = 0: the horse is just coming in at the left. It
+ * passes in front of the tower at 2.1 s, lopes behind it on the way back at 8.5 s and is round
+ * the back and gone by 11.3 s (actions.test.ts, lap.test.ts), then comes round again.
  */
-export function carriageProgress(t: number): number {
-  const p = (((t + CART_OFFSET) % CART_PERIOD) + CART_PERIOD) % CART_PERIOD;
-  return p > CART_TIME ? -1 : p / CART_TIME;
+const CART_START = 0.06;
+
+/** Seconds into the lap at time t (0: the front pass coming in at the left edge). */
+function lapTime(t: number): number {
+  const p = (t + CART_START * FRONT_TIME) % CART_LAP;
+  return p < 0 ? p + CART_LAP : p;
 }
 
-/** Updates CART; false while the carriage is off screen. */
-function placeCarriage(s: Scene): boolean {
-  const k = carriageProgress(s.t);
+/**
+ * 0..1: how far across the screen the carriage is on its pass in front at time t (0: driving
+ * in at the left edge, 0.5: its middle on the tower's line, 1: gone at the right), or -1 while
+ * it's elsewhere on its lap.
+ */
+export function carriageProgress(t: number): number {
+  const p = lapTime(t);
+  return p < FRONT_TIME ? p / FRONT_TIME : -1;
+}
+
+/**
+ * 0..1: how far back across the screen the carriage is on its pass behind at time t (0: coming
+ * in at the right edge, 0.5: its middle behind the tower, 1: gone at the left), or -1 while
+ * it's elsewhere on its lap.
+ */
+export function carriageBackProgress(t: number): number {
+  const p = lapTime(t) - FRONT_TIME - TURN_TIME;
+  return p >= 0 && p < BACK_TIME ? p / BACK_TIME : -1;
+}
+
+/**
+ * Where the carriage is, reused every frame: screen x of its middle and y of its ground line,
+ * px per unit at its depth, units travelled (for the wheels and the gait), and whether it's on
+ * the pass behind (facing left).
+ */
+export const CART = { x: 0, y: 0, U: 1, dist: 0, back: false };
+
+/** Updates CART; false while the carriage is out of view, round a corner. */
+export function placeCarriage(s: Scene): boolean {
+  let k = carriageProgress(s.t);
+  const back = k < 0;
+  if (back) k = carriageBackProgress(s.t);
   if (k < 0) return false;
-  const U = unit(s, CART_Z);
+  const z = back ? BACK_Z : CART_Z;
+  const U = unit(s, z);
   const len = RIG_LENGTH * U;
-  CART.x = -len * 0.55 + (s.cssW + len * 1.1) * k;
-  CART.dist = (CART.x - s.cssW / 2) / U;
+  const across = -len * 0.55 + (s.cssW + len * 1.1) * k;
+  CART.x = back ? s.cssW - across : across;
+  CART.y = fieldY(s, z);
+  CART.U = U;
+  CART.dist = ((back ? -1 : 1) * (CART.x - s.cssW / 2)) / U;
+  CART.back = back;
   return true;
 }
 
@@ -83,6 +129,11 @@ export function pigeonLift(s: Scene, i: number): number {
   const [z, dx] = PIGEONS[i]!;
   const d = Math.abs(CART.x - rowX(s, dx, z)) / s.u;
   return d < 0.3 ? Math.min(1, (0.3 - d) / 0.12) : 0;
+}
+
+/** The carriage, if it's on its pass behind (`back`) or in front. */
+export function rig(ctx: Ctx, s: Scene, back: boolean): void {
+  if (placeCarriage(s) && CART.back === back) carriage(ctx, CART.x, CART.y, CART.U, lineW(s), CART.dist, s.t, back ? -1 : 1);
 }
 
 /** One frame object handed to every house and figure, refilled per call (no allocations). */
@@ -96,7 +147,24 @@ function at(x: number, y: number, U: number, lw: number, t: number): HouseFrame 
   return F;
 }
 
+/** The street's props, back to front, with the carriage on whichever pass it's on. */
 export function props(ctx: Ctx, s: Scene): void {
+  street(ctx, s);
+  // The carriage on its way back, further up the street: past the lamps and the pigeons, behind
+  // the townsfolk, and low behind the tower's base.
+  rig(ctx, s, true);
+  townsfolk(ctx, s);
+  // The carriage on its pass in front, nearest the viewer.
+  rig(ctx, s, false);
+}
+
+/** Screen x of the left and right gas lamps. */
+function lampX(s: Scene, side: -1 | 1): number {
+  return s.cssW / 2 + side * LAMP_SCREEN_X * s.u;
+}
+
+/** The townhouses, the gas lamps and the pigeons: everything behind the carriage's lane back. */
+export function street(ctx: Ctx, s: Scene): void {
   const lw = lineW(s);
   const t = s.t;
 
@@ -121,39 +189,39 @@ export function props(ctx: Ctx, s: Scene): void {
     mound(ctx, rowX(s, 0.49, z), y + U * 0.006, U * 0.12, U * 0.022, lw);
   }
 
-  // Gas lamps; the lamplighter is reaching up to the left one.
-  const lz = LAMP_Z;
-  const LU = unit(s, lz);
-  const ly = fieldY(s, lz);
-  const leftX = s.cssW / 2 - LAMP_SCREEN_X * s.u;
-  const rightX = s.cssW / 2 + LAMP_SCREEN_X * s.u;
-  const fz = FOLK_Z;
-  const FU = unit(s, fz) * FOLK_SCALE;
-  const fy = fieldY(s, fz);
-  const burnerY = ly - LAMP_BURNER * LU;
+  // Gas lamps; the lamplighter reaches up to the left one now and then.
+  const LU = unit(s, LAMP_Z);
+  const ly = fieldY(s, LAMP_Z);
+  const rightX = lampX(s, 1);
+  const leftX = lampX(s, -1);
   gasLamp(ctx, rightX, ly, LU, lw, t, 2.1, 0);
   mound(ctx, rightX, ly + LU * 0.004, LU * 0.048, LU * 0.012, lw);
+  const reach = lighterReach(t);
+  gasLamp(ctx, leftX, ly, LU, lw, t, 0.4, reach * reach * reach * reach);
+  mound(ctx, leftX, ly + LU * 0.004, LU * 0.048, LU * 0.012, lw);
 
   // Pigeons on the cobbles in front of the tower; they flutter up as the carriage nears.
   for (let i = 0; i < PIGEONS.length; i++) {
     const [z, dx, dir, phase] = PIGEONS[i]!;
     pigeon(ctx, rowX(s, dx, z), fieldY(s, z), unit(s, z), lw * 0.85, dir, t, phase, pigeonLift(s, i));
   }
+}
 
-  {
-    const reach = lighterReach(t);
-    gasLamp(ctx, leftX, ly, LU, lw, t, 0.4, reach * reach * reach * reach);
-    mound(ctx, leftX, ly + LU * 0.004, LU * 0.048, LU * 0.012, lw);
-    const fx = rowX(s, -0.236, fz);
-    lamplighter(ctx, at(fx, fy, FU, lw, t), leftX + LU * 0.004, burnerY + LU * 0.03, leftX + LU * 0.016, ly - LADDER_BAR * LU);
-    mound(ctx, rowX(s, -0.24, fz), fy + FU * 0.004, FU * 0.08, FU * 0.014, lw);
-  }
-
+/** The lamplighter at the left lamp and the carolers on the right, between the carriage's lanes. */
+export function townsfolk(ctx: Ctx, s: Scene): void {
+  const lw = lineW(s);
+  const t = s.t;
+  const LU = unit(s, LAMP_Z);
+  const ly = fieldY(s, LAMP_Z);
+  const leftX = lampX(s, -1);
+  const burnerY = ly - LAMP_BURNER * LU;
+  const fz = FOLK_Z;
+  const FU = unit(s, fz) * FOLK_SCALE;
+  const fy = fieldY(s, fz);
+  lamplighter(ctx, at(rowX(s, -0.236, fz), fy, FU, lw, t), leftX + LU * 0.004, burnerY + LU * 0.03, leftX + LU * 0.016, ly - LADDER_BAR * LU);
+  mound(ctx, rowX(s, -0.24, fz), fy + FU * 0.004, FU * 0.08, FU * 0.014, lw);
   carolers(ctx, at(rowX(s, 0.182, fz), fy, FU, lw, t));
   mound(ctx, rowX(s, 0.182, fz) + FU * 0.05, fy + FU * 0.004, FU * 0.17, FU * 0.014, lw);
-
-  // The carriage, nearest the viewer.
-  if (placeCarriage(s)) carriage(ctx, CART.x, fieldY(s, CART_Z), unit(s, CART_Z), lw, CART.dist, t);
 }
 
 // ---------------------------------------------------------------- snow glints

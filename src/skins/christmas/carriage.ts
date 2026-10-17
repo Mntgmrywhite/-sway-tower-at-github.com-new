@@ -22,11 +22,12 @@ import {
 } from "./colors";
 import { glow, snowCap } from "./shapes";
 
-// A horse-drawn carriage trotting along the street: a chestnut horse in a red collar hung
-// with brass bells, pulling a blue coach with a lit window, a coach lamp and big yellow
-// wheels, a coachman in a caped greatcoat and top hat up on the box. Drawn facing right in a
-// frame with its origin on the ground under the middle of the rig, x right, y UP in depth
-// units; the whole rig stays under 0.13 units tall so it never rises past the tower's base.
+// A horse-drawn carriage loping round the street: a chestnut horse in a red collar hung with
+// brass bells, pulling a blue coach with a lit window, a coach lamp and big yellow wheels, a
+// coachman in a caped greatcoat and top hat up on the box. Modelled facing right in a frame
+// with its origin on the ground under the middle of the rig, x right, y UP in depth units
+// (mirrored to face left); the whole rig stays under 0.13 units tall, so in front it never
+// rises past the tower's floor line, and further back never past the base block's top.
 
 const Y = (v: number) => -v;
 
@@ -35,6 +36,8 @@ const SCALE = 0.8;
 const MODEL_LENGTH = 0.28;
 /** Length of the rig, tail-board to nose, in units (for timing its crossing). */
 export const RIG_LENGTH = MODEL_LENGTH * SCALE;
+/** Gait phase per unit travelled: a stride every 0.11 units, about half the rig's length. */
+const STRIDE = 55;
 
 /** A spoked wheel at (x, y up), radius r, turned by `a` radians. */
 function wheel(ctx: Ctx, x: number, y: number, r: number, a: number, lw: number): void {
@@ -59,12 +62,15 @@ function wheel(ctx: Ctx, x: number, y: number, r: number, a: number, lw: number)
   ink(ctx, lw * 0.7, INK);
 }
 
-/** A leg from the hip (x, y up) with knee swing `k` (-1..1), `len` long, ending in a hoof. */
-function leg(ctx: Ctx, x: number, y: number, len: number, k: number, color: string, lw: number): void {
-  const kx = x + k * len * 0.25;
+/**
+ * A leg from the hip (x, y up), `len` long, ending in a hoof: swung `k` (-1 back .. 1 forward),
+ * the hoof lifted by `up` (0..1) as it swings through, the knee bending.
+ */
+function leg(ctx: Ctx, x: number, y: number, len: number, k: number, up: number, color: string, lw: number): void {
+  const kx = x + k * len * 0.25 + up * len * 0.1;
   const ky = y - len * 0.5;
   const fx = x + k * len * 0.42;
-  const fy = Math.max(0.006, y - len + Math.max(0, k) * len * 0.12);
+  const fy = Math.max(0.006, y - len + up * len * 0.22);
   ctx.beginPath();
   ctx.moveTo(x, Y(y));
   ctx.lineTo(kx, Y(ky));
@@ -76,14 +82,39 @@ function leg(ctx: Ctx, x: number, y: number, len: number, k: number, color: stri
   ctx.fill();
 }
 
-/** The horse, its hindquarters at x = hx, trotting with gait phase `g`. */
+/**
+ * When in its stride each leg swings forward (fraction of a stride), for a lope: the hind
+ * legs land close together, then the forelegs, the near leg of each pair leading, and the
+ * horse rocks over them like a rocking horse.
+ */
+const LOPE = { farHind: 0, nearHind: 0.14, farFore: 0.42, nearFore: 0.56 } as const;
+const TAU = Math.PI * 2;
+/** How far the body rocks, radians either way, and its pivot behind the withers. */
+const ROCK = 0.06;
+const ROCK_X = 0.045;
+
+/** The horse, its hindquarters at x = hx, loping with gait phase `g` (one stride per 2π). */
 function horse(ctx: Ctx, hx: number, g: number, lw: number, t: number): void {
-  const bob = Math.abs(Math.sin(g)) * 0.003;
+  // One lift per stride as it gathers its hind legs under it, the front rising as the forelegs reach.
+  const bob = (0.5 + 0.5 * Math.sin(g - TAU * 0.3)) * 0.004;
   const by = 0.066 + bob;
-  const s = Math.sin(g);
+  const rock = Math.sin(g - TAU * LOPE.farFore) * ROCK;
+  const tilt = Math.sin(rock);
+  const px = hx + ROCK_X;
+  /** Height of the hip or shoulder at x, as the body rocks about px. */
+  const hip = (x: number, y: number) => y + (x - px) * tilt;
+  /** A leg's swing at its phase: forward and back, the hoof off the ground on the way forward. */
+  const step = (x: number, y: number, len: number, phase: number, color: string) => {
+    const a = g - TAU * phase;
+    leg(ctx, x, hip(x, y), len, Math.sin(a), Math.max(0, Math.cos(a)), color, lw);
+  };
   // Far legs (shaded), then the body, then near legs.
-  leg(ctx, hx + 0.012, by - 0.01, 0.058, -s, HORSE_SHADE, lw);
-  leg(ctx, hx + 0.066, by - 0.01, 0.058, s, HORSE_SHADE, lw);
+  step(hx + 0.012, by - 0.01, 0.058, LOPE.farHind, HORSE_SHADE);
+  step(hx + 0.066, by - 0.01, 0.058, LOPE.farFore, HORSE_SHADE);
+  ctx.save();
+  ctx.translate(px, Y(by));
+  ctx.rotate(-rock);
+  ctx.translate(-px, -Y(by));
   // Tail
   ctx.beginPath();
   ctx.moveTo(hx - 0.004, Y(by + 0.014));
@@ -155,14 +186,15 @@ function horse(ctx: Ctx, hx: number, g: number, lw: number, t: number): void {
   ctx.fillStyle = BRASS;
   ctx.fill();
   ink(ctx, lw * 0.5, INK);
-  // Near legs
-  leg(ctx, hx + 0.018, by - 0.008, 0.06, s, HORSE, lw);
-  leg(ctx, hx + 0.072, by - 0.008, 0.06, -s, HORSE, lw);
   // Snow on its back
   ctx.beginPath();
   snowCap(ctx, hx + 0.012, hx + 0.05, Y(by + 0.027), 0.005);
   ctx.fillStyle = SNOW;
   ctx.fill();
+  ctx.restore();
+  // Near legs
+  step(hx + 0.018, by - 0.008, 0.06, LOPE.nearHind, HORSE);
+  step(hx + 0.072, by - 0.008, 0.06, LOPE.nearFore, HORSE);
 }
 
 /** The coach, the box seat and the coachman, its rear at x = cx. */
@@ -289,15 +321,15 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
 
 /**
  * The rig with the middle of its ground line at screen (x, y), U px per unit, having travelled
- * `dist` units (for the wheels and the trot).
+ * `dist` units (for the wheels and the lope), facing right (dir 1) or left (-1).
  */
-export function carriage(ctx: Ctx, x: number, y: number, U: number, lwPx: number, dist: number, t: number): void {
+export function carriage(ctx: Ctx, x: number, y: number, U: number, lwPx: number, dist: number, t: number, dir = 1): void {
   const lw = lwPx / (U * SCALE);
-  const g = dist * 55;
+  const g = dist * STRIDE;
   const bob = Math.abs(Math.sin(g)) * 0.0018;
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(U * SCALE, U * SCALE);
+  ctx.scale(U * SCALE * dir, U * SCALE);
   ctx.translate(-MODEL_LENGTH / 2, 0);
   // Soft shadow on the snow
   ctx.beginPath();

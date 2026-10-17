@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { christmas } from "../christmas";
-import { props } from "./ground";
+import { CART_LAP, carriageBackProgress, carriageProgress, props } from "./ground";
 import { celestial } from "./sky";
 import { context, mask, MIN_ZOOM, sceneAt, SIZES } from "./test-scene";
 import { LOOP_PERIOD, LOOP_START } from "./tone";
@@ -35,8 +35,10 @@ describe("christmas zoomed out", () => {
   it.each(SIZES.flatMap(([W, H]) => ZOOMS.filter((z) => z < 1).map((z) => [W, H, z] as const)))(
     "%ix%i at zoom %s: at the start no street prop is cut off by a screen edge",
     (W, H, z) => {
-      // The carriage is off screen at these moments (it drives in and out at the sides).
-      for (const t of [20, 22.5, 25]) {
+      // Moments the carriage is round a corner, out of view (it drives in and out at the sides).
+      const away = [5.1, 11.9, 5.1 + CART_LAP, 11.9 + 2 * CART_LAP];
+      for (const t of away) {
+        expect(carriageProgress(t) < 0 && carriageBackProgress(t) < 0, `t=${t}: the carriage is out of view`).toBe(true);
         const s = sceneAt(W, H, 0, t, z);
         const w = Math.round(s.cssW);
         const h = Math.round(s.cssH);

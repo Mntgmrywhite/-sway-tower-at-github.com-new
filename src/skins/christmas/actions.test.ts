@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bellOn } from "./far";
-import { carriageProgress, pigeonLift } from "./ground";
+import { carriageBackProgress, carriageProgress, pigeonLift } from "./ground";
 import { marley } from "./houses";
 import { lighterReach } from "./people";
 import { flockProgress } from "./sky";
@@ -40,9 +40,11 @@ const ACTIONS: Action[] = [
   { name: "Marley's face shows in the knocker", on: (t) => marley(t) > 0, key: (t) => marley(t) > 0.99, over: true },
   // From the right edge to the left; the key moment is passing over the middle of the skyline.
   { name: "the pigeon flock crosses the sky", on: (t) => flockProgress(t) >= 0, key: (t) => flockProgress(t) >= 0.5, over: true },
-  // Its middle reaches the tower's line at 0.5; the coach finishes leaving at the right edge
-  // a couple of seconds after the window, its show (passing the tower, the pigeons) long done.
-  { name: "the carriage trots past the tower", on: (t) => carriageProgress(t) >= 0, key: (t) => carriageProgress(t) >= 0.5, over: false },
+  // Its middle reaches the tower's line at 0.5.
+  { name: "the carriage lopes past the tower", on: (t) => carriageProgress(t) >= 0, key: (t) => carriageProgress(t) >= 0.5, over: true },
+  // Round the corner and back the other way further up the street: its middle passes behind the
+  // tower at 0.5; it finishes leaving at the left edge just after the window (lap.test.ts).
+  { name: "the carriage lopes back round behind the tower", on: (t) => carriageBackProgress(t) >= 0, key: (t) => carriageBackProgress(t) >= 0.5, over: false },
   ...SIZES.map(([W, H]): Action => {
     const up = lift(W, H);
     return { name: `the street pigeons flutter up as it passes (${W}x${H})`, on: (t) => up(t) > 0, key: (t) => up(t) >= 1, over: true };

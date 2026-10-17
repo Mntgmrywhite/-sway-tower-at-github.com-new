@@ -49,7 +49,7 @@ import type { CartoonSkin } from "./skin";
 // the tower: Scrooge & Marley's counting house (Marley's face shimmers in the door knocker)
 // and the poulterer's with its prize goose, candlelit windows and wreaths, gas lamps, the
 // lamplighter at work, carolers singing by lantern light, pigeons on the snowy cobbles and a
-// carriage trotting by. A snowy kerb in front.
+// carriage loping round and round the tower. A snowy kerb in front.
 // Climbing, the street falls away into the night; past that the story loops forever
 // (christmas/tone.ts): the night lifts into a clear, golden Christmas morning, a bright winter
 // day, a rosy dusk like the street's, and night again.
