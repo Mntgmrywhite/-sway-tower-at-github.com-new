@@ -73,9 +73,9 @@ export const INSTRUMENTS = {
   sopranoSaxShort: { dir: `${VCSL}/Aerophones/Reed Aerophones/Saxello/Staccato`, oneShot: true, gain: 0.7, transpose: OCT, even: true, autotune: "heard", harmonic: true, strictTuning: true },
   harmonica: { dir: `${VCSL}/Aerophones/Free Aerophones/Harmonica-Hohner-Special20-C/Sustains/Normal`, attack: 0.02, release: 0.15, transpose: OCT, autotune: "heard", harmonic: true },
 
-  // Folk: a plucked psaltery stands in for the hammered dulcimer (Thanksgiving's old-time
-  // country); a button accordion and a soprano recorder (as the tin whistle) for the Irish
-  // session of St. Patrick's Day.
+  // Folk: a plucked psaltery that can stand in for a hammered dulcimer (Thanksgiving's first,
+  // old-time-country arrangement used it; none does now); a button accordion and a soprano
+  // recorder (as the tin whistle) for the Irish session of St. Patrick's Day.
   psaltery: { dir: `${VCSL}/Chordophones/Zithers/Psaltery, Bowed and Plucked/Pluck`, oneShot: true, transpose: OCT, autotune: "heard", stretched: true },
   // Its files are named an octave above the pitch they sound (the set's own SFZ maps B3.flac
   // to B2) and run 7-38 cents sharp; autotune takes out the cents.
@@ -107,6 +107,10 @@ export const INSTRUMENTS = {
   // Kit cymbals from the suspended cymbal: a stick tip for the ride, a full hit for the crash.
   ride: { dir: `${VCSL}/Idiophones/Struck Idiophones/Suspended Cymbal 1`, match: /hit_stick_(mp|f)1/, layerBy: [/_mp1/, /_f1/], fixedNote: "D#3", oneShot: true, gain: 0.45 },
   crash: { dir: `${VCSL}/Idiophones/Struck Idiophones/Suspended Cymbal 1`, match: /_hit_f1/, fixedNote: "C#3", oneShot: true, gain: 0.55 },
+  // Thanksgiving's jazz trio: the ride's two softest stick tips (pianissimo, mezzo-piano: darker
+  // than `ride`'s pair), and the cymbal's 1.5 s soft-mallet crescendo (it peaks ~1.1 s in).
+  rideSoft: { dir: `${VCSL}/Idiophones/Struck Idiophones/Suspended Cymbal 1`, match: /hit_stick_(pp|mp)1/, layerBy: [/_pp1/, /_mp1/], fixedNote: "D#3", oneShot: true, gain: 0.45 },
+  cymbalSwell: { dir: `${VCSL}/Idiophones/Struck Idiophones/Suspended Cymbal 1`, match: /cresc_1\.5s/, fixedNote: "C#3", oneShot: true, gain: 0.5 },
   // Orchestral clash cymbals (a pair, hand-held): the fanfare's big hit.
   cymbals: { dir: `${VCSL}/Idiophones/Struck Idiophones/Clash Cymbals 1`, match: /crash1_(mf|ff)/, layerBy: [/_mf\d/, /_ff\d/], fixedNote: "C#3", oneShot: true, gain: 0.5 },
   sleighBells: { dir: `${VCSL}/Idiophones/Struck Idiophones/Sleigh Bells`, match: /Hit/, fixedNote: "C4", oneShot: true, gain: 0.7 },

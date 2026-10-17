@@ -17,10 +17,10 @@
   },
   "thanksgiving": {
     "sr": 48000,
-    "L": 3072000,
+    "L": 3840000,
     "PAD": 12000,
     "priming": 2112,
-    "bpm": 270,
+    "bpm": 216,
     "bars": 48
   },
   "newyear": {
