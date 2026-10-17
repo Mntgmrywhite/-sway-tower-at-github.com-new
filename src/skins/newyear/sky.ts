@@ -483,8 +483,8 @@ function shell(ctx: Ctx, s: Scene, seed: number, local: number, on: number, laun
 
 /* ---------------------------------------------------------------- midnight */
 
-// Every midnight the Times Tower counts down to (10 s into a tower's scene, then once a minute:
-// countdown.ts), the sky erupts: a volley of shells bursting on the stroke of twelve, then the
+// Every midnight the Times Tower counts down to (a minute into a tower's scene, then once a pass
+// of the song: countdown.ts), the sky erupts: a volley of shells bursting on the stroke of twelve, then the
 // grand finale, big bursts in quick succession for several seconds, the haze glowing behind
 // them. They go where every burst goes (place(): the side lanes, the corners beside the HUD, and
 // over the whole low skyline while the tower is short) and keep its rules: never across the HUD,

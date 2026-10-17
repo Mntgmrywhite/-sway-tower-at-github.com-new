@@ -5,6 +5,7 @@ import { EDGE_Z } from "./ground";
 import { newYear } from "../newyear";
 import { COLUMN, drifters } from "./sky";
 import { CLIMB_TOP, LOOP, LOOP_FROM, storyLevel, toneAt, toneAtLevel, type Tone } from "./story";
+import { CYCLE } from "./countdown";
 import { sceneAt } from "./test-scene";
 
 const FIELDS = ["climb", "fireworks", "finale", "confetti", "plumes", "glitter", "snow", "balloons", "glow", "silver"] as const;
@@ -131,8 +132,8 @@ describe("New Year's sky, over the climb and two turns of the loop", () => {
     const ctx = canvas.getContext("2d");
     let fired = 0;
     for (let lvl = 0; lvl <= LOOP_FROM + 2 * LOOP; lvl += 2) {
-      // The count, then midnight's volley and the finale (the next minute's too)
-      for (const t of [1.7, 4.4, 9.9, 10.3, 11.2, 12.9, 15.6, 70.8]) {
+      // The count, then midnight's volley and the finale (the next pass's too)
+      for (const t of [1.7, 44.4, 59.9, 60.3, 61.2, 62.9, 65.6, CYCLE + 60.8]) {
         const s = sceneAt(W, H, lvl, t);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, w, h);

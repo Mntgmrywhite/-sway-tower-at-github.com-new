@@ -12,10 +12,11 @@
 // version (plus, for the length of a crossfade, the version it is leaving). Without workers, or
 // if a stretch fails, the music just stays as written.
 //
-// A song can keep time with the scene (setMusic's `sync`; New Year's: the song's crowd countdown
-// with the screen's): it starts where the scene is, cuts there when the scene starts over or goes
-// on after standing still (realign) or the music comes back on, unless it is about there already,
-// and otherwise plays on without re-seeking.
+// A song can keep time with the scene (setMusic's `sync`; New Year's: the song's midnight a minute
+// into a tower's scene, as the Art Deco screen counts it): it starts where the scene is, cuts there
+// when the scene starts over (realign) or goes on after an overlay held it (hold) or the music
+// comes back on, unless it is about there already, and otherwise plays on without re-seeking, its
+// own loop the cycle from there. position() is the clock the screen keeps while the song is heard.
 
 import manifest from "./music/manifest.json";
 import { loopPoints, type LoopInfo } from "./loop";
@@ -78,12 +79,14 @@ export function pickSong(name: string, fallback = "classic", songs: readonly str
 }
 
 /**
- * A song that keeps time with the scene: its `cue` (a moment named in manifest.json) plays at the
- * top of every `cycle` seconds of the scene clock `time()`.
+ * A song that keeps time with the scene: its `cue` (a moment named in manifest.json) plays when
+ * the scene clock `time()` reads `at`, and the song loops on from there, so the cue comes round
+ * again with every pass of its loop. A fresh scene starts the song `at` seconds before the cue.
  */
 export interface SceneSync {
   cue: string;
-  cycle: number;
+  /** Scene seconds at which the cue plays. */
+  at: number;
   /** The scene clock, seconds (0 when the scene starts). */
   time: () => number;
 }
@@ -94,14 +97,12 @@ export function songCue(song: string, cue: string): number | undefined {
 }
 
 /**
- * Where a song should be (seconds as written, in [0, length)) when the scene is `sceneTime` into
- * it, for its `cue` to play at the top of every `cycle` seconds: the cue plus how far into its
- * cycle the scene is. When that runs past the loop's end, a cycle earlier instead: the song's cue
- * then comes with the scene's next cycle, rather than the song starting over against this one.
+ * Where a song `length` seconds round (its loop, as written) should be, in [0, length), when the
+ * scene is `sceneTime` into it, for its `cue` to play at scene time `at`: as far from the cue as the
+ * scene is from `at`, round the loop.
  */
-export function cuedPosition(cue: number, sceneTime: number, cycle: number, length: number): number {
-  const here = cue + mod(sceneTime, cycle);
-  return mod(here < length ? here : here - cycle, length);
+export function cuedPosition(cue: number, at: number, sceneTime: number, length: number): number {
+  return mod(cue - at + sceneTime, length);
 }
 
 function bytes(dataUrl: string): ArrayBuffer {
@@ -167,6 +168,9 @@ interface Voice {
   /** Context time it starts, and the buffer time (s) it starts from. */
   t0: number;
   offset: number;
+  /** A cut to another place in the same song (jump): where the scene is from the moment it is
+   *  scheduled, so position() reports it at once. */
+  cut?: boolean;
 }
 
 function makeSong(name: string, buffer: AudioBuffer): Song {
@@ -295,6 +299,8 @@ export class GameAudio {
   private sceneSync: SceneSync | null = null;
   /** The wanted song should cut to where the scene is, once nothing else is under way. */
   private realignWanted = false;
+  /** An overlay holds the scene's clock still (hold). */
+  private held = false;
   /** Tempo step asked for (index into TEMPO_STEPS). */
   private step = 0;
   private landTurn = 0;
@@ -374,6 +380,18 @@ export class GameAudio {
   }
 
   /**
+   * An overlay holds the scene's clock still (main.ts calls this every frame). While it does,
+   * position() is NaN, so visuals keeping time with the song hold with the scene (New Year's screen
+   * stays on its second) while the music plays on; as the scene goes on again, a song that keeps
+   * time with it cuts back to where it is (realign), so the screen goes on from where it held.
+   */
+  hold(on: boolean): void {
+    if (on === this.held) return;
+    this.held = on;
+    if (!on) this.realign();
+  }
+
+  /**
    * Play the music this many times faster (1 = as written) at the same pitch. main.ts
    * calls it every frame with the bar's speed; only a change of tempo step does any work.
    */
@@ -386,17 +404,24 @@ export class GameAudio {
 
   /**
    * Seconds into the current song as written (in [0, loop length)), at the moment being heard
-   * now; NaN when no music is sounding (not started, muted, suspended or hidden).
+   * now; NaN when no music is sounding (not started, muted, suspended or hidden), while an overlay
+   * holds the scene (hold), and while the song heard is not the one wanted (still loading, or
+   * fading out under it): a song's place is no place in another's. A cut to where the scene is
+   * (jump) counts from the moment it is made, a few hundredths before it is heard, and NaN while
+   * one waits (realign, during a crossfade), so visuals keeping time with the song go with the
+   * scene at once.
    */
   position(): number {
     const ctx = this.ctx;
-    if (!ctx || ctx.state !== "running" || !this.settings.music) return NaN;
+    if (!ctx || ctx.state !== "running" || !this.settings.music || this.held) return NaN;
     const t = ctx.currentTime - this.lag();
     let v = this.current;
     const prev = this.previous;
-    // Until a tempo switch reaches its bar line (or a new song starts), report the one leaving.
-    if (v && prev && t < v.t0 + (prev.song === v.song ? TEMPO_FADE / 2 : 0)) v = prev;
-    if (!v) return NaN;
+    // Until a tempo switch reaches its bar line (or a new song starts), report the one leaving;
+    // a cut, where it is going.
+    if (v && prev && !v.cut && t < v.t0 + (prev.song === v.song ? TEMPO_FADE / 2 : 0)) v = prev;
+    if (!v || v.song.name !== this.wanted) return NaN;
+    if (this.realignWanted && this.cued(v.song) !== null) return NaN;
     const b = bufferTime(v, t);
     if (!v.version.loops && b >= v.version.end) return NaN;
     return songAt(v.version, b, true);
@@ -416,7 +441,7 @@ export class GameAudio {
     const sync = this.sceneSync;
     const cue = sync && song.name === this.wanted ? songCue(song.name, sync.cue) : undefined;
     if (!sync || cue === undefined) return null;
-    const s = cuedPosition(cue, sync.time(), sync.cycle, loopLength(song));
+    const s = cuedPosition(cue, sync.at, sync.time(), loopLength(song));
     return Number.isFinite(s) ? s : null;
   }
 
@@ -641,9 +666,10 @@ export class GameAudio {
   /**
    * Same song, another place in it: where the scene now is (`cued`, seconds as written). A quick
    * cut on the next scheduling slot, heard in step with the screen; the new place fades in over
-   * JUMP_IN and the old one fades out under it. When the scene's count is just starting (a fresh
-   * tower: the screen's "10"), the cut starts JUMP_IN before the cue instead, so the count's first
-   * hit is heard whole, a few hundredths behind the screen, rather than clipped.
+   * JUMP_IN and the old one fades out under it. When the scene is just starting (a fresh tower:
+   * New Year's screen on "1:00", a bar line in the song), the cut starts JUMP_IN before the scene's
+   * first place in the song instead, so its first hit is heard whole, a few hundredths behind the
+   * screen, rather than clipped.
    */
   private jump(version: Version, cued: number): void {
     const ctx = this.ctx!;
@@ -655,10 +681,15 @@ export class GameAudio {
     // Where the scene will be once the new place is heard...
     const ahead = SWITCH_LEAD + this.lag();
     let from = cued + ahead;
-    // ...unless that cuts into the cue (or starts just before it, inside the fade-in).
-    const cue = this.sceneSync ? songCue(song.name, this.sceneSync.cue) : undefined;
-    if (cue !== undefined && mod(from - (cue - JUMP_IN), len) < ahead + 2 * JUMP_IN) from = cue - JUMP_IN;
+    // ...unless that cuts into the scene's start (or starts just before it, inside the fade-in).
+    const sync = this.sceneSync;
+    const cue = sync ? songCue(song.name, sync.cue) : undefined;
+    if (sync && cue !== undefined) {
+      const start = cuedPosition(cue, sync.at, 0, len);
+      if (mod(from - (start - JUMP_IN), len) < ahead + 2 * JUMP_IN) from = start - JUMP_IN;
+    }
     const next = this.voice(song, version, at, bufferAt(version, mod(from, len)));
+    next.cut = true;
     next.gain.gain.setValueAtTime(0, at);
     next.gain.gain.linearRampToValueAtTime(1, at + JUMP_IN);
     cur.gain.gain.cancelScheduledValues(at);

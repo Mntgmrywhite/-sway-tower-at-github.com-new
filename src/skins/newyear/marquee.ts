@@ -1,15 +1,16 @@
 import { circle, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { DECO_FACE, GOLD, GOLD_DEEP, GOLD_LIGHT, IVORY, LACQUER } from "./colors";
-import { cycleTime, readingAt, YEAR, type Reading } from "./countdown";
+import { cycleTime, formatLeft, readingAt, YEAR, type Reading } from "./countdown";
 
 // The Times Tower's screen: our own Art Deco news screen above the clock, wider than the
 // shaft under it like a billboard on gilded brackets, in a gold frame with a row of bulbs along
-// its top and bottom. It is always lit and counts once a minute (countdown.ts keeps the time):
-// from a tower's first frame the last ten seconds big ("10" … "1", each one popping in, the
-// bulbs chasing), then MIDNIGHT with every bulb flashing, then HAPPY and the coming year until
-// the minute is up and it counts again. Big enough to read on a phone (digits over 18 px tall
-// on a 390 px screen), and right of the tower column, so nothing it does moves behind the bars.
+// its top and bottom. It is always lit and always counting (countdown.ts keeps the time): from a
+// tower's first frame the time left to midnight ("1:00", then "0:59" … a tick a second, the bulbs
+// ticking with it), then the last ten seconds big ("10" … "1", each one popping in, the bulbs
+// chasing), then MIDNIGHT with every bulb flashing, then HAPPY and the coming year until the
+// cycle starts over on "1:00". Big enough to read on a phone (digits over 18 px tall on a 390 px
+// screen), and right of the tower column, so nothing it does moves behind the bars.
 
 /** The screen in u: x from the Times Tower's center, y up from the horizon. */
 export const SIGN = {
@@ -35,6 +36,7 @@ const GLASS = {
 };
 
 /** Text sizes as cap height over glass height, and how much of the glass's width text may take. */
+const LEFT_CAP = 0.56;
 const COUNT_CAP = 0.82;
 const WORD_CAP = 0.38;
 const HAPPY_CAP = 0.3;
@@ -89,6 +91,9 @@ function line(ctx: Ctx, text: string, x: number, y: number, cap: number, maxW: n
 
 function lit(r: Reading, p: number, i: number): boolean {
   switch (r.kind) {
+    case "left":
+      // Every other bulb, swapping with each tick.
+      return (i + r.secs) % 2 === 0;
     case "count":
       return (((i - Math.floor(p * CHASE)) % 3) + 3) % 3 === 0;
     case "midnight":
@@ -132,7 +137,11 @@ export function marquee(ctx: Ctx, s: Scene, x: number): void {
   const maxW = gw * FIT;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  if (r.kind === "count") {
+  if (r.kind === "left") {
+    // A tick brightens the digits for a moment.
+    ctx.fillStyle = r.into < 0.12 ? IVORY : DIGITS;
+    line(ctx, formatLeft(r.secs), cx, cy, gh * LEFT_CAP, maxW);
+  } else if (r.kind === "count") {
     const settle = Math.max(0, 1 - r.into / POP);
     const cap = gh * COUNT_CAP * (1 + POP_SCALE * settle * settle);
     ctx.save();

@@ -4,7 +4,7 @@ import { shots, type Shot } from "../../preview/shots";
 import { render } from "../../render";
 import type { Scene } from "../skin";
 import { newYear } from "../newyear";
-import { CYCLE, MIDNIGHT, readingAt } from "./countdown";
+import { COUNT_FROM, CYCLE, MIDNIGHT, readingAt, sceneTimeOf, START } from "./countdown";
 import { TIMES_X } from "./landmarks";
 import { marquee, SIGN } from "./marquee";
 
@@ -17,9 +17,14 @@ function scene(t: number, hy = 620): Scene {
   return { cssW: W, cssH: H, u, scale: u / 150, t, rise: 0, altitude: 0, groundY: hy + 100, horizonY: hy, baseX: 0, baseW: 0, songTime: NaN };
 }
 
-/** The screen alone on a transparent canvas at cycle time p: its pixels, and the glass's box. */
+/** The screen alone on a transparent canvas at cycle time p (on scene time, a pass into the tower's
+ *  scene): its pixels, and the glass's box. */
 function screenAt(p: number): { data: Uint8ClampedArray; x0: number; x1: number; y0: number; y1: number } {
-  const s = scene(p);
+  return screenOn(scene(sceneTimeOf(p, 1)));
+}
+
+/** The screen alone on a transparent canvas in scene `s`: its pixels, and the glass's box. */
+function screenOn(s: Scene): { data: Uint8ClampedArray; x0: number; x1: number; y0: number; y1: number } {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
   marquee(ctx as unknown as CanvasRenderingContext2D, s, TIMES_X);
@@ -68,13 +73,21 @@ describe("Times Tower screen", () => {
   });
 
   it("is readable on a phone: the digits stand at least 18 px tall on a 390 px screen", () => {
+    // The time left ("1:00" … "0:11"), whole on the glass
+    for (const p of [0.5, START + 0.5, 10, 30.4, COUNT_FROM - 0.3]) {
+      const r = textRows(p);
+      expect(r.bottom - r.top + 1, `time left at ${p}s`).toBeGreaterThanOrEqual(18);
+      const g = screenAt(p);
+      expect(r.left, `time left at ${p}s`).toBeGreaterThan(g.x0 + 2);
+      expect(r.right, `time left at ${p}s`).toBeLessThan(g.x1 - 2);
+    }
     // "10" … "1", the first two digits whole on the glass once they have popped in
-    for (const p of [0.5, 4.5, MIDNIGHT - 0.5]) {
+    for (const p of [COUNT_FROM + 0.5, COUNT_FROM + 4.5, MIDNIGHT - 0.5]) {
       const r = textRows(p);
       expect(r.bottom - r.top + 1, `count at ${p}s`).toBeGreaterThanOrEqual(28);
     }
-    const ten = textRows(0.5);
-    const g = screenAt(0.5);
+    const ten = textRows(COUNT_FROM + 0.5);
+    const g = screenAt(COUNT_FROM + 0.5);
     expect(ten.left).toBeGreaterThan(g.x0 + 2);
     expect(ten.right).toBeLessThan(g.x1 - 2);
     // MIDNIGHT (a word, squeezed to fit the glass), and the year on the greeting's lower line
@@ -84,18 +97,19 @@ describe("Times Tower screen", () => {
     expect(y.bottom - y.top + 1).toBeGreaterThanOrEqual(17);
   });
 
-  it("shows 10 at a tower's first frame and every minute after, the same each time", () => {
-    const first = screenAt(0).data;
+  it("shows 1:00 at a tower's first frame, and again as each pass of the song starts the minute over, the same each time", () => {
+    const first = screenOn(scene(0)).data;
+    expect(readingAt(START)).toMatchObject({ kind: "left", secs: 60 });
     for (const t of [CYCLE, 2 * CYCLE, 9 * CYCLE]) {
-      const again = screenAt(t).data;
+      const again = screenOn(scene(t)).data;
       let differ = 0;
       for (let i = 0; i < first.length; i++) if (first[i] !== again[i]) differ++;
       expect(differ, `${t}s`).toBe(0);
     }
-    // ...and a second later, the 9: the screen has changed.
-    const nine = screenAt(1).data;
+    // ...and a second later, 0:59: the screen has changed.
+    const next = screenOn(scene(1)).data;
     let differ = 0;
-    for (let i = 0; i < first.length; i++) if (first[i] !== nine[i]) differ++;
+    for (let i = 0; i < first.length; i++) if (first[i] !== next[i]) differ++;
     expect(differ).toBeGreaterThan(200);
   });
 
@@ -120,16 +134,34 @@ describe("Times Tower screen", () => {
       return ctx.getImageData(0, 0, W, H).data;
     }
 
-    it("keeps the tower's own time: the same frame whatever the music's position", () => {
+    it("keeps time with the song, changing only the right-hand lane, well clear of the tower column", () => {
+      // The scene 20 s in, silent: the screen on 0:40.
       for (const shot of picks) {
-        for (const t of [0.05, 4.6, MIDNIGHT + 1.2, MIDNIGHT + 12, CYCLE + 3.3]) {
-          const silent = frame(shot, t, NaN);
-          for (const song of [3.1, 52.4, 61.7]) {
-            const live = frame(shot, t, song);
-            let differ = 0;
-            for (let i = 0; i < live.length; i++) if (live[i] !== silent[i]) differ++;
-            expect(differ, `${shot.name} at ${t}s, song at ${song}s`).toBe(0);
+        const silent = frame(shot, 20, NaN);
+        for (const song of [0.6, COUNT_FROM - 20.5, COUNT_FROM + 0.05, COUNT_FROM + 4.6, MIDNIGHT + 12]) {
+          const live = frame(shot, 20, song);
+          let changed = 0;
+          let minX = W;
+          for (let i = 0; i < live.length; i += 4) {
+            if (live[i] === silent[i] && live[i + 1] === silent[i + 1] && live[i + 2] === silent[i + 2]) continue;
+            changed++;
+            minX = Math.min(minX, (i / 4) % W);
           }
+          expect(changed, `${shot.name}, song at ${song}s`).toBeGreaterThan(50);
+          // The bars stand within the middle 60% of the screen; the screen, clock and ball sit right of it.
+          expect(minX, `${shot.name}, song at ${song}s`).toBeGreaterThan(W * 0.8);
+        }
+      }
+    });
+
+    it("shows the very same frame, music or not, while the song is where a fresh tower put it", () => {
+      for (const shot of picks) {
+        for (const t of [0.05, 4.6, 51.3, 60.4, 63.2, 71, CYCLE - START + 0.7, CYCLE + 3.3]) {
+          const silent = frame(shot, t, NaN);
+          const live = frame(shot, t, (START + t) % CYCLE);
+          let differ = 0;
+          for (let i = 0; i < live.length; i++) if (live[i] !== silent[i]) differ++;
+          expect(differ, `${shot.name} at ${t}s`).toBe(0);
         }
       }
     });

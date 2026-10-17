@@ -1,48 +1,79 @@
+import manifest from "../../audio/music/manifest.json";
 import type { Scene } from "../skin";
 
-// New Year's Eve on a loop: the Times Tower counts down to midnight once a minute, on the
-// tower's own scene clock. Pure timing, no drawing (marquee.ts draws the screen, landmarks.ts
-// the clock and the ball, sky.ts the midnight fireworks).
+// New Year's Eve on a loop: the Times Tower counts the last minute down to midnight once per pass
+// of the song. Pure timing, no drawing (marquee.ts draws the screen, landmarks.ts the clock and
+// the ball, sky.ts the midnight finale).
 //
-// The owner: "The countdown needs to start at 10, with lots more fireworks, then reset after a
-// minute." A tower's scene starts (s.t = 0: the title's fresh tower, or a new run) with the
-// screen on "10", so the countdown lands within the first ten seconds, before players have
-// moved on and up. One cycle is a minute:
-//  - the first ten seconds: "10" … "1", big, the ball coming down its mast and the clock's
-//    second hand sweeping up to meet the others on twelve;
-//  - midnight (s.t = 10): the ball lands, the clock's hands meet on twelve, the screen reads
-//    MIDNIGHT, and the grand finale fills the sky; then HAPPY and the coming year;
-//  - while HAPPY holds, the ball goes back up its mast and the clock is set back a minute (its
-//    minute hand easing back a few degrees; the second hand never stops or turns back), so at
-//    the top of the next minute everything is where it started and the count begins again.
-// The music keeps its own time: the screen no longer follows the song.
+// The owner: "The count should go back to a full minute how you had it first; the setup/payoff
+// was much better." One cycle is one pass of the song's loop (its manifest entry: loop length and
+// the cues countdownStart and midnight, written by scripts/music/songs/newyear.ts). Through it:
+//  - the first START seconds: the screen reads "1:00" while the clock is set back to a minute to
+//    midnight (its second hand sweeping on round to twelve, never back) and the ball goes back up
+//    its mast;
+//  - then the minute before midnight: the screen ticks the time left down ("0:59" … "0:11"), each
+//    tick as the clock's second hand passes its mark, while the ball comes down its mast (as in
+//    Times Square, it takes the whole minute);
+//  - the last ten seconds: "10" … "1", big, with the crowd counting in the song;
+//  - midnight: the ball lands, the clock's hands meet on twelve, the screen reads MIDNIGHT under
+//    the grand finale (sky.ts), then HAPPY and the coming year until the song starts over.
+// With music playing, the cycle is the song's position (Scene.songTime, as written), so the screen
+// and the music can never part, tempo changes included. Without it (muted, not started yet, a
+// hidden tab, an overlay holding the scene still while the music plays on) the same cycle runs on
+// scene time. A tower's scene starts (s.t = 0: the title's fresh
+// tower, or a new run) on the minute's first second, "1:00", and strikes midnight a minute later;
+// main.ts cuts the song to the same place (audio.setMusic's sceneSync), so the two agree and
+// turning the music off or on doesn't make the screen jump.
 
-/** One cycle: a minute. A whole number of minutes, so the clock's second hand runs on across it. */
-export const CYCLE = 60;
-/** Seconds into the cycle when the screen shows "10", and midnight. */
-export const COUNT_FROM = 0;
-export const MIDNIGHT = 10;
-/** Whole seconds counted down big: "10" through "1". */
-export const COUNT = Math.round(MIDNIGHT - COUNT_FROM);
-/** MIDNIGHT shows this long after midnight; then HAPPY and the year until the cycle restarts. */
-export const MIDNIGHT_SHOW = 4;
-/** While HAPPY holds, the ball goes back up and the clock is set back a minute between these
- *  seconds of the cycle; the ball then waits at the top for the count. */
-export const RESET_FROM = CYCLE - 6;
-export const RESET_END = CYCLE - 1;
-
-/** Where the cycle is (seconds, in [0, CYCLE)): the scene's own clock. */
-export function cycleTime(s: Scene): number {
-  return ((s.t % CYCLE) + CYCLE) % CYCLE;
+interface SongEntry {
+  sr?: number;
+  L?: number;
+  cues?: { countdownStart?: number; midnight?: number };
 }
 
-/** Which minute the scene is in (0 for the first): each midnight's fireworks differ. */
+const SONG = (manifest as Record<string, SongEntry>).newyear;
+
+/** Seconds into the cycle when the screen shows "10", and midnight (the song's cues). */
+export const COUNT_FROM = SONG?.cues?.countdownStart ?? 52;
+export const MIDNIGHT = SONG?.cues?.midnight ?? 62;
+/** One cycle: the song's loop (L frames at sr), else the length it was written at. */
+export const CYCLE = SONG?.L && SONG.sr ? SONG.L / SONG.sr : 82;
+/** Whole seconds counted down big: "10" through "1". */
+export const COUNT = Math.round(MIDNIGHT - COUNT_FROM);
+/** The minute counted down: the screen shows "1:00" this long before midnight. */
+export const MINUTE = 60;
+/** Where the cycle is as a tower's scene starts (s.t = 0): a minute to midnight. The seconds before
+ *  it, at the top of the cycle, set the clock and the ball back for the next minute. */
+export const START = MIDNIGHT - MINUTE;
+/** MIDNIGHT shows this long after midnight; then HAPPY and the year until the cycle restarts. */
+export const MIDNIGHT_SHOW = 4;
+
+const mod = (x: number, n: number): number => ((x % n) + n) % n;
+
+/** Where the cycle is (seconds, in [0, CYCLE)): the song's position, or scene time when silent. */
+export function cycleTime(s: Scene): number {
+  const song = s.songTime ?? NaN;
+  return mod(Number.isFinite(song) ? song : START + s.t, CYCLE);
+}
+
+/**
+ * Which pass of the cycle the scene is in, so each midnight's finale differs: on scene time, the
+ * passes since the tower's start (0 for the first). With music, always 0: the song's position
+ * tells one pass from another no better than a guess, and a guess could change mid-finale.
+ */
 export function cycleIndex(s: Scene): number {
-  return Math.floor(s.t / CYCLE);
+  return Number.isFinite(s.songTime ?? NaN) ? 0 : Math.floor((START + s.t) / CYCLE);
+}
+
+/** The scene time (s.t, on scene time) of cycle time p in pass `pass` (0: the tower's first). */
+export function sceneTimeOf(p: number, pass = 0): number {
+  return pass * CYCLE + p - START;
 }
 
 /** What the screen shows. `into` is seconds since this reading started. */
 export type Reading =
+  /** Whole seconds left to midnight, shown as m:ss ("0:52"). */
+  | { kind: "left"; secs: number; into: number }
   /** The last ten seconds, big: "10" … "1". */
   | { kind: "count"; n: number; into: number }
   | { kind: "midnight"; into: number }
@@ -54,8 +85,23 @@ export function readingAt(p: number): Reading {
     const m = p - MIDNIGHT;
     return m < MIDNIGHT_SHOW ? { kind: "midnight", into: m } : { kind: "year", into: m - MIDNIGHT_SHOW };
   }
-  const t = Math.max(0, p - COUNT_FROM);
-  return { kind: "count", n: COUNT - Math.floor(t), into: t - Math.floor(t) };
+  if (p >= COUNT_FROM) {
+    const t = p - COUNT_FROM;
+    return { kind: "count", n: COUNT - Math.floor(t), into: t - Math.floor(t) };
+  }
+  // Ticks down a second at a time; held on "1:00" from the top of the cycle, through the reset.
+  const left = MIDNIGHT - p;
+  const secs = Math.ceil(left);
+  if (secs >= MINUTE) return { kind: "left", secs: MINUTE, into: p };
+  return { kind: "left", secs, into: secs - left };
+}
+
+/** "m:ss", as the screen shows the time left. */
+export function formatLeft(secs: number): string {
+  const s = Math.max(0, Math.round(secs));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r < 10 ? "0" : ""}${r}`;
 }
 
 function ease(x: number): number {
@@ -63,31 +109,40 @@ function ease(x: number): number {
   return k * k * (3 - 2 * k);
 }
 
-/** How far through the reset (0 → 1) cycle time p is. */
+/** How far through the reset at the top of the cycle (0 → 1) cycle time p is. */
 function reset(p: number): number {
-  return ease((p - RESET_FROM) / (RESET_END - RESET_FROM));
+  return START > 0 ? ease(p / START) : 1;
 }
 
 /**
- * The time the tower clock's hour and minute hands show at cycle time p, in seconds from
- * midnight (negative before it): ten seconds to midnight as the count starts, running on through
- * midnight, then set back a minute during the reset, smoothly, so it is ten seconds to midnight
- * again when the next count starts.
+ * The time the tower clock's hour and minute hands show at cycle time p, in seconds from midnight
+ * (negative before it): a minute to midnight as the minute starts, running with the cycle through
+ * midnight to the end of the cycle; during the reset it is set back from there to a minute to
+ * midnight, smoothly, so the hands never jump.
  */
 export function clockAt(p: number): number {
-  return p - MIDNIGHT - 60 * reset(p);
+  if (p >= START) return p - MIDNIGHT;
+  const from = CYCLE - MIDNIGHT;
+  return from + (-MINUTE - from) * reset(p);
 }
 
-/** Where the clock's second hand points at cycle time p (seconds, in [0, 60)): it sweeps up
- *  from fifty to twelve over the count and runs on, never stopping, round the cycle. */
+/**
+ * Where the clock's second hand points at cycle time p (seconds, in [0, 60)): on twelve as the
+ * minute starts, passing each mark as the screen's number for it comes up, on twelve again at
+ * midnight, and running on to the end of the cycle; during the reset it sweeps on round to twelve,
+ * never stopping or turning back.
+ */
 export function secondAt(p: number): number {
-  return (((p - MIDNIGHT) % 60) + 60) % 60;
+  if (p >= START) return mod(p - MIDNIGHT, 60);
+  const from = CYCLE - MIDNIGHT;
+  return mod(from + mod(-MINUTE - from, 60) * reset(p), 60);
 }
 
 /** How far down its mast the ball is at cycle time p: 0 at the top, 1 landed (midnight). */
 export function ballAt(p: number): number {
-  if (p < MIDNIGHT) return Math.max(0, (p - COUNT_FROM) / (MIDNIGHT - COUNT_FROM));
-  // Landed, then back up the mast during the reset.
+  if (p >= MIDNIGHT) return 1;
+  if (p >= START) return (p - START) / MINUTE;
+  // Back up the mast during the reset.
   return 1 - reset(p);
 }
 

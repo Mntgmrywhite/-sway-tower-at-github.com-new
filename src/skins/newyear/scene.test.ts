@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import type { Scene } from "../skin";
 import { newYear } from "../newyear";
-import { CYCLE, MIDNIGHT, RESET_END } from "./countdown";
+import { CYCLE, MIDNIGHT, sceneTimeOf, START } from "./countdown";
 import { LOOP, LOOP_FROM } from "./story";
 import { sceneAt } from "./test-scene";
 
@@ -25,10 +25,12 @@ describe("New Year's city under the start screen's title", () => {
     const ctx = canvas.getContext("2d");
     const u = Math.min(W, H * 0.6);
     const rows = Math.ceil(H * 0.14 + u * 0.012);
-    // The ball at the top of its mast (as the count starts, and waiting for the next one), on its
-    // way down, then landed with its rays reaching out at midnight; the rays pulse and turn too.
-    const times = [0, 0.3, 0.65, 1.9, 3.3, 7.1, MIDNIGHT + 0.4, MIDNIGHT + 1.1, MIDNIGHT + 2, MIDNIGHT + 3.3];
-    for (const t of [...times, ...times.map((t) => t + CYCLE), RESET_END, RESET_END + 0.4, RESET_END + 0.9]) {
+    // The ball at the top of its mast (as the minute starts), on its way down, then landed with
+    // its rays reaching out at midnight, and going back up as the next pass sets the clock back;
+    // the rays pulse and turn too.
+    const cycle = [START, START + 0.3, START + 0.65, START + 1.9, 13.3, 37.1, MIDNIGHT - 0.6, MIDNIGHT + 0.4, MIDNIGHT + 1.1, MIDNIGHT + 2, MIDNIGHT + 3.3];
+    const times = [...cycle.map((p) => sceneTimeOf(p)), ...cycle.map((p) => sceneTimeOf(p, 1)), ...[0.2, 0.9, 1.6].map((p) => sceneTimeOf(p, 1))];
+    for (const t of times) {
       ctx.clearRect(0, 0, W, H);
       newYear.far!(ctx as unknown as CanvasRenderingContext2D, sceneAt(W, H, 0, t));
       const data = ctx.getImageData(0, 0, W, rows).data;
@@ -102,16 +104,17 @@ describe("New Year's scenery all the way up", () => {
     let everyday = 0;
     let finale = 0;
     for (const lvl of [0, 8, 20, 40, 60, 90, LOOP_FROM + 30, LOOP_FROM + 90, 900]) {
-      for (let t = 0; t < CYCLE; t += 0.5) {
+      for (let p = 0; p < CYCLE; p += 0.5) {
         c.reset();
-        scenery(c.ctx, sceneAt(390, 844, lvl, t + 0.25));
-        if (t >= MIDNIGHT - 1 && t < MIDNIGHT + 10) finale = Math.max(finale, c.calls());
+        scenery(c.ctx, sceneAt(390, 844, lvl, sceneTimeOf(p + 0.25)));
+        if (p >= MIDNIGHT - 1 && p < MIDNIGHT + 10) finale = Math.max(finale, c.calls());
         else everyday = Math.max(everyday, c.calls());
       }
     }
     expect(finale).toBeGreaterThan(everyday);
     expect(finale).toBeLessThanOrEqual(everyday * 1.2);
-  });
+    // A whole pass of the song (82 s) at nine heights: seconds alone, longer beside the full suite.
+  }, 30_000);
 });
 
 describe("Hard's zoomed-out camera", () => {

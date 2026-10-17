@@ -1,7 +1,8 @@
 import { statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { COUNT_FROM, CYCLE, MIDNIGHT } from "../skins/newyear/countdown";
+import type { Scene } from "../skins/skin";
+import { COUNT_FROM, CYCLE, cycleTime, MIDNIGHT, MINUTE, readingAt, START } from "../skins/newyear/countdown";
 import { cuedPosition, GameAudio, pickSong, songCue, SONGS, type SceneSync } from "./engine";
 import manifest from "./music/manifest.json";
 
@@ -21,36 +22,36 @@ vi.mock("./stretch.worker?worker&inline", () => ({
   },
 }));
 
-const COUNTDOWN = songCue("newyear", "countdownStart")!;
+const MIDNIGHT_CUE = songCue("newyear", "midnight")!;
 const info = (song: string) => (manifest as Record<string, { sr: number; L: number; PAD: number }>)[song]!;
 const loopSeconds = (song: string) => info(song).L / info(song).sr;
 const NEWYEAR_LOOP = loopSeconds("newyear");
+/** Where a fresh New Year's tower starts the song: a minute before its midnight (the screen's "1:00"). */
+const MINUTE_START = MIDNIGHT_CUE - MINUTE;
 
 describe("where a song that keeps time with the scene comes in", () => {
-  it("a fresh scene: the cue, right at the top of its cycle", () => {
-    expect(cuedPosition(52, 0, 60, 82)).toBe(52);
+  it("a fresh scene: as far before the cue as the cue is into the scene", () => {
+    expect(cuedPosition(62, 60, 0, 82)).toBeCloseTo(2, 9);
+    expect(cuedPosition(52, 0, 0, 82)).toBe(52);
   });
 
-  it("a late start: as far past the cue as the scene is into its cycle", () => {
-    expect(cuedPosition(52, 5, 60, 82)).toBeCloseTo(57, 9);
-    expect(cuedPosition(52, 20, 60, 82)).toBeCloseTo(72, 9);
-    // A later minute counts like the first.
-    expect(cuedPosition(52, 125, 60, 82)).toBeCloseTo(57, 9);
+  it("a late start: as far on as the scene is", () => {
+    expect(cuedPosition(62, 60, 5, 82)).toBeCloseTo(7, 9);
+    expect(cuedPosition(62, 60, 60, 82)).toBeCloseTo(62, 9);
+    expect(cuedPosition(62, 60, 75, 82)).toBeCloseTo(77, 9);
   });
 
-  it("past the loop's end: the song's cue comes with the scene's next cycle instead", () => {
-    const s = cuedPosition(52, 40, 60, 82);
-    expect(s).toBeCloseTo(32, 9);
-    // 20 s on the scene starts its next cycle, just as the song reaches its cue.
-    expect(s + (60 - 40)).toBeCloseTo(52, 9);
+  it("the song's loop is the cycle: past its end, the song comes round to the scene's start again", () => {
+    expect(cuedPosition(62, 60, 80, 82)).toBeCloseTo(0, 9);
+    expect(cuedPosition(62, 60, 82, 82)).toBeCloseTo(2, 9);
+    expect(cuedPosition(62, 60, 82 * 3 + 60, 82)).toBeCloseTo(62, 9);
   });
 
   it("always lands inside the loop", () => {
-    expect(cuedPosition(70, 20, 60, 82)).toBeCloseTo(30, 9);
-    // A song shorter than the cycle wraps around.
-    expect(cuedPosition(5, 30, 60, 20)).toBeCloseTo(15, 9);
+    // A song shorter than the scene's lead-in wraps around.
+    expect(cuedPosition(5, 30, 0, 20)).toBeCloseTo(15, 9);
     for (let t = -90; t < 300; t += 0.7) {
-      const s = cuedPosition(52, t, 60, 82);
+      const s = cuedPosition(62, 60, t, 82);
       expect(s).toBeGreaterThanOrEqual(0);
       expect(s).toBeLessThan(82);
     }
@@ -58,15 +59,29 @@ describe("where a song that keeps time with the scene comes in", () => {
 });
 
 describe("the New Year's song and screen count together", () => {
-  it("the song's countdown is as long as the screen's, inside the loop", () => {
-    const midnight = songCue("newyear", "midnight")!;
-    expect(midnight - COUNTDOWN).toBeCloseTo(MIDNIGHT - COUNT_FROM, 6);
-    expect(COUNTDOWN).toBeGreaterThan(0);
-    expect(midnight).toBeLessThan(NEWYEAR_LOOP);
+  it("the song's countdown and midnight are the screen's, its loop the screen's cycle, the minute inside it", () => {
+    expect(songCue("newyear", "countdownStart")).toBe(COUNT_FROM);
+    expect(MIDNIGHT_CUE).toBe(MIDNIGHT);
+    expect(MIDNIGHT_CUE - songCue("newyear", "countdownStart")!).toBeCloseTo(10, 6);
+    expect(CYCLE).toBeCloseTo(NEWYEAR_LOOP, 9);
+    expect(MINUTE_START).toBeCloseTo(START, 9);
+    expect(MINUTE_START).toBeGreaterThan(0);
+    expect(MIDNIGHT_CUE).toBeLessThan(NEWYEAR_LOOP);
+  });
+
+  it("where main.ts's sync puts the song is where the silent screen is, so music going on or off never moves it", () => {
+    for (let t = 0; t < 400; t += 0.37) {
+      const song = cuedPosition(MIDNIGHT_CUE, MINUTE, t, NEWYEAR_LOOP);
+      const apart = cycleTime({ t, songTime: song } as Scene) - cycleTime({ t, songTime: NaN } as Scene);
+      expect(Math.abs(apart - CYCLE * Math.round(apart / CYCLE)), `${t}s`).toBeLessThan(1e-6);
+    }
   });
 
   it("other songs have no countdown", () => {
-    for (const song of SONGS.filter((s) => s !== "newyear")) expect(songCue(song, "countdownStart")).toBeUndefined();
+    for (const song of SONGS.filter((s) => s !== "newyear")) {
+      expect(songCue(song, "countdownStart")).toBeUndefined();
+      expect(songCue(song, "midnight")).toBeUndefined();
+    }
   });
 });
 
@@ -216,7 +231,8 @@ function rig({ running = true, latency = 0, stretch = false } = {}) {
   const audio = new GameAudio();
   /** The tower's scene clock (main.ts: view.t). */
   const scene = { t: 0 };
-  const sync: SceneSync = { cue: "countdownStart", cycle: CYCLE, time: () => scene.t - COUNT_FROM };
+  /** As main.ts: the song's midnight a minute into the scene. */
+  const sync: SceneSync = { cue: "midnight", at: MINUTE, time: () => scene.t };
   const context = () => ctx!;
   /** Let decoding finish (promises), then any re-sync it starts. */
   const settle = () => new Promise<void>((r) => setImmediate(r));
@@ -249,15 +265,17 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     vi.unstubAllGlobals();
   });
 
-  it("a fresh tower: the song comes in at its countdown", async () => {
+  it("a fresh tower: the song comes in a minute before its midnight, as the screen shows 1:00, and strikes midnight a minute in", async () => {
     const r = rig();
     r.audio.setMusic("newyear", "classic", r.sync);
     r.audio.unlock();
     await r.settle();
     expect(r.sources).toHaveLength(1);
-    expect(r.songTime(r.sources[0]!, r.context().currentTime)).toBeCloseTo(COUNTDOWN, 6);
+    expect(r.songTime(r.sources[0]!, r.context().currentTime)).toBeCloseTo(MINUTE_START, 6);
     r.run(3);
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN + 3, 6);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + 3, 6);
+    r.run(MINUTE - 3);
+    expect(r.audio.position()).toBeCloseTo(MIDNIGHT_CUE, 6);
   });
 
   it("started late (audio unlocks on PLAY): where the scene's minute is", async () => {
@@ -266,18 +284,22 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     r.audio.setMusic("newyear", "classic", r.sync);
     r.audio.unlock();
     await r.settle();
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN + 7, 6);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + 7, 6);
   });
 
-  it("started late in a minute: the song's countdown waits for the screen's next one", async () => {
+  it("started late in the minute: the song's midnight strikes with the screen's, and its next pass starts the minute with the screen", async () => {
     const r = rig();
     r.scene.t = 45;
     r.audio.setMusic("newyear", "classic", r.sync);
     r.audio.unlock();
     await r.settle();
-    r.run(CYCLE - 45);
-    // The screen shows "10" again; so does the song.
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN, 6);
+    r.run(MINUTE - 45);
+    expect(r.audio.position()).toBeCloseTo(MIDNIGHT_CUE, 6);
+    // A song's loop on from the tower's start, the screen shows 1:00 again; the song is there too.
+    r.run(CYCLE - MINUTE);
+    expect(r.scene.t).toBeCloseTo(CYCLE, 6);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START, 6);
+    expect(r.sources).toHaveLength(1);
   });
 
   it("heard in step with the screen, past the output latency", async () => {
@@ -286,7 +308,7 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     r.audio.unlock();
     await r.settle();
     r.run(0.5);
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN + 0.5, 6);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + 0.5, 6);
   });
 
   it("waits for the audio clock to run, then comes in where the scene is by then", async () => {
@@ -299,10 +321,10 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     r.context().state = "running";
     r.fireStateChange();
     expect(r.sources).toHaveLength(1);
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN + 2, 6);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + 2, 6);
   });
 
-  it("playing again: the music cuts to the countdown, cleanly, with its first hit whole", async () => {
+  it("playing again: the music cuts to the minute's start, cleanly, with its first hit whole", async () => {
     const r = rig();
     r.audio.setMusic("newyear", "classic", r.sync);
     r.audio.unlock();
@@ -313,25 +335,27 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     r.scene.t = 0; // restart(): a fresh tower
     r.audio.realign();
     expect(r.sources).toHaveLength(2);
+    // The screen goes to 1:00 at once, a few hundredths before the cut is heard.
+    expect(Math.abs(r.audio.position() - MINUTE_START)).toBeLessThan(0.02);
     const next = r.sources[1]!;
-    // On the next scheduling slot, a hair before the countdown...
+    // On the next scheduling slot, a hair before the minute's start (a bar line)...
     expect(next.when).toBeGreaterThan(now);
     expect(next.when - now).toBeLessThan(0.1);
-    const lead = COUNTDOWN - r.songTime(next, next.when);
+    const lead = MINUTE_START - r.songTime(next, next.when);
     expect(lead).toBeGreaterThan(0);
     expect(lead).toBeLessThan(0.05);
-    // ...faded in from silence, at full level when the countdown's first hit plays.
+    // ...faded in from silence, at full level when the minute's first hit plays.
     const hit = next.when + lead;
     expect(next.gain!.at(next.when)).toBe(0);
     expect(next.gain!.at(hit)).toBeCloseTo(1, 6);
-    expect(r.songTime(next, hit)).toBeCloseTo(COUNTDOWN, 9);
+    expect(r.songTime(next, hit)).toBeCloseTo(MINUTE_START, 9);
     // The old place fades out (never cut off mid-wave) and stops once silent.
     expect(old.gain!.at(next.when)).toBe(1);
     for (let t = next.when; t < next.when + 0.2; t += 0.001) expect(Math.abs(old.gain!.at(t + 0.001) - old.gain!.at(t))).toBeLessThan(0.02);
     expect(old.gain!.at(old.stopAt)).toBe(0);
     // Then it plays on with the screen, a few hundredths behind it.
     r.run(5);
-    const behind = COUNTDOWN + r.scene.t - r.audio.position();
+    const behind = MINUTE_START + r.scene.t - r.audio.position();
     expect(behind).toBeGreaterThan(0);
     expect(behind).toBeLessThan(0.1);
   });
@@ -348,7 +372,88 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     r.run(1);
     expect(r.sources).toHaveLength(2);
     r.run(2);
-    expect(Math.abs(r.audio.position() - (COUNTDOWN + r.scene.t))).toBeLessThan(0.1);
+    expect(Math.abs(r.audio.position() - (MINUTE_START + r.scene.t))).toBeLessThan(0.1);
+  });
+
+  it("a fresh tower while New Year's song is still fading in from another: the screen shows 1:00 at once, and the song cuts there once the fade is done", async () => {
+    const r = rig();
+    r.audio.setMusic("classic");
+    r.audio.unlock();
+    await r.settle();
+    r.run(10);
+    r.scene.t = 33;
+    r.audio.setMusic("newyear", "classic", r.sync);
+    await r.settle();
+    expect(r.sources).toHaveLength(2);
+    r.run(0.1); // the crossfade from Classic is under way
+    r.scene.t = 0; // restart(): a fresh tower
+    r.audio.realign();
+    expect(r.sources).toHaveLength(2);
+    // Until the cut, the screen keeps the scene's time (1:00), not the song's old place (0:27).
+    expect(r.audio.position()).toBeNaN();
+    expect(readingAt(cycleTime({ t: r.scene.t, songTime: r.audio.position() } as Scene))).toMatchObject({ kind: "left", secs: 60 });
+    r.run(1);
+    expect(r.sources).toHaveLength(3);
+    expect(Math.abs(r.audio.position() - (MINUTE_START + r.scene.t))).toBeLessThan(0.1);
+  });
+
+  it("switching to New Year's while another song plays: the screen keeps the scene's time until New Year's own song is heard", async () => {
+    const r = rig({ latency: 0.03 });
+    r.audio.setMusic("classic");
+    r.audio.unlock();
+    await r.settle();
+    r.run(30);
+    r.scene.t = 5;
+    r.audio.setMusic("newyear", "classic", r.sync);
+    // Still loading: Classic plays on, and its place is no place in the countdown.
+    expect(r.audio.position()).toBeNaN();
+    await r.settle();
+    // Crossfading: Classic is what is heard for the output latency.
+    expect(r.audio.position()).toBeNaN();
+    r.run(0.05);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + r.scene.t, 3);
+  });
+
+  it("an overlay holds the scene still: the screen holds with it while the music plays on, and the song is back with the screen as the scene goes on", async () => {
+    const r = rig({ latency: 0.03 });
+    r.audio.setMusic("newyear", "classic", r.sync);
+    r.audio.unlock();
+    await r.settle();
+    r.run(30);
+    const shown = () => cycleTime({ t: r.scene.t, songTime: r.audio.position() } as Scene);
+    const before = shown();
+    expect(before).toBeCloseTo(START + 30, 1);
+    // The sheet opens: the scene's clock stands still while the music plays on.
+    r.audio.hold(true);
+    const t = r.scene.t;
+    for (let i = 0; i < 12; i++) {
+      r.run(1);
+      r.scene.t = t;
+      expect(shown(), `${i + 1}s under the sheet`).toBeCloseTo(before, 1);
+    }
+    expect(r.sources).toHaveLength(1);
+    // Closed: the song cuts back to the scene, and the screen goes on from where it held.
+    r.audio.hold(false);
+    expect(r.sources).toHaveLength(2);
+    expect(Math.abs(shown() - before)).toBeLessThan(0.1);
+    for (let i = 0; i < 10; i++) {
+      r.run(0.5);
+      expect(Math.abs(shown() - (START + r.scene.t)), `${(i + 1) / 2}s on`).toBeLessThan(0.1);
+    }
+  });
+
+  it("an overlay over another skin's song leaves it alone", async () => {
+    const r = rig();
+    r.audio.setMusic("classic");
+    r.audio.unlock();
+    await r.settle();
+    r.run(10);
+    r.audio.hold(true);
+    r.run(5);
+    r.audio.hold(false);
+    r.run(1);
+    expect(r.sources).toHaveLength(1);
+    expect(r.audio.position()).toBeCloseTo(16, 4);
   });
 
   it("while it plays, it never re-seeks", async () => {
@@ -358,7 +463,7 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     await r.settle();
     r.run(130);
     expect(r.sources).toHaveLength(1);
-    expect(r.audio.position()).toBeCloseTo((COUNTDOWN + 130) % NEWYEAR_LOOP, 4);
+    expect(r.audio.position()).toBeCloseTo((MINUTE_START + 130) % NEWYEAR_LOOP, 4);
   });
 
   it("switching to New Year's mid-run: it comes in where the scene is", async () => {
@@ -370,21 +475,31 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     r.audio.setMusic("newyear", "classic", r.sync);
     await r.settle();
     expect(r.sources).toHaveLength(2);
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN + 4, 4);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + 4, 4);
   });
 
-  it("music switched back on: it picks up where the scene is, heard in step past the output latency", async () => {
+  it("music switched back on in the Options sheet (the scene held still while the song played on): it picks up where the scene is, heard in step past the output latency", async () => {
     const r = rig({ latency: 0.03 });
     r.audio.setMusic("newyear", "classic", r.sync);
     r.audio.unlock();
     await r.settle();
-    r.run(1);
+    r.run(50);
+    // The sheet opens: the scene's clock stands still while the music plays on, silently.
+    const held = (seconds: number) => {
+      const t = r.scene.t;
+      r.run(seconds);
+      r.scene.t = t;
+    };
+    r.audio.hold(true);
     r.audio.setMusicOn(false);
-    r.run(69); // the scene is 10 s into its second minute: midnight
+    held(9);
     r.audio.setMusicOn(true);
     expect(r.sources).toHaveLength(2);
+    // Closed: the scene goes on, and the song is with it (main.ts lets go: no cut).
+    r.audio.hold(false);
     r.run(1);
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN + 11, 3);
+    expect(r.sources).toHaveLength(2);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + 51, 3);
   });
 
   it("music switched off and on while still in step: no cut", async () => {
@@ -398,7 +513,7 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     r.audio.setMusicOn(true);
     r.run(1);
     expect(r.sources).toHaveLength(1);
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN + 6, 6);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + 6, 6);
   });
 
   it("an overlay held the scene still (New Year's picked in the Options sheet): as the scene goes on, so does the count with it", async () => {
@@ -413,14 +528,20 @@ describe("the engine keeps New Year's music in step with the scene", () => {
       r.run(seconds);
       r.scene.t = t;
     };
+    r.audio.hold(true);
     run(1);
     r.audio.setMusic("newyear", "classic", r.sync);
     await r.settle();
     run(4);
-    // Closed: main.ts realigns as the scene goes on (3 s in: the screen shows "7").
-    r.audio.realign();
+    // Under the sheet, the screen holds with the scene (3 s in: about "0:57").
+    expect(r.audio.position()).toBeNaN();
+    expect(readingAt(cycleTime({ t: r.scene.t, songTime: r.audio.position() } as Scene))).toMatchObject({ kind: "left", secs: Math.ceil(MIDNIGHT - START - r.scene.t) });
+    expect(START + r.scene.t).toBeCloseTo(START + 3, 6);
+    // Closed: main.ts lets go as the scene goes on, and the song is back with it.
+    r.audio.hold(false);
+    expect(Math.abs(r.audio.position() - (MINUTE_START + r.scene.t))).toBeLessThan(0.1);
     r.run(1);
-    expect(r.audio.position()).toBeCloseTo(COUNTDOWN + r.scene.t, 3);
+    expect(r.audio.position()).toBeCloseTo(MINUTE_START + r.scene.t, 3);
   });
 
   it("a fresh tower while the music is sped up: the cut lands on the countdown at the tempo playing", async () => {
@@ -439,8 +560,8 @@ describe("the engine keeps New Year's music in step with the scene", () => {
     expect(r.sources[2]!.buffer).toBe(fast);
     r.run(0.1);
     // In step with the screen at the countdown, a few hundredths behind as it starts.
-    expect(COUNTDOWN + r.scene.t - r.audio.position()).toBeGreaterThan(0);
-    expect(COUNTDOWN + r.scene.t - r.audio.position()).toBeLessThan(0.1);
+    expect(MINUTE_START + r.scene.t - r.audio.position()).toBeGreaterThan(0);
+    expect(MINUTE_START + r.scene.t - r.audio.position()).toBeLessThan(0.1);
   });
 
   it("other skins: their songs start at the top and a fresh tower leaves them alone", async () => {

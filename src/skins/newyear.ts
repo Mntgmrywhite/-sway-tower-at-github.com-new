@@ -47,10 +47,11 @@ import { decoMoon, newYearSky } from "./newyear/sky";
 // searchlights sweeping up behind three depths of our-own Deco towers — a hazy back row, a
 // middle row with gilded stepped crowns, and five black-lacquer towers rimmed in gold with lit
 // window grids and gilded crowns: the Sunburst's fan and needle spire, and the Times Tower,
-// whose Deco screen over its clock counts down to midnight from a tower's first frame, and again
-// every minute (marquee.ts, countdown.ts: "10" … "1" big, MIDNIGHT, then HAPPY and the coming
-// year) while the New Year's ball comes down its mast to land at midnight, when the sky erupts in
-// a grand finale of fireworks (sky.ts). Navy clouds with moonlit silver tops pile at its feet. Across
+// whose Deco screen over its clock counts the last minute down to midnight from a tower's first
+// frame, and again with every pass of the song (marquee.ts, countdown.ts: "1:00" … "0:11", "10" …
+// "1" big with the crowd, MIDNIGHT, then HAPPY and the coming year) while the New Year's ball
+// comes down its mast to land at midnight, when the sky erupts in a grand finale of fireworks
+// (sky.ts). Navy clouds with moonlit silver tops pile at its feet. Across
 // the bay, the Gatsby mansion throws its party with the green light at the end of its dock; on
 // our ivory-marble terrace, a gold-and-emerald sunburst inlay, a champagne-coupe tower, a
 // gramophone and a cream boat-tail roadster with a boa on its door; in front, a black-and-gold
