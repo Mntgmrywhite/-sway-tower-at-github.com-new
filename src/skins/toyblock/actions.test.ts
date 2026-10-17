@@ -6,8 +6,9 @@ import { masker, sceneAt, SIZES } from "./test-scene";
 // The owner's rule for every skin: any action happens within the first 10 seconds of a tower's
 // scene (the title's fresh tower, or a new run), as players soon climb past; then the scene
 // settles into calm idle motion. Toy Kingdom's actions are the wind-up mouse running down in
-// front of the fort and the little train's run between its tunnels. And the mouse's key is
-// seated in its back: its stem comes out of the body, never floating above it.
+// front of the fort and the little train's run between its tunnels; the rocket's launch comes
+// after them, at 10 s, by the owner's call (launch.test.ts). And the mouse's key is seated in its
+// back: its stem comes out of the body, never floating above it.
 
 /** Scene times across the run-down (the waddle's leans both ways) and at rest. */
 const TIMES = [0, 0.17, 0.52, 1.3, 2.6, 4.4, 6.1, 7.9, 9.5, 14.2] as const;

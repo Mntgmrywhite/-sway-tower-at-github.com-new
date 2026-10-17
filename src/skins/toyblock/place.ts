@@ -17,14 +17,14 @@ import { smooth } from "./tone";
 /** How fast the land sinks as the camera climbs (1 moves with the tower). */
 const P_FAR = 0.25;
 /** Where the land's horizon sits at the start, in u above the floor line (as the base world's). */
-const HORIZON_UP = 0.3;
+export const HORIZON_UP = 0.3;
 /** The highest point of the land (the castle's flag), in u above its horizon. */
 const LAND_TOP = 0.385;
 /** How far above the land's top the sea reaches when it covers it (u). */
 const COVER_MARGIN = 0.03;
 /** The sea billows up over these levels of climbing... */
 const RISE0 = 2;
-const RISE1 = 20;
+export const RISE1 = 20;
 /** ...then falls away, and lies at the bottom of the screen from here on. */
 export const DROP1 = 36;
 /** How deep the sea lies at the bottom of the screen once you are above it (u). */

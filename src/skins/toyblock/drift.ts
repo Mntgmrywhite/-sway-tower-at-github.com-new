@@ -14,8 +14,8 @@ import * as toy from "./toys";
 // Near lanes (parallax NEAR_P): the left lane is the sun's and the moon's, so only block clouds
 // drift down it (they may pass in front of the sun or the moon, as clouds do). The right lane is
 // the toys': a loose kite, flights of paper planes, a biplane trailing bunting, a teddy in a
-// hot-air balloon, the airship with its windows lit at dusk, a satellite, the rocket from the
-// launch tower, a ringed toy planet, a flying saucer, a toy soldier on a parachute at dawn, and
+// hot-air balloon, the airship with its windows lit at dusk, a satellite, the rocket that
+// launched from the pad, a ringed toy planet, a flying saucer, a toy soldier on a parachute at dawn, and
 // party balloons carrying a block away in the morning. Far lanes (FAR_P, behind the near ones): small faded clouds on
 // both sides, spreading out on wide screens.
 //
@@ -64,8 +64,8 @@ export interface Lane {
 }
 
 /** Parallax depth of the near lanes and the far lanes. */
-const NEAR_P = 0.7;
-const FAR_P = 0.35;
+export const NEAR_P = 0.7;
+export const FAR_P = 0.35;
 /**
  * The near lanes start here (levels), above the land: nothing in them comes down past the
  * castle or the rocket before the sea has covered them. The far lanes start lower: they are
@@ -112,11 +112,13 @@ function drifter(spec: Spec, side: number, k: number, salt: number, far: boolean
 // The near right lane, one lap: toys at the hours they suit. The lap starts at NEAR_FROM (a high
 // day; LOOP levels later it is high day again), so: a kite by day, then paper planes, the
 // biplane in the afternoon and more paper planes, the hot-air balloon at sunset, the airship at
-// dusk, the satellite and the rocket as night falls, the planet and the saucer in the deep night,
-// the parachute at dawn, the balloons in the morning and paper planes again.
+// dusk, the satellite and the rocket as night falls (the one that launched from the pad, on its
+// way out among the stars), the planet and the saucer in the deep night, the parachute at dawn,
+// the balloons in the morning and paper planes again. The kite and the first paper planes keep
+// above the cloud the rocket flew into on its launch (launch.ts, at the same depth).
 const RIGHT: Spec[] = [
-  ["kite", 6],
-  ["paper", 11],
+  ["kite", 9.3],
+  ["paper", 12.5],
   // Nearer the column than the rest: its bunting trails far behind it, toward the screen's side.
   ["biplane", 16, 0.335],
   ["paper", 22.5],
@@ -136,16 +138,25 @@ const LEFT: Spec[] = Array.from({ length: 6 }, (_, i) => ["cloud", 6 + i * (LOOP
 // The far lanes: small clouds taking turns either side (none passing the title's row at the start).
 const FAR_LEFT: Spec[] = [60, 86, 110, 128].map((l) => ["cloud", l] as const);
 const FAR_RIGHT: Spec[] = [21, 66, 95, 120].map((l) => ["cloud", l] as const);
+/**
+ * Left out of the far right lane: its lowest cloud would hang right behind the rocket's corkscrew
+ * of smoke (launch.ts), which has that stretch of sky; every lap leaves it out, so the lanes
+ * still repeat. (Left out after the lane is built, so the others keep their looks.)
+ */
+const FAR_RIGHT_OMIT = 21;
 
-function lane(p: number, from: number, side: number, specs: Spec[], salt: number, spread: boolean): Lane {
-  const items = specs.map((sp, k) => drifter(sp, side, k, salt, spread)).sort((a, b) => a.lvl - b.lvl);
+function lane(p: number, from: number, side: number, specs: Spec[], salt: number, spread: boolean, omit = NaN): Lane {
+  const items = specs
+    .map((sp, k) => drifter(sp, side, k, salt, spread))
+    .filter((d) => d.lvl !== omit)
+    .sort((a, b) => a.lvl - b.lvl);
   return { p, from, items, spread };
 }
 
 /** Far lanes first (drawn behind), then the near lanes. */
 export const LANES: readonly Lane[] = [
   lane(FAR_P, FAR_FROM, -1, FAR_LEFT, 5100, true),
-  lane(FAR_P, FAR_FROM, 1, FAR_RIGHT, 5200, true),
+  lane(FAR_P, FAR_FROM, 1, FAR_RIGHT, 5200, true, FAR_RIGHT_OMIT),
   lane(NEAR_P, NEAR_FROM, -1, LEFT, 4000, false),
   lane(NEAR_P, NEAR_FROM, 1, RIGHT, 4100, false),
 ];

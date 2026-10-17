@@ -6,6 +6,7 @@ import { bridge, castle, farTrees, launchPad, portals } from "./far";
 import { fort, inkW, lollipopTree, ringTree, windUpMouse } from "./fort";
 import { BLUE, GREEN, ORANGE, PURPLE, RED, YELLOW } from "./colors";
 import { blocksTop, front } from "./front";
+import { rocketSky } from "./launch";
 import { guards, rockingHorse, spinningTop } from "./meadow";
 import { seaTop } from "./place";
 import { sun } from "./sky";
@@ -17,10 +18,15 @@ import { toneOf } from "./tone";
 // stands in the tower's column above its floor line, nothing beside the base block rises above
 // its top (the slider's first pass never sweeps over it), and no two overlap — except within the
 // far land, whose pieces stand in front of one another (the railway hills' trees and tunnel
-// mouths before the castle's foot), as hills do.
+// mouths before the castle's foot), as hills do. The rocket's corkscrew of smoke is the one thing
+// that runs out through the top of the screen: it leads on up to the cloud the rocket flew into.
 
-/** Scene times: through the actions of the first 10 s (the mouse's run-down, its waddle leaning both ways; the train's run), then at rest. */
-const TIMES = [0, 0.17, 0.52, 1.3, 2.7, 4.3, 5.7, 7.1, 9.6, 12.4, 16.7] as const;
+/**
+ * Scene times: through the actions of the first 10 s (the mouse's run-down, its waddle leaning
+ * both ways; the train's run), the rocket's launch after them (ignition, lift-off, the corkscrew),
+ * then at rest.
+ */
+const TIMES = [0, 0.17, 0.52, 1.3, 2.7, 4.3, 5.7, 7.1, 9.6, 10.6, 11.9, 12.4, 13.6, 14.7, 16.7, 40] as const;
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**
@@ -28,7 +34,8 @@ type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
  * stands beside the base block, so must stay below its top, out of the slider's first lane.
  * `land`: a piece of the far land (may overlap other pieces of it). `drifts`: comes down a sky
  * lane, so at the start it may be anywhere above the screen (or not drawn at all) and may sit
- * beside the HUD; but none is cut by the screen's top edge on the still title screen.
+ * beside the HUD; but none is cut by the screen's top edge on the still title screen. `exits`:
+ * runs on up out of the top of the screen (the rocket's smoke, on up to its cloud).
  */
 interface Prop {
   name: string;
@@ -37,6 +44,7 @@ interface Prop {
   beside?: boolean;
   land?: boolean;
   drifts?: boolean;
+  exits?: boolean;
 }
 const PROPS: Prop[] = [
   { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), seaTop(s)), above: true },
@@ -44,6 +52,9 @@ const PROPS: Prop[] = [
   { name: "near lanes", draw: (ctx, s) => nearDrifters(ctx, s, toneOf(s)), above: true, drifts: true },
   { name: "castle", draw: (ctx, s) => castle(ctx, s, toneOf(s)), above: true, land: true },
   { name: "launch pad", draw: (ctx, s) => launchPad(ctx, s, toneOf(s)), above: true, land: true },
+  // The rocket in the sky, its corkscrew of smoke and the cloud it flies into: it rises from the
+  // land (so may meet the launch pad's smoke), passes behind the title and leaves through the top.
+  { name: "rocket's sky", draw: (ctx, s) => rocketSky(ctx, s, toneOf(s)), above: true, land: true, drifts: true, exits: true },
   { name: "far trees", draw: (ctx, s) => farTrees(ctx, s, toneOf(s)), above: true, land: true },
   { name: "bridge", draw: (ctx, s) => bridge(ctx, s, toneOf(s)), above: true, land: true },
   { name: "tunnels", draw: (ctx, s) => portals(ctx, s, toneOf(s)), above: true, land: true },
@@ -84,7 +95,7 @@ describe("toy kingdom layout", () => {
         for (let x = 0; x < W; x++) {
           if (!m[y * W + x]) continue;
           drawn++;
-          if (x === 0 || x === W - 1 || y === 0) edge++;
+          if (x === 0 || x === W - 1 || (y === 0 && !prop.exits)) edge++;
           if (prop.above && y < floor && x >= x0 && x <= x1) column++;
           if (y < hud && !prop.drifts) top++;
           if (y >= shelf) low++;

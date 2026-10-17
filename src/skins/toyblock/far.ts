@@ -2,6 +2,7 @@ import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { MEADOW, MEADOW_LIGHT } from "./colors";
 import { horizon } from "./place";
+import { armSwing, GANTRY_TOP, PAD_SQUASH, PAD_X, padFlames, padRocket, padSmokeBehind, padSmokeFront } from "./launch";
 import { block } from "./shapes";
 import type { FarToy, Tone } from "./tone";
 
@@ -10,12 +11,13 @@ import type { FarToy, Tone } from "./tone";
 // behind the tower and taller out to the sides; the two landmarks up the side lanes — on the
 // left the King's castle (a curtain wall with a gate, two turrets under cone roofs, a yellow
 // keep and a round tower flying the kingdom's flag, bunting between them), on the right the
-// toy rocket on its launch pad beside a lattice launch tower with a beacon (the same rocket
-// flies past at night, drift.ts); then the green railway hills, where a little train runs from
-// one tunnel to the next and a block bridge crosses a pool; then the meadow the fort stands on.
-// All of it built from the same rounded toy blocks as the tower, faded toward the sky and flat,
-// with no outline; only the train, the flags and the beacon move (well clear of the column).
-// A sea of block clouds billows up and covers it all as you climb (place.ts, sea.ts).
+// toy rocket on its launch pad beside a lattice launch tower with a beacon (at 10 s it lifts off
+// and corkscrews away, launch.ts; it flies past again at night, drift.ts); then the green railway
+// hills, where a little train runs from one tunnel to the next and a block bridge crosses a pool;
+// then the meadow the fort stands on. All of it built from the same rounded toy blocks as the
+// tower, faded toward the sky and flat, with no outline; only the train, the flags, the beacon
+// and the launch move (well clear of the column). A sea of block clouds billows up and covers it
+// all as you climb (place.ts, sea.ts).
 //
 // Positions are in u from the screen center, heights in u from the horizon (negative is up),
 // except the landmarks', which are in u from their own center and up from the horizon.
@@ -314,13 +316,11 @@ function town(ctx: Ctx, s: Scene, tone: Tone): void {
 
 // ---------------------------------------------------------------- the landmarks
 
-/** The castle's and the launch tower's centers (u from the screen center), and the castle's turrets (u out from its center). */
+/** The castle's center (u from the screen center; the launch pad's is PAD_X), and its turrets (u out from its center). */
 const CASTLE_X = -0.371;
 const TURRET = 0.086;
-/** The castle and the rocket are drawn a little squat (their heights below are scaled by these). */
+/** The castle is drawn a little squat (its heights below are scaled by this; the launch pad's by PAD_SQUASH). */
 const CASTLE_SQUASH = 0.88;
-const PAD_SQUASH = 0.95;
-const PAD_X = 0.37;
 
 /** A block in a landmark (u from its center, up from the horizon), drawn body + lit top + shaded right. */
 function farBlock(ctx: Ctx, s: Scene, ox: number, x0: number, y0: number, x1: number, y1: number, c: FarToy): void {
@@ -539,13 +539,12 @@ function farBlockPath(ctx: Ctx, s: Scene, ox: number, x0: number, y0: number, x1
   block(ctx, ox + x0 * u, hz - y1 * u, (x1 - x0) * u, (y1 - y0) * u, u * 0.003);
 }
 
-/** The launch tower's height and the rocket's (u up). */
-const GANTRY_TOP = 0.36;
-
 /**
  * The toy rocket on its launch pad up the right lane: a cream rocket with a red nose, fins and
  * band and two round windows, beside an orange lattice launch tower with a service arm reaching
- * over to it and a beacon on top that blinks.
+ * over to it and a beacon on top that blinks. At 10 s the arm swings up out of the way, the
+ * engine lights and the rocket lifts off in a cloud of smoke (launch.ts); then the pad stands
+ * empty.
  */
 export function launchPad(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
@@ -577,52 +576,35 @@ export function launchPad(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.stroke();
   ctx.fillStyle = orange.light;
   ctx.fillRect(ox + (p0 - 0.004) * u, hz - (GANTRY_TOP + 0.008) * u, (p1 - p0 + 0.008) * u, 0.01 * u);
-  // The service arm, over to the rocket's shoulder.
+  // The service arm, over to the rocket's shoulder; it swings up along the tower before ignition.
   ctx.fillStyle = orange.shade;
-  ctx.fillRect(ox + 0.004 * u, hz - 0.29 * u, (p0 - 0.004) * u, 0.008 * u);
+  const swing = armSwing(s.t);
+  if (swing <= 0) ctx.fillRect(ox + 0.004 * u, hz - 0.29 * u, (p0 - 0.004) * u, 0.008 * u);
+  else {
+    ctx.save();
+    ctx.translate(ox + p0 * u, hz - 0.286 * u);
+    ctx.rotate(swing);
+    ctx.fillRect(-(p0 - 0.004) * u, -0.004 * u, (p0 - 0.004) * u, 0.008 * u);
+    ctx.restore();
+  }
   // The beacon: blinks slowly.
   ctx.beginPath();
   circle(ctx, ox + ((p0 + p1) / 2) * u, hz - (GANTRY_TOP + 0.016) * u, u * 0.007);
   fill(ctx, Math.sin(s.t * 2.2) > 0 ? "#ff5a5a" : red.shade);
-  // The rocket.
-  const rx = -0.025;
-  const hw = 0.027;
-  const c = ox + rx * u;
-  // Fins.
-  ctx.beginPath();
-  ctx.moveTo(c - hw * u, hz - 0.12 * u);
-  ctx.lineTo(c - (hw + 0.024) * u, hz - 0.035 * u);
-  ctx.lineTo(c - hw * u, hz - 0.035 * u);
-  ctx.closePath();
-  ctx.moveTo(c + hw * u, hz - 0.12 * u);
-  ctx.lineTo(c + (hw + 0.024) * u, hz - 0.035 * u);
-  ctx.lineTo(c + hw * u, hz - 0.035 * u);
-  ctx.closePath();
-  fill(ctx, red.shade);
-  // Body: shade, body, band.
-  ctx.beginPath();
-  block(ctx, c - hw * u, hz - 0.3 * u, hw * 2 * u, 0.265 * u, hw * 0.5 * u);
-  fill(ctx, tone.landCream.shade);
-  ctx.beginPath();
-  block(ctx, c - hw * u, hz - 0.3 * u, hw * 1.45 * u, 0.265 * u, hw * 0.5 * u);
-  fill(ctx, tone.landCream.body);
-  ctx.fillStyle = red.body;
-  ctx.fillRect(c - hw * u, hz - 0.1 * u, hw * 2 * u, 0.014 * u);
-  // Nose cone.
-  ctx.beginPath();
-  ctx.moveTo(c - hw * u, hz - 0.29 * u);
-  ctx.quadraticCurveTo(c - hw * 0.9 * u, hz - 0.37 * u, c, hz - 0.395 * u);
-  ctx.quadraticCurveTo(c + hw * 0.9 * u, hz - 0.37 * u, c + hw * u, hz - 0.29 * u);
-  ctx.closePath();
-  fill(ctx, red.body);
-  // Windows.
-  ctx.beginPath();
-  circle(ctx, c, hz - 0.235 * u, u * 0.012);
-  circle(ctx, c, hz - 0.18 * u, u * 0.01);
-  fill(ctx, blue.light);
+  ctx.restore();
+  // The smoke of the lift-off, and the rocket on its pad (or still low beside the tower).
+  padSmokeBehind(ctx, s, tone);
+  padRocket(ctx, s, tone);
   // The pad: a wide low block under it all.
+  ctx.save();
+  ctx.translate(0, hz);
+  ctx.scale(1, PAD_SQUASH);
+  ctx.translate(0, -hz);
   farBlock(ctx, s, ox, -0.1, -0.005, 0.1, 0.036, blue);
   ctx.restore();
+  // The launch cloud billowing over the pad, the engine's fire splashing out under it.
+  padSmokeFront(ctx, s, tone);
+  padFlames(ctx, s, tone);
 }
 
 // ---------------------------------------------------------------- the railway

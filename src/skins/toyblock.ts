@@ -6,6 +6,7 @@ import { farLand, landSkyBottom } from "./toyblock/far";
 import { meadowProps } from "./toyblock/fort";
 import { front } from "./toyblock/front";
 import * as icon from "./toyblock/icons";
+import { rocketSky } from "./toyblock/launch";
 import { landShows, seaTop } from "./toyblock/place";
 import { SEA_SOLID, cloudSea } from "./toyblock/sea";
 import { constellations, moon, skyBands, skyFill, stars, sun } from "./toyblock/sky";
@@ -17,16 +18,19 @@ import { toneIndex, toneOf } from "./toyblock/tone";
 // rocking horse and a drummer of the fort's guard. Beyond lies the kingdom: block mountains, a
 // toy town, the King's castle flying its flag up the left lane and the toy rocket on its launch
 // tower up the right, a little train between two tunnels and a block bridge over a pool; in
-// front, a shelf of big letter blocks.
+// front, a shelf of big letter blocks. At 10 s the rocket lights, lifts off in a cloud of smoke
+// and corkscrews up into a cloud high above, leaving its corkscrew of smoke in the sky for the
+// tower to climb past, up to that cloud (launch.ts).
 //
 // Climb, and a sea of block clouds billows up and swallows the kingdom (the meadow's toys stand
 // in front of it), then falls away below you (place.ts). The day goes on up the sky (tone.ts):
 // toys drift down the right lane (a loose kite, flights of paper planes, a biplane trailing
 // bunting, a teddy in a hot-air balloon, the airship at dusk), the sun sets into the clouds up
 // the left lane, and a sleepy moon with a mobile of stars rises there for the night, when the
-// rocket flies past a ringed toy planet, a satellite and a flying saucer, and constellations in
-// toy shapes come out under the moon. Then dawn: a toy soldier parachutes down, party balloons
-// carry a block away, the sun comes back up, and the day goes round again, forever.
+// rocket (out among the stars since its launch) flies past a ringed toy planet, a satellite and a
+// flying saucer, and constellations in toy shapes come out under the moon. Then dawn: a toy
+// soldier parachutes down, party balloons carry a block away, the sun comes back up, and the day
+// goes round again, forever.
 // Calm by design: flat fills, one ink weight up close, faded and flat far away, and nothing
 // moves behind the tower.
 //
@@ -49,6 +53,7 @@ function backdrop(ctx: Ctx, s: Scene): void {
   moon(ctx, s, tone, top);
   farDrifters(ctx, s, tone);
   if (land) farLand(ctx, s, tone, Math.min(s.cssH, top + s.u * 0.12));
+  rocketSky(ctx, s, tone);
   cloudSea(ctx, s, tone, top);
   nearDrifters(ctx, s, tone);
   meadowProps(ctx, s);
