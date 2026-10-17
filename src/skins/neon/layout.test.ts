@@ -6,30 +6,39 @@ import { neon } from "../neon";
 import type { NeonSkin, Scene } from "../skin";
 import { drawArcade } from "./arcade";
 import { carAt, drawCar } from "./car";
+import { drawDriver, driverOnScreen } from "./driver";
 import { drifters } from "./drift";
 import { ARCADE, PALMS } from "./ground";
 import { drawPalm, RIM } from "./palms";
 import { hudBottom, sunAt } from "./sky";
 import { toneOf } from "./tone";
 
-// The start view, on a tall and a short phone, at a few animation times: each prop is drawn
-// alone, and none touches a screen edge or the HUD at the top, none stands in the tower's
-// column above its floor line, and no two overlap. (The car leaves for good inside the first ten
-// seconds, car.ts: once it is gone it need not be drawn.) The sun is the backdrop's centerpiece and
-// sits behind the tower on purpose; it only has to stay below the HUD.
+// The start view, on a tall and a short phone, at a few animation times through the show (the
+// start shot is 3 s into its scene; the show starts at 6 s, show.ts): each prop is drawn alone,
+// and none touches a screen edge or the HUD at the top, none stands in the tower's column above
+// its floor line, and no two overlap, but for the driver, who comes out of the arcade's door and
+// gets into the car through its open door (show.test.ts checks those). While the car is away it
+// need not be drawn, nor the driver while in the car or the arcade. The sun is the backdrop's
+// centerpiece and sits behind the tower on purpose; it only has to stay below the HUD.
 
 const SIZES = [
   [390, 844],
   [375, 667],
 ] as const;
-const TIMES = [0, 1.3, 2.7, 4.1, 6.6, 9.4] as const;
+const TIMES = [0, 1.3, 2.7, 3.6, 5.2, 8.1, 10.5, 13.4, 19.6, 22.2, 25.9, 28.3] as const;
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
-const PROPS: { name: string; draw: Draw; shows?: (s: Scene) => boolean }[] = [
+const PROPS: { name: string; draw: Draw; shows?: (s: Scene) => boolean; mayTouch?: readonly string[] }[] = [
   { name: "left palm", draw: (ctx, s) => drawPalm(ctx, s, PALMS[0]!, RIM) },
   { name: "right palm", draw: (ctx, s) => drawPalm(ctx, s, PALMS[1]!, RIM) },
   { name: "arcade", draw: (ctx, s) => drawArcade(ctx, s, ARCADE) },
-  { name: "car", draw: drawCar, shows: (s) => carAt(s).phase !== "gone" },
+  { name: "car", draw: drawCar, shows: (s) => carAt(s).phase !== "away" && carAt(s).y < s.cssH },
+  {
+    name: "driver",
+    draw: drawDriver,
+    shows: (s) => driverOnScreen(s).shows && !driverOnScreen(s).inDoor,
+    mayTouch: ["arcade", "car"],
+  },
   { name: "lane clouds", draw: (ctx, s) => drifters(ctx, s, toneOf(s)) },
 ];
 
@@ -86,6 +95,7 @@ describe("synthwave layout", () => {
       expect(column, `${prop.name}: pixels in the tower's column above its floor`).toBe(0);
       expect(top, `${prop.name}: pixels in the HUD`).toBe(0);
       for (let j = i + 1; j < PROPS.length; j++) {
+        if (prop.mayTouch?.includes(PROPS[j]!.name) || PROPS[j]!.mayTouch?.includes(prop.name)) continue;
         const n = masks[j]!;
         let both = 0;
         for (let k = 0; k < m.length; k++) both += m[k]! & n[k]!;

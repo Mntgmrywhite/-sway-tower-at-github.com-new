@@ -2,30 +2,34 @@ import { alpha, circle, hash, mix, oval, type Ctx } from "../../base/draw";
 import { TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
 import { CYAN, GOLD, MAGENTA, ORANGE, PINK, RED, SHADOW, SHADOW_MID, VIOLET } from "./colors";
+import { ARRIVE, BURNOUT, carDoorIn, DONUTS, DONUTS_END, GONE, LAUNCH, PARKED, RETURN, riderIn, seatedIn, showTime, smooth, ZOOM } from "./show";
 import { hotTube, rimTube } from "./tube";
 
 // A chrome wedge coupe of our own design (no real marque), parked on the grid right of the
 // tower, tail toward us: a chrome body mirroring the sunset, a full-width taillight bar split by
 // a small chrome chevron, a raked cabin with dark glass, a ducktail wing on two struts.
 //
-// It puts on a show as each tower's scene starts (Scene.t from 0), over in under ten seconds:
-// a burnout in its spot (brakes on, rear wheels spinning, thick neon-tinted tyre smoke billowing
-// out behind, a little fishtail, the body shaking on the revs and the exhausts popping), then it
-// grips and peels out, straight up the grid into the distance, shrinking in the floor's
-// perspective. Far out it kicks its tail out into three tight donuts (small, with its smoke and
-// glowing tyre rings that fade), comes out of the last spin pointing at the city, and zooms off
-// down the same line to the skyline on the horizon, fading into the haze there. It does not come
-// back: its spot stays empty for the rest of the run (it is parked there again when the next
-// tower's scene starts). The whole show keeps to one lane right of the tower: the line from its
-// spot to the city runs between the tower's column and the right palm's trunk, so it never goes
-// behind the tower, and it stays clear of the palms, the arcade, the screen edges and the
-// "tap to drop" line.
+// It is the star of the show (show.ts, which keeps the time): once its driver is in (driver.ts;
+// the driver's door swings open for them and slams shut), it does a burnout in its spot (brakes
+// on, rear wheels spinning, thick neon-tinted tyre smoke billowing out behind, a little fishtail,
+// the body shaking on the revs and the exhausts popping), then it grips and peels out, straight
+// up the grid into the distance, shrinking in the floor's perspective. Far out it kicks its tail
+// out into three tight donuts (small, with its smoke and glowing tyre rings that fade), comes out
+// of the last spin pointing at the city, and zooms off down the same line to the skyline on the
+// horizon, fading into the haze there. A little later it comes back in through the bottom of the
+// screen (it has looped round behind us), rolls up the floor with its brake lights on and parks
+// in its spot again, and the door opens to let the driver out. The whole show keeps to the floor
+// right of the tower: the line from its spot to the city runs between the tower's column and the
+// right palm's trunk, so it never goes behind the tower, and the way back in from the bottom
+// keeps right of the "tap to drop" line; it stays clear of the palms, the arcade and the screen
+// edges (but for the bottom one it comes in through).
 //
-// The car is a small 3D model (a wedge-prism body, a frustum cabin, a wing, four wheels) drawn
-// through the floor's own perspective, linearized at the car's middle, so as it spins it turns
-// through its rear, side and front views. Faces facing away are skipped; each visible face is
-// drawn in its own flat frame (the rear panel keeps the original chrome art). Everything follows
-// from Scene.t alone: the path, the smoke puffs and the tyre marks are worked out once.
+// The car is a small 3D model (a wedge-prism body, a frustum cabin, a wing, four wheels, the
+// driver's door) drawn through the floor's own perspective, linearized at the car's middle, so as
+// it spins it turns through its rear, side and front views. Faces facing away are skipped; each
+// visible face is drawn in its own flat frame (the rear panel keeps the original chrome art).
+// Everything follows from Scene.t alone: the path, the smoke puffs and the tyre marks are worked
+// out once, in show time.
 
 // ------------------------------------------------------------------ where and when
 
@@ -33,10 +37,10 @@ import { hotTube, rimTube } from "./tube";
 export const CAR_Z = 1.75;
 export const CAR_X = 0.3;
 /** Width (u at the tower's depth; depth is in the same units). */
-const CAR_W = 0.09;
+export const CAR_W = 0.09;
 const HOME_A = (CAR_X * CAR_Z) / TOWER_DEPTH;
 /** Parked pointing straight away from us, so the idle view is a square rear view. */
-const HOME_HEADING = Math.atan2(HOME_A, CAR_Z);
+export const HOME_HEADING = Math.atan2(HOME_A, CAR_Z);
 
 /** It spins about a point this far ahead of its middle (car widths): the tail swings widest. */
 const PIVOT = 0.12;
@@ -64,21 +68,22 @@ const ZOOM_RUN = 50;
 const FADE_FROM = 14;
 const FADE_TO = SPOT_Z + ZOOM_RUN;
 
-/** The show's timeline (seconds of Scene.t). */
-export const BURNOUT = 0.5;
-export const LAUNCH = 2.8;
-/** The tail steps out as it slides into the spot. */
-export const DONUTS = 4.0;
-/** When the pivot reaches the donut spot. */
-export const ARRIVE = 4.5;
-export const DONUTS_END = 7.4;
-/** A beat out of the last spin, then it zooms off to the city, gone by GONE. */
-export const ZOOM = 7.6;
-export const GONE = 9.4;
+/** The way back: it comes in from this depth (below the bottom of any screen, a zoomed-out one
+ *  too), up the floor to its spot. Its lane runs right of its spot's line (screen offset, u):
+ *  RETURN_IN as it comes in over the bottom edge, where it is nearest and widest on screen and
+ *  the screen's right edge is close; then, from WIDE_FROM to WIDE_TO, it swings out to RETURN_WIDE
+ *  as it passes the "tap to drop" line (by then it is smaller, and the right edge has room to
+ *  spare, while the text's right end is close: on a tall phone it would pass within a pixel of
+ *  it), and from MERGE_FROM (past the text) it pulls back into its spot's line by home. */
+export const RETURN_Z = 0.45;
+const RETURN_IN = 0.018;
+const RETURN_WIDE = 0.034;
+const WIDE_FROM = 0.96;
+const WIDE_TO = 1.12;
+const MERGE_FROM = 1.38;
+
 /** Full turns in the donuts (it turns left all the way, ending pointing at the city). */
 export const SPINS = 3;
-/** By now the last smoke and tyre marks have faded: from here on nothing is drawn. */
-export const SHOW_END = 10;
 
 const TAU = Math.PI * 2;
 
@@ -89,21 +94,20 @@ const SHAKE = 0.007;
 const SQUAT = 0.03;
 /** Rear-wheel spin as drawn while they light up (radians per second). */
 const WHEEL_SPIN = 9;
+/** Tyre radius (car widths). */
+const TYRE_R_W = 0.16;
 /** Wheels' spokes and tread repeat every third of a turn. */
 const WHEEL_REPEAT = TAU / 3;
 const snapWheel = (a: number): number => Math.round(a / WHEEL_REPEAT) * WHEEL_REPEAT;
 /** The front wheels only turn from the launch on (from where they stood: a whole repeat). */
 const FRONT_LAG = snapWheel(WHEEL_SPIN * (LAUNCH - BURNOUT));
 
-export type CarPhase = "ready" | "burnout" | "launch" | "donuts" | "zoom" | "gone";
+/** What the car is doing: parked in its spot (before, between and after its runs), its show
+ *  out to the city, away (looping round behind us), and coming back in from the bottom. */
+export type CarPhase = "parked" | "burnout" | "launch" | "donuts" | "zoom" | "away" | "return";
 
 function clamp01(k: number): number {
   return k < 0 ? 0 : k > 1 ? 1 : k;
-}
-
-function smooth(k: number): number {
-  const x = clamp01(k);
-  return x * x * (3 - 2 * x);
 }
 
 /** 0 → 1 with its fastest move a third of the way in: a launch that keeps easing into the spot. */
@@ -141,6 +145,12 @@ function turned(t: number): number {
   return sum;
 }
 
+/** The heading along a line on the floor given by its screen offset x(z) (u) and that offset's
+ *  slope per unit of depth: the floor point is (x * z / TOWER_DEPTH, z). */
+function lineHeading(x: number, slope: number, z: number): number {
+  return Math.atan((x + z * slope) / TOWER_DEPTH);
+}
+
 /** The pivot's way out, by depth: the screen offset (u) of its line, easing from its spot's
  *  line into the lane, and its heading there (along the line it traces on the floor). */
 function wayX(z: number): number {
@@ -149,10 +159,43 @@ function wayX(z: number): number {
 function wayHeading(z: number): number {
   if (z >= HOME_PZ + STEER) return CITY_HEADING;
   const k = clamp01((z - HOME_PZ) / STEER);
-  const slope = (LANE_X - CAR_X) * ((6 * k * (1 - k)) / STEER);
-  // The floor point is (offset * z / TOWER_DEPTH, z): its slope across per unit of depth.
-  return Math.atan((wayX(z) + z * slope) / TOWER_DEPTH);
+  return lineHeading(wayX(z), (LANE_X - CAR_X) * ((6 * k * (1 - k)) / STEER), z);
 }
+
+/** smooth()'s slope at k. */
+function smoothSlope(k: number): number {
+  return k <= 0 || k >= 1 ? 0 : 6 * k * (1 - k);
+}
+
+/** The way back in, by depth: the screen offset (u) of its middle's line right of its spot's
+ *  line, that offset's slope per unit of depth, and its heading along it. */
+function backOff(z: number): number {
+  const wide = RETURN_IN + (RETURN_WIDE - RETURN_IN) * smooth((z - WIDE_FROM) / (WIDE_TO - WIDE_FROM));
+  return wide * (1 - smooth((z - MERGE_FROM) / (CAR_Z - MERGE_FROM)));
+}
+function backSlope(z: number): number {
+  const kw = (z - WIDE_FROM) / (WIDE_TO - WIDE_FROM);
+  const km = (z - MERGE_FROM) / (CAR_Z - MERGE_FROM);
+  const wide = RETURN_IN + (RETURN_WIDE - RETURN_IN) * smooth(kw);
+  const dWide = ((RETURN_WIDE - RETURN_IN) * smoothSlope(kw)) / (WIDE_TO - WIDE_FROM);
+  return dWide * (1 - smooth(km)) - (wide * smoothSlope(km)) / (CAR_Z - MERGE_FROM);
+}
+function backX(z: number): number {
+  return CAR_X + backOff(z);
+}
+function backHeading(z: number): number {
+  return lineHeading(backX(z), backSlope(z), z);
+}
+/** Depth on the way back, k of the way through it: in at speed, braking all the way to its spot. */
+function backZ(k: number): number {
+  const x = clamp01(k);
+  return RETURN_Z + (CAR_Z - RETURN_Z) * (1 - (1 - x) * (1 - x));
+}
+/** The wheels roll a whole number of tread repeats on the way back, so they park as they were. */
+const BACK_ROLL = (() => {
+  const turns = (CAR_Z - RETURN_Z) / CAR_W / TYRE_R_W;
+  return snapWheel(turns) / turns / CAR_W / TYRE_R_W;
+})();
 
 /** Car fade with depth: whole until FADE_FROM, gone in the haze at FADE_TO. */
 function fadeAt(z: number): number {
@@ -175,7 +218,12 @@ const POSE = {
   brake: 0,
   /** How much of it shows (0..1): it fades into the haze at the city. */
   fade: 1,
-  phase: "ready" as CarPhase,
+  /** How far open the driver's door is (0..1), whether the driver sits inside, and how much of
+   *  them shows in the rear glass (0..1: it eases in as they sit down and out before they get out). */
+  door: 0,
+  seated: false,
+  rider: 0,
+  phase: "parked" as CarPhase,
 };
 type Pose = typeof POSE;
 
@@ -184,25 +232,32 @@ function squat(k: number): number {
   return SQUAT * (1 + 0.8 * Math.exp(-k * 5)) * Math.exp(-k * 1.5);
 }
 
-/** Where the car is at scene time t, and what it is doing. Pure in t. */
-function poseAt(t: number): Pose {
+/** Where the car is at show time t (seconds into the current show, show.ts), and what it is
+ *  doing. Pure in t. */
+function poseIn(t: number): Pose {
   const p = POSE;
   p.pitch = 0;
   p.heave = 0;
   p.flare = 0;
   p.brake = 0;
   p.front = 0;
+  p.rear = 0;
   p.fade = 1;
-  p.rear = WHEEL_SPIN * (Math.min(Math.max(t, BURNOUT), GONE) - BURNOUT);
+  p.door = carDoorIn(t);
+  p.seated = seatedIn(t);
+  p.rider = riderIn(t);
   let heading = HOME_HEADING;
   let a = HOME_A;
   let z = CAR_Z;
-  if (t < BURNOUT) {
-    p.phase = "ready";
+  if (t < BURNOUT || t >= PARKED) {
+    p.phase = "parked";
+    // Its brake lights fade as it settles in its spot.
+    if (t >= PARKED) p.brake = 1 - clamp01((t - PARKED) / 0.5);
   } else if (t < LAUNCH) {
     // Burnout: brakes on, rear wheels lit, the tail wagging about the pivot, shaking on the revs.
     p.phase = "burnout";
     const k = t - BURNOUT;
+    p.rear = WHEEL_SPIN * k;
     const env = Math.min(1, k / 0.5) * Math.min(1, (LAUNCH - t) / 0.3);
     heading = HOME_HEADING + FISHTAIL * env * Math.sin(TAU * FISHTAIL_HZ * k);
     a = HOME_PA - PIVOT * CAR_W * Math.sin(heading);
@@ -213,10 +268,11 @@ function poseAt(t: number): Pose {
     p.heave = SHAKE * on * Math.sin(t * 61) * (0.6 + 0.4 * rev * rev);
     p.flare = on * (0.35 + 0.65 * Math.max(0, rev));
     p.brake = 1;
-  } else {
+  } else if (t < GONE) {
     // Peel out up the floor into the lane and out to the spot; the tail steps out as it slides in
     // and it spins about the pivot; out of the last spin it points at the city and zooms off.
-    p.phase = t < DONUTS ? "launch" : t < DONUTS_END ? "donuts" : t < GONE ? "zoom" : "gone";
+    p.phase = t < DONUTS ? "launch" : t < DONUTS_END ? "donuts" : "zoom";
+    p.rear = WHEEL_SPIN * (t - BURNOUT);
     let pz = SPOT_Z;
     let pa = SPOT_A;
     if (t < ARRIVE) {
@@ -239,11 +295,34 @@ function poseAt(t: number): Pose {
       (go > 0 ? Math.exp(-go * 3) : 0);
     p.front = p.rear - FRONT_LAG;
     p.fade = fadeAt(pz);
+  } else if (t < RETURN) {
+    // Away: looping round behind us.
+    p.phase = "away";
+    p.fade = 0;
+    z = RETURN_Z;
+    a = (backX(z) * z) / TOWER_DEPTH;
+  } else {
+    // Back in from below the screen, braking up the floor into its spot.
+    p.phase = "return";
+    const k = (t - RETURN) / (PARKED - RETURN);
+    z = backZ(k);
+    a = (backX(z) * z) / TOWER_DEPTH;
+    heading = backHeading(z);
+    p.rear = (z - RETURN_Z) * BACK_ROLL;
+    p.front = p.rear;
+    p.brake = smooth((k - 0.3) / 0.15);
+    // The nose dips a little under the brakes.
+    p.pitch = -0.012 * p.brake * (1 - k);
   }
   p.a = a;
   p.z = z;
   p.heading = heading;
   return p;
+}
+
+/** The pose at scene time t. */
+function poseAt(t: number): Pose {
+  return poseIn(showTime(t));
 }
 
 // ------------------------------------------------------------------ smoke and tyre marks
@@ -301,7 +380,7 @@ const PUFFS: Float64Array = (() => {
       for (const side of [-1, 1]) {
         n++;
         const t0 = w.from + (k + 0.8 * hash(n * 3.1)) / w.rate;
-        const p = poseAt(t0);
+        const p = poseIn(t0);
         rearPatch(p, side, patch, 0);
         const s = Math.sin(p.heading);
         const c = Math.cos(p.heading);
@@ -335,7 +414,7 @@ const MARK_COUNT = Math.floor((DONUTS_END - MARK_FROM) / MARK_DT) + 1;
 const MARKS: Float64Array = (() => {
   const out = new Float64Array(MARK_COUNT * 4);
   for (let i = 0; i < MARK_COUNT; i++) {
-    const p = poseAt(MARK_FROM + i * MARK_DT);
+    const p = poseIn(MARK_FROM + i * MARK_DT);
     rearPatch(p, -1, out, i * 4);
     rearPatch(p, 1, out, i * 4 + 2);
   }
@@ -510,7 +589,7 @@ const NOSE_H = 0.22;
 const AXLE = 0.62;
 const TYRE_IN = 0.345;
 const TYRE_OUT = 0.475;
-const TYRE_R = 0.16;
+const TYRE_R = TYRE_R_W;
 const ARCH_R = 0.185;
 const ARCH_A = Math.atan2(TYRE_R - BODY_LOW, Math.sqrt(ARCH_R * ARCH_R - (TYRE_R - BODY_LOW) ** 2));
 const ARCH_DX = Math.sqrt(ARCH_R * ARCH_R - (TYRE_R - BODY_LOW) ** 2);
@@ -936,7 +1015,7 @@ function drawSide(ctx: Ctx, side: number, facing: number): void {
 }
 
 /** A cabin end (rear glass or windscreen): its frame, the dark cabin, the glass and a glint. */
-function drawCabinEnd(ctx: Ctx, o: readonly [number, number, number], e2: readonly [number, number, number]): void {
+function drawCabinEnd(ctx: Ctx, o: readonly [number, number, number], e2: readonly [number, number, number], rider: number): void {
   const px = frame(ctx, BD, BX, BY, o, E_X, e2);
   ctx.beginPath();
   poly(ctx, CABIN_END);
@@ -946,6 +1025,7 @@ function drawCabinEnd(ctx: Ctx, o: readonly [number, number, number], e2: readon
   poly(ctx, GLASS_END);
   ctx.fillStyle = GLASS;
   ctx.fill();
+  if (rider > 0) drawRider(ctx, px, rider);
   ctx.beginPath();
   ctx.moveTo(-0.16, -0.548);
   ctx.lineTo(0.02, -0.548);
@@ -956,10 +1036,10 @@ function drawCabinEnd(ctx: Ctx, o: readonly [number, number, number], e2: readon
   ctx.restore();
 }
 
-function drawCabin(ctx: Ctx): void {
+function drawCabin(ctx: Ctx, rider: number): void {
   const v = VB;
-  if (seen(v, 0, REAR_GLASS_N[0], REAR_GLASS_N[1])) drawCabinEnd(ctx, REAR_GLASS_O, REAR_GLASS_E2);
-  if (seen(v, 0, SCREEN_N[0], SCREEN_N[1])) drawCabinEnd(ctx, SCREEN_O, SCREEN_E2);
+  if (seen(v, 0, REAR_GLASS_N[0], REAR_GLASS_N[1])) drawCabinEnd(ctx, REAR_GLASS_O, REAR_GLASS_E2, rider);
+  if (seen(v, 0, SCREEN_N[0], SCREEN_N[1])) drawCabinEnd(ctx, SCREEN_O, SCREEN_E2, 0);
   for (const side of [-1, 1]) {
     if (!seen(v, side * SIDE_GLASS_N[0], 0, SIDE_GLASS_N[1])) continue;
     ctx.beginPath();
@@ -1037,21 +1117,140 @@ function drawBody(ctx: Ctx, p: Pose, t: number, w: number): void {
   if (seen(v, 0, -1, 0)) drawRear(ctx, p, t);
   // Seen from behind the wing stands in front of the cabin; from ahead, the cabin hides it.
   if (v[1]! > 0) {
-    drawCabin(ctx);
+    drawCabin(ctx, p.rider);
     drawWing(ctx, w);
   } else {
     drawWing(ctx, w);
-    drawCabin(ctx);
+    drawCabin(ctx, p.rider);
   }
+}
+
+// ------------------------------------------------------------------ the driver's door
+
+/** The driver's door (left side, car widths): hinged at its front edge, it swings out at its
+ *  rear (a plain swing door: from behind, the open door shows its inner face, out to the left). */
+const DOOR_HINGE = 0.28;
+const DOOR_LEN = 0.58;
+/** Fully open (radians). */
+const DOOR_SWING = 1.1;
+/** Its outline in its own plane, as [s, h]: s from the hinge (0) to its rear edge (1), h up; and
+ *  the window in it. */
+const DOOR: readonly (readonly [number, number])[] = [
+  [0, 0.1],
+  [1, 0.1],
+  [1, 0.55],
+  [0.86, 0.585],
+  [0.42, 0.585],
+  [0.03, 0.4],
+  [0, 0.4],
+];
+const DOOR_GLASS: readonly (readonly [number, number])[] = [
+  [0.12, 0.42],
+  [0.94, 0.42],
+  [0.94, 0.535],
+  [0.83, 0.56],
+  [0.45, 0.56],
+];
+const DOOR_TRIM = mix(SHADOW_MID, VIOLET, 0.3);
+/** Its outside, should it ever be seen open: the sides' chrome, flat. */
+const DOOR_SKIN = SIDE_CHROME[1][1];
+const DOOR_LIGHT = alpha(CYAN, 0.2);
+const ARMREST = alpha(CYAN, 0.75);
+
+/** A point on the door (s along it, h up) open by `swing` radians, into SX, SY. */
+function doorAt(s: number, h: number, swing: number): void {
+  at(BD, BX, BY, -0.5 - s * DOOR_LEN * Math.sin(swing), DOOR_HINGE - s * DOOR_LEN * Math.cos(swing), h);
+}
+
+function doorPath(ctx: Ctx, pts: readonly (readonly [number, number])[], swing: number): void {
+  for (let i = 0; i < pts.length; i++) {
+    doorAt(pts[i]![0], pts[i]![1], swing);
+    if (i === 0) ctx.moveTo(SX, SY);
+    else ctx.lineTo(SX, SY);
+  }
+  ctx.closePath();
+}
+
+/** The open door, `open` of the way (0..1), and the dome light it lets out onto the floor. */
+function drawDoor(ctx: Ctx, open: number, w: number): void {
+  const swing = DOOR_SWING * open;
+  // The door's inner face (it faces into the car when shut) is the one we see from behind.
+  const c = Math.cos(swing);
+  const sn = Math.sin(swing);
+  const facing = -(VB[0]! * c - VB[1]! * sn);
+  const outer = facing < 0;
+  const show = Math.min(1, Math.abs(facing) / 0.25);
+  if (show < 0.02) return;
+  const a = ctx.globalAlpha;
+  frame(ctx, CH, OX, OY, O_FLOOR, E_X, E_L);
+  ctx.beginPath();
+  oval(ctx, -0.8, -0.05, 0.36 * open, 0.42 * open);
+  ctx.fillStyle = DOOR_LIGHT;
+  ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha = a * show;
+  ctx.beginPath();
+  doorPath(ctx, DOOR, swing);
+  ctx.fillStyle = outer ? DOOR_SKIN : DOOR_TRIM;
+  ctx.fill();
+  rimTube(ctx, PINK, Math.max(0.6, w * 0.006));
+  ctx.beginPath();
+  doorPath(ctx, DOOR_GLASS, swing);
+  ctx.fillStyle = GLASS;
+  ctx.fill();
+  if (!outer) {
+    // The armrest, lit by the dash.
+    ctx.beginPath();
+    doorAt(0.15, 0.3, swing);
+    ctx.moveTo(SX, SY);
+    doorAt(0.8, 0.3, swing);
+    ctx.lineTo(SX, SY);
+    ctx.strokeStyle = ARMREST;
+    ctx.lineWidth = Math.max(0.8, w * 0.012);
+    ctx.lineCap = "round";
+    ctx.stroke();
+  }
+  ctx.globalAlpha = a;
+}
+
+/** The driver seen through the rear glass while they sit in it: head and shoulders, dim against
+ *  the dash's glow, a neon line along the top of their hair. In the rear glass's own frame, `show`
+ *  of it (0..1). */
+const RIDER = mix(GLASS, VIOLET, 0.45);
+const RIDER_HAIR = mix(MAGENTA, PINK, 0.4);
+function drawRider(ctx: Ctx, px: number, show: number): void {
+  ctx.save();
+  ctx.globalAlpha *= show;
+  ctx.beginPath();
+  poly(ctx, GLASS_END);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.moveTo(-0.3, -0.4);
+  ctx.lineTo(-0.27, -0.455);
+  ctx.quadraticCurveTo(-0.2, -0.47, -0.17, -0.47);
+  ctx.quadraticCurveTo(-0.14, -0.47, -0.07, -0.455);
+  ctx.lineTo(-0.04, -0.4);
+  ctx.closePath();
+  circle(ctx, -0.17, -0.505, 0.042);
+  ctx.fillStyle = RIDER;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(-0.17, -0.505, 0.046, Math.PI * 1.1, Math.PI * 1.9);
+  ctx.strokeStyle = RIDER_HAIR;
+  ctx.lineWidth = Math.max(px, 0.012);
+  ctx.lineCap = "round";
+  ctx.stroke();
+  ctx.restore();
 }
 
 // ------------------------------------------------------------------ public
 
 /** Scratch result of `carAt`. */
-const CAR = { x: 0, y: 0, w: 0, z: CAR_Z, heading: HOME_HEADING, fade: 1, phase: "ready" as CarPhase };
+const CAR = { x: 0, y: 0, w: 0, z: CAR_Z, heading: HOME_HEADING, fade: 1, door: 0, brake: 0, seated: false, phase: "parked" as CarPhase };
 
 /** Where the car is now: its middle on the floor (x, y), its width (px), depth, heading, how much
- *  of it shows (it fades into the haze at the city), phase. */
+ *  of it shows (it fades into the haze at the city; 0 while it is away), how far open its door
+ *  is, its brake lights, whether its driver is in it, and what it is doing. */
 export function carAt(s: Scene): typeof CAR {
   const p = poseAt(s.t);
   setView(s);
@@ -1061,13 +1260,30 @@ export function carAt(s: Scene): typeof CAR {
   CAR.w = (VIEW.f * CAR_W) / p.z;
   CAR.z = p.z;
   CAR.heading = p.heading;
-  CAR.fade = p.phase === "gone" ? 0 : p.fade;
+  CAR.fade = p.fade;
+  CAR.door = p.door;
+  CAR.brake = p.brake;
+  CAR.seated = p.seated;
   CAR.phase = p.phase;
   return CAR;
 }
 
+/** The car's place and its driver's door, in floor terms: for the driver walking up to it
+ *  (driver.ts). A point beside it, x across and l along it (car widths), at home, into `out` as
+ *  floor (a, z). */
+export function besideCar(x: number, l: number, out: { a: number; z: number }): void {
+  const s = Math.sin(HOME_HEADING);
+  const c = Math.cos(HOME_HEADING);
+  out.a = HOME_A + (x * c + l * s) * CAR_W;
+  out.z = CAR_Z + (-x * s + l * c) * CAR_W;
+}
+
+/** The last tyre mark fades out by then (show time). */
+const MARKS_END = MARK_FROM + MARK_COUNT * MARK_DT + MARK_LIFE;
+
 /** The glowing tyre marks laid so far, each stretch fading on its own. */
 function drawMarks(ctx: Ctx, t: number): void {
+  if (t >= MARKS_END) return;
   const last = Math.min(MARK_COUNT - 1, Math.floor((t - MARK_FROM) / MARK_DT));
   if (last < 1) return;
   // Its own line style: the car's outlines are drawn after it, and must look as they do idling.
@@ -1098,8 +1314,17 @@ function drawMarks(ctx: Ctx, t: number): void {
   ctx.restore();
 }
 
+/** Smoke shows from the first puff until the last one has faded (show time). */
+const SMOKE_FROM = PUFFS[PUFF.t0]!;
+const SMOKE_END = (() => {
+  let end = 0;
+  for (let i = 0; i < PUFFS.length; i += PUFF_FIELDS) end = Math.max(end, PUFFS[i + PUFF.t0]! + PUFFS[i + PUFF.life]!);
+  return end;
+})();
+
 /** Smoke puffs alive now: those further away than `split` (depth) or nearer. */
 function drawSmoke(ctx: Ctx, t: number, split: number, far: boolean): void {
+  if (t < SMOKE_FROM || t >= SMOKE_END) return;
   const f = VIEW.f;
   for (let i = 0; i < PUFFS.length; i += PUFF_FIELDS) {
     const t0 = PUFFS[i + PUFF.t0]!;
@@ -1129,40 +1354,58 @@ function drawSmoke(ctx: Ctx, t: number, split: number, far: boolean): void {
   ctx.globalAlpha = 1;
 }
 
-/** The deepest any smoke drifts (depth): all that is left to draw once the car is gone. */
+/** The deepest any smoke drifts (depth): all that is left to draw while the car is away. */
 const FAR_SMOKE_Z = (() => {
   let far = SPOT_Z;
   for (let i = 0; i < PUFFS.length; i += PUFF_FIELDS) far = Math.max(far, PUFFS[i + PUFF.z]! + Math.max(0, PUFFS[i + PUFF.vz]!) * SMOKE_DRAG);
   return far;
 })();
 
-export function drawCar(ctx: Ctx, s: Scene): void {
-  const t = s.t;
-  if (t >= SHOW_END) return;
-  const p = poseAt(t);
-  const gone = p.phase === "gone";
+/** Something drawn on the floor between the car's open door and its body (the driver getting
+ *  in or out, ground.ts); called once per drawCar, whether or not the car shows. */
+export type Between = (ctx: Ctx, s: Scene) => void;
+
+function drawBetween(ctx: Ctx, s: Scene, between: Between | undefined): void {
+  if (!between) return;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  between(ctx, s);
+  ctx.restore();
+}
+
+export function drawCar(ctx: Ctx, s: Scene, between?: Between): void {
+  const t = showTime(s.t);
+  const p = poseIn(t);
+  const away = p.phase === "away";
   setView(s);
-  // All of the show lies at or nearer than the car (or, once it is gone, its last smoke): when
+  // All of the show lies at or nearer than the car (or, while it is away, its last smoke): when
   // that is below the screen, so is everything else.
-  const zFar = gone ? FAR_SMOKE_Z : p.z;
+  const zFar = away ? FAR_SMOKE_Z : p.z;
   project(0, zFar, 0);
-  if (SY - (VIEW.f * CAR_W * 2) / zFar > s.cssH) return;
+  if (SY - (VIEW.f * CAR_W * 2) / zFar > s.cssH || (away && t >= Math.max(MARKS_END, SMOKE_END))) {
+    drawBetween(ctx, s, between);
+    return;
+  }
   if (cache.ctx !== ctx) build(ctx);
   ctx.save();
   drawMarks(ctx, t);
-  if (gone) {
+  if (away) {
     drawSmoke(ctx, t, Infinity, false);
     ctx.restore();
+    drawBetween(ctx, s, between);
     return;
   }
   setCar(p);
   ctx.globalAlpha = p.fade;
   drawFloorLight(ctx);
   drawSmoke(ctx, t, p.z, true);
+  const w = (VIEW.f * CAR_W) / p.z;
+  ctx.globalAlpha = p.fade;
+  if (p.door > 0) drawDoor(ctx, p.door, w);
+  drawBetween(ctx, s, between);
   // Wheels first (the body hides all but their feet and what shows in the arches), far side first.
   // Looking along +x we see the left side (the near one); looking along +l, the rear wheels are nearer.
   ctx.globalAlpha = p.fade;
-  const w = (VIEW.f * CAR_W) / p.z;
   const near = VC[0]! < 0 ? 1 : -1;
   const ends = VC[1]! > 0 ? FRONT_FIRST : REAR_FIRST;
   for (const side of [-near, near]) {

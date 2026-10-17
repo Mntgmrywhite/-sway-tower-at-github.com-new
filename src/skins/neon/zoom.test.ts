@@ -5,10 +5,12 @@ import { neon } from "../neon";
 import type { Scene } from "../skin";
 import { drawArcade } from "./arcade";
 import { drawCar } from "./car";
+import { drawDriver } from "./driver";
 import { drawDrifter, eachVisible } from "./drift";
 import { ARCADE, PALMS } from "./ground";
 import { drawPalm, RIM } from "./palms";
 import { sceneAt } from "./test-scene";
+import { FIRST, OUT, RETURN } from "./show";
 import { LOOP, LOOP_FROM, toneOf } from "./tone";
 
 // Hard mode's camera zooms out (down to 0.6) when a leaning tower's top would leave the screen:
@@ -72,6 +74,11 @@ describe("synthwave zoomed out", () => {
       for (const [i, p] of PALMS.entries()) expect(onSides(s, (ctx) => drawPalm(ctx, s, p, RIM)), `${what}: palm ${i}`).toBe(0);
       expect(onSides(s, (ctx) => drawArcade(ctx, s, ARCADE)), `${what}: arcade`).toBe(0);
       expect(onSides(s, (ctx) => drawCar(ctx, s)), `${what}: car`).toBe(0);
+      // The show: the driver walking over, the car coming back up the floor.
+      const walking = { ...s, t: FIRST + OUT + 1.5 };
+      expect(onSides(walking, (ctx) => drawDriver(ctx, walking)), `${what}: driver`).toBe(0);
+      const back = { ...s, t: FIRST + RETURN + 1.6 };
+      expect(onSides(back, (ctx) => drawCar(ctx, back)), `${what}: car coming back`).toBe(0);
       eachVisible(s, (d) => {
         // Things come in over the top by parallax as you climb; only the sides are checked for them.
         const n = onSides({ ...s }, (ctx) => {

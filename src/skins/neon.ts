@@ -9,10 +9,14 @@ import type { NeonSkin } from "./skin";
 // Neon Synthwave: an 80s sunset drive, and then up into the stars. At the start, the striped
 // gold-to-pink sun sits on the horizon behind wireframe mountains and a sunset city skyline,
 // the cyan grid streams toward you, two tall palms frame the scene, a roadside arcade glows
-// under one and a chrome wedge coupe (our own design) is parked on the grid under the other;
-// as each tower starts it puts on a show inside ten seconds: a smoking burnout, a peel-out up the
-// grid into the distance, three little donuts far out, and a zoom off to the city on the horizon,
-// where it fades into the haze (neon/car.ts). As you climb you rise past the palm crowns
+// under one and a chrome wedge coupe (our own design) is parked on the grid under the other.
+// Six seconds into each tower's scene they put on a show (neon/show.ts), and again every 30 to
+// 45 seconds for the whole run: the arcade door slides open and its driver, an 80s character of
+// our own in neon line art (neon/driver.ts), walks over to the car and gets in; it does a smoking
+// burnout, peels out up the grid into the distance, spins three little donuts far out and zooms
+// off to the city on the horizon, fading into the haze, then comes back in from the bottom of
+// the screen and parks (neon/car.ts); the driver walks back into the arcade and the door slides
+// shut. As you climb you rise past the palm crowns
 // (the grid keeps its pattern as the floor sinks away), the sun sinks into the horizon, sunset
 // cloud streaks and a line of neon flamingos drift by in the side lanes, and a bank of night
 // cloud rolls in over the grid. Then the violet hour: neon clouds with glowing bases, shooting
