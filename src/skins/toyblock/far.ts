@@ -1,4 +1,4 @@
-import { alpha, circle, hash, type Ctx } from "../../base/draw";
+import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { MEADOW, MEADOW_LIGHT } from "./colors";
 import { horizon } from "./place";
@@ -13,10 +13,10 @@ import type { FarToy, Tone } from "./tone";
 // keep and a round tower flying the kingdom's flag, bunting between them), on the right the
 // toy rocket on its launch pad beside a lattice launch tower with a beacon (at 10 s it lifts off
 // and corkscrews away, launch.ts; it flies past again at night, drift.ts); then the green railway
-// hills, where a little train comes out of one tunnel's dark mouth and runs into the next one's,
+// hills, with a toy railway running between two tunnels (no train: the owner had it removed),
 // and a block bridge crosses a pool; then the meadow the fort stands on. All of it built from the
 // same rounded toy blocks as the tower, faded toward the sky and flat, with no outline; only the
-// train, the flags, the beacon and the launch move (well clear of the column). A sea of block
+// flags, the beacon and the launch move (well clear of the column). A sea of block
 // clouds billows up and covers it all as you climb (place.ts, sea.ts).
 //
 // Positions are in u from the screen center, heights in u from the horizon (negative is up),
@@ -621,133 +621,17 @@ const OPEN_H = 0.72;
 const PORTAL_A = TUNNEL_A - PORTAL_W + PORTAL_OUT;
 const PORTAL_B = TUNNEL_B - PORTAL_OUT;
 /**
- * The open track between the portals (u from center): from A's right edge to B's left edge. The
- * portals' stonework stands in front of the train, so between there and the openings (each arch's
- * pillar on the track's side) it is hidden too: it goes in and out through the arches.
+ * The open track between the portals (u from center): from A's right edge to B's left edge.
  */
 const OPEN_TRACK0 = PORTAL_A + PORTAL_W;
 const OPEN_TRACK1 = PORTAL_B;
 /**
- * The openings' left and right edges (u from center). The train comes out of A's mouth (its right
- * edge) and goes into B's (its left edge); deeper in, it is in the dark of the tunnel.
+ * The openings' left and right edges (u from center).
  */
 const OPEN_A0 = PORTAL_A + PORTAL_W * OPEN_X;
 const OPEN_A1 = OPEN_A0 + PORTAL_W * OPEN_W;
 const OPEN_B0 = PORTAL_B + PORTAL_W * OPEN_X;
 const OPEN_B1 = OPEN_B0 + PORTAL_W * OPEN_W;
-/**
- * The tunnel's dark across each opening: solid over this fraction of it at the inside, then
- * thinning to nothing at the mouth, so the cars fade out of it and back into it.
- */
-const DARK_DEEP = 0.15;
-
-/** The train: engine and two cars, each [length, height, color index] in u; gaps between them. */
-const CARS = [
-  [0.032, 0.022, 0],
-  [0.02, 0.017, 1],
-  [0.02, 0.017, 2],
-] as const;
-const GAP = 0.004;
-const TRAIN = CARS.reduce((a, c) => a + c[0], 0) + GAP * (CARS.length - 1);
-/**
- * Speed (u per second), and how long it waits in the tunnel between runs (s). Each run starts with
- * the engine just behind tunnel A's opening, in the dark, and ends with the last car gone into the
- * dark behind tunnel B's. The first run starts as the scene does and is back underground in under
- * 10 s (the owner's rule: any action within the first 10 s, as players soon climb past); it runs
- * again now and then after that.
- */
-const TRAIN_SPEED = 0.032;
-const TRAIN_WAIT = 7;
-/** How far past the openings' inside edges a run starts and ends (u): out of sight, edges and all. */
-const TRAIN_HIDDEN = 0.004;
-/** Where a run starts and ends: the train's tail (u from center). */
-export const TRAIN_FROM = OPEN_A0 - TRAIN - TRAIN_HIDDEN;
-export const TRAIN_TO = OPEN_B1 + TRAIN_HIDDEN;
-
-/** Where the train's tail is now (u from center), or NaN while it is inside a tunnel. */
-export function trainX(t: number): number {
-  const run = (TRAIN_TO - TRAIN_FROM) / TRAIN_SPEED;
-  const k = t % (run + TRAIN_WAIT);
-  return k < run ? TRAIN_FROM + k * TRAIN_SPEED : NaN;
-}
-
-/**
- * The little train, running right from tunnel A to tunnel B. It is drawn after the portals and
- * seen only on the open track between the portals and through their dark openings: the portals'
- * stonework (the arch's pillar on the track's side too) and the hills hide it, and the dark
- * deepens toward the inside of each opening, so the cars come out of the dark one after another
- * and go back into it, through the arches rather than in front of them.
- */
-export function train(ctx: Ctx, s: Scene, tone: Tone): void {
-  const tail = trainX(s.t);
-  if (Number.isNaN(tail)) return;
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const rail = horizon(s) + TRACK * u;
-  const wheel = u * 0.0055;
-  const deck = rail - wheel * 1.5;
-  const ow = PORTAL_W * OPEN_W * u;
-  const oh = PORTAL_H * OPEN_H * u;
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(cx + OPEN_TRACK0 * u, rail - oh, (OPEN_TRACK1 - OPEN_TRACK0) * u, oh + wheel);
-  archPath(ctx, cx + OPEN_A0 * u, rail, ow, oh);
-  archPath(ctx, cx + OPEN_B0 * u, rail, ow, oh);
-  ctx.clip();
-  let x = cx + tail * u;
-  // Cars and engine, back to front (the train runs right).
-  for (let i = CARS.length - 1; i >= 0; i--) {
-    const [len, h, c] = CARS[i]!;
-    const toy = tone.toys[c]!;
-    const w = len * u;
-    ctx.fillStyle = toy.body;
-    ctx.beginPath();
-    if (i === 0) {
-      // The engine: a cab at the back, a boiler in front, a chimney on the boiler.
-      block(ctx, x, deck - h * u, w * 0.42, h * u, u * 0.003);
-      block(ctx, x + w * 0.38, deck - h * u * 0.62, w * 0.62, h * u * 0.62, u * 0.004);
-      block(ctx, x + w * 0.72, deck - h * u * 0.95, w * 0.14, h * u * 0.36, u * 0.002);
-    } else {
-      block(ctx, x, deck - h * u, w, h * u, u * 0.003);
-    }
-    ctx.fill();
-    ctx.fillStyle = toy.light;
-    ctx.fillRect(x + u * 0.002, deck - h * u + u * 0.002, (i === 0 ? w * 0.42 : w) - u * 0.004, u * 0.004);
-    ctx.fillStyle = tone.tunnel;
-    ctx.beginPath();
-    circle(ctx, x + w * 0.25, deck + wheel * 0.5, wheel);
-    circle(ctx, x + w * 0.75, deck + wheel * 0.5, wheel);
-    ctx.fill();
-    x += w + GAP * u;
-  }
-  // The tunnels' dark over whatever of it is in an opening: deepest at the inside, clear at the
-  // mouth. Only over the train itself (from its tail to its head, up to its chimney), so nothing
-  // else in the openings changes.
-  const clear = alpha(tone.tunnel, 0);
-  const left = cx + tail * u;
-  const right = left + TRAIN * u;
-  const top = deck - CARS[0][1] * u;
-  tunnelDark(ctx, cx + OPEN_A0 * u, cx + OPEN_A1 * u, left, right, top, rail, tone.tunnel, clear);
-  tunnelDark(ctx, cx + OPEN_B1 * u, cx + OPEN_B0 * u, left, right, top, rail, tone.tunnel, clear);
-  ctx.restore();
-}
-
-/**
- * The dark across one opening, from its inside edge (solid) to its mouth (clear), over the part
- * of it between x0 and x1 (the train), from y0 down to y1.
- */
-function tunnelDark(ctx: Ctx, inside: number, mouth: number, x0: number, x1: number, y0: number, y1: number, dark: string, clear: string): void {
-  const a = Math.max(x0, Math.min(inside, mouth));
-  const b = Math.min(x1, Math.max(inside, mouth));
-  if (b <= a) return;
-  const g = ctx.createLinearGradient(inside, 0, mouth, 0);
-  g.addColorStop(0, dark);
-  g.addColorStop(DARK_DEEP, dark);
-  g.addColorStop(1, clear);
-  ctx.fillStyle = g;
-  ctx.fillRect(a, y0, b - a, y1 - y0);
-}
-
 /**
  * The tunnels' openings on screen (px): tunnel A's left edge and its mouth (right edge), tunnel
  * B's mouth (left edge) and its right edge, the open track between the portals (A's right edge,
@@ -914,7 +798,6 @@ export function farLand(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void {
   frontRow(ctx, s, tone);
   track(ctx, s, tone);
   portals(ctx, s, tone);
-  train(ctx, s, tone);
   bridge(ctx, s, tone);
   farTrees(ctx, s, tone);
   meadow(ctx, s, bottom);

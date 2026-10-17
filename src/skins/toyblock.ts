@@ -17,8 +17,8 @@ import { toneIndex, toneOf } from "./toyblock/tone";
 // on a felt-green meadow, among lollipop trees, a tree of stacked rings, a wind-up mouse, a
 // rocking horse and two drummers of the fort's guard marching in place. Beyond lies the kingdom:
 // block mountains, a toy town, the King's castle flying its flag up the left lane and the toy
-// rocket on its launch tower up the right, a little train running out of one tunnel and into the
-// other, and a block bridge over a pool; in front, a shelf of big letter blocks. At 10 s the
+// rocket on its launch tower up the right, a toy railway between two tunnels, and a block bridge
+// over a pool; in front, a shelf of big letter blocks. At 10 s the
 // rocket lights, lifts off in a cloud of smoke and corkscrews up into a cloud high above, leaving
 // its corkscrew of smoke in the sky for the tower to climb past, up to that cloud (launch.ts).
 //

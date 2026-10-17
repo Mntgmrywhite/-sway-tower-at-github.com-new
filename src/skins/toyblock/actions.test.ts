@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toyBlock } from "../toyblock";
-import { TRAIN_FROM, TRAIN_TO, trainX, tunnelMouths } from "./far";
+import { tunnelMouths } from "./far";
 import { centerX, mouseRun, RUN_DOWN, windUpMouse } from "./fort";
 import { footLift, GUARD_FEET, guards, GUARDS, MARCH, SOLDIER_H, stickRaise } from "./meadow";
 import { context, masker, sceneAt, SIZES } from "./test-scene";
@@ -90,25 +90,11 @@ describe("toy kingdom wind-up mouse", () => {
   });
 });
 
-describe("toy kingdom train", () => {
-  it("its first run starts with the scene and is back in a tunnel within 10 s", () => {
-    for (let t = 0; t <= 8; t += 0.25) expect(Number.isNaN(trainX(t)), `t=${t}: on its run`).toBe(false);
-    expect(Number.isNaN(trainX(9.6)), "in the tunnel by 9.6 s").toBe(true);
-  });
-
-  // The owner: "The train never makes it through the tunnels — it appears behind them." The whole
-  // backdrop is drawn through the run and compared, around the railway, with a frame with the
-  // train away in the tunnel: every pixel the train changes must be in tunnel A's dark opening,
-  // on the open track between the portals, or in tunnel B's opening (never over a hill or a
-  // portal's stonework, the arch's pillar beside the track included: it goes through the arches,
-  // not in front of them); it starts unseen in the dark of A, is first seen in A's opening (it
-  // comes out of the mouth, not from behind the portal), is seen in both openings on its way, and
-  // its last pixels go into the dark of B's opening. Each pillar beside the track stays untouched
-  // all the way (the train passes behind it).
-  it.each(SIZES)("%ix%i: it comes out of one tunnel's mouth and goes into the other's", { timeout: 30_000 }, (W, H) => {
-    const run = (TRAIN_TO - TRAIN_FROM) / (trainX(1) - trainX(0));
-    const away = run + 1;
-    const s0 = sceneAt(W, H, 0, away);
+describe("toy kingdom railway", () => {
+  // The owner: "The train isn't going into or out of the tunnels; best to just remove it." The
+  // railway, its two tunnels and the bridge stay as still scenery: nothing moves around them.
+  it.each(SIZES)("%ix%i: no train: the railway and its tunnels stay still", (W, H) => {
+    const s0 = sceneAt(W, H, 0, 0);
     const m = tunnelMouths(s0);
     const u = s0.u;
     const x0 = Math.floor(m.a0 - u * 0.05);
@@ -120,57 +106,13 @@ describe("toy kingdom train", () => {
       toyBlock.ground!(ctx, sceneAt(W, H, 0, t));
       return ctx.getImageData(x0, y0, x1 - x0, y1 - y0).data;
     };
-    const ref = box(away);
-    const w = x1 - x0;
-    // Nothing else moves around the railway while the train is away.
-    const still = box(away + 2.3);
-    for (let i = 0; i < ref.length; i++) expect(still[i], "the railway is still while the train is away").toBe(ref[i]);
-    const zone = (x: number, y: number): "a" | "b" | "track" | "out" => {
-      if (y < m.top - 1 || y > m.rail + 1) return "out";
-      // A pixel counts for a zone if any of it is in that zone; the pillars between the openings
-      // and the open track (a1..track0, track1..b0) belong to none.
-      if (x >= Math.floor(m.a0) - 1 && x < Math.ceil(m.a1)) return "a";
-      if (x >= Math.floor(m.b0) && x <= m.b1 + 1) return "b";
-      if (x >= Math.floor(m.track0) && x < Math.ceil(m.track1)) return "track";
-      return "out";
-    };
-    const seen = { a: 0, b: 0, track: 0, out: 0 };
-    type Zones = typeof seen;
-    let first: Zones | null = null;
-    let last: Zones | null = null;
-    // Moments when the train is seen both in an opening and on the track: half out of A, half into B.
-    let straddleA = 0;
-    let straddleB = 0;
-    for (let t = 0; t <= run + 0.05; t += 0.1) {
+    const ref = box(0);
+    for (const t of [1.3, 3.7, 6.1, 8.9, 14.2, 25]) {
       const now = box(t);
-      const here = { a: 0, b: 0, track: 0, out: 0 };
-      for (let i = 0; i < ref.length; i += 4) {
-        const d = Math.max(Math.abs(now[i]! - ref[i]!), Math.abs(now[i + 1]! - ref[i + 1]!), Math.abs(now[i + 2]! - ref[i + 2]!));
-        if (d <= 6) continue;
-        const p = i / 4;
-        here[zone(x0 + (p % w), y0 + Math.floor(p / w))]++;
-      }
-      const total = here.a + here.b + here.track + here.out;
-      if (t === 0) expect(total, "at the start it is still in the dark of tunnel A").toBe(0);
-      expect(here.out, `t=${t.toFixed(1)}: train pixels over a hill or a portal's stonework`).toBe(0);
-      if (total > 0 && !first) first = here;
-      if (total > 0) last = here;
-      if (here.a > 0 && here.track > 0) straddleA++;
-      if (here.b > 0 && here.track > 0) straddleB++;
-      seen.a += here.a;
-      seen.b += here.b;
-      seen.track += here.track;
+      let changed = 0;
+      for (let i = 0; i < ref.length; i++) if (now[i] !== ref[i]) changed++;
+      expect(changed, `t=${t}: pixels changing around the railway`).toBe(0);
     }
-    expect(first, "the train is seen").not.toBeNull();
-    expect(first!.a, "first seen in tunnel A's opening").toBeGreaterThan(0);
-    expect(first!.track + first!.b, "first seen only in tunnel A's opening").toBe(0);
-    expect(last!.b, "last seen in tunnel B's opening").toBeGreaterThan(0);
-    expect(last!.a + last!.track, "last seen only in tunnel B's opening").toBe(0);
-    expect(seen.a, "seen coming out through tunnel A's mouth").toBeGreaterThan(u * u * 0.002);
-    expect(seen.b, "seen going in through tunnel B's mouth").toBeGreaterThan(u * u * 0.002);
-    expect(seen.track, "seen on the open track").toBeGreaterThan(u * u * 0.01);
-    expect(straddleA, "seen half out of tunnel A, behind its arch's pillar").toBeGreaterThan(0);
-    expect(straddleB, "seen half into tunnel B, behind its arch's pillar").toBeGreaterThan(0);
   });
 });
 

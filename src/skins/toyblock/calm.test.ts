@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { toyBlock } from "../toyblock";
-import { trainX } from "./far";
 import { context, sceneAt, VIEWS } from "./test-scene";
 import { LOOP, LOOP_START } from "./tone";
 
@@ -51,11 +50,5 @@ describe("toy kingdom calm", () => {
     }
     // Something is alive somewhere (the sun's rays by day, the stars by night, the drifters).
     expect(moving, "the scene has some life").toBeGreaterThan(0);
-  });
-
-  it("the train runs, then waits in the tunnel", () => {
-    const seen = new Set<boolean>();
-    for (let t = 0; t < 40; t += 0.25) seen.add(Number.isNaN(trainX(t)));
-    expect([...seen].sort()).toEqual([false, true]);
   });
 });

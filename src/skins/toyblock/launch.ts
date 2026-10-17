@@ -6,8 +6,8 @@ import { climbed, HORIZON_UP, horizon, RISE1 } from "./place";
 import { block, blockCloud, TALL_CLOUD } from "./shapes";
 import { smooth, type Tone } from "./tone";
 
-// The rocket launch: Toy Kingdom's one late action (the owner's call: after the mouse and the
-// train, at 10 s). The toy rocket stands on its pad beside the lattice launch tower up the right
+// The rocket launch: Toy Kingdom's one late action (the owner's call: after the mouse's run-down,
+// at 10 s). The toy rocket stands on its pad beside the lattice launch tower up the right
 // lane (far.ts). Just before IGNITE the service arm swings up out of the way; at IGNITE the
 // engine lights (a flickering flame, the rocket trembling) and a launch cloud of round smoke
 // puffs billows out over the pad; at LIFTOFF it climbs, slowly at first, then faster and

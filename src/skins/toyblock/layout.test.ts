@@ -23,7 +23,7 @@ import { toneOf } from "./tone";
 
 /**
  * Scene times: through the actions of the first 10 s (the mouse's run-down, its waddle leaning
- * both ways; the train's run), the rocket's launch after them (ignition, lift-off, the corkscrew),
+ * both ways), the rocket's launch after them (ignition, lift-off, the corkscrew),
  * then at rest.
  */
 const TIMES = [0, 0.17, 0.52, 1.3, 2.7, 4.3, 5.7, 7.1, 9.6, 10.6, 11.9, 12.4, 13.6, 14.7, 16.7, 40] as const;
