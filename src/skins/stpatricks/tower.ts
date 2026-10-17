@@ -179,9 +179,13 @@ function ladder(ctx: Ctx, s: Scene, cx: number, g: number, foot: number, lw: num
   ctx.fillRect(x + hw - rail * 0.3, top + lw * 0.4, rail * 0.35, bottom - top - lw);
 }
 
-/** Shamrocks on the mound: x (u from center), how far up the mound (fraction), size (u). */
+/**
+ * Shamrocks on the mound: x (u from center), how far up the mound (fraction), size (u). None on
+ * the mound's left foot, over the left gatepost: the hat rises there on the leprechaun's head
+ * (lookout.ts), in front of the mound's edge.
+ */
 const MOUND_SHAMROCKS = [
-  [-0.2, 0.45, 0.036],
+  [-0.13, 0.62, 0.034],
   [0.07, 0.8, 0.03],
   [0.19, 0.5, 0.034],
 ] as const;

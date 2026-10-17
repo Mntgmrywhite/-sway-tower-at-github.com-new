@@ -27,13 +27,14 @@ import { roundTower } from "./stpatricks/tower";
 // with a gateway, shamrocks in the grass verge, and a tiny green hat left on a gatepost.
 // Climb, and a pair of swallows wheels by, the clouds gather into a floor below you (only the
 // mountain tops stand out of it, and it sinks with them to rest low on the screen for good), a
-// soft spring shower lets fall a few drops in the side lanes, then the sun breaks through and
-// a little rainbow with its own pot of gold stands in the lane opposite it; geese fly home in a
-// golden evening, the four swans of Lir glide by at dusk, and a calm starry night with a
-// crescent moon and the odd shooting star. Then the story loops: the night gives way to a rose
-// dawn with skylarks and the morning star, and the day comes round again (tone.ts). Calm by
-// design: flat fills, one ink weight up close, faded silhouettes far away, and nothing moves
-// behind the tower (but the rainbow as it forms, in a tower's first seconds).
+// soft spring shower lets fall a few drops in the right-hand lane, then the sun breaks through
+// and a little rainbow with its own pot of gold stands in that lane, opposite it; geese fly home
+// in a golden evening, the four swans of Lir glide by at dusk, and a calm starry night with a
+// crescent moon where the sun set and the odd shooting star. Then the story loops: the night
+// gives way to a rose dawn with skylarks and the morning star, and the day comes round again
+// (tone.ts). The left of the sky is the sun's and the moon's: nothing drifts across them.
+// Calm by design: flat fills, one ink weight up close, faded silhouettes far away, and nothing
+// moves behind the tower (but the rainbow as it forms, in a tower's first seconds).
 //
 // The altitude story needs every layer of the backdrop, so St. Patrick's paints all of it in
 // one pass (`backdrop`, in the ground hook). The celestial and far hooks are empty on purpose:

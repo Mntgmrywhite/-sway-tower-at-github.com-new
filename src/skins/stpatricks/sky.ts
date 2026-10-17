@@ -4,10 +4,13 @@ import type { Tone } from "./tone";
 
 // The sky and what hangs in it: the gradient for the hour (from tone.ts), a spring sun up on
 // the left (pale behind the shower, amber in the golden evening) that sinks into the cloud
-// floor at sunset, then a crescent moon on the right and the stars, now and then a shooting
-// star out in the side lanes; at the loop's dawn the moon and stars fade, the morning star
-// lingers low on the right, and the sun comes back up where it set. Celestial things are far
-// away: flat fills, no outline, a flat halo instead of a glow.
+// floor at sunset, then a crescent moon in the same place, lit on the side the sun set, and the
+// stars, now and then a shooting star out in a side lane; at the loop's dawn the moon and stars
+// fade, the morning star lingers low on the right, and the sun comes back up where it set.
+// Celestial things are far away: flat fills, no outline, a flat halo instead of a glow.
+//
+// The left of the sky belongs to the sun and the moon: nothing drifts there (drift.ts), and a
+// shooting star on that side streaks high above the moon, so nothing ever passes over either.
 
 /** Gradient stops for the four sky colors (top, middle, glow band, bottom). */
 const STOPS = [0, 0.4, 0.7, 0.92] as const;
@@ -80,10 +83,10 @@ export function sun(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
 
 // ---------------------------------------------------------------- moon and stars
 
-/** Where the moon hangs: up on the right, below the title. */
+/** Where the moon hangs: up on the left where the sun hung, below the title. */
 export function moonAt(s: Scene): typeof MOON_AT {
   MOON_AT.r = s.u * 0.05;
-  MOON_AT.x = Math.min(s.cssW - MOON_AT.r * 2, s.cssW / 2 + s.u * 0.36);
+  MOON_AT.x = Math.max(MOON_AT.r * 2, s.cssW / 2 - s.u * 0.36);
   MOON_AT.y = s.cssH * 0.25;
   return MOON_AT;
 }
@@ -91,7 +94,7 @@ export function moonAt(s: Scene): typeof MOON_AT {
 const MOON = "#fff3c8";
 const MOON_SHADE = "#efd99c";
 
-/** A crescent moon up on the right, fading in at dusk. The bite is painted with the sky itself. */
+/** A crescent moon up on the left, fading in at dusk, lit low on the side the sun set. The bite is painted with the sky itself. */
 export function moon(ctx: Ctx, s: Scene, tone: Tone): void {
   if (tone.moon <= 0 || !cache.fill) return;
   const { x, y, r } = moonAt(s);
@@ -154,7 +157,7 @@ export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
 /** Scratch result of `morningStarAt`. */
 const MORNING_STAR = { x: 0, y: 0 };
 
-/** The morning star: low on the right, out in the lane, under where the moon hangs. */
+/** The morning star: low on the right, out in the lane, across the sky from where the moon hangs. */
 export function morningStarAt(s: Scene): typeof MORNING_STAR {
   MORNING_STAR.x = Math.min(s.cssW - s.u * 0.06, s.cssW / 2 + s.u * 0.33);
   MORNING_STAR.y = s.cssH * 0.4;
@@ -182,6 +185,14 @@ export function morningStar(ctx: Ctx, s: Scene, tone: Tone): void {
 /** Shooting stars: one every SHOOT_EVERY seconds or so, each crossing the sky for SHOOT_TIME. */
 const SHOOT_EVERY = 6.3;
 const SHOOT_TIME = 0.75;
+/**
+ * How far down the screen a shooting star may start (fractions of its height, plus 0.05 u): on
+ * the right anywhere in the upper sky, on the moon's side only high above it (the moon is up
+ * whenever the stars are bright enough for one: tone.ts).
+ */
+const SHOOT_FROM = 0.08;
+const SHOOT_SPAN = 0.22;
+const SHOOT_SPAN_MOON = 0.06;
 
 /**
  * Now and then a shooting star streaks down and outward high in a side lane, by night only,
@@ -196,7 +207,7 @@ export function shootingStar(ctx: Ctx, s: Scene, tone: Tone): void {
   const side = hash(n * 3 + 9101) < 0.5 ? -1 : 1;
   // Starts between 0.3 and 0.4 u out from the center, falls outward and down 0.08 u.
   const x0 = s.cssW / 2 + side * u * (0.3 + hash(n * 3 + 9102) * 0.1);
-  const y0 = s.cssH * (0.08 + hash(n * 3 + 9103) * 0.22) + u * 0.05;
+  const y0 = s.cssH * (SHOOT_FROM + hash(n * 3 + 9103) * (side < 0 ? SHOOT_SPAN_MOON : SHOOT_SPAN)) + u * 0.05;
   const run = u * 0.08;
   const hx = x0 + side * run * k;
   const hy = y0 + run * 0.55 * k;

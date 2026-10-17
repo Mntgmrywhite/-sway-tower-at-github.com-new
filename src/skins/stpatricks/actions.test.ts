@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RAINBOW } from "./colors";
 import { BACK_X, bowSweep, plan, POT_X, SETTLED } from "./gold";
+import { atRest, FULL_RISE, lookout, PEEK_RISE } from "./lookout";
 import { flockPoses } from "./pasture";
 import { sceneAt } from "./test-scene";
 
@@ -11,10 +12,12 @@ import { sceneAt } from "./test-scene";
 //
 // What the start view shows over time on St. Patrick's Day: the rainbow sweeping into its arch,
 // the leprechaun bringing his pot of gold out from behind the round tower to its foot (then he
-// only keeps watch, peeking out now and then), and the flock in the back pasture frolicking (the
-// lambs race and then pronk or skip, the ewes look up, bounce and amble a few steps). The rest is
-// ambient: the turf smoke, the glint winking on the gold, the swallows wheeling on their spot,
-// the clouds bobbing. The lanes' geese, swans and larks, the rain, the sky's rainbow and the
+// only keeps watch, peeking out now and then), the second leprechaun coming up from behind the
+// gatepost with the hat on his head, grinning and winking, and ducking back down (then he comes
+// up now and then), and the flock in the back pasture frolicking (the lambs race and then pronk
+// or skip, the ewes look up, bounce and amble a few steps). The rest is ambient: the turf
+// smoke, the glint winking on the gold, the swallows wheeling on their spot, the clouds
+// bobbing. The lane's geese, swans and larks, the rain, the sky's rainbow and the
 // shooting stars come with the height you climb to, so they are exempt.
 
 const OPENING = 10;
@@ -39,6 +42,25 @@ describe("st. patrick's actions happen in the first 10 seconds", () => {
     expect(plan(SETTLED).shown).toBe(false);
     expect(peek, "peeks out").toBeGreaterThan(0);
     expect(peek, "peeks out").toBeLessThan(7);
+  });
+
+  it("the leprechaun on the gatepost comes up with the hat on his head, grins and winks, and ducks back down", () => {
+    let peek = -1;
+    let up = -1;
+    let wink = -1;
+    let down = -1;
+    for (let t = 0; t < OPENING; t += FRAME) {
+      const p = lookout(t);
+      if (peek < 0 && p.rise > PEEK_RISE * 0.9) peek = t;
+      if (up < 0 && p.rise > FULL_RISE * 0.99) up = t;
+      if (wink < 0 && p.wink) wink = t;
+      if (up > 0 && down < 0 && atRest(p)) down = t;
+    }
+    expect(peek, "his eyes over the post").toBeGreaterThan(0);
+    expect(up, "his whole face").toBeGreaterThan(peek);
+    expect(wink, "a wink").toBeGreaterThan(up);
+    expect(down, "down again").toBeGreaterThan(wink);
+    expect(down, "down again").toBeLessThan(OPENING);
   });
 
   it("the flock frolics: the lambs race, one pronks and one skips, the ewes look up, bounce and amble; then they graze", () => {

@@ -5,121 +5,110 @@ import type { Scene } from "../skin";
 import { birdStroke, cloud, LONG_CLOUD, SMALL_CLOUD, TALL_CLOUD, type CloudShape } from "./shapes";
 import { LOOP, LOOP_START, type Tone } from "./tone";
 
-// What drifts past as you climb, in a lane down each side of the screen: a pair of swallows
-// back for the spring at the start, then soft clouds; up in the shower some of them let fall a
+// What drifts past as you climb, in the lane down the right of the screen: a pair of swallows
+// back for the spring at the start, then soft clouds; up in the shower two of them let fall a
 // few drops (only while you are in it: the weather comes from the altitude, see tone.ts); above
-// it a little rainbow standing on two clouds in the right lane, opposite the sun, a tiny pot of
-// gold at its foot; a skein of geese heading home in the golden evening, then the four white
-// swans of the old story of the Children of Lir, gliding in a line at dusk; and a calm, sparse
-// night of clouds. When the story loops (tone.ts), its dawn brings pink-lit clouds and a pair
-// of skylarks hovering and singing, and from the morning on the lanes run the first day's
-// story again. Each thing is anchored at a height in its lane, so it comes down past you as the
-// camera climbs (one parallax depth for both lanes), and it only ever moves gently in place:
-// nothing crosses the tower's column. Things in a lane are spaced so they never overlap, and
-// the lanes are staggered so left and right take turns. Far away, so faded and flat, with no
-// outline.
+// it a little rainbow standing on two clouds, opposite the sun, a tiny pot of gold at its foot;
+// a skein of geese heading home in the golden evening, then the four white swans of the old
+// story of the Children of Lir, gliding in a line at dusk; and a calm, sparse night of clouds.
+// When the story loops (tone.ts), its dawn brings pink-lit clouds and a pair of skylarks
+// hovering and singing, and from the morning on the lane runs the first day's story again.
+// Each thing is anchored at a height in the lane, so it comes down past you as the camera
+// climbs, and it only ever moves gently in place: nothing crosses the tower's column. Things
+// are spaced so they never overlap. Far away, so faded and flat, with no outline.
+//
+// The left of the sky is the sun's and the moon's (sky.ts): the sun hangs there by day and
+// sets into the cloud floor, the crescent moon comes out in the same place at night, and the
+// sun rises there again at the loop's dawn. One of them is up at every height, and a lane
+// comes down every height of the screen, so nothing drifts on the left at all: no cloud or bird
+// ever slides across the sun or the moon (the owner's rule, drift.test.ts).
 
 type Kind = "cloud" | "swallows" | "rainbow" | "geese" | "swans" | "larks";
 
 export interface Drifter {
   kind: Kind;
-  /** Height in its lane, world units. */
+  /** Height in the lane, world units. */
   at: number;
-  /** Center, in u from the screen center (negative is left). */
+  /** Center, in u from the screen center (positive: right of it). */
   x: number;
   /** Size, in u. */
   size: number;
-  /** Which way it faces: +1 out to the right, -1 out to the left. */
-  m: number;
   /** A cloud that rains while you are in the shower. */
   rain: boolean;
   shape: CloudShape;
   phase: number;
 }
 
-/** Parallax depth of both lanes (1 moves with the tower). */
+/** Parallax depth of the lane (1 moves with the tower). */
 const LANE_P = 0.7;
 
 /** One authored entry: what, its height in the lane (world units), and optionally its center (u from the screen center). */
 type Spec = readonly [kind: Kind | "rain", at: number, x?: number];
 
 // The first day's story, by hand. A thing at height `at` comes in at the top of the screen
-// around level (at - 230) / 8 and leaves at the bottom around level (at + 235) / 8 (on a tall
-// phone). The sun sits up the left lane by day and sets there (and rises there again at the
-// loop's dawn), and the moon rises up the right lane at dusk, so only clouds drift past them:
-// the left lane carries only clouds, and the right lane's birds and rainbow pass the moon's
-// spot only while it is down.
+// around level (at - 230) / 8, passes the sun's height around level (at - 95) / 8 and leaves
+// at the bottom around level (at + 235) / 8 (on a tall phone).
 //
 // The swallows are the only thing that comes down past the land before the cloud floor covers
 // it, so they fly further out than the rest, clear of the far props (see far.ts). Everything
 // else starts high enough to reach the horizon only once the land is covered.
-const RIGHT: Spec[] = [
+const DAY: Spec[] = [
   ["swallows", 150, 0.43],
-  ["rain", 340],
-  ["rainbow", 440, 0.38],
-  ["geese", 560],
-  ["swans", 660, 0.38],
-  ["cloud", 770],
-];
-const LEFT: Spec[] = [
-  ["rain", 390],
-  ["cloud", 570],
-  ["cloud", 750],
+  ["rain", 345],
+  ["rain", 410],
+  ["rainbow", 470, 0.38],
+  ["cloud", 530],
+  ["geese", 590],
+  ["swans", 680, 0.38],
+  ["cloud", 780],
 ];
 
 // The loop's own stretch before the morning (tone.ts: the night hold and the dawn), at story
-// heights below the first day's morning (storyLevel * BLOCK_HEIGHT, so negative): a pink-lit
-// cloud either side as the sun comes up, and the skylarks once the moon has gone.
-const DAWN_RIGHT: Spec[] = [
-  ["cloud", -70],
-  ["larks", 50, 0.4],
-];
-const DAWN_LEFT: Spec[] = [
-  ["cloud", -40],
-  ["cloud", 130],
+// heights below the first day's morning (storyLevel * BLOCK_HEIGHT, so negative): two pink-lit
+// clouds as the sun comes up, and the skylarks once the moon has gone.
+const DAWN: Spec[] = [
+  ["cloud", -90],
+  ["cloud", -10],
+  ["larks", 90, 0.41],
 ];
 
-/** Story heights from here on repeat with the loop; the first day's lanes run below LOOP_AT. */
+/** Story heights from here on repeat with the loop; the first day's lane runs below LOOP_AT. */
 const LOOP_AT = LOOP_START * BLOCK_HEIGHT;
 const PERIOD = LOOP * BLOCK_HEIGHT;
 /** The first day's things from this story height on come round again in every turn of the loop. */
 const AGAIN_FROM = 96;
 
-function drifter(kind: Spec[0], at: number, side: number, k: number, x?: number): Drifter {
-  const h = (n: number) => hash(k * 17 + side * 59 + n + 8000);
+function drifter(kind: Spec[0], at: number, k: number, x?: number): Drifter {
+  const h = (n: number) => hash(k * 17 + 59 + n + 8000);
   const isCloud = kind === "cloud" || kind === "rain";
   return {
     kind: kind === "rain" ? "cloud" : kind,
     at,
-    x: side * (x ?? 0.37 + h(1) * 0.02),
+    x: x ?? 0.37 + h(1) * 0.02,
     size: isCloud ? 0.044 + h(2) * 0.01 : kind === "rainbow" ? 0.042 : 0.03,
-    m: side,
     rain: kind === "rain",
     shape: h(5) < 0.55 ? LONG_CLOUD : TALL_CLOUD,
     phase: h(6) * 10,
   };
 }
 
-function lane(side: number, story: Spec[], k0: number): Drifter[] {
-  return story.map(([kind, at, x], k) => drifter(kind, at, side, k + k0, x));
+function lane(story: Spec[], k0: number): Drifter[] {
+  return story.map(([kind, at, x], k) => drifter(kind, at, k + k0, x));
 }
 
-/** The first day's lanes (right, then left), each running up from its lowest item. */
-const FIRST: readonly (readonly Drifter[])[] = [lane(1, RIGHT, 0), lane(-1, LEFT, 0)];
+/** The first day's lane, running up from its lowest item. */
+const FIRST: readonly Drifter[] = lane(DAY, 0);
 /**
  * One turn of the loop, at story heights (LOOP_AT - PERIOD .. LOOP_AT): the dawn's things, then
  * the first day's from its morning on. Turn n (from 1) shows them PERIOD * n higher.
  */
-const TURN: readonly (readonly Drifter[])[] = [
-  [...lane(1, DAWN_RIGHT, 40), ...FIRST[0]!.filter((d) => d.at >= AGAIN_FROM)],
-  [...lane(-1, DAWN_LEFT, 40), ...FIRST[1]!.filter((d) => d.at >= AGAIN_FROM)],
-];
+const TURN: readonly Drifter[] = [...lane(DAWN, 40), ...FIRST.filter((d) => d.at >= AGAIN_FROM)];
 
 /** Scratch copies of the loop's things placed in a turn, reused every call (a frame shows a handful). */
-const POOL: Drifter[] = Array.from({ length: 48 }, () => ({ ...FIRST[0]![0]! }));
+const POOL: Drifter[] = Array.from({ length: 48 }, () => ({ ...FIRST[0]! }));
 
-/** Calls `draw` for every item on screen (or close to it), lowest first, lane by lane. */
-export function eachVisible(s: Scene, draw: (d: Drifter, lane: number) => void): void {
+/** Calls `draw` for every item on screen (or close to it), lowest first. */
+export function eachVisible(s: Scene, draw: (d: Drifter) => void): void {
   const margin = s.u * 0.3;
   const base = layerGround(s, LANE_P);
   const unit = s.scale * LANE_P;
@@ -127,26 +116,23 @@ export function eachVisible(s: Scene, draw: (d: Drifter, lane: number) => void):
   const lo = (base - s.cssH - margin) / unit;
   const hi = (base + margin) / unit;
   let pooled = 0;
-  for (let l = 0; l < FIRST.length; l++) {
-    for (const d of FIRST[l]!) {
-      if (d.at < lo) continue;
-      if (d.at > hi) break;
-      draw(d, l);
-    }
-    const turn = TURN[l]!;
-    if (hi < turn[0]!.at + PERIOD) continue;
-    for (let n = Math.max(1, Math.floor((lo - LOOP_AT) / PERIOD)); ; n++) {
-      const off = PERIOD * n;
-      if (turn[0]!.at + off > hi) break;
-      for (const d of turn) {
-        const at = d.at + off;
-        if (at < lo) continue;
-        if (at > hi) break;
-        const p = POOL[pooled++ % POOL.length]!;
-        Object.assign(p, d);
-        p.at = at;
-        draw(p, l);
-      }
+  for (const d of FIRST) {
+    if (d.at < lo) continue;
+    if (d.at > hi) break;
+    draw(d);
+  }
+  if (hi < TURN[0]!.at + PERIOD) return;
+  for (let n = Math.max(1, Math.floor((lo - LOOP_AT) / PERIOD)); ; n++) {
+    const off = PERIOD * n;
+    if (TURN[0]!.at + off > hi) break;
+    for (const d of TURN) {
+      const at = d.at + off;
+      if (at < lo) continue;
+      if (at > hi) break;
+      const p = POOL[pooled++ % POOL.length]!;
+      Object.assign(p, d);
+      p.at = at;
+      draw(p);
     }
   }
 }
@@ -164,8 +150,8 @@ export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, d: Drifter): void {
     cloud(ctx, d.shape, x, y + bob, k, tone.cloudShade, tone.cloud, tone.cloudLight);
   } else if (d.kind === "swallows") swallows(ctx, s, tone, x, y, d.phase);
   else if (d.kind === "rainbow") rainbow(ctx, tone, x, y + bob, k);
-  else if (d.kind === "geese") geese(ctx, s, tone, x, y, d.m, d.phase);
-  else if (d.kind === "swans") swans(ctx, s, tone, x, y, d.m, d.phase);
+  else if (d.kind === "geese") geese(ctx, s, tone, x, y, 1, d.phase);
+  else if (d.kind === "swans") swans(ctx, s, tone, x, y, 1, d.phase);
   else larks(ctx, s, tone, x, y, d.phase);
 }
 

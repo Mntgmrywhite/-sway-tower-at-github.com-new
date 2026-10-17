@@ -1,22 +1,24 @@
 import { hash, ink, type Ctx } from "../../base/draw";
 import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
-import { GRASS, HAT, INK, MEADOW, PATH, WALL_GAP, WALL_STONES } from "./colors";
+import { GRASS, INK, MEADOW, PATH, WALL_GAP, WALL_STONES } from "./colors";
+import { HAT_HIGHEST, hatOnPost, lookout, lookoutBehind } from "./lookout";
 import { block } from "./shapes";
 import { inkW, shamrocks } from "./tower";
 
 // The near edge we look over: a low dry-stone wall, two courses of grey and fawn field stones
 // under a cope of stones set on edge, inked like everything up close, and a grass verge in
 // front of it with shamrocks in it. In the middle the wall stops at two upright gateposts with
-// a worn path running out through the gap, and on the left post someone has left a tiny green
-// hat. It covers the base band and drops away faster than the tower as the camera climbs
-// (parallax 1.6, like the band), so it only frames the start. The gateway stays clear:
-// render.ts writes "tap to drop" there at the start (at 0.9 of the screen height), which on a
-// short phone falls across the wall's top and on a tall one across its courses.
+// a worn path running out through the gap, and on the left post sits a tiny green hat: now and
+// then it lifts on the head of the leprechaun crouched behind the post (lookout.ts). It covers
+// the base band and drops away faster than the tower as the camera climbs (parallax 1.6, like
+// the band), so it only frames the start. The gateway stays clear: render.ts writes "tap to
+// drop" there at the start (at 0.9 of the screen height), which on a short phone falls across
+// the wall's top and on a tall one across its courses.
 
 /** How far the wall's top stands above the base band's top edge (u). */
 const WALL_UP = 0.03;
-/** Half the gateway's width (u; "tap to drop" is about 0.29 u wide), and the gateposts. */
+/** Half the gateway's width (u; "tap to drop" is about 0.29 u wide), and the gateposts (the leprechaun behind the left one is narrower than it: lookout.ts). */
 export const GATE = 0.17;
 const POST_W = 0.042;
 const POST_UP = 0.022;
@@ -39,9 +41,19 @@ export function wallFoot(s: Scene): number {
   return wallTop(s) + s.u * WALL_H;
 }
 
-/** The top of the gateposts and the hat: the highest thing in front. */
+/** The top of the gateposts and the hat (risen as high as the leprechaun under it takes it): the highest thing in front. */
 export function gateTop(s: Scene): number {
-  return wallTop(s) - s.u * (POST_UP + 0.045);
+  return wallTop(s) - s.u * (POST_UP + 0.045 + HAT_HIGHEST);
+}
+
+/** Scratch result of `leftPost`. */
+const LEFT_POST = { x: 0, top: 0 };
+
+/** The left gatepost, which the hat sits on and the leprechaun hides behind: its center and its top. */
+export function leftPost(s: Scene): typeof LEFT_POST {
+  LEFT_POST.x = s.cssW / 2 - (GATE + POST_W / 2) * s.u;
+  LEFT_POST.top = wallTop(s) - POST_UP * s.u;
+  return LEFT_POST;
 }
 
 /** Shamrock clumps in the verge in front of the wall: x (u from center), depth fraction, size (u). */
@@ -219,31 +231,6 @@ function posts(ctx: Ctx, s: Scene, top: number, bottom: number, lw: number): voi
   ink(ctx, lw, INK);
 }
 
-/** A tiny green hat left on the gatepost: a brim, a tall crown, a darker band. */
-function hat(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
-  const u = s.u;
-  const crownW = u * 0.032;
-  const crownH = u * 0.036;
-  ctx.beginPath();
-  ctx.moveTo(x - crownW / 2, y - u * 0.003);
-  ctx.lineTo(x - crownW * 0.56, y - crownH);
-  ctx.quadraticCurveTo(x, y - crownH - u * 0.005, x + crownW * 0.56, y - crownH);
-  ctx.lineTo(x + crownW / 2, y - u * 0.003);
-  ctx.closePath();
-  ctx.fillStyle = HAT.body;
-  ctx.fill();
-  ctx.fillStyle = HAT.light;
-  ctx.fillRect(x - crownW * 0.4, y - crownH + u * 0.005, crownW * 0.2, crownH - u * 0.016);
-  ctx.fillStyle = HAT.shade;
-  ctx.fillRect(x - crownW * 0.52, y - u * 0.015, crownW * 1.04, u * 0.008);
-  ink(ctx, lw * 0.85, INK);
-  ctx.beginPath();
-  block(ctx, x - u * 0.028, y - u * 0.005, u * 0.056, u * 0.009, u * 0.0045);
-  ctx.fillStyle = HAT.body;
-  ctx.fill();
-  ink(ctx, lw * 0.85, INK);
-}
-
 export function front(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const top = wallTop(s);
@@ -268,12 +255,15 @@ export function front(ctx: Ctx, s: Scene): void {
   ctx.quadraticCurveTo(cx - u * 0.1, top + u * 0.06, cx - u * 0.06, top - u * 0.012);
   ctx.closePath();
   ctx.fill();
-  // The wall either side of the gateway, its gateposts, the grass verge in front with
-  // shamrocks in it.
+  // The leprechaun crouched behind the left gatepost (only what rises above its top shows),
+  // the wall either side of the gateway, its gateposts, the grass verge in front with
+  // shamrocks in it, and the hat on the post (or on his head).
+  const pose = lookout(s.t);
+  const post = leftPost(s);
+  lookoutBehind(ctx, u, post.x, post.top, lw, pose);
   wall(ctx, s, top, lw);
   const foot = top + WALL_H * u;
-  const postTop = top - POST_UP * u;
-  posts(ctx, s, postTop, foot + u * 0.012, lw);
+  posts(ctx, s, post.top, foot + u * 0.012, lw);
   if (foot < s.cssH) shamrocks(ctx, s, cx, foot + u * 0.034, foot + u * 0.034, CLUMPS, lw);
-  hat(ctx, s, cx - (GATE + POST_W / 2) * u, postTop + u * 0.002, lw);
+  hatOnPost(ctx, u, post.x, post.top, lw, pose);
 }

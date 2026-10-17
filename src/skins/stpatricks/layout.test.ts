@@ -21,14 +21,17 @@ import { inkW, roundTower } from "./tower";
 // leprechaun hides), he brings the pot out from behind the round tower, and the rainbow (the
 // owner asked for it bigger) stands in a big arch behind the round tower, the base block and the
 // first bars, still once it has formed (gold.test.ts keeps its feet in view either side of the
-// drum, and calm.test.ts its forming sweep to the first seconds).
+// drum, and calm.test.ts its forming sweep to the first seconds). The leprechaun on the gatepost
+// meets none of them either as he comes up with the hat on his head, but for the edge of the
+// round tower's grassy mound, which the hat passes in front of (lookout.test.ts keeps it off
+// the mound's shamrocks).
 
 /**
  * Moments of the scene's clock: the rainbow forming over bare grass, the leprechaun lugging the
  * pot out from behind the round tower, under the arch, setting it down and slipping behind it,
  * then peeking round its left side, over its rim (toward the tower, and away), round its right.
  */
-const TIMES = [0, 0.8, 1.6, 2.2, 3, 3.8, 4.6, 5, 6.6, 8.2, 10.6, 17.4, 37.5] as const;
+const TIMES = [0, 0.8, 1.6, 2.2, 3, 3.8, 4.6, 5, 5.2, 6.6, 8.2, 10.6, 17.4, 37.5] as const;
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**
@@ -80,7 +83,10 @@ describe("st. patrick's layout", () => {
   it.each(SIZES.flatMap(([W, H]) => TIMES.map((t) => [W, H, t] as const)))("%ix%i at t+%s: props stay clear", (W, H, t) => {
     const s = startScene(W, H, t);
     const masks = PROPS.map((p) => mask(W, H, (ctx) => p.draw(ctx, s)));
-    const wall = mask(W, H, (ctx) => front(ctx, s));
+    // The wall with the hat resting on its gatepost (at 0 s the leprechaun under it is down)...
+    const wall = mask(W, H, (ctx) => front(ctx, { ...s, t: 0 }));
+    // ...and what of him shows over the post now: where the front differs from that.
+    const lookout = differ(frontData(s), frontData({ ...s, t: 0 }));
     const x0 = Math.ceil(s.baseX - s.u * 0.05);
     const x1 = Math.floor(s.baseX + s.baseW + s.u * 0.05);
     // The floor line, less half an ink line (the top course's outline straddles it).
@@ -115,6 +121,7 @@ describe("st. patrick's layout", () => {
       expect(top, `${prop.name}: pixels in the HUD`).toBe(0);
       expect(lane, `${prop.name}: pixels above the base block (in the slider's first lane)`).toBe(0);
       expect(overlap(m, wall), `${prop.name} reaches the wall in front`).toBe(0);
+      if (prop.name !== "round tower base") expect(overlap(m, lookout), `${prop.name} meets the leprechaun on the gatepost`).toBe(0);
       for (let j = i + 1; j < PROPS.length; j++) {
         if (allowed(prop.name, PROPS[j]!.name)) continue;
         expect(overlap(m, masks[j]!), `${prop.name} overlaps ${PROPS[j]!.name}`).toBe(0);
@@ -122,6 +129,22 @@ describe("st. patrick's layout", () => {
     });
   }, 60_000);
 });
+
+/** The front alone, drawn for a scene. */
+function frontData(s: Scene): Uint8ClampedArray {
+  const ctx = context(s.cssW, s.cssH);
+  front(ctx, s);
+  return ctx.getImageData(0, 0, s.cssW, s.cssH).data;
+}
+
+/** Pixels that differ between two frames. */
+function differ(a: Uint8ClampedArray, b: Uint8ClampedArray): Uint8Array {
+  const out = new Uint8Array(a.length / 4);
+  for (let i = 0; i < out.length; i++) {
+    for (let c = 0; c < 4; c++) if (Math.abs(a[i * 4 + c]! - b[i * 4 + c]!) > 8) out[i] = 1;
+  }
+  return out;
+}
 
 /** The wall's stone and shadow colors, as [r, g, b]. */
 const WALL_COLORS = [WALL_GAP, ...WALL_STONES.flatMap((c) => [c.body, c.light, c.shade])].map((hex) =>
