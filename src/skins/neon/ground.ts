@@ -10,15 +10,16 @@ import { toneOf } from "./tone";
 
 // The floor around the tower, then what you climb into. Two tall palms frame the sunset at the
 // screen edges, their crowns up beside the tower top at the start, so you rise past them; a
-// roadside arcade stands under the left one, and the chrome car cruises down the right-hand
-// lane under the other (driving off into the distance on the music's drop, car.ts). All of it
-// stays outside the tower's column. As you climb, the floor drops away, a bank of night cloud
-// rolls in over the grid (deck.ts), and things drift past in the side lanes (drift.ts).
+// roadside arcade stands under the left one, and the chrome car is parked on the grid under the
+// other (as each tower starts it does a burnout, three donuts and backs into its spot, car.ts).
+// All of it stays outside the tower's column. As you climb, the floor drops away, a bank of
+// night cloud rolls in over the grid (deck.ts), and things drift past in the side lanes
+// (drift.ts).
 //
 // The palms and the arcade share one depth so they slide down together as the camera climbs
 // (props at different depths would drift into each other); only the car is nearer, and it
-// sits below them, so it only ever drifts further away. Driving off, it passes beyond them on
-// its way to the horizon, and is drawn behind them from there.
+// sits below them, so it only ever drifts further away. Its donuts take it a little beyond their
+// depth (clear of them, nearer the tower), and it is drawn behind them while it is there.
 
 /** Depth of the side props. */
 const SIDE_Z = 2;
@@ -70,8 +71,8 @@ export const WIDE_PALMS: readonly Palm[] = [-0.78, 0.8, -1.12, 1.15, -1.46, 1.5,
 /** Half the width a wide palm needs, crown included (u at the tower's depth). */
 const WIDE_REACH = 0.15;
 
-/** The props planted on the floor: the arcade, the palms, the car (behind them once it has
- *  driven off further than they stand). */
+/** The props planted on the floor: the arcade, the palms, the car (behind them while it is
+ *  further away than they stand). */
 export function floorProps(ctx: Ctx, s: Scene): void {
   const far = carAt(s).z > SIDE_Z;
   if (far) drawCar(ctx, s);

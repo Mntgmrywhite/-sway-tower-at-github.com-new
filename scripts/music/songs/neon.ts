@@ -451,9 +451,9 @@ const song: Song = {
   bpm: BPM,
   beatsPerBar: BPB,
   bars: BARS,
-  // Synthwave's chrome car keeps time with these (src/skins/neon/car.ts): it floors it and drives
-  // off into the distance on the first drop (bar 17), and comes back round on the lift (bar 25,
-  // the B section's climb in drop 1, with its crash).
+  // The first drop (bar 17) and the lift (bar 25, the B section's climb in drop 1, with its
+  // crash). Nothing reads them now: Synthwave's car does its burnout and donuts in a run's first
+  // ten seconds instead (src/skins/neon/car.ts), as the owner asked.
   cues: { drop: bar(17) * SEC, lift: bar(25) * SEC },
   reverb: { room: 0.78, damp: 0.5, width: 1, level: 0.8 },
   pump: { from: KICK, release: 0.75, curve: 2 },
