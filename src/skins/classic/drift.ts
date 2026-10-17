@@ -4,25 +4,35 @@ import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
 import { LAMP, LAMP_GLOW } from "./colors";
 import { farSkyline, millShape } from "./far";
-import { spread } from "./sky";
+import { moonAt, spread, sunHigh } from "./sky";
 import { BIG_CLOUD, birdStroke, capPath, cloud, LONG_CLOUD, nestedStrata, TALL_CLOUD, type Band, type CloudShape } from "./shapes";
 import { level, LOOP, type Tone } from "./tone";
 
 // What drifts past as you climb, in a lane down each side of the screen. A hot-air balloon at
 // the start, clouds and a flock of birds as you rise into the clouds, then the archipelago:
-// an island with a windmill, an airship, the birds flying home at sunset; at dusk two islands
-// come down the left lane (a cottage with its window lit, a waterfall turning to mist), and
-// sky lanterns rise there through the night while moonlit clouds pass on the right; at dawn
-// the birds are up again, a pair of balloons, a paper plane gliding by, and an island with a
-// cottage whose chimney smokes and a waterfall holding a rainbow in its spray. The story from
-// the high day on repeats every LOOP levels, so it never runs out.
+// an island with a windmill, an airship and clouds, the birds flying home at sunset; at dusk
+// two islands come down the left lane behind the setting sun (a cottage with its window lit,
+// a waterfall turning to mist), moonlit clouds between them, and sky lanterns rise there
+// through the night; at dawn the birds are up again on the right, a cloud, a pair of
+// balloons, a paper plane gliding by, and an island with a cottage whose chimney smokes and a
+// waterfall holding a rainbow in its spray. The story from the high day on repeats every LOOP
+// levels, so it never runs out.
 //
 // Each thing is anchored at a height in its lane, so it comes down past you as the camera
 // climbs (one parallax depth for both lanes), and it only ever moves gently in place: nothing
-// crosses the tower's column. Things in a lane are spaced so they never overlap. The sun sits
-// up the left lane by day (it sets and rises there) and the moon up the right lane by night,
-// so only clouds, and lanterns that are lit only while the sun is down, ever pass in front of
-// them. Mid-distance: flat two-tone fills faded toward the haze, no outline.
+// crosses the tower's column. Things in a lane are spaced so they never overlap.
+//
+// Nothing ever passes over the sun or the moon. The sun stands in the left lane by day (it
+// sets and rises there) and the moon in the right lane by night, and on a phone there is no
+// room to go round either, so the lanes take turns: the sun has the left lane to itself by
+// day, the moon the right by night. Things come down the left lane only behind the setting
+// sun and are gone into the haze before it comes back up out of the sea (the lanterns, lit
+// only while it is down, have gone out by then); things in the right lane pass the moon's
+// height only while it is down. So the day's clouds pass on the right, the night's on the
+// left. Since what a screen shows of a lane depends on its shape, the loop's things are
+// placed by when they pass their lane's sun or moon (see PASS): the same story level on every
+// screen.
+// Mid-distance: flat two-tone fills faded toward the haze, no outline.
 
 type Kind = "cloud" | "isle" | "balloon" | "flock" | "airship" | "lanterns" | "plane";
 /** What stands on an island. */
@@ -50,53 +60,66 @@ export interface Drifter {
 /** Parallax depth of both lanes (1 moves with the tower). */
 const LANE_P = 0.7;
 
-/** One authored entry: what, its height in the lane (world units), and for islands what is on them. */
-type Spec = readonly [kind: Kind, at: number, deco?: Deco, extra?: Deco, look?: number];
+/**
+ * One authored entry: what, its height in the lane (world units), a seed that picks its size,
+ * offset, cloud shape and phase (it stays with the thing wherever it is placed), and for
+ * islands what is on them.
+ */
+type Spec = readonly [kind: Kind, at: number, seed: number, deco?: Deco, extra?: Deco, look?: number];
 
 // The first pass, by hand: the start and the climb into the clouds. A thing at height `at`
-// crosses the middle of a tall phone's screen around level (at - 100) / 8.
+// crosses the middle of a tall phone's screen around level (at - 100) / 8. Nothing on the
+// left: the sun has that lane to itself through the first day.
 const RIGHT_START: Spec[] = [
-  ["balloon", 150, "none", "none", 0],
-  ["cloud", 330],
-  ["flock", 400],
+  ["balloon", 150, 0, "none", "none", 0],
+  ["cloud", 330, 1],
+  ["flock", 400, 2],
 ];
-const LEFT_START: Spec[] = [["cloud", 420]];
+const LEFT_START: Spec[] = [];
 
-/** Where the loop's lanes begin (world units), and how tall one turn of them is (one turn of the sky). */
-export const LOOP_AT = 480;
+/** How tall one turn of the loop's lanes is (world units): one turn of the sky. */
 export const LOOP_SPAN = LOOP * BLOCK_HEIGHT;
 
-// One turn of the loop, heights within it. A thing at LOOP_AT + rel crosses the sun's or the
-// moon's height around story level 47 + rel / 8. Right lane: things only cross while the
-// moon is down (rel up to ~200, and from ~740), moonlit clouds between. Left lane: clouds,
-// the two night islands (crossing the sun's height after it has started to set and gone
-// before it rises), and lanterns, lit only while the sun is down.
+/**
+ * The story level at which a thing at the start of a turn passes its lane's sun or moon height,
+ * right lane (the moon) then left lane (the sun): a thing at rel into turn k passes it at
+ * PASS + rel / BLOCK_HEIGHT + k * LOOP, on every screen. These are where they pass on a tall
+ * phone (390x844), where the turn starts about 480 world units up its lanes; a shorter or taller
+ * screen shows more or less of a lane above and below the sun and moon, so its turn starts a
+ * little lower or higher (see turnStart).
+ */
+export const PASS = [47, 48] as const;
+
+// One turn of the loop, heights within it (rel). Right lane (the moon's), passing the moon's
+// height at story level 47 + rel / 8: only while the moon is down, so before ~70 (rel up to
+// ~180) and after ~140 (rel from ~750), the day's clouds among them. Left lane (the sun's),
+// passing the sun's height at 48 + rel / 8: the two islands and the moonlit clouds only after
+// the sun has begun to set (from ~62) and early enough to be gone into the haze before it comes
+// back up (by ~103, rel up to ~440); the lanterns all night, as they are lit only while it is down.
 const RIGHT_LOOP: Spec[] = [
-  ["isle", 15, "mill", "tree"],
-  ["airship", 100],
-  ["flock", 180],
-  ["cloud", 330],
-  ["cloud", 470],
-  ["cloud", 610],
-  ["flock", 755],
-  ["balloon", 850, "none", "none", 4],
-  ["plane", 893],
-  ["isle", 960, "fall", "cottage"],
+  ["isle", 15, 40, "mill", "tree"],
+  ["airship", 100, 41],
+  ["cloud", 131, 43],
+  ["flock", 180, 42],
+  ["flock", 755, 46],
+  ["cloud", 790, 44],
+  ["balloon", 850, 47, "none", "none", 4],
+  ["plane", 893, 48],
+  ["isle", 960, 49, "fall", "cottage"],
 ];
 const LEFT_LOOP: Spec[] = [
-  ["cloud", 10],
-  ["isle", 150, "cottage", "none"],
-  ["isle", 300, "fall", "tree"],
-  ["lanterns", 420],
-  ["lanterns", 540],
-  ["cloud", 650],
-  ["lanterns", 760],
-  ["cloud", 880],
-  ["cloud", 990],
+  ["isle", 150, 41, "cottage", "none"],
+  ["cloud", 203, 40],
+  ["isle", 300, 42, "fall", "tree"],
+  ["cloud", 346, 45],
+  ["cloud", 408, 47],
+  ["lanterns", 470, 43],
+  ["lanterns", 560, 44],
+  ["lanterns", 650, 46],
 ];
 
-function drifter(spec: Spec, side: number, k: number): Drifter {
-  const [kind, at, deco = "none", extra = "none", look = 0] = spec;
+function drifter(spec: Spec, side: number): Drifter {
+  const [kind, at, k, deco = "none", extra = "none", look = 0] = spec;
   const h = (n: number) => hash(k * 17 + side * 59 + n + Math.round(at) * 0.013);
   const size =
     kind === "cloud"
@@ -125,14 +148,21 @@ function drifter(spec: Spec, side: number, k: number): Drifter {
 }
 
 /** The first pass and one turn of the loop, per lane: right lane, then left lane. */
-const START: readonly (readonly Drifter[])[] = [
-  RIGHT_START.map((sp, k) => drifter(sp, 1, k)),
-  LEFT_START.map((sp, k) => drifter(sp, -1, k)),
-];
-const TURN: readonly (readonly Drifter[])[] = [
-  RIGHT_LOOP.map((sp, k) => drifter(sp, 1, k + 40)),
-  LEFT_LOOP.map((sp, k) => drifter(sp, -1, k + 40)),
-];
+const START: readonly (readonly Drifter[])[] = [RIGHT_START.map((sp) => drifter(sp, 1)), LEFT_START.map((sp) => drifter(sp, -1))];
+const TURN: readonly (readonly Drifter[])[] = [RIGHT_LOOP.map((sp) => drifter(sp, 1)), LEFT_LOOP.map((sp) => drifter(sp, -1))];
+
+/**
+ * Where turn 0 of a lane's loop starts on this screen (lane height, world units): the height in
+ * the lane that is level with its moon (right) or its sun's day height (left) when the climb is
+ * at story level PASS.
+ */
+export function turnStart(s: Scene, lane: number): number {
+  const unit = s.scale * LANE_P;
+  const sky = lane === 0 ? moonAt(s).y : sunHigh(s);
+  // The height level with it now rises with the camera, one for one: take the climb so far off
+  // (the same all the way up) and add the climb to PASS.
+  return (layerGround(s, LANE_P) - sky) / unit - s.altitude + PASS[lane]! * BLOCK_HEIGHT;
+}
 
 /**
  * Calls `draw` for every item on screen (or close to it), lane by lane, lowest first, with its
@@ -148,11 +178,12 @@ export function eachVisible(s: Scene, draw: (d: Drifter, lane: number, at: numbe
   const hi = (base + margin) / unit;
   for (let l = 0; l < 2; l++) {
     for (const d of START[l]!) if (d.at > lo && d.at < hi) draw(d, l, d.at);
-    if (hi < LOOP_AT) continue;
-    const k0 = Math.max(0, Math.floor((lo - LOOP_AT) / LOOP_SPAN));
-    const k1 = Math.floor((hi - LOOP_AT) / LOOP_SPAN);
+    const from0 = turnStart(s, l);
+    if (hi < from0) continue;
+    const k0 = Math.max(0, Math.floor((lo - from0) / LOOP_SPAN));
+    const k1 = Math.floor((hi - from0) / LOOP_SPAN);
     for (let k = k0; k <= k1; k++) {
-      const from = LOOP_AT + k * LOOP_SPAN;
+      const from = from0 + k * LOOP_SPAN;
       for (const d of TURN[l]!) {
         const at = from + d.at;
         if (at > lo && at < hi) draw(d, l, at);
@@ -191,10 +222,15 @@ function hazeFade(s: Scene, tone: Tone, d: Drifter, y: number): number {
   return 1 - tone.farIsles * (1 - k * k * (3 - 2 * k));
 }
 
+/** Where an item at height `at` in its lane is anchored on screen now (y). */
+export function laneY(s: Scene, at: number): number {
+  return layerGround(s, LANE_P) - at * s.scale * LANE_P;
+}
+
 /** Draw one item where it is now, at height `at` in its lane. */
 export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, d: Drifter, at: number): void {
   const u = s.u;
-  const y = layerGround(s, LANE_P) - at * s.scale * LANE_P;
+  const y = laneY(s, at);
   const fade = hazeFade(s, tone, d, y);
   if (fade <= 0.004) return;
   const base = ctx.globalAlpha;

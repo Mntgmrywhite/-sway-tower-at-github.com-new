@@ -8,7 +8,8 @@ import type { Tone } from "./tone";
 // at dawn, then a crescent moon on the right, the stars, the aurora's two curtains low at the
 // sides in the deep of the night, now and then a shooting star, and the morning star over the
 // cloud sea before dawn. Celestial things are far away: flat fills, no outline, flat halos
-// instead of a glow, and nothing that moves ever crosses the tower's column.
+// instead of a glow, and nothing that moves ever crosses the tower's column. Nothing drifting
+// in the lanes ever passes over the sun or the moon either (drift.ts keeps their lanes clear).
 
 /** Gradient stops for the four sky colors (top, middle, glow band, bottom). */
 const STOPS = [0, 0.4, 0.7, 0.92] as const;
@@ -79,6 +80,20 @@ const RAY_REACH = 1.72;
 const RAYS = 12;
 
 /**
+ * The day sun stands at most this far above the screen's bottom (u). On a phone (up to 21:9)
+ * its place 0.27 of the way down the screen is lower than that already. Only a frame taller
+ * still (Hard's zoomed-out view, a foldable's narrow cover screen) would hang the sun so far
+ * above the cloud sea that the things coming down the left lane behind it at sunset could not
+ * reach the haze before it comes back up at dawn (see drift.ts).
+ */
+const SUN_TOP = 1.715;
+
+/** How high the sun stands by day (its center's y). */
+export function sunHigh(s: Scene): number {
+  return Math.max(s.cssH * 0.27, s.cssH - s.u * SUN_TOP);
+}
+
+/**
  * Where the sun is: by day left of the tower, below the title; at sunset it swells a little
  * and sinks below `sea` (the cloud sea's top), and at dawn it comes back up the same way. `r`
  * is the disc; its halo reaches 1.42 r and its rays 1.72 r.
@@ -86,7 +101,7 @@ const RAYS = 12;
 export function sunAt(s: Scene, tone: Tone, sea: number): typeof SUN {
   const k = tone.sunSet;
   const r0 = s.u * 0.056;
-  const y0 = s.cssH * 0.27;
+  const y0 = sunHigh(s);
   SUN.r = r0 * (1 + 0.45 * k);
   SUN.x = Math.max(r0 * 1.9, s.cssW / 2 - s.u * 0.36 * spread(s));
   SUN.y = y0 + (sea + SUN.r * 1.9 - y0) * k;

@@ -1,47 +1,41 @@
+import { createCanvas } from "@napi-rs/canvas";
 import { describe, expect, it } from "vitest";
-import { drawDrifter, eachVisible, type Drifter } from "./drift";
+import type { Scene } from "../skin";
+import { drawDrifter, eachVisible, laneY, type Drifter } from "./drift";
 import { farLayer, seaTop } from "./far";
 import { moonAt, sunAt } from "./sky";
 import { context, mask, sceneAt, SIZES } from "./test-scene";
-import { level, LOOP, LOOP_FROM, SCENE_LOOP_FROM, toneOf } from "./tone";
+import { level, LOOP, LOOP_FROM, SCENE_LOOP_FROM, toneOf, type Tone } from "./tone";
 
 // Everything drifting past in the side lanes, from the start through two full turns of the
-// looping story, on a tall and a short phone: nothing enters the tower's column or touches a
-// side of the screen, nothing overlaps, and only clouds (and lanterns, lit only while the sun
-// is down) ever pass in front of the sun (left lane) or the moon (right lane).
+// looping story, on a tall and a short phone and zoomed out (Hard's view): nothing enters the
+// tower's column or touches a side of the screen, nothing overlaps, and nothing at all (no
+// cloud, no lantern, no island, balloon or bird) ever passes over the sun or the moon.
 
 const LEVELS = Array.from({ length: Math.ceil((SCENE_LOOP_FROM + 2 * LOOP) / 2) + 1 }, (_, i) => i * 2);
-const TIMES = [0, 5.3] as const;
+/** The phones at two moments of the drifters' sway, and zoomed out (Hard's view) at one. */
+const FRAMES = SIZES.flatMap(([W, H]) => [
+  [W, H, 1, 0],
+  [W, H, 1, 5.3],
+  [W, H, 0.78, 2.6],
+  [W, H, 0.6, 2.6],
+] as const);
 /** Masks are drawn at half size to keep this quick. */
 const K = 0.5;
 
-/** Pixels of a mask inside a circle (in full-size coordinates). */
-function inCircle(m: Uint8Array, w: number, cx: number, cy: number, r: number): number {
-  let n = 0;
-  for (let i = 0; i < m.length; i++) {
-    if (!m[i]) continue;
-    const x = (i % w) / K;
-    const y = Math.floor(i / w) / K;
-    if (Math.hypot(x - cx, y - cy) < r) n++;
-  }
-  return n;
-}
-
 describe("classic drifters", () => {
-  it.each(SIZES.flatMap(([W, H]) => TIMES.map((t) => [W, H, t] as const)))(
-    "%ix%i at t=%s: lanes stay clear through two turns of the loop",
-    (W, H, t) => {
-      const w = Math.round(W * K);
+  it.each(FRAMES)(
+    "%ix%i at zoom %s, t=%s: lanes stay clear through two turns of the loop",
+    (W, H, z, t) => {
       for (const lvl of LEVELS) {
-        const s = sceneAt(W, H, lvl, t);
+        const s = sceneAt(W, H, lvl, t, z);
+        const w = Math.round(s.cssW * K);
         const tone = toneOf(s);
-        const items: { d: Drifter; lane: number; at: number; m: Uint8Array }[] = [];
-        eachVisible(s, (d, lane, at) => items.push({ d, lane, at, m: mask(W, H, (ctx) => drawDrifter(ctx, s, tone, d, at), K) }));
+        const items: { d: Drifter; at: number; m: Uint8Array }[] = [];
+        eachVisible(s, (d, _lane, at) => items.push({ d, at, m: mask(s.cssW, s.cssH, (ctx) => drawDrifter(ctx, s, tone, d, at), K) }));
         const c0 = (s.cssW / 2 - s.u * 0.25) * K;
         const c1 = (s.cssW / 2 + s.u * 0.25) * K;
-        const sun = sunAt(s, tone, seaTop(s, level(s)));
-        const moon = moonAt(s);
-        items.forEach(({ d, lane, at, m }, i) => {
+        items.forEach(({ d, at, m }, i) => {
           const what = `level ${lvl}: ${d.kind} at ${Math.round(at)}`;
           let column = 0;
           let edge = 0;
@@ -59,13 +53,93 @@ describe("classic drifters", () => {
             for (let k = 0; k < m.length; k++) both += m[k]! & n[k]!;
             expect(both, `${what} overlaps ${items[j]!.d.kind} at ${Math.round(items[j]!.at)}`).toBe(0);
           }
-          if (d.kind === "cloud") return;
-          if (lane === 1 && tone.sunSet < 1) expect(inCircle(m, w, sun.x, sun.y, sun.r * 1.72), `${what} crosses the sun`).toBe(0);
-          if (lane === 0 && tone.moon > 0) expect(inCircle(m, w, moon.x, moon.y, moon.r * 1.55), `${what} crosses the moon`).toBe(0);
         });
       }
     },
     // Many full-scene masks: generous room for a busy machine.
+    60_000,
+  );
+});
+
+/** A light in the sky as a circle: the sun's rays by day (its halo as it swells to set), the moon's outer glow. */
+interface Light {
+  name: string;
+  x: number;
+  y: number;
+  r: number;
+}
+
+/** The sun and the moon wherever they show at this moment. */
+function lights(s: Scene, tone: Tone): Light[] {
+  const out: Light[] = [];
+  if (tone.sunSet < 1) {
+    const sun = sunAt(s, tone, seaTop(s, level(s)));
+    out.push({ name: "the sun", x: sun.x, y: sun.y, r: sun.r * 1.72 });
+  }
+  if (tone.moon > 0) {
+    const moon = moonAt(s);
+    out.push({ name: "the moon", x: moon.x, y: moon.y, r: moon.r * 1.55 });
+  }
+  return out;
+}
+
+/** Pixels of an item drawn over a light's circle (any but the faintest coverage counts). */
+function over(s: Scene, tone: Tone, d: Drifter, at: number, light: Light): number {
+  const x0 = Math.floor(light.x - light.r) - 1;
+  const y0 = Math.floor(light.y - light.r) - 1;
+  const size = Math.ceil(light.r * 2) + 3;
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+  ctx.translate(-x0, -y0);
+  drawDrifter(ctx, s, tone, d, at);
+  const data = ctx.getImageData(0, 0, size, size).data;
+  let n = 0;
+  for (let i = 0; i < size * size; i++) {
+    if (data[i * 4 + 3]! <= 8) continue;
+    if (Math.hypot(x0 + (i % size) + 0.5 - light.x, y0 + Math.floor(i / size) + 0.5 - light.y) < light.r) n++;
+  }
+  return n;
+}
+
+describe("classic drifters and the sun and moon", () => {
+  // The owner saw the sun "torn" around level 40: a stream of lane clouds sliding down across it,
+  // slicing it in half one after another. Nothing may pass over the sun or the moon, ever: on a
+  // phone there is no room to go round them, so things come down the sun's lane only behind the
+  // setting sun and are gone into the haze before it rises again, and things in the moon's lane
+  // pass its height only while it is down. Checked a quarter of a level at a time from the start
+  // through two turns of the loop (the sun setting and rising through its lane, the moon fading
+  // in and out), each frame a moment further into the drifters' sway and bob. Besides the phones
+  // and the zoomed views: a tablet (the squattest frame, where the loop starts lowest in its lanes)
+  // and a foldable's tall cover screen (where the day sun is held down, see sunHigh).
+  const STEP = 0.25;
+  const SKY_FRAMES = [
+    ...SIZES.flatMap(([W, H]) => [1, 0.78, 0.6].map((z) => [W, H, z] as const)),
+    [768, 1024, 1] as const,
+    [300, 820, 1] as const,
+  ];
+  it.each(SKY_FRAMES)(
+    "%ix%i at zoom %s: nothing passes over the sun or the moon",
+    (W, H, z) => {
+      let near = 0;
+      for (let lvl = 0; lvl <= SCENE_LOOP_FROM + 2 * LOOP; lvl += STEP) {
+        const s = sceneAt(W, H, lvl, (lvl * 0.73) % 31, z);
+        const tone = toneOf(s);
+        const sky = lights(s, tone);
+        if (!sky.length) continue;
+        eachVisible(s, (d, _lane, at) => {
+          const y = laneY(s, at);
+          for (const light of sky) {
+            // Only what is near the light's height on its side of the screen can touch it.
+            if (Math.abs(y - light.y) > light.r + s.u * 0.32) continue;
+            if (Math.sign(d.x) !== Math.sign(light.x - s.cssW / 2)) continue;
+            near++;
+            expect(over(s, tone, d, at, light), `level ${lvl}: ${d.kind} at ${Math.round(at)} passes over ${light.name}`).toBe(0);
+          }
+        });
+      }
+      // Things do come close (behind the setting sun, below the moon), so the check has teeth.
+      expect(near).toBeGreaterThan(50);
+    },
     60_000,
   );
 });
