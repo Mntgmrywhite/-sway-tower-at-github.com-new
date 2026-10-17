@@ -11,15 +11,17 @@ import { toneOf } from "./tone";
 // The floor around the tower, then what you climb into. Two tall palms frame the sunset at the
 // screen edges, their crowns up beside the tower top at the start, so you rise past them; a
 // roadside arcade stands under the left one, and the chrome car is parked on the grid under the
-// other (as each tower starts it does a burnout, three donuts and backs into its spot, car.ts).
+// other (as each tower starts it does a burnout, peels out into the distance, does three donuts
+// far out and zooms off to the city on the horizon, car.ts).
 // All of it stays outside the tower's column. As you climb, the floor drops away, a bank of
 // night cloud rolls in over the grid (deck.ts), and things drift past in the side lanes
 // (drift.ts).
 //
 // The palms and the arcade share one depth so they slide down together as the camera climbs
 // (props at different depths would drift into each other); only the car is nearer, and it
-// sits below them, so it only ever drifts further away. Its donuts take it a little beyond their
-// depth (clear of them, nearer the tower), and it is drawn behind them while it is there.
+// sits below them, so it only ever drifts further away. Its show takes it far beyond their
+// depth (up its lane between the tower and the right palm), and it is drawn behind them while it
+// is there.
 
 /** Depth of the side props. */
 const SIDE_Z = 2;

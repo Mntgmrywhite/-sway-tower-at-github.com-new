@@ -10,8 +10,9 @@ import type { NeonSkin } from "./skin";
 // gold-to-pink sun sits on the horizon behind wireframe mountains and a sunset city skyline,
 // the cyan grid streams toward you, two tall palms frame the scene, a roadside arcade glows
 // under one and a chrome wedge coupe (our own design) is parked on the grid under the other;
-// as each tower starts it puts on a show inside ten seconds: a smoking burnout, a take-off into
-// three donuts, and back into its spot (neon/car.ts). As you climb you rise past the palm crowns
+// as each tower starts it puts on a show inside ten seconds: a smoking burnout, a peel-out up the
+// grid into the distance, three little donuts far out, and a zoom off to the city on the horizon,
+// where it fades into the haze (neon/car.ts). As you climb you rise past the palm crowns
 // (the grid keeps its pattern as the floor sinks away), the sun sinks into the horizon, sunset
 // cloud streaks and a line of neon flamingos drift by in the side lanes, and a bank of night
 // cloud rolls in over the grid. Then the violet hour: neon clouds with glowing bases, shooting

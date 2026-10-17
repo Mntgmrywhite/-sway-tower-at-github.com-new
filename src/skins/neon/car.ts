@@ -9,13 +9,17 @@ import { hotTube, rimTube } from "./tube";
 // a small chrome chevron, a raked cabin with dark glass, a ducktail wing on two struts.
 //
 // It puts on a show as each tower's scene starts (Scene.t from 0), over in under ten seconds:
-// a burnout (brakes on, rear wheels spinning, thick neon-tinted tyre smoke billowing out behind,
-// a little fishtail, the body shaking on the revs and the exhausts popping), then it grips and
-// takes off up the floor, kicks its tail out into three tight donuts around a point nearer the
-// tower (smoke trailing round, glowing tyre marks that fade), comes out of the last spin facing
-// away again and backs into its spot, where it settles on its springs and idles for the rest of
-// the run. The whole show stays on the floor in the right part of the screen: below the floor
-// line, clear of the palms, the arcade, the screen edges and the "tap to drop" line.
+// a burnout in its spot (brakes on, rear wheels spinning, thick neon-tinted tyre smoke billowing
+// out behind, a little fishtail, the body shaking on the revs and the exhausts popping), then it
+// grips and peels out, straight up the grid into the distance, shrinking in the floor's
+// perspective. Far out it kicks its tail out into three tight donuts (small, with its smoke and
+// glowing tyre rings that fade), comes out of the last spin pointing at the city, and zooms off
+// down the same line to the skyline on the horizon, fading into the haze there. It does not come
+// back: its spot stays empty for the rest of the run (it is parked there again when the next
+// tower's scene starts). The whole show keeps to one lane right of the tower: the line from its
+// spot to the city runs between the tower's column and the right palm's trunk, so it never goes
+// behind the tower, and it stays clear of the palms, the arcade, the screen edges and the
+// "tap to drop" line.
 //
 // The car is a small 3D model (a wedge-prism body, a frustum cabin, a wing, four wheels) drawn
 // through the floor's own perspective, linearized at the car's middle, so as it spins it turns
@@ -34,27 +38,46 @@ const HOME_A = (CAR_X * CAR_Z) / TOWER_DEPTH;
 /** Parked pointing straight away from us, so the idle view is a square rear view. */
 const HOME_HEADING = Math.atan2(HOME_A, CAR_Z);
 
-/** The donut spot: the depth and screen offset (u) of the point it spins about. */
-const SPOT_Z = 2.25;
-const SPOT_X = 0.22;
-const SPOT_A = (SPOT_X * SPOT_Z) / TOWER_DEPTH;
 /** It spins about a point this far ahead of its middle (car widths): the tail swings widest. */
 const PIVOT = 0.12;
+/** Forward unit vector on the floor (a, z) for a heading (0: away from us, + to the right). */
+const FWD_A = Math.sin(HOME_HEADING);
+const FWD_Z = Math.cos(HOME_HEADING);
+/** The pivot at home. */
+const HOME_PA = HOME_A + PIVOT * CAR_W * FWD_A;
+const HOME_PZ = CAR_Z + PIVOT * CAR_W * FWD_Z;
+
+/** The lane: the screen offset (u) of the line on the floor it drives out along, from just past
+ *  its spot to the city on the horizon, halfway between the tower's column and the palm. Driving
+ *  straight up the floor along it keeps that offset all the way to the horizon. */
+export const LANE_X = 0.335;
+/** How far up the floor (depth) the pivot takes to ease over from its spot's line into the lane. */
+const STEER = 1.2;
+/** The donut spot, out in the lane: the depth of the point it spins about. */
+export const SPOT_Z = 6;
+const SPOT_A = (LANE_X * SPOT_Z) / TOWER_DEPTH;
+/** Heading along the lane (it points at the city). */
+const CITY_HEADING = Math.atan2(LANE_X, TOWER_DEPTH);
+/** From the spot to the city: how far it runs (depth) until it is gone in the haze, and the
+ *  depth from which it starts fading. */
+const ZOOM_RUN = 50;
+const FADE_FROM = 14;
+const FADE_TO = SPOT_Z + ZOOM_RUN;
 
 /** The show's timeline (seconds of Scene.t). */
 export const BURNOUT = 0.5;
-export const LAUNCH = 2.9;
-export const DONUTS = 3.6;
+export const LAUNCH = 2.8;
+/** The tail steps out as it slides into the spot. */
+export const DONUTS = 4.0;
 /** When the pivot reaches the donut spot. */
-const ARRIVE = DONUTS + 0.6;
-export const DONUTS_END = 7.5;
-/** It sits a beat after the last spin, then reverses home. */
-const BACK_FROM = DONUTS_END + 0.25;
-export const PARKED = 9.0;
-export const SETTLED = 9.5;
-/** Full turns in the donuts (it turns left all the way, ending square to us again). */
+export const ARRIVE = 4.5;
+export const DONUTS_END = 7.4;
+/** A beat out of the last spin, then it zooms off to the city, gone by GONE. */
+export const ZOOM = 7.6;
+export const GONE = 9.4;
+/** Full turns in the donuts (it turns left all the way, ending pointing at the city). */
 export const SPINS = 3;
-/** By now the last smoke and tyre marks have faded: from here on only the idling car is drawn. */
+/** By now the last smoke and tyre marks have faded: from here on nothing is drawn. */
 export const SHOW_END = 10;
 
 const TAU = Math.PI * 2;
@@ -66,11 +89,13 @@ const SHAKE = 0.007;
 const SQUAT = 0.03;
 /** Rear-wheel spin as drawn while they light up (radians per second). */
 const WHEEL_SPIN = 9;
-/** Wheels come to rest where they started (their spokes and tread repeat every third of a turn). */
+/** Wheels' spokes and tread repeat every third of a turn. */
 const WHEEL_REPEAT = TAU / 3;
 const snapWheel = (a: number): number => Math.round(a / WHEEL_REPEAT) * WHEEL_REPEAT;
+/** The front wheels only turn from the launch on (from where they stood: a whole repeat). */
+const FRONT_LAG = snapWheel(WHEEL_SPIN * (LAUNCH - BURNOUT));
 
-export type CarPhase = "ready" | "burnout" | "launch" | "donuts" | "back" | "parked";
+export type CarPhase = "ready" | "burnout" | "launch" | "donuts" | "zoom" | "gone";
 
 function clamp01(k: number): number {
   return k < 0 ? 0 : k > 1 ? 1 : k;
@@ -87,66 +112,52 @@ function surge(k: number): number {
   return x * x * (6 - 8 * x + 3 * x * x);
 }
 
-function bez(p0: number, p1: number, p2: number, p3: number, k: number): number {
-  const m = 1 - k;
-  return m * m * m * p0 + 3 * m * m * k * p1 + 3 * m * k * k * p2 + k * k * k * p3;
-}
-
-/** Turning speed through the launch and the donuts: knots of [time, speed, share of PEAK]. */
-const TURN: readonly (readonly [number, number, number])[] = [
-  [LAUNCH, 0, 0],
-  [DONUTS - 0.1, 1.2, 0],
-  [DONUTS + 0.5, 0, 1],
-  [DONUTS_END - 0.7, 0, 1],
-  [DONUTS_END, 0, 0],
+/** Turning speed through the donuts: knots of [time, share of PEAK]. */
+const TURN: readonly (readonly [number, number])[] = [
+  [DONUTS, 0],
+  [ARRIVE + 0.2, 1],
+  [DONUTS_END - 0.6, 1],
+  [DONUTS_END, 0],
 ];
 /** The top turning speed that makes the total exactly SPINS turns. */
 const PEAK = (() => {
-  let fixed = 0;
   let per = 0;
-  for (let i = 0; i + 1 < TURN.length; i++) {
-    const [t0, c0, k0] = TURN[i]!;
-    const [t1, c1, k1] = TURN[i + 1]!;
-    fixed += ((c0 + c1) / 2) * (t1 - t0);
-    per += ((k0 + k1) / 2) * (t1 - t0);
-  }
-  return (SPINS * TAU - fixed) / per;
+  for (let i = 0; i + 1 < TURN.length; i++) per += ((TURN[i]![1] + TURN[i + 1]![1]) / 2) * (TURN[i + 1]![0] - TURN[i]![0]);
+  return (SPINS * TAU) / per;
 })();
 
-/** How far it has turned (left, radians) since the launch. */
+/** How far it has turned (left, radians) since the donuts began. */
 function turned(t: number): number {
   let sum = 0;
   for (let i = 0; i + 1 < TURN.length; i++) {
-    const [t0, c0, k0] = TURN[i]!;
-    const [t1, c1, k1] = TURN[i + 1]!;
+    const [t0, k0] = TURN[i]!;
+    const [t1, k1] = TURN[i + 1]!;
     if (t <= t0) break;
-    const w0 = c0 + k0 * PEAK;
-    const w1 = c1 + k1 * PEAK;
-    const span = t1 - t0;
+    const w0 = k0 * PEAK;
+    const w1 = k1 * PEAK;
     const dt = Math.min(t, t1) - t0;
-    sum += w0 * dt + ((w1 - w0) * dt * dt) / (2 * span);
+    sum += w0 * dt + ((w1 - w0) * dt * dt) / (2 * (t1 - t0));
   }
   return sum;
 }
 
-/** Forward unit vector on the floor (a, z) for a heading (0: away from us, + to the right). */
-const FWD_A = Math.sin(HOME_HEADING);
-const FWD_Z = Math.cos(HOME_HEADING);
-/** The pivot at home, and the car's middle when it comes out of the donuts. */
-const HOME_PA = HOME_A + PIVOT * CAR_W * FWD_A;
-const HOME_PZ = CAR_Z + PIVOT * CAR_W * FWD_Z;
-const END_A = SPOT_A - PIVOT * CAR_W * FWD_A;
-const END_Z = SPOT_Z - PIVOT * CAR_W * FWD_Z;
-/** Launch path handles: straight up the floor out of the burnout, easing into the spot. */
-const LEAD = 0.2;
-const EASE_IN = 0.08;
-/** Reverse path handles. */
-const BACK_LEAD = 0.12;
-/** Wheel turns while reversing: rolling the way back, rounded so they stop as they started. */
-const SPUN = WHEEL_SPIN * (DONUTS_END - BURNOUT);
-const BACK_ROLL = SPUN - snapWheel(SPUN - Math.hypot(HOME_A - END_A, CAR_Z - END_Z) / (0.16 * CAR_W));
-/** The front wheels only turn from the launch on. */
-const FRONT_LAG = snapWheel(WHEEL_SPIN * (LAUNCH - BURNOUT));
+/** The pivot's way out, by depth: the screen offset (u) of its line, easing from its spot's
+ *  line into the lane, and its heading there (along the line it traces on the floor). */
+function wayX(z: number): number {
+  return CAR_X + (LANE_X - CAR_X) * smooth((z - HOME_PZ) / STEER);
+}
+function wayHeading(z: number): number {
+  if (z >= HOME_PZ + STEER) return CITY_HEADING;
+  const k = clamp01((z - HOME_PZ) / STEER);
+  const slope = (LANE_X - CAR_X) * ((6 * k * (1 - k)) / STEER);
+  // The floor point is (offset * z / TOWER_DEPTH, z): its slope across per unit of depth.
+  return Math.atan((wayX(z) + z * slope) / TOWER_DEPTH);
+}
+
+/** Car fade with depth: whole until FADE_FROM, gone in the haze at FADE_TO. */
+function fadeAt(z: number): number {
+  return 1 - smooth((z - FADE_FROM) / (FADE_TO - FADE_FROM));
+}
 
 /** Scratch pose (world units on the floor). */
 const POSE = {
@@ -159,13 +170,19 @@ const POSE = {
   /** Wheel angles (radians). */
   rear: 0,
   front: 0,
-  /** Exhaust flames, brake lights, reversing lights (0..1). */
+  /** Exhaust flames, brake lights (0..1). */
   flare: 0,
   brake: 0,
-  reverse: 0,
+  /** How much of it shows (0..1): it fades into the haze at the city. */
+  fade: 1,
   phase: "ready" as CarPhase,
 };
 type Pose = typeof POSE;
+
+/** Nose-up squat and exhaust flare as it takes off, k seconds after. */
+function squat(k: number): number {
+  return SQUAT * (1 + 0.8 * Math.exp(-k * 5)) * Math.exp(-k * 1.5);
+}
 
 /** Where the car is at scene time t, and what it is doing. Pure in t. */
 function poseAt(t: number): Pose {
@@ -174,9 +191,9 @@ function poseAt(t: number): Pose {
   p.heave = 0;
   p.flare = 0;
   p.brake = 0;
-  p.reverse = 0;
   p.front = 0;
-  p.rear = WHEEL_SPIN * (Math.min(Math.max(t, BURNOUT), DONUTS_END) - BURNOUT);
+  p.fade = 1;
+  p.rear = WHEEL_SPIN * (Math.min(Math.max(t, BURNOUT), GONE) - BURNOUT);
   let heading = HOME_HEADING;
   let a = HOME_A;
   let z = CAR_Z;
@@ -196,46 +213,32 @@ function poseAt(t: number): Pose {
     p.heave = SHAKE * on * Math.sin(t * 61) * (0.6 + 0.4 * rev * rev);
     p.flare = on * (0.35 + 0.65 * Math.max(0, rev));
     p.brake = 1;
-  } else if (t < DONUTS_END) {
-    // Take off up the floor, then the tail steps out and it spins about the pivot.
-    p.phase = t < DONUTS ? "launch" : "donuts";
-    heading = HOME_HEADING - turned(t);
-    let pa = SPOT_A;
+  } else {
+    // Peel out up the floor into the lane and out to the spot; the tail steps out as it slides in
+    // and it spins about the pivot; out of the last spin it points at the city and zooms off.
+    p.phase = t < DONUTS ? "launch" : t < DONUTS_END ? "donuts" : t < GONE ? "zoom" : "gone";
     let pz = SPOT_Z;
+    let pa = SPOT_A;
     if (t < ARRIVE) {
-      const g = surge((t - LAUNCH) / (ARRIVE - LAUNCH));
-      pa = bez(HOME_PA, HOME_PA + LEAD * FWD_A, SPOT_A - EASE_IN * FWD_A, SPOT_A, g);
-      pz = bez(HOME_PZ, HOME_PZ + LEAD * FWD_Z, SPOT_Z - EASE_IN * FWD_Z, SPOT_Z, g);
+      pz = HOME_PZ + (SPOT_Z - HOME_PZ) * surge((t - LAUNCH) / (ARRIVE - LAUNCH));
+      pa = (wayX(pz) * pz) / TOWER_DEPTH;
+    } else if (t > ZOOM) {
+      const k = clamp01((t - ZOOM) / (GONE - ZOOM));
+      pz = SPOT_Z + ZOOM_RUN * k * k;
+      pa = (LANE_X * pz) / TOWER_DEPTH;
     }
+    heading = wayHeading(pz) - turned(t);
     a = pa - PIVOT * CAR_W * Math.sin(heading);
     z = pz - PIVOT * CAR_W * Math.cos(heading);
     const k = t - LAUNCH;
-    p.pitch = SQUAT * (1 + 0.8 * Math.exp(-k * 5)) * Math.exp(-k * 1.5);
-    p.flare = Math.exp(-k * 3) + (p.phase === "donuts" ? 0.35 * Math.max(0, Math.sin(t * 9.3) * Math.sin(t * 4.1)) : 0);
+    const go = t - ZOOM;
+    p.pitch = squat(k) + (go > 0 ? squat(go) : 0);
+    p.flare =
+      Math.exp(-k * 3) +
+      (p.phase === "donuts" ? 0.35 * Math.max(0, Math.sin(t * 9.3) * Math.sin(t * 4.1)) : 0) +
+      (go > 0 ? Math.exp(-go * 3) : 0);
     p.front = p.rear - FRONT_LAG;
-  } else if (t < PARKED) {
-    // Out of the last spin square to us again: a beat, then it backs into its spot.
-    p.phase = "back";
-    const k = smooth((t - BACK_FROM) / (PARKED - BACK_FROM));
-    a = bez(END_A, END_A - BACK_LEAD * FWD_A, HOME_A + BACK_LEAD * FWD_A, HOME_A, k);
-    z = bez(END_Z, END_Z - BACK_LEAD * FWD_Z, CAR_Z + BACK_LEAD * FWD_Z, CAR_Z, k);
-    p.rear -= BACK_ROLL * k;
-    p.front = p.rear - FRONT_LAG;
-    p.reverse = t > BACK_FROM - 0.1 ? 1 : 0;
-    p.brake = t < BACK_FROM ? 1 : 0;
-  } else {
-    // Home: it rocks on its springs, then idles.
-    p.phase = "parked";
-    const x = t - PARKED;
-    p.rear -= BACK_ROLL;
-    p.front = p.rear - FRONT_LAG;
-    if (x < SETTLED - PARKED) {
-      const fade = 1 - x / (SETTLED - PARKED);
-      const rock = Math.exp(-x * 6) * Math.sin(x * 20) * fade;
-      p.pitch = -0.045 * rock;
-      p.heave = -0.016 * rock;
-      p.brake = 1 - x / (SETTLED - PARKED);
-    }
+    p.fade = fadeAt(pz);
   }
   p.a = a;
   p.z = z;
@@ -270,8 +273,12 @@ const SMOKE_WINDOWS: readonly {
   life: number;
 }[] = [
   { from: BURNOUT + 0.15, to: LAUNCH, rate: 9, back: 0.2, spread: 0.08, rise: 0.022, size: 0.048, life: 2.1 },
-  { from: LAUNCH, to: DONUTS, rate: 12, back: 0.07, spread: 0.02, rise: 0.02, size: 0.03, life: 1.3 },
-  { from: DONUTS, to: DONUTS_END - 0.35, rate: 18, back: 0.05, spread: 0.015, rise: 0.012, size: 0.032, life: 1.6 },
+  // Wheelspin off the line, into the burnout's cloud.
+  { from: LAUNCH, to: LAUNCH + 0.45, rate: 16, back: 0.12, spread: 0.03, rise: 0.02, size: 0.04, life: 1.4 },
+  // The far donuts: a cloud rising round the spinning car.
+  { from: DONUTS, to: DONUTS_END - 0.6, rate: 24, back: 0.04, spread: 0.012, rise: 0.03, size: 0.055, life: 1.7 },
+  // A burst of wheelspin as it zooms off the spot.
+  { from: ZOOM, to: ZOOM + 0.15, rate: 40, back: 0.1, spread: 0.03, rise: 0.02, size: 0.05, life: 1.2 },
 ];
 /** Smoke drifts a touch toward the middle of the floor (u/s), away from the palm; the right
  *  tyre's smoke billows out on that side only this much of the left tyre's, in puffs this much
@@ -585,11 +592,9 @@ const PLATE = "#1a0b2e";
 const PLATE_RIM = alpha(CYAN, 0.7);
 const TAIL = mix(RED, PINK, 0.25);
 const BRAKE_GLOW = alpha(TAIL, 0.35);
-const REVERSE = "#f4f0ff";
 const HEADLIGHT = mix(CYAN, "#ffffff", 0.45);
 const SHADE = "rgba(0, 0, 0, 0.55)";
 const TAIL_GLOW = alpha(TAIL, 0.2);
-const REVERSE_GLOW = alpha(REVERSE, 0.16);
 const HEAD_GLOW = alpha(CYAN, 0.12);
 const EXHAUST = mix(SHADOW_MID, ORANGE, 0.35);
 const FLAME = mix(ORANGE, PINK, 0.3);
@@ -817,7 +822,7 @@ function drawWheel(ctx: Ctx, side: number, end: number, angle: number): void {
 }
 
 /** Shadow on the grid and the lights' glow spilling onto it, in the floor's frame. */
-function drawFloorLight(ctx: Ctx, p: Pose): void {
+function drawFloorLight(ctx: Ctx): void {
   frame(ctx, CH, OX, OY, O_FLOOR, E_X, E_L);
   ctx.beginPath();
   oval(ctx, 0, 0, 0.6, 1.1);
@@ -825,7 +830,7 @@ function drawFloorLight(ctx: Ctx, p: Pose): void {
   ctx.fill();
   ctx.beginPath();
   oval(ctx, 0, -1.25, 0.5, 0.26);
-  ctx.fillStyle = p.reverse > 0 ? REVERSE_GLOW : TAIL_GLOW;
+  ctx.fillStyle = TAIL_GLOW;
   ctx.fill();
   ctx.beginPath();
   oval(ctx, 0, 1.35, 0.42, 0.3);
@@ -883,13 +888,6 @@ function drawRear(ctx: Ctx, p: Pose, t: number): void {
     ctx.stroke();
   }
   hotTube(ctx, TAIL, Math.max(1.2 * px, 0.032), 2.6, 0.6 * px);
-  if (p.reverse > 0) {
-    ctx.beginPath();
-    ctx.rect(-0.44, -0.255, 0.07, 0.03);
-    ctx.rect(0.37, -0.255, 0.07, 0.03);
-    ctx.fillStyle = REVERSE;
-    ctx.fill();
-  }
   ctx.beginPath();
   ctx.moveTo(-0.04, -0.31);
   ctx.lineTo(0, -0.27);
@@ -921,7 +919,7 @@ function drawNose(ctx: Ctx): void {
 function drawSide(ctx: Ctx, side: number, facing: number): void {
   const px = frame(ctx, BD, BX, BY, side < 0 ? O_LEFT : O_RIGHT, E_L, E_DOWN);
   // Seen nearly edge-on it is a sliver: let it fade in rather than flash.
-  ctx.globalAlpha = Math.min(1, facing / 0.25);
+  ctx.globalAlpha *= Math.min(1, facing / 0.25);
   ctx.beginPath();
   sidePath(ctx);
   ctx.fillStyle = cache.side!;
@@ -1050,9 +1048,10 @@ function drawBody(ctx: Ctx, p: Pose, t: number, w: number): void {
 // ------------------------------------------------------------------ public
 
 /** Scratch result of `carAt`. */
-const CAR = { x: 0, y: 0, w: 0, z: CAR_Z, heading: HOME_HEADING, phase: "ready" as CarPhase };
+const CAR = { x: 0, y: 0, w: 0, z: CAR_Z, heading: HOME_HEADING, fade: 1, phase: "ready" as CarPhase };
 
-/** Where the car is now: its middle on the floor (x, y), its width (px), depth, heading, phase. */
+/** Where the car is now: its middle on the floor (x, y), its width (px), depth, heading, how much
+ *  of it shows (it fades into the haze at the city), phase. */
 export function carAt(s: Scene): typeof CAR {
   const p = poseAt(s.t);
   setView(s);
@@ -1062,6 +1061,7 @@ export function carAt(s: Scene): typeof CAR {
   CAR.w = (VIEW.f * CAR_W) / p.z;
   CAR.z = p.z;
   CAR.heading = p.heading;
+  CAR.fade = p.phase === "gone" ? 0 : p.fade;
   CAR.phase = p.phase;
   return CAR;
 }
@@ -1129,28 +1129,47 @@ function drawSmoke(ctx: Ctx, t: number, split: number, far: boolean): void {
   ctx.globalAlpha = 1;
 }
 
+/** The deepest any smoke drifts (depth): all that is left to draw once the car is gone. */
+const FAR_SMOKE_Z = (() => {
+  let far = SPOT_Z;
+  for (let i = 0; i < PUFFS.length; i += PUFF_FIELDS) far = Math.max(far, PUFFS[i + PUFF.z]! + Math.max(0, PUFFS[i + PUFF.vz]!) * SMOKE_DRAG);
+  return far;
+})();
+
 export function drawCar(ctx: Ctx, s: Scene): void {
-  const p = poseAt(s.t);
-  setView(s);
-  const w = (VIEW.f * CAR_W) / p.z;
-  project(p.a, p.z, 0);
-  if (SY - w * 2 > s.cssH) return;
-  if (cache.ctx !== ctx) build(ctx);
   const t = s.t;
-  const show = t < SHOW_END;
+  if (t >= SHOW_END) return;
+  const p = poseAt(t);
+  const gone = p.phase === "gone";
+  setView(s);
+  // All of the show lies at or nearer than the car (or, once it is gone, its last smoke): when
+  // that is below the screen, so is everything else.
+  const zFar = gone ? FAR_SMOKE_Z : p.z;
+  project(0, zFar, 0);
+  if (SY - (VIEW.f * CAR_W * 2) / zFar > s.cssH) return;
+  if (cache.ctx !== ctx) build(ctx);
   ctx.save();
-  if (show) drawMarks(ctx, t);
+  drawMarks(ctx, t);
+  if (gone) {
+    drawSmoke(ctx, t, Infinity, false);
+    ctx.restore();
+    return;
+  }
   setCar(p);
-  drawFloorLight(ctx, p);
-  if (show) drawSmoke(ctx, t, p.z, true);
+  ctx.globalAlpha = p.fade;
+  drawFloorLight(ctx);
+  drawSmoke(ctx, t, p.z, true);
   // Wheels first (the body hides all but their feet and what shows in the arches), far side first.
   // Looking along +x we see the left side (the near one); looking along +l, the rear wheels are nearer.
+  ctx.globalAlpha = p.fade;
+  const w = (VIEW.f * CAR_W) / p.z;
   const near = VC[0]! < 0 ? 1 : -1;
   const ends = VC[1]! > 0 ? FRONT_FIRST : REAR_FIRST;
   for (const side of [-near, near]) {
     for (const end of ends) drawWheel(ctx, side, end, end < 0 ? p.rear : p.front);
   }
   drawBody(ctx, p, t, w);
-  if (show) drawSmoke(ctx, t, p.z, false);
+  ctx.globalAlpha = 1;
+  drawSmoke(ctx, t, p.z, false);
   ctx.restore();
 }
