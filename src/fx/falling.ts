@@ -1,8 +1,7 @@
 import { BLOCK_HEIGHT } from "../config";
 import type { Block } from "../game";
 
-// Cosmetic falling pieces: the overhang a sloppy drop slices off (or a missed bar, or the bars of a
-// toppled Hard-mode tower) tumbles away.
+// Cosmetic falling pieces: the overhang a sloppy drop slices off (or a missed bar) tumbles away.
 // Renderer-only; the game never sees them.
 
 /** World units/sec^2; slow enough to watch the chop happen. */
@@ -24,23 +23,23 @@ export interface Falling extends Block {
   angle: number;
   spin: number;
   level: number;
-  /** World units/sec^2; GRAVITY unless set (a toppling tower's bars fall harder). */
-  gravity?: number;
-  /** Opacity; FALL_ALPHA unless set. */
-  alpha?: number;
 }
 
 /** Sliced slivers fade a touch as they leave, so the tower stays the brightest thing. */
 export const FALL_ALPHA = 0.9;
 
-/** `towerX` is the world x of the tower top's center; pieces tumble away from it. */
-export function addFalling(falling: Falling[], piece: Block, level: number, towerX: number): void {
+/**
+ * `towerX` is the world x of the tower top's center; pieces tumble away from it. `vy` is how fast
+ * the piece is already falling, world units/sec: in Drop a bar arrives falling, and the overhang it
+ * loses (or the whole bar, on a miss) falls on at that speed.
+ */
+export function addFalling(falling: Falling[], piece: Block, level: number, towerX: number, vy = 0): void {
   const dir = piece.x + piece.w / 2 < towerX ? -1 : 1;
   falling.push({
     ...piece,
     y: level * BLOCK_HEIGHT,
     vx: dir * FALL_DRIFT,
-    vy: 0,
+    vy,
     angle: 0,
     spin: dir * FALL_SPIN,
     level,
@@ -50,7 +49,7 @@ export function addFalling(falling: Falling[], piece: Block, level: number, towe
 /** Advance the pieces; drop the ones far below the camera. */
 export function stepFalling(falling: Falling[], dt: number, cameraY: number): Falling[] {
   for (const f of falling) {
-    f.vy += (f.gravity ?? GRAVITY) * dt;
+    f.vy += GRAVITY * dt;
     f.y -= f.vy * dt;
     f.x += f.vx * dt;
     f.angle += f.spin * dt;

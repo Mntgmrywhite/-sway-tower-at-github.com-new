@@ -1,21 +1,24 @@
 import { BLOCK_HEIGHT, SLIDE_RANGE, WORLD_WIDTH } from "./config";
 import { kickAmplitude, swayOffset, top, type GameState } from "./game";
 
-// The camera: how world units land on the screen, and Hard mode's zoom and sideways follow.
+// The camera: how world units land on the screen, and a zoom and sideways follow for leaning towers.
 //
-// Hard mode slices nothing, so a tower can lean far past its base (harmonic stacking) and the
-// slider, which runs centered on the top bar, goes with it; Hard's sway is strong too. So in Hard,
-// when the top bar (at the far ends of its sway) or the slider would leave the screen, the whole
-// frame zooms out (scenery and tower together, so the tower stays on its plinth), down to ZOOM_MIN,
-// and eases back in once there is room again. Zoomed out, the frame is laid out on a virtual screen
-// 1/zoom as wide and as tall at the same size unit and scale, and drawn shrunk by the zoom: the top
-// of the tower stays where it is on screen (the ground, while it is held low). The HUD never zooms.
+// Both modes frame the tower the same way: the climb (render.ts), with Drop's slider lane a bar
+// higher. The zoom and the sideways follow below were built for Hard's old rules, whose unsliced
+// towers could lean far past their base; both modes slice now, so no tower leans past what Slide's
+// ever did, and the renderer keeps them off (View.follow is false in every run). They stay, with
+// their tests, for a mode that would need them; the skins still draw a zoomed-out frame correctly.
 //
-// Once the base has left the screen, the tower layer (bars, slider, falling pieces, flash, PERFECT
-// pop, toppling slab) can also pan sideways to keep the top and the slider in view; the scenery and
-// the HUD never pan, and while the base is on screen the pan fades to 0 so the tower never slides
-// off its plinth. The camera zooms only as far out as the pan can't cover. Normal never zooms or
-// pans. Renderer-only: the game never sees any of this.
+// When on: when the top bar (at the far ends of its sway) or the slider would leave the screen, the
+// whole frame zooms out (scenery and tower together, so the tower stays on its plinth), down to
+// ZOOM_MIN, and eases back in once there is room again. Zoomed out, the frame is laid out on a
+// virtual screen 1/zoom as wide and as tall at the same size unit and scale, and drawn shrunk by the
+// zoom: the top of the tower stays where it is on screen (the ground, while it is held low). The
+// HUD never zooms. Once the base has left the screen, the tower layer (bars, slider, falling
+// pieces, flash, PERFECT pop) can also pan sideways to keep the top and the slider in view; the
+// scenery and the HUD never pan, and while the base is on screen the pan fades to 0 so the tower
+// never slides off its plinth. The camera zooms only as far out as the pan can't cover.
+// Renderer-only: the game never sees any of this.
 
 /** World units visible horizontally; a little wider than the slider's travel. */
 export const VIEW_WIDTH = WORLD_WIDTH * 1.5;
@@ -24,7 +27,7 @@ export const TOP_ANCHOR = 0.38;
 /** Until the tower is tall enough, hold the ground this far down the screen. */
 export const GROUND_START = 0.7;
 
-/** Hard's camera never zooms out further than this: the whole frame drawn at 60% of its size. */
+/** The camera never zooms out further than this: the whole frame drawn at 60% of its size. */
 export const ZOOM_MIN = 0.6;
 /**
  * The zoom eases out toward its target over about this long, seconds: briskly, since a drop that
@@ -131,7 +134,7 @@ export function swayReach(state: GameState, level: number): number {
 }
 
 /**
- * How far Hard's camera keeps on screen either side of the top bar's rest center, world units: the
+ * How far the following camera keeps on screen either side of the top bar's rest center, world units: the
  * top bar at the far ends of its sway (as it swings once a perfect drop's calm has worn off, so the
  * camera never breathes with the calm), TOP_MARGIN inside the edges, and SLIDER_SHOWN of the slider
  * at the ends of its run (which is centered there too).
@@ -175,16 +178,16 @@ function narrow(span: Span, want: Span): Span {
 }
 
 /**
- * Where the sideways camera wants to be while a Hard run is played, world units (the tower layer is
+ * Where the sideways camera wants to be while a run is played, world units (the tower layer is
  * drawn this far left). It follows the bars on screen, the top ones weighing most, clamped so these
  * stay on screen, most important first: what holdReach keeps around the top bar (if even that can't
  * fit, it centers it); then the slider's whole run and the tower on screen, each as far as it still
  * fits. Uses rest positions, so the camera never sways with the tower. The bar at the bottom edge
- * counts as much as it shows, so a bar leaving the screen never jolts the target. Normal (and any
- * finished run) gets 0.
+ * counts as much as it shows, so a bar leaving the screen never jolts the target. A finished run
+ * gets 0.
  */
 export function panTarget(state: GameState, frame: Frame): number {
-  if (state.mode !== "hard" || state.phase !== "playing") return 0;
+  if (state.phase !== "playing") return 0;
   const edge = frame.bottom / BLOCK_HEIGHT;
   const first = Math.max(0, Math.floor(edge));
   const hold = holdReach(state);
@@ -232,28 +235,12 @@ function targetFrom(state: GameState, frame: Frame, first: number, hold: number)
 }
 
 /**
- * After the run ends the camera holds still, except that a toppling slab's pivot (world x) is
- * brought on screen with `room` world units to spare (or centered, on a screen too narrow for that).
- */
-export function holdPan(pan: number, frame: Frame, pivotX: number | null, room: number): number {
-  if (pivotX === null) return pan;
-  const [lo, hi] = fit(frame, pivotX - room, pivotX + room);
-  return lo <= hi ? Math.min(hi, Math.max(lo, pan)) : pivotX - WORLD_WIDTH / 2;
-}
-
-/**
  * 0 while the base can be seen (or nearly), rising to 1 as the camera climbs past it: the pan
  * drawn is the eased pan times this, so it never moves the base off its plinth and never jumps.
  */
 export function panFade(frame: Frame): number {
   const below = frame.bottom - BLOCK_HEIGHT - PAN_FADE_FROM;
   return Math.min(1, Math.max(0, below / PAN_FADE_SPAN));
-}
-
-/** The lowest (view) camera at which panFade is still `fade` (0..1) on a `cssW` x `cssH` screen zoomed by `zoom`. */
-export function fadeCamera(cssW: number, cssH: number, fade: number, zoom = 1): number {
-  const f = frameFor(cssW, cssH, 0, zoom);
-  return BLOCK_HEIGHT + PAN_FADE_FROM + fade * PAN_FADE_SPAN + (f.height - f.anchorPx) / f.scale;
 }
 
 /**
@@ -278,23 +265,23 @@ const ZOOM_SCAN = 0.01;
  */
 const FIT_SLACK = 1e-9;
 
-/** Where Hard's zoom should head this frame, and whether it must go now (the zoom it has spills). */
+/** Where the zoom should head this frame, and whether it must go now (the zoom it has spills). */
 export interface ZoomAim {
   zoom: number;
   urgent: boolean;
 }
 
 /**
- * Where Hard's zoom heads this frame, from the eased zoom `current`, with the view's camera at
+ * Where the zoom heads this frame, from the eased zoom `current`, with the view's camera at
  * `viewCameraY` on a `cssW` x `cssH` screen. Where what holdReach keeps around the top bar fits
  * (spill <= 0) it climbs back in as far as it keeps fitting, never through zooms where it doesn't:
  * zooming out shows more below and can bring the base back into view, which takes the pan away, so
  * a zoom that fits further in may not be reachable without the top leaving the screen on the way.
  * Where it spills, it must move: out to the closest zoom that fits, down to ZOOM_MIN, or failing
- * that the one on the way that spills least. A finished run (and Normal) holds the zoom where it is.
+ * that the one on the way that spills least. A finished run holds the zoom where it is.
  */
 export function zoomTarget(state: GameState, cssW: number, cssH: number, viewCameraY: number, current: number): ZoomAim {
-  if (state.mode !== "hard" || state.phase !== "playing") return { zoom: current, urgent: false };
+  if (state.phase !== "playing") return { zoom: current, urgent: false };
   const hold = holdReach(state);
   const spillAt = (z: number) => spill(state, frameFor(cssW, cssH, viewCameraY, z), hold) - FIT_SLACK;
   /** Where the spill crosses 0 between a zoom that fits and one that doesn't: the fitting side. */
@@ -330,7 +317,7 @@ export function zoomTarget(state: GameState, cssW: number, cssH: number, viewCam
   return { zoom: best, urgent: true };
 }
 
-/** Hard's zoom state: the eased zoom and its speed, where it is heading, and how long before it may head back in. */
+/** The zoom's state: the eased zoom and its speed, where it is heading, and how long before it may head back in. */
 export interface Zoom {
   zoom: number;
   /** Per second. */
@@ -371,7 +358,7 @@ export function easeZoom(z: Zoom, dt: number): void {
 }
 
 /**
- * One frame of Hard's zoom while a run is played. Where the zoom spills it heads for `aim` at once,
+ * One frame of the zoom while a run is played. Where the zoom spills it heads for `aim` at once,
  * briskly, and won't head back in until ZOOM_HOLD seconds after it last spilled; otherwise the goal
  * follows `aim` down at once and up only once that hold is over, gently. Then the zoom eases.
  */

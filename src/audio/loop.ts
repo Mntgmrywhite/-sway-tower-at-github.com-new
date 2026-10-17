@@ -14,7 +14,7 @@ export interface LoopInfo {
   PAD: number;
   /** Encoder priming frames AAC put in front. */
   priming: number;
-  /** Tempo and length in bars, as written (Hard mode switches tempo on bar lines). */
+  /** Tempo and length in bars, as written (the music switches tempo on bar lines). */
   bpm?: number;
   bars?: number;
 }

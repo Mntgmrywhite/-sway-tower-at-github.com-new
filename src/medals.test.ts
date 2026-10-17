@@ -55,9 +55,9 @@ describe("the Achievements screen's words", () => {
   it("each medal says what it is, whether it's earned (in which mode) or what it takes", () => {
     const save = emptySave();
     record(save, "hard", 5, 0, 1);
-    expect(medalLabel(achievement("stack-5")!, save)).toBe("Stack 5, earned in Hard, new.");
+    expect(medalLabel(achievement("stack-5")!, save)).toBe("Stack 5, earned in Drop, new.");
     save.fresh = [];
-    expect(medalLabel(achievement("stack-5")!, save)).toBe("Stack 5, earned in Hard.");
+    expect(medalLabel(achievement("stack-5")!, save)).toBe("Stack 5, earned in Drop.");
     expect(medalLabel(achievement("perfect-9")!, save)).toBe("Perfect ×9, locked: 9 perfect drops in a row.");
   });
 

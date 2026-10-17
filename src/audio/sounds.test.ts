@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { chimeStep, dropSounds, unlockSounds } from "./sounds";
+import { blastSounds, chimeStep, dropSounds, unlockSounds } from "./sounds";
 
 describe("drop sounds", () => {
   it("a perfect lands softly and rings a chime that climbs with the streak", () => {
@@ -25,6 +26,13 @@ describe("drop sounds", () => {
 
   it("a miss just misses", () => {
     expect(dropSounds({ kind: "miss", cut: { x: 0, w: 60 } }, 0)).toEqual([{ sound: "miss" }]);
+  });
+});
+
+describe("game over", () => {
+  it("the toppling tower blows up with a boom (the debris rattling after it), from a file that ships", () => {
+    expect(blastSounds()).toEqual([{ sound: "boom" }]);
+    expect(existsSync(new URL("./sfx/boom.mp4", import.meta.url))).toBe(true);
   });
 });
 

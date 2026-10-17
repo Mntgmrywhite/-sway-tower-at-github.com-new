@@ -7,14 +7,14 @@ import { AUTO, SKINS, skinForDate } from "./skins";
 import type { Skin } from "./skins/skin";
 
 // Player-facing options: an Options button (top-left) that opens a sheet with the game mode
-// (Normal / Hard), sound switches (music, effects) and a skin picker. Picking a skin applies it
+// (Slide / Drop), sound switches (music, effects) and a skin picker. Picking a skin applies it
 // immediately behind the sheet; picking a mode starts a fresh run in it. Everything is saved on the
 // device (main.ts owns the mode and its save).
 
-/** The mode choices, in order, with a one-line summary each. */
+/** The mode choices, in order, with a one-line summary each: Slide (mode "normal") and Drop ("hard"). */
 const MODES: { value: Mode; title: string; sub: string }[] = [
-  { value: "normal", title: "Normal", sub: "3 lives · overhangs slice off" },
-  { value: "hard", title: "Hard", sub: "1 life · real balance · the music speeds up" },
+  { value: "normal", title: "Slide", sub: "the bar slides across the top · 3 lives · overhangs slice off" },
+  { value: "hard", title: "Drop", sub: "the bar drops from one bar above · 3 lives · overhangs slice off" },
 ];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

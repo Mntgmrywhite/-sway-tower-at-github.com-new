@@ -19,7 +19,8 @@ import {
   type Achievement,
   type KeyValue,
 } from "./achievements";
-import { drop, newGame, step, swayOffset, top, type GameState, type Mode } from "./game";
+import { newGame, step, type GameState, type Mode } from "./game";
+import { land, topAtContact } from "./testing/bots";
 
 /** A Map-backed Storage stand-in; `broken` makes every call throw (storage blocked). */
 function store(init: Record<string, string> = {}, broken = false): KeyValue & { data: Map<string, string> } {
@@ -150,9 +151,9 @@ function playRun(mode: Mode, offsets: number[], drops: number, save = emptySave(
   const unlocked: Achievement[] = [];
   for (let i = 0; i < drops && state.phase === "playing"; i++) {
     for (let t = 0; t < 0.3; t += 1 / 60) step(state, 1 / 60);
-    const level = state.blocks.length - 1;
-    state.slider.x = top(state).x + swayOffset(state, level) + offsets[i % offsets.length]!;
-    drop(state);
+    // Aimed at the swaying top as it will be when the bar lands (in Drop it falls from a bar above).
+    state.slider.x = topAtContact(state) + offsets[i % offsets.length]!;
+    land(state);
     unlocked.push(...record(save, mode, state.score, state.streak, i).unlocked);
   }
   return { state, save, unlocked };
@@ -170,23 +171,12 @@ describe("in real runs", () => {
     for (const a of unlocked) expect(save.earned[a.id]!.mode).toBe(mode);
   });
 
-  it("a perfect run to 30 earns the whole perfect ladder and six stack medals", () => {
-    const { save, state } = playRun("normal", [0], 30);
+  it.each<Mode>(["normal", "hard"])("%s: a perfect run to 30 earns the whole perfect ladder and six stack medals", (mode) => {
+    const { save, state } = playRun(mode, [0], 30);
     expect(state.score).toBe(30);
     expect(state.streak).toBe(30);
     expect(PERFECT_MEDALS.every((a) => save.earned[a.id])).toBe(true);
     expect(ids(STACK_MEDALS.filter((a) => save.earned[a.id]))).toEqual(["stack-5", "stack-10", "stack-15", "stack-20", "stack-25", "stack-30"]);
-  });
-
-  it("Hard: the bar that topples the tower doesn't count toward a stack medal", () => {
-    // Straight up to 4, then steps to the right: the tenth bar lands and tips the tower.
-    const { state, save } = playRun("hard", [0, 0, 0, 0, 9, 9, 9, 9, 9, 9, 9, 9], 12);
-    expect(state.phase).toBe("over");
-    expect(state.toppled).not.toBeNull();
-    expect(state.blocks).toHaveLength(11); // the base and ten bars, the last one tipping
-    expect(state.score).toBe(9);
-    expect(save.best.stack).toBe(9);
-    expect(ids(STACK_MEDALS.filter((a) => save.earned[a.id]))).toEqual(["stack-5"]);
   });
 });
 

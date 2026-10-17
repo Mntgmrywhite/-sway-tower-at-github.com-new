@@ -1,14 +1,12 @@
-import { BLOCK_HEIGHT } from "./config";
-import { startLives, swayOffset, type Block, type GameState, type Tip } from "./game";
+import { BLOCK_HEIGHT, LIVES } from "./config";
+import { contactSpeed, sliderGap, sliderLift, swayOffset, type Block, type DropResult, type GameState } from "./game";
 import { roundRectPath } from "./base/draw";
 import { kitFor } from "./base/style";
 import { horizonFor } from "./base/world";
 import {
   easeZoom,
-  fadeCamera,
   frameFor,
   GROUND_START,
-  holdPan,
   newZoom,
   PAN_EASE,
   panFade,
@@ -23,7 +21,7 @@ import type { Achievement } from "./achievements";
 import { drawMedalStrip } from "./medals";
 import { addFalling as pushFalling, FALL_ALPHA, stepFalling, type Falling } from "./fx/falling";
 import { addPop, drawPops, stepPops, type Pop } from "./fx/pops";
-import { slabPoses, startTopple, stepTopple, toppling, type Topple } from "./fx/topple";
+import { drawTopple, flashAlpha, missSide, shakeOffset, startTopple, stepTopple, toppling, type Topple } from "./fx/topple";
 
 export const GAME_NAME = "Sway Tower";
 
@@ -42,20 +40,14 @@ export interface RenderOptions {
   newMedals?: readonly Achievement[];
   /** Seconds the game-over card has been up, for the medals' pop-in (default: fully in). */
   cardAge?: number;
+  /** The player asked for less motion: the game-over blast doesn't shake the scene. */
+  still?: boolean;
 }
 
 const CAMERA_EASE = 6; // per second
 /** Perfect-drop flash: light bursts along the seam and the block glows in the accent color. */
 const FLASH_TIME = 0.5; // seconds
 const SEAM_SPREAD = 0.6; // how far the seam light reaches past the block edges, in block widths
-/** While a Hard-mode tower falls, the camera keeps its pivot at most this far below the anchor, world units. */
-const TOPPLE_CAMERA_ROOM = 12 * BLOCK_HEIGHT;
-/** ...and at least this far inside the screen's side edges, world units. */
-const TOPPLE_PAN_ROOM = 2 * BLOCK_HEIGHT;
-/** A fall that brings the base back on screen lets go of the sideways pan over this long, seconds... */
-const PAN_RELEASE_TIME = 0.25;
-/** ...holding the camera above the base meanwhile, unless the pan is smaller than this, world units. */
-const PAN_HOLD_MIN = 0.05;
 /** The screen size the sideways camera frames the tower for until the first frame is drawn, CSS px. */
 const DEFAULT_SCREEN = { w: 390, h: 844 };
 /**
@@ -73,30 +65,36 @@ interface Flash {
 export interface View {
   cameraY: number; // world y shown at TOP_ANCHOR
   /**
-   * Hard mode's sideways camera, world units: the tower layer is drawn this far left, faded out
-   * while the base is on screen (src/camera.ts). Always 0 in Normal.
+   * Whether the camera zooms out and pans sideways after a leaning tower (src/camera.ts). False in
+   * every run: both modes slice, so no tower leans past what a phone shows, and Slide and Drop are
+   * framed the same way (Drop's slider lane a bar higher). Kept for a mode that would need it;
+   * tests turn it on to keep that machinery honest. While it is off, `panX`, `zoom` and `fade` stay
+   * as newView() made them and nothing is drawn zoomed or panned.
+   */
+  follow: boolean;
+  /**
+   * The sideways camera, world units: the tower layer is drawn this far left, faded out while the
+   * base is on screen (src/camera.ts). Always 0 unless `follow`.
    */
   panX: number;
   /**
-   * Hard mode's zoom (src/camera.ts): the whole frame but the HUD is drawn shrunk by `zoom.zoom`
-   * (1: not zoomed), so a leaning or swinging tower top and the slider stay on screen. Always 1 in Normal.
+   * The zoom (src/camera.ts): the whole frame but the HUD is drawn shrunk by `zoom.zoom` (1: not
+   * zoomed), so a leaning or swinging tower top and the slider stay on screen. Always 1 unless `follow`.
    */
   zoom: Zoom;
   /**
-   * Hard mode: how much of the pan is drawn (0..1). It follows panFade down at once, so the tower is
-   * on its plinth whenever the base shows, but rises at most PAN_FADE_RATE a second: a zoom that
-   * sweeps the base off the bottom edge eases the pan in instead of throwing the tower sideways.
+   * How much of the pan is drawn (0..1). It follows panFade down at once, so the tower is on its
+   * plinth whenever the base shows, but rises at most PAN_FADE_RATE a second: a zoom that sweeps
+   * the base off the bottom edge eases the pan in instead of throwing the tower sideways.
    */
   fade: number;
   /** The CSS size the view was last drawn at: the zoom and the sideways camera frame the tower for it. */
   screen: { w: number; h: number };
-  /** panX when the tower toppled: a fall back down to the base lets go of it from there. */
-  panAtTopple: number;
   falling: Falling[];
   flashes: Flash[];
   /** The PERFECT word over the block that just landed (src/fx/pops.ts). */
   pops: Pop[];
-  /** Hard mode: the tower tipping over (src/fx/topple.ts); the game-over card waits for it. */
+  /** The end of the run: the top of the tower going over and blowing up (src/fx/topple.ts); the card waits for it. */
   topple: Topple | null;
   /** Animation clock for background effects, seconds. */
   t: number;
@@ -105,11 +103,11 @@ export interface View {
 export function newView(): View {
   return {
     cameraY: BLOCK_HEIGHT,
+    follow: false,
     panX: 0,
     zoom: newZoom(),
     fade: 0,
     screen: { ...DEFAULT_SCREEN },
-    panAtTopple: 0,
     falling: [],
     flashes: [],
     pops: [],
@@ -118,20 +116,9 @@ export function newView(): View {
   };
 }
 
-/** Call after a drop tipped the tower (Hard mode): the slab above the failing interface falls. */
-export function addTopple(view: View, state: GameState, tip: Tip): void {
-  view.topple = startTopple(state, tip);
-  view.panAtTopple = view.panX;
-}
-
-/** True while a toppled tower is still falling: the game-over card (and a restart) wait for it. */
-export function isToppling(view: View): boolean {
-  return toppling(view.topple);
-}
-
-/** `towerX` is the world x of the tower top's center; pieces tumble away from it. */
-export function addFalling(view: View, piece: Block, level: number, towerX: number): void {
-  pushFalling(view.falling, piece, level, towerX);
+/** `towerX` is the world x of the tower top's center; pieces tumble away from it (already falling at `vy`, units/sec). */
+export function addFalling(view: View, piece: Block, level: number, towerX: number, vy = 0): void {
+  pushFalling(view.falling, piece, level, towerX, vy);
 }
 
 /**
@@ -143,69 +130,84 @@ export function addFlash(view: View, level: number, streak: number): void {
   addPop(view.pops, level, streak);
 }
 
-export function updateView(view: View, state: GameState, dt: number): void {
+/**
+ * Call when the miss that takes the last life lands (`dir`: the side the missed bar fell to): the top
+ * of the tower goes over that way and blows up, and the game-over card waits for it.
+ */
+export function addTopple(view: View, state: GameState, dir: -1 | 1): void {
+  view.topple = startTopple(state, dir);
+}
+
+/** True while the tower is still going over and blowing up: the game-over card (and a restart) wait for it. */
+export function isToppling(view: View): boolean {
+  return toppling(view.topple);
+}
+
+/**
+ * What the view shows for a bar that met the tower onto `level` (the top bar's center was at world x
+ * `towerX`): a perfect flashes and pops, a slice or a miss falls away (in Drop at the speed the bar
+ * arrived), and the miss that ends the run sends the top over toward the side it fell to. main.ts
+ * and the previews both call it.
+ */
+export function showLanding(view: View, state: GameState, r: DropResult, level: number, towerX: number): void {
+  if (r.kind === "perfect") {
+    addFlash(view, level, state.streak);
+    return;
+  }
+  addFalling(view, r.cut, level, towerX, contactSpeed(state.mode));
+  if (r.kind === "miss" && state.phase === "over") addTopple(view, state, missSide(r.cut, towerX));
+}
+
+/** What happened in a frame of the view that main.ts plays a sound or a haptic for. */
+export interface ViewEvents {
+  /** The toppling tower blew up this frame: the boom and the heavy haptic. */
+  blast: boolean;
+}
+
+export function updateView(view: View, state: GameState, dt: number): ViewEvents {
   view.t += dt;
   for (const f of view.flashes) f.age += dt;
   if (view.flashes.some((f) => f.age >= FLASH_TIME)) view.flashes = view.flashes.filter((f) => f.age < FLASH_TIME);
-  let target = (state.blocks.length + 1) * BLOCK_HEIGHT;
-  // A tower that tips low down: bring the pivot into view.
-  if (view.topple) target = Math.min(target, view.topple.py + TOPPLE_CAMERA_ROOM);
-  if (state.mode === "hard") {
+  // The top of the slider's lane: in Drop it runs a bar higher, and the camera keeps it (and the
+  // bar falling from it) where Slide's shows.
+  const target = (state.blocks.length + 1) * BLOCK_HEIGHT + sliderGap(state.mode);
+  if (view.follow) {
     // The zoom first: the pan frames the tower for the zoom it has this frame. Once the run is over
     // it only settles where it was heading.
     const { w, h } = view.screen;
     if (state.phase === "playing") stepZoom(view.zoom, zoomTarget(state, w, h, view.cameraY, view.zoom.zoom), dt);
     else easeZoom(view.zoom, dt);
-    target = stepPan(view, state, target, dt);
+    stepPan(view, state, dt);
   }
   view.cameraY += (target - view.cameraY) * Math.min(1, CAMERA_EASE * dt);
-  if (state.mode === "hard") {
+  if (view.follow) {
     const { w, h } = view.screen;
     view.fade = Math.min(panFade(frameFor(w, h, view.cameraY, view.zoom.zoom)), view.fade + PAN_FADE_RATE * dt);
   }
-  view.falling = stepFalling(view.falling, dt, view.cameraY + zoomDrop(view, state));
-  // After the falling step, so a bar that peels off this frame starts exactly where the slab had it.
-  if (view.topple) stepTopple(view.topple, dt, view.falling);
+  view.falling = stepFalling(view.falling, dt, view.cameraY + zoomDrop(view));
   stepPops(view.pops, dt);
+  // The blast throws what is still falling along with it.
+  const blast = view.topple ? stepTopple(view.topple, dt, view.falling) : false;
+  return { blast };
 }
 
 /**
  * How much further down (world units) the zoomed screen reaches than an unzoomed one would: falling
- * bars are let go that much lower, so they leave by the bottom edge as they do at zoom 1. 0 in Normal.
+ * bars are let go that much lower, so they leave by the bottom edge as they do at zoom 1. 0 unless the view follows.
  */
-function zoomDrop(view: View, state: GameState): number {
-  const zoom = towerZoom(view, state);
+function zoomDrop(view: View): number {
+  const zoom = towerZoom(view);
   if (zoom === 1) return 0;
   const { w, h } = view.screen;
   return frameFor(w, h, view.cameraY, zoom).bottom - frameFor(w, h, view.cameraY).bottom;
 }
 
-/**
- * Hard mode's sideways camera for this frame; returns the vertical camera's target (`target`, or
- * held higher while a fall lets go of the pan). While the run is played it follows the tower. Once
- * it is over it holds still, bringing a toppling slab's pivot on screen; but a fall that takes the
- * camera back down to the base (where nothing may be panned) first lets go of the pan, eased over
- * PAN_RELEASE_TIME, and holds the camera just above the base until it has: so the tower settles
- * back onto its plinth instead of snapping to it as the base comes into view.
- */
-function stepPan(view: View, state: GameState, target: number, dt: number): number {
+/** The sideways camera for this frame: it follows the tower while the run is played, then holds still. */
+function stepPan(view: View, state: GameState, dt: number): void {
+  if (state.phase !== "playing") return;
   const { w, h } = view.screen;
-  const z = view.zoom.zoom;
-  const ease = Math.min(1, PAN_EASE * dt);
-  if (state.phase === "playing") {
-    view.panX += (panTarget(state, frameFor(w, h, view.cameraY, z)) - view.panX) * ease;
-  } else if (view.topple && panFade(frameFor(w, h, target, z)) < 1) {
-    const k = Math.min(1, view.topple.age / PAN_RELEASE_TIME);
-    const left = 1 - k * k * (3 - 2 * k);
-    view.panX = view.panAtTopple * left;
-    if (left > 0 && Math.abs(view.panAtTopple) > PAN_HOLD_MIN) {
-      target = Math.max(target, Math.min(view.cameraY, fadeCamera(w, h, left, z)));
-    }
-  } else {
-    const pivot = view.topple ? view.topple.px : null;
-    view.panX += (holdPan(view.panX, frameFor(w, h, view.cameraY, z), pivot, TOPPLE_PAN_ROOM) - view.panX) * ease;
-  }
-  return target;
+  const frame = frameFor(w, h, view.cameraY, view.zoom.zoom);
+  view.panX += (panTarget(state, frame) - view.panX) * Math.min(1, PAN_EASE * dt);
 }
 
 export function render(
@@ -225,10 +227,10 @@ export function render(
   if (cssW <= 0 || cssH <= 0) return;
   view.screen.w = cssW;
   view.screen.h = cssH;
-  // Hard's camera can zoom out: then the world, the tower and the foreground are laid out on a
-  // virtual screen 1/zoom as big (same u and scale) and drawn shrunk by the zoom; the PERFECT pop
-  // and the HUD are drawn at the screen's own size. Normal never zooms.
-  const zoom = towerZoom(view, state);
+  // A following camera can zoom out (never in a run now: View.follow): then the world, the tower and
+  // the foreground are laid out on a virtual screen 1/zoom as big (same u and scale) and drawn
+  // shrunk by the zoom; the PERFECT pop and the HUD are drawn at the screen's own size.
+  const zoom = towerZoom(view);
   const zoomed = zoom !== 1;
   const frame = frameFor(cssW, cssH, view.cameraY, zoom);
   const { u, scale, offsetX, anchorPx, cameraY } = frame;
@@ -236,9 +238,9 @@ export function render(
   const vh = frame.height;
   const sx = (x: number) => offsetX + x * scale;
   const sy = (y: number) => anchorPx - (y - cameraY) * scale;
-  // The tower layer (bars, slider, loose and falling bars, flash, pop) pans with Hard's sideways
-  // camera; the scenery and the HUD stay put. Normal never pans.
-  const pan = towerPan(view, state, frame);
+  // The tower layer (bars, slider, falling bars, flash, pop) pans with a following camera's sideways
+  // pan; the scenery and the HUD stay put.
+  const pan = towerPan(view, frame);
   const tx = pan === 0 ? sx : (x: number) => sx(x - pan);
 
   const base = state.blocks[0];
@@ -268,6 +270,16 @@ export function render(
   const ready = !titleScreen && state.phase === "playing" && state.score === 0;
   const hud = hudLayout(cssH, u, state, ready);
 
+  // The blast shakes the scene (not the HUD). Scaled up about the center by just enough that the
+  // shaken scene still covers the screen's edges.
+  const shake = view.topple && !opts.still ? shakeOffset(view.topple) : null;
+  if (shake && shake.amp > 0) {
+    const grow = 1 + (2 * shake.amp * u) / Math.min(cssW, cssH);
+    ctx.save();
+    ctx.translate(cssW / 2 + shake.x * u, cssH / 2 + shake.y * u);
+    ctx.scale(grow, grow);
+    ctx.translate(-cssW / 2, -cssH / 2);
+  }
   if (zoomed) {
     ctx.save();
     ctx.scale(zoom, zoom);
@@ -278,21 +290,17 @@ export function render(
   const drawBlock = (x: number, w: number, level: number) =>
     kit.bar(ctx, tx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
 
-  /** A bar off the tower (falling, or swinging with a toppled slab), centered at world (cx, cy). */
-  const drawLoose = (cx: number, cy: number, w: number, angle: number, level: number, alpha: number) => {
+  /** A bar off the tower (a falling piece), centered at world (cx, cy). */
+  const drawLoose = (cx: number, cy: number, w: number, angle: number, level: number) => {
     const pw = w * scale;
     ctx.save();
     ctx.translate(tx(cx), sy(cy));
     ctx.rotate(angle);
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = FALL_ALPHA;
     kit.bar(ctx, -pw / 2, -h / 2, pw, h, level);
     ctx.restore();
   };
-  /**
-   * Whether a loose bar centered at world (cx, cy) can touch the screen at any angle. A tall
-   * tower that tips from low down sends hundreds of bars falling far above the view; drawing
-   * them all would cost frames for seconds behind the game-over card.
-   */
+  /** Whether a loose bar centered at world (cx, cy) can touch the screen at any angle. */
   const onScreen = (cx: number, cy: number, w: number) => {
     const reach = (w * scale) / 2 + h;
     const x = tx(cx);
@@ -300,15 +308,12 @@ export function render(
     return x > -reach && x < vw + reach && y > -reach && y < vh + reach;
   };
 
-  // Only draw blocks that can be on screen. A toppled tower's slab is drawn by its fall instead.
-  const standing = state.toppled ? state.toppled.level : state.blocks.length;
+  // Only draw blocks that can be on screen. The top section of a toppling tower is drawn by its fall.
+  const standing = view.topple ? view.topple.level : state.blocks.length;
   const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - vh / h - 2));
   for (let i = firstVisible; i < standing; i++) {
     const b = state.blocks[i];
     if (b) drawBlock(b.x + swayOffset(state, i), b.w, i);
-  }
-  if (view.topple) {
-    for (const p of slabPoses(view.topple)) if (onScreen(p.cx, p.cy, p.w)) drawLoose(p.cx, p.cy, p.w, p.angle, p.level, 1);
   }
 
   // Perfect-drop flash: accent tint on the block, light along the seam below it.
@@ -353,11 +358,17 @@ export function render(
   for (const f of view.falling) {
     const cx = f.x + f.w / 2;
     const cy = f.y + BLOCK_HEIGHT / 2;
-    if (onScreen(cx, cy, f.w)) drawLoose(cx, cy, f.w, f.angle, f.level, f.alpha ?? FALL_ALPHA);
+    if (onScreen(cx, cy, f.w)) drawLoose(cx, cy, f.w, f.angle, f.level);
   }
+  if (view.topple) drawTopple({ ctx, kit, scale, h, sx: tx, sy, width: vw, height: vh }, view.topple);
 
-  // The slider is in world space: it does not sway.
-  if (state.phase === "playing" && !titleScreen) drawBlock(state.slider.x, state.slider.w, state.blocks.length);
+  // The slider is in world space: it does not sway. In Drop it runs a bar above the tower, and a
+  // bar let go falls from there straight down onto it (sliderLift closes the gap as it falls).
+  if (state.phase === "playing" && !titleScreen) {
+    const level = state.blocks.length;
+    const s = state.slider;
+    kit.bar(ctx, tx(s.x), sy((level + 1) * BLOCK_HEIGHT + sliderLift(state)), s.w * scale, h, level);
+  }
 
   // The PERFECT pop goes over the slider so it always reads. Once the last life is gone the
   // game-over card takes the stage at once, so a pop still in flight would peek out around it.
@@ -376,6 +387,9 @@ export function render(
   }
   kit.front(ctx, scene);
   if (zoomed) ctx.restore();
+  if (shake && shake.amp > 0) ctx.restore();
+  // The blast's flash lights the whole scene for a moment (the HUD stays on top).
+  if (view.topple) kit.blast.flash(ctx, cssW, cssH, flashAlpha(view.topple));
 
   // HUD: outlined type (plus glow in neon), so it reads over any part of the scene.
   ctx.save();
@@ -385,7 +399,7 @@ export function render(
   const text = (t: string, x: number, y: number, fill: string, outline: number) =>
     kit.text(ctx, t, x, y, fill, outline);
 
-  // A toppled tower falls first; the card comes once it has gone over.
+  // The tower goes over and blows up first; the card comes once it has.
   if (state.phase === "over" && !toppling(view.topple)) {
     drawGameOver(ctx, cssW, cssH, u, state, best, skin, opts);
     ctx.restore();
@@ -396,9 +410,10 @@ export function render(
     // The logo on the title, and the name instead of a zero at the start of a run.
     const size = fitFont(ctx, GAME_NAME, `400 {px}px ${skin.hud.display}`, u * LOGO_SIZE, cssW * 0.88);
     text(GAME_NAME, cssW / 2, top, skin.hud.title, Math.max(3, size * 0.12));
+    // Drop's run start says so under the name (Slide's, the default, says nothing).
     if (ready && state.mode === "hard") {
       ctx.font = `700 ${Math.round(u * 0.04)}px ${body}`;
-      text("HARD", cssW / 2, top + u * 0.062, skin.hud.accent, u * 0.01);
+      text("DROP", cssW / 2, top + u * 0.062, skin.hud.accent, u * 0.01);
     }
   } else {
     ctx.font = `700 ${Math.round(u * 0.13)}px ${body}`;
@@ -414,9 +429,8 @@ export function render(
 
   // Lives
   const r = u * 0.016;
-  const lives = startLives(state.mode);
-  for (let i = 0; i < lives; i++) {
-    kit.life(ctx, cssW / 2 + (i - (lives - 1) / 2) * r * 3.5, hud.livesY, r, i < state.lives);
+  for (let i = 0; i < LIVES; i++) {
+    kit.life(ctx, cssW / 2 + (i - (LIVES - 1) / 2) * r * 3.5, hud.livesY, r, i < state.lives);
   }
 
   // Perfect counter: total this game, hidden until the first one. (The PERFECT ×N word
@@ -426,7 +440,8 @@ export function render(
     text(`★ ${state.perfects} perfect`, cssW / 2, hud.perfY, skin.hud.accent, u * 0.011);
   }
 
-  if (ready) {
+  // Gone once the first bar is let go (in Drop it is still falling: taps then do nothing).
+  if (ready && !state.fall) {
     ctx.font = `600 ${Math.round(u * 0.055)}px ${body}`;
     ctx.globalAlpha = 0.7 + 0.3 * Math.sin(view.t * 3);
     text("tap to drop", cssW / 2, cssH * 0.9, "#ffffff", u * 0.013);
@@ -435,17 +450,17 @@ export function render(
   ctx.restore();
 }
 
-/** How much the frame is shrunk this frame: Hard's eased zoom (1: not zoomed). Always 1 in Normal. */
-export function towerZoom(view: View, state: GameState): number {
-  return state.mode === "hard" ? view.zoom.zoom : 1;
+/** How much the frame is shrunk this frame: the eased zoom of a following view (1: not zoomed). Always 1 in a run. */
+export function towerZoom(view: View): number {
+  return view.follow ? view.zoom.zoom : 1;
 }
 
 /**
- * How far left the tower layer is drawn this frame, world units: Hard's eased sideways camera,
- * faded out while the base is on screen (and fading in no faster than PAN_FADE_RATE). 0 in Normal.
+ * How far left the tower layer is drawn this frame, world units: a following view's eased sideways
+ * camera, faded out while the base is on screen (and fading in no faster than PAN_FADE_RATE). 0 in a run.
  */
-export function towerPan(view: View, state: GameState, frame: Frame): number {
-  if (state.mode !== "hard") return 0;
+export function towerPan(view: View, frame: Frame): number {
+  if (!view.follow) return 0;
   return view.panX * Math.min(view.fade, panFade(frame));
 }
 
@@ -461,7 +476,7 @@ interface HudLayout {
   bottom: number;
 }
 
-/** Top-center HUD stack: score, best, lives, perfect counter. Hard's start of a run adds a HARD line. */
+/** Top-center HUD stack: score, best, lives, perfect counter. Drop's start of a run adds a DROP line. */
 function hudLayout(cssH: number, u: number, state: GameState, ready: boolean): HudLayout {
   const top = cssH * HUD_TOP;
   const hardLine = ready && state.mode === "hard" ? u * 0.05 : 0;

@@ -26,7 +26,8 @@ const KINDS: Record<MedalKind, { heading: string; best: string; unit: (n: number
   perfect: { heading: "Perfect streaks", best: "Best perfect streak", unit: (n) => `${n} in a row`, list: PERFECT_MEDALS },
 };
 
-const MODE_NAMES = { normal: "Normal", hard: "Hard" } as const;
+/** What the player calls each mode (the saves keep the ids "normal" and "hard"). */
+const MODE_NAMES = { normal: "Slide", hard: "Drop" } as const;
 
 /** The title's button icon: a medal on a ribbon (24×24, currentColor). */
 export const MEDAL_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true">

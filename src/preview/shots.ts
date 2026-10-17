@@ -1,9 +1,13 @@
-import { drop, newGame, step, swayOffset, top, type GameState, type Mode } from "../game";
-import { addFalling, addFlash, addTopple, newView, updateView, type View } from "../render";
+import { drop, newGame, step, swayOffset, top, type Block, type DropResult, type GameState, type Mode } from "../game";
+import { BLAST_AT, TOPPLE_TIME } from "../fx/topple";
+import { newView, showLanding, updateView, type View } from "../render";
+import { topAtContact } from "../testing/bots";
 
 // Deterministic game moments for previews and render smoke tests. No DOM.
 // Drops and frames are fed to the view the way main.ts does, so the falling pieces, the seam
-// flash and the PERFECT pop show exactly as in the game.
+// flash, the PERFECT pop and the game-over topple and blast show exactly as in the game. In Drop
+// (mode "hard") a tap lets the bar go from a bar above the tower and it lands frames later, where
+// main.ts would show it.
 
 export interface Shot {
   name: string;
@@ -19,35 +23,64 @@ interface Sim {
 
 const FRAME = 1 / 60;
 
-/** The CSS size the shots are framed for (Hard's zoom and pan depend on it); null: the view's default. */
-let screen: { w: number; h: number } | null = null;
-
 function sim(mode: Mode = "normal"): Sim {
-  const view = newView();
-  if (screen) view.screen = { ...screen };
-  return { state: newGame(mode), view };
+  return { state: newGame(mode), view: newView() };
 }
 
-/** Drop with the slider `dx` world units right of the swaying tower top. */
-function dropAt(s: Sim, dx: number): void {
-  const { state, view } = s;
+/** A bar met the tower onto `level` (the top bar's center at world x `towerX`): the view shows it as main.ts does. */
+function landed(s: Sim, r: DropResult, level: number, towerX: number): void {
+  showLanding(s.view, s.state, r, level, towerX);
+}
+
+/** World x of the center of the bar under `level`, as it sways now. */
+function towerX(state: GameState, level: number, under: Block): number {
+  return under.x + under.w / 2 + swayOffset(state, level - 1);
+}
+
+/** Tap with the slider set so the bar lands `dx` world units right of the swaying tower top. */
+function tapAt(s: Sim, dx: number): void {
+  const { state } = s;
+  state.slider.x = topAtContact(state) + dx;
   const level = state.blocks.length;
-  const under = top(state);
-  const topX = under.x + swayOffset(state, level - 1);
-  state.slider.x = topX + dx;
+  const x = towerX(state, level, top(state));
   const r = drop(state);
-  if (!r) return;
-  if (r.kind === "perfect") addFlash(view, level, state.streak);
-  else if (r.kind === "sliced" || r.kind === "miss") addFalling(view, r.cut, level, topX + under.w / 2);
-  else if (r.kind === "toppled") addTopple(view, state, r.tip);
+  if (r) landed(s, r, level, x);
+}
+
+/** One frame like main.ts: the game steps (a falling bar may land in it), then the view. */
+function frame(s: Sim): void {
+  const { state } = s;
+  const level = state.blocks.length;
+  const below = top(state);
+  const r = step(state, FRAME);
+  if (r) landed(s, r, level, towerX(state, level, below));
+  updateView(s.view, state, FRAME);
+}
+
+/** Drop so the bar lands `dx` right of the swaying top (where it will be, in Drop), and let it land. */
+function dropAt(s: Sim, dx: number): void {
+  tapAt(s, dx);
+  while (s.state.fall) frame(s);
 }
 
 /** Run frames like main.ts for `seconds`. */
 function settle(s: Sim, seconds: number): void {
-  for (let t = 0; t < seconds; t += FRAME) {
-    step(s.state, FRAME);
-    updateView(s.view, s.state, FRAME);
+  for (let t = 0; t < seconds; t += FRAME) frame(s);
+}
+
+/** Run frames until `seconds` after the last miss (the topple's own clock). */
+function until(s: Sim, seconds: number): void {
+  if (!s.view.topple) throw new Error("no topple: the run is still on");
+  for (let n = 0; s.view.topple.age < seconds; n++) {
+    // A topple that stops aging would hang every test that takes the shots: fail instead.
+    if (n > 10 / FRAME) throw new Error(`the topple is stuck at ${s.view.topple.age} s`);
+    frame(s);
   }
+}
+
+/** A copy of the moment, to keep while the sim runs on. */
+function snap(s: Sim): Sim {
+  return structuredClone(s);
 }
 
 function climb(blocks: number, mode: Mode = "normal", pattern = [0, 0, 4, 0, -3, 0, 0, 2, 0, -5]): Sim {
@@ -59,40 +92,7 @@ function climb(blocks: number, mode: Mode = "normal", pattern = [0, 0, 4, 0, -3,
   return s;
 }
 
-/**
- * Hard mode: a straight tower, then a staircase leaning right until it tips (with 60-wide bars
- * stepping 9 right, the sixth step takes the whole staircase over), then `seconds` of the fall.
- */
-function topple(seconds: number): Sim {
-  const s = climb(10, "hard", [0]);
-  for (let i = 0; i < 40 && s.state.phase === "playing"; i++) {
-    dropAt(s, 9);
-    if (s.state.phase === "playing") settle(s, 0.25);
-  }
-  settle(s, seconds);
-  return s;
-}
-
-/**
- * Hard mode: a straight tower of `straight` bars, then a harmonic lean of `n` bars to the right (each
- * bar hangs `share` of the most it could over the one below, the top one most), so the top stands
- * far past the base: nothing is sliced, so the tower top and the slider sit well right of the
- * scenery. Then `seconds` for the camera to settle.
- */
-function lean(straight: number, n: number, share: number, seconds: number): Sim {
-  const s = climb(straight, "hard", [0]);
-  for (let i = 0; i < n && s.state.phase === "playing"; i++) {
-    // From the bottom of the lean up: 1/n, 1/(n-1), ... 1/1 of the most a lone bar could hang.
-    dropAt(s, (share * (s.state.slider.w / 2)) / (n - i));
-    settle(s, 0.25);
-  }
-  settle(s, seconds);
-  return s;
-}
-
-/** The shots, framed for a `size` (CSS px) screen; Hard's zoom and pan frame the tower for it. */
-export function shots(size?: { w: number; h: number }): Shot[] {
-  screen = size ?? null;
+export function shots(): Shot[] {
   const start = sim();
   settle(start, 3);
 
@@ -106,33 +106,49 @@ export function shots(size?: { w: number; h: number }): Shot[] {
   const high = climb(90);
   settle(high, 1.5);
 
+  // The last life: the missed bar falls to the right, the top of the tower goes over after it and
+  // blows up, then the card. (A run of these, from one sim.)
   const over = climb(24);
   over.state.lives = 1;
-  dropAt(over, 500);
-  settle(over, 0.5);
+  dropAt(over, over.state.slider.w + 3);
+  until(over, 0.32);
+  const topple = snap(over);
+  until(over, BLAST_AT + 0.05);
+  const blast = snap(over);
+  until(over, BLAST_AT + 0.4);
+  const debris = snap(over);
+  until(over, TOPPLE_TIME + 0.2);
 
-  // Hard mode: the title (HARD under the name, one life), a tower of overhanging bars that still
-  // balances (nothing is sliced), a short tower leaning so far that the whole frame zooms out (the
-  // HUD and the PERFECT pop keep their size), a strongly leaning tall tower the camera pans after
-  // (its base long off screen), a tower mid-fall, and the card once it has gone over.
+  // Drop (mode "hard"): the run's start (DROP under the name, three lives, the slider a bar above
+  // the base); a climb with a slice just cut off and tumbling, the next slider in its raised lane;
+  // and a bar let go, half way down onto the swaying top.
   const hard = sim("hard");
   settle(hard, 3);
-  const hardClimb = climb(22, "hard", [0, 7, -6, 0, 5, -8, 3, 0, -4, 6]);
+  const hardClimb = climb(22, "hard", [0, 5, -4, 0, 3, 0, -6, 0, 2, 0]);
   settle(hardClimb, 0.4);
-  const hardZoom = lean(8, 6, 0.6, 1.5);
-  dropAt(hardZoom, 0);
-  settle(hardZoom, 0.2);
+  dropAt(hardClimb, 7);
+  settle(hardClimb, 0.3);
+  const hardFall = climb(16, "hard", [0, 5, -4, 0, 6, -3]);
+  settle(hardFall, 0.6);
+  tapAt(hardFall, 4);
+  for (let i = 0; i < 11; i++) frame(hardFall);
+  // Drop's last life: the bar falls past the top's left side, and the top goes over to the left and blows up.
+  const hardBlast = climb(12, "hard", [0, 3, -4, 0, 2]);
+  hardBlast.state.lives = 1;
+  dropAt(hardBlast, -hardBlast.state.slider.w - 3);
+  until(hardBlast, BLAST_AT + 0.12);
 
   return [
     { name: "start", ...start, best: 52 },
     { name: "climb", ...mid, best: 52 },
     { name: "high", ...high, best: 52 },
+    { name: "topple", ...topple, best: 52 },
+    { name: "blast", ...blast, best: 52 },
+    { name: "debris", ...debris, best: 52 },
     { name: "over", ...over, best: 52 },
     { name: "hard", ...hard, best: 17 },
     { name: "hardClimb", ...hardClimb, best: 17 },
-    { name: "hardZoom", ...hardZoom, best: 17 },
-    { name: "hardLean", ...lean(30, 10, 0.85, 1.2), best: 17 },
-    { name: "topple", ...topple(0.5), best: 17 },
-    { name: "toppled", ...topple(1.6), best: 17 },
+    { name: "hardFall", ...hardFall, best: 17 },
+    { name: "hardBlast", ...hardBlast, best: 17 },
   ];
 }

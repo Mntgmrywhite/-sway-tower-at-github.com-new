@@ -5,10 +5,10 @@
 // so main.ts calls unlock() from the first tap. Music loops sample-accurately using the loop
 // points in manifest.json, crossfades on skin changes, and pauses while the page is hidden.
 //
-// Hard mode speeds the music up with the bar at the same pitch (setTempo): the rate is rounded to
-// a tempo step (tempo.ts), a Web Worker time-stretches the song's loop to that step (stretch.ts,
-// seamless), and the engine switches to it on the next bar line with a short crossfade that
-// keeps the musical position. Each song keeps at most its decoded original and one stretched
+// While a run is played (either mode) the music speeds up with the bar at the same pitch
+// (setTempo): the rate is rounded to a tempo step (tempo.ts), a Web Worker time-stretches the
+// song's loop to that step (stretch.ts, seamless), and the engine switches to it on the next bar
+// line with a short crossfade that keeps the musical position. Each song keeps at most its decoded original and one stretched
 // version (plus, for the length of a crossfade, the version it is leaving). Without workers, or
 // if a stretch fails, the music just stays as written.
 
@@ -22,7 +22,7 @@ const MUSIC = import.meta.glob("./music/*.mp4", { query: "?inline", import: "def
 const SFX = import.meta.glob("./sfx/*.mp4", { query: "?inline", import: "default", eager: true }) as Record<string, string>;
 const LOOPS = manifest as Record<string, LoopInfo>;
 
-export type Sound = "land" | "slice" | "miss" | "click" | "chime";
+export type Sound = "land" | "slice" | "miss" | "click" | "chime" | "boom";
 
 const SETTINGS_KEY = "sway-stack:audio";
 const MUSIC_LEVEL = 0.55;
@@ -305,7 +305,7 @@ class GameAudio {
   }
 
   /**
-   * Hard mode: play the music this many times faster (1 = as written) at the same pitch. main.ts
+   * Play the music this many times faster (1 = as written) at the same pitch. main.ts
    * calls it every frame with the bar's speed; only a change of tempo step does any work.
    */
   setTempo(rate: number): void {

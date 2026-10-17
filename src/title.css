@@ -88,7 +88,7 @@
   outline-offset: 3px;
 }
 
-/* --- Mode: Normal and Hard side by side, each with its best --- */
+/* --- Mode: Slide and Drop (ids "normal" and "hard") side by side, each with its best --- */
 
 #title .modes {
   display: grid;

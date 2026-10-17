@@ -141,7 +141,7 @@
   gap: 8px;
 }
 
-/* Mode: Normal and Hard side by side. */
+/* Mode: Slide and Drop (ids "normal" and "hard") side by side. */
 #options .modes {
   display: grid;
   grid-template-columns: 1fr 1fr;

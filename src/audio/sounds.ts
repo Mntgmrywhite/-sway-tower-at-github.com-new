@@ -40,6 +40,14 @@ export function dropSounds(r: DropResult, streak: number): SoundCue[] {
 }
 
 /**
+ * The end of a run: the toppling tower blows up (a boom with the debris rattling down after it,
+ * src/audio/sfx/boom.mp4). The miss before it has already made its own sound.
+ */
+export function blastSounds(): SoundCue[] {
+  return [{ sound: "boom" }];
+}
+
+/**
  * A medal earned: three soft glockenspiel notes rolled up a major chord (G, C, E above the
  * chime's home note), a beat after the drop's own sounds so it never masks the perfect chime.
  * A quick rising arpeggio, where a perfect is one note: distinct, and quieter.

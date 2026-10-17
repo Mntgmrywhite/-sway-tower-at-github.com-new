@@ -1,7 +1,7 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { describe, expect, it } from "vitest";
 import { pickSong, SONGS } from "./audio/engine";
-import { drop, newGame, step, type GameState, type Mode, type Phase } from "./game";
+import { drop, fallTime, newGame, step, type GameState, type Mode, type Phase } from "./game";
 import { newView, render, titleLayout, type RenderOptions } from "./render";
 import { SKINS } from "./skins";
 import { classic } from "./skins/classic";
@@ -71,7 +71,11 @@ class Flow {
       this.cardReady = false;
     }
     this.screen = next.screen;
-    if (intent === "drop") drop(this.game);
+    if (intent === "drop") {
+      drop(this.game);
+      // Drop lets the bar go: main.ts's frames step it until it lands.
+      if (this.game.fall) step(this.game, fallTime(this.game.mode));
+    }
     return true;
   }
   /** Put the slider right over the tower top (the sway is still nothing this low). */
@@ -113,7 +117,7 @@ describe("title flow", () => {
     const f = new Flow("hard");
     f.act("play");
     f.runReady = false;
-    // The slider starts at its far end: a drop there would topple Hard's first bar.
+    // The slider starts at its far end: a drop there would leave Drop's first bar a sliver.
     expect(f.act("drop")).toBe(false);
     expect(f.game.blocks.length).toBe(1);
     expect(f.game.phase).toBe("playing");
@@ -191,8 +195,8 @@ describe("title flow", () => {
 describe("mode cards", () => {
   it("show each mode's own best, the current mode checked", () => {
     expect(modeCards({ normal: 52, hard: 7 }, "normal")).toEqual([
-      { value: "normal", title: "Normal", best: "best 52", checked: true },
-      { value: "hard", title: "Hard", best: "best 7", checked: false },
+      { value: "normal", title: "Slide", best: "best 52", checked: true },
+      { value: "hard", title: "Drop", best: "best 7", checked: false },
     ]);
     const hard = modeCards({ normal: 0, hard: 13 }, "hard");
     expect(hard.map((c) => [c.best, c.checked])).toEqual([

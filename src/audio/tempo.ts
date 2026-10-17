@@ -1,4 +1,5 @@
-// Hard mode's music tempo: which step of speed-up to play, and where the next bar starts.
+// The music's tempo (it keeps pace with the slider in both modes): which step of speed-up to play,
+// and where the next bar starts.
 // Pure, so it is unit-tested; engine.ts does the playing.
 
 /**

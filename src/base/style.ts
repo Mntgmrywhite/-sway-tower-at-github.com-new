@@ -1,4 +1,5 @@
 import type { Scene, Skin } from "../skins/skin";
+import { cartoonBlast, neonBlast, type BlastPainter } from "../fx/blast";
 import { BAR_RADIUS, drawBar } from "./blocks";
 import { ink, neonStroke, neonText, outlinedText, roundRectPath, type Ctx } from "./draw";
 import { drawNeonBar, NEON_BAR_RADIUS } from "./neon-blocks";
@@ -24,6 +25,8 @@ export interface StyleKit {
   life(ctx: Ctx, x: number, y: number, r: number, on: boolean): void;
   /** The game-over card behind its text. */
   card(ctx: Ctx, x: number, y: number, w: number, h: number, u: number): void;
+  /** The game-over blast's burst, smoke, sparks and flash (src/fx/blast.ts; src/fx/topple.ts poses them). */
+  blast: BlastPainter;
 }
 
 const kits = new WeakMap<Skin, StyleKit>();
@@ -44,6 +47,7 @@ function cartoonKit(skin: Exclude<Skin, { style: "neon" }>): StyleKit {
     front: (ctx, s) => drawForeground(ctx, s, skin),
     bar: (ctx, x, y, w, h, level) => drawBar(ctx, x, y, w, h, level, skin),
     radius: BAR_RADIUS,
+    blast: cartoonBlast(skin),
     body: "Fredoka, 'Trebuchet MS', system-ui, sans-serif",
     text: (ctx, t, x, y, fill, outline) => outlinedText(ctx, t, x, y, fill, "#000000", outline),
     life(ctx, x, y, r, on) {
@@ -80,6 +84,7 @@ function neonKit(skin: Extract<Skin, { style: "neon" }>): StyleKit {
     },
     bar: (ctx, x, y, w, h, level) => drawNeonBar(ctx, x, y, w, h, level, skin),
     radius: NEON_BAR_RADIUS,
+    blast: neonBlast(skin),
     body: "Orbitron, 'Trebuchet MS', system-ui, sans-serif",
     text: (ctx, t, x, y, fill, outline) => neonText(ctx, t, x, y, fill, hud.ui, outline),
     life(ctx, x, y, r, on) {

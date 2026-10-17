@@ -4,8 +4,9 @@ import type { Mode, Phase } from "./game";
 import type { Skin } from "./skins/skin";
 
 // The title screen, in the spirit of Retro Bowl: over the skin's start scene, the "Sway Tower"
-// logo (drawn on the canvas by render.ts, where the name sits during a run), the Normal / Hard
-// choice with each mode's best, one big PLAY, and a row of small buttons (Skins & options, Sound).
+// logo (drawn on the canvas by render.ts, where the name sits during a run), the Slide / Drop
+// choice (modes "normal" / "hard") with each mode's best, one big PLAY, and a row of small buttons
+// (Skins & options, Sound).
 // The game-over card gets a Menu button back here. Nothing of this shows while stacking.
 //
 // The DOM side is styled per skin from CSS variables (setSkin), cartoon or neon like the HUD. The
@@ -85,10 +86,10 @@ export function flowStep(
   }
 }
 
-/** The mode choices on the title, in order. */
+/** The mode choices on the title, in order: the player sees Slide (mode "normal") and Drop ("hard"). */
 export const MODE_CHOICES: readonly { value: Mode; title: string }[] = [
-  { value: "normal", title: "Normal" },
-  { value: "hard", title: "Hard" },
+  { value: "normal", title: "Slide" },
+  { value: "hard", title: "Drop" },
 ];
 
 export interface ModeCard {

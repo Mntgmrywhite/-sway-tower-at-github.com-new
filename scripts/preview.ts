@@ -1,8 +1,9 @@
 // Renders a skin offscreen to PNGs so you can look at it without a browser.
 //   npm run snap -- <skinId> [width] [height] [songTime]
-// Writes preview/<skin>-<shot>.png for every shot in src/preview/shots.ts (Normal's start, climb,
-// high, over; Hard's hard, hardClimb, hardZoom, hardLean, topple, toppled), framed for that screen
-// size, and preview/<skin>-bars.png. With a songTime (seconds into the skin's music loop), the
+// Writes preview/<skin>-<shot>.png for every shot in src/preview/shots.ts (Slide's start, climb,
+// high, the last life's topple, blast, debris and the over card; Drop's hard, hardClimb, hardFall,
+// hardBlast), drawn at that screen size, and
+// preview/<skin>-bars.png. With a songTime (seconds into the skin's music loop), the
 // shots are drawn as if the music were that far in, for scenery that keeps time with it.
 // Web fonts aren't available offline, so text uses fallback faces here.
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -24,7 +25,7 @@ const DPR = 2;
 const songTime = Number(songArg);
 mkdirSync("preview", { recursive: true });
 
-for (const shot of shots({ w: W, h: H })) {
+for (const shot of shots()) {
   const canvas = createCanvas(W * DPR, H * DPR);
   const ctx = canvas.getContext("2d");
   ctx.scale(DPR, DPR);

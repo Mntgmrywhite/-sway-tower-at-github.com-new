@@ -1,28 +1,29 @@
 import { audio } from "./audio/engine";
-import { dropSounds, unlockSounds, type SoundCue } from "./audio/sounds";
+import { blastSounds, dropSounds, unlockSounds, type SoundCue } from "./audio/sounds";
 import { creditBests, loadAchievements, markSeen, record, saveAchievements, type Achievement } from "./achievements";
 import { createAchievements, MEDAL_ICON } from "./achievements-sheet";
 import { tuning } from "./config";
 import { BASE_FONTS, loadFonts } from "./fonts";
-import { drop, musicTempo, newGame, step, swayOffset, top, type DropOutcome, type GameState, type Mode } from "./game";
+import { drop, musicTempo, newGame, step, swayOffset, top, type DropResult, type GameState, type Mode } from "./game";
 import { buzz, dropHaptic } from "./haptics";
 import { createOptions } from "./options";
 import { createPanel } from "./panel";
-import { addFalling, addFlash, addTopple, isToppling, newView, render, titleLayout, updateView, type View } from "./render";
+import { isToppling, newView, render, showLanding, titleLayout, updateView, type View } from "./render";
 import { resolveSkin } from "./skins";
 import type { Skin } from "./skins/skin";
 import { keepSaves } from "./storage";
 import { createTitle, flowStep, keyIntent, skinSong, tapIntent, type Intent, type Screen } from "./title";
 
-// Storage keys keep the game's original working name so saved scores survive renames. Normal's
-// best keeps the original key; Hard has its own.
+// Storage keys keep the game's original working name so saved scores survive renames, and the
+// modes keep their original ids: Slide ("normal") keeps the original best key; Drop ("hard") has
+// its own.
 const BEST_KEYS: Record<Mode, string> = { normal: "sway-stack:best", hard: "sway-stack:best:hard" };
 const MODE_KEY = "sway-stack:mode";
 /** Ignore taps for this long after the game-over card comes up so a mistap doesn't instantly restart. */
 const RESTART_GUARD_MS = 400;
 /**
  * Ignore drops for this long after a run starts (PLAY, or playing again), so a double tap there
- * doesn't drop the first bar at the slider's far end: a sliver in Normal, a topple in Hard.
+ * doesn't drop the first bar at the slider's far end: a sliver.
  */
 const START_GUARD_MS = 300;
 
@@ -85,7 +86,7 @@ const medals = loadAchievements();
 if (creditBests(medals, bests, Date.now()).changed) saveAchievements(medals);
 /** The medals this run earned: the game-over card shows them (nothing shows while stacking). */
 let runMedals: Achievement[] = [];
-/** The medals pop in on the card, unless the player asked for less motion. */
+/** The medals pop in on the card and the game-over blast shakes the scene, unless the player asked for less motion. */
 const lessMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 
 /**
@@ -166,30 +167,26 @@ function playCue(cue: SoundCue): void {
 }
 
 /**
- * Sounds for a drop. Hard mode slices nothing: an off-center bar just lands, and a drop that tips
- * the tower lands and goes over.
+ * Drop the slider (playing again from the game-over card is act("again")). In Drop this only lets
+ * the bar go: it lands a moment later, in a frame's step (see `frame`).
  */
-function dropCues(r: DropOutcome, streak: number): SoundCue[] {
-  switch (r.kind) {
-    case "placed":
-      return [{ sound: "land" }];
-    case "toppled":
-      return [{ sound: "land" }, { sound: "miss" }];
-    default:
-      return dropSounds(r, streak);
-  }
-}
-
-/** Drop the slider (playing again from the game-over card is act("again")). */
 function tap(): void {
   if (state.phase === "over") return;
   const level = state.blocks.length;
   const under = top(state);
   const towerX = under.x + under.w / 2 + swayOffset(state, level - 1);
   const r = drop(state);
-  if (!r) return;
-  const over = r.kind === "toppled" || (r.kind === "miss" && state.lives <= 0); // tower went over, or last life gone
-  for (const cue of dropCues(r, state.streak)) playCue(cue);
+  if (r) landed(r, level, towerX);
+}
+
+/**
+ * A bar met the tower onto `level` (the top bar's center was at world x `towerX`): its sound,
+ * medals, haptic and effects, and the best. In Drop this comes at contact, never at the tap. The
+ * miss that takes the last life sends the top of the tower over; its boom and heavy haptic come
+ * with the blast (see `frame`).
+ */
+function landed(r: DropResult, level: number, towerX: number): void {
+  for (const cue of dropSounds(r, state.streak)) playCue(cue);
   // Medals: saved at once, chimed softly, and shown on the game-over card (never mid-run).
   const earned = record(medals, mode, state.score, state.streak, Date.now());
   if (earned.changed) saveAchievements(medals);
@@ -198,12 +195,9 @@ function tap(): void {
     for (const cue of unlockSounds()) playCue(cue);
     achievements.refresh();
   }
-  // Hard's off-center landing is an ordinary landing (silent); a topple is the run ending.
-  const feel = dropHaptic(r.kind === "perfect" || r.kind === "miss" ? r.kind : "sliced", state.streak, over);
+  const feel = dropHaptic(r.kind, state.streak);
   if (feel) buzz(feel);
-  if (r.kind === "perfect") addFlash(view, level, state.streak);
-  else if (r.kind === "sliced" || r.kind === "miss") addFalling(view, r.cut, level, towerX);
-  else if (r.kind === "toppled") addTopple(view, state, r.tip);
+  showLanding(view, state, r, level, towerX);
   if (state.score > best) {
     best = state.score;
     bests[mode] = best;
@@ -211,10 +205,7 @@ function tap(): void {
   }
 }
 
-/**
- * The game-over card is up (a toppled tower falls first), and up long enough that a tap meant for
- * the tower can't play again or leave by mistake.
- */
+/** The game-over card is up, and up long enough that a tap meant for the tower can't play again or leave by mistake. */
 function cardReady(): boolean {
   return state.phase === "over" && cardAt > 0 && performance.now() - cardAt >= RESTART_GUARD_MS;
 }
@@ -296,12 +287,25 @@ function frame(now: number): void {
   if (canvas!.clientWidth !== cssW || canvas!.clientHeight !== cssH) resize();
   // Paused while tuning, so values can be changed without losing the run.
   if (!paused()) {
-    // The title holds the tower still (and hides the slider) until PLAY.
-    if (screen === "run") step(state, dt);
-    updateView(view, state, dt);
-    // The music steps back while a run is played, and comes forward on the title and game over.
-    audio.setFocus(state.phase === "playing" && state.score > 0);
+    // The title holds the tower still (and hides the slider) until PLAY. In Drop a released bar
+    // lands inside a step: its sounds and effects start right then, at contact.
+    if (screen === "run") {
+      const level = state.blocks.length;
+      const under = top(state);
+      const r = step(state, dt);
+      if (r) landed(r, level, under.x + under.w / 2 + swayOffset(state, level - 1));
+    }
+    // The toppling tower blows up inside a view step: the boom and the heavy haptic land with it.
+    if (updateView(view, state, dt).blast) {
+      for (const cue of blastSounds()) playCue(cue);
+      buzz("blast");
+    }
+    // The music steps back while a run is played, and comes forward on the title and game over;
+    // it stays back while the tower goes over and blows up, so the boom isn't buried, and comes
+    // forward with the card.
+    audio.setFocus(state.score > 0 && (state.phase === "playing" || isToppling(view)));
   }
+  // The card comes once the tower has gone over and blown up.
   if (state.phase === "over" && !cardAt && !isToppling(view)) {
     cardAt = now;
     // The card is canvas: screen readers hear the run's new medals here.
@@ -309,12 +313,14 @@ function frame(now: number): void {
   }
   // The Menu button comes once the card takes taps, so it never shows without working.
   title.showMenu(screen === "run" && cardReady());
-  // Hard mode: the music keeps pace with the bar (1 otherwise; the engine skips unchanged rates).
+  // The music keeps pace with the bar while a run is played, in both modes (1 on the title and
+  // game over; the engine skips unchanged rates).
   audio.setTempo(musicTempo(state));
   render(ctx!, cssW, cssH, state, view, best, currentSkin(), audio.position(), {
     title: screen === "title",
     newMedals: runMedals,
     cardAge: lessMotion?.matches ? Infinity : cardAt ? (now - cardAt) / 1000 : 0,
+    still: lessMotion?.matches,
   });
   requestAnimationFrame(frame);
 }

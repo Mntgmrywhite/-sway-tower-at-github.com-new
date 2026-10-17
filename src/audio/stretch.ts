@@ -5,7 +5,7 @@
 // pitch). Each frame may slide up to `seek` either way to the spot where its waveform lines up
 // with the sound the previous frame would have gone on with, and the two are crossfaded over
 // `overlap`. Between crossfades a frame is a verbatim copy of the input, which keeps a full mix's
-// transients and tone clean at the modest rates Hard mode uses (<= 1.35). The slide also steers
+// transients and tone clean at the modest rates the music speeds up to (<= 1.35). The slide also steers
 // joins (and the few ms each frame skips) off drum hits, so most hits are played whole.
 //
 // Circular: reads and writes wrap around the loop, and the last frame is lined up with the first

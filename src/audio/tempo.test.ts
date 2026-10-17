@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import manifest from "./music/manifest.json";
+import { TEMPO_MAX } from "../config";
 import { barSeconds, nextBar, TEMPO_STEPS, tempoStep } from "./tempo";
 
 describe("tempo steps", () => {
-  it("are whole semitones of speed from 1 to 1.33, within Hard mode's 1.35 cap", () => {
+  it("are whole semitones of speed from 1 to 1.33, within the music's 1.35 cap", () => {
     expect(TEMPO_STEPS.map((r) => r.toFixed(2))).toEqual(["1.00", "1.06", "1.12", "1.19", "1.26", "1.33"]);
-    expect(TEMPO_STEPS.at(-1)!).toBeLessThanOrEqual(1.35);
+    expect(TEMPO_MAX).toBe(1.35);
+    expect(TEMPO_STEPS.at(-1)!).toBeLessThanOrEqual(TEMPO_MAX);
   });
 
-  it("as written at rate 1 and below (title, game over, Normal)", () => {
+  it("as written at rate 1 and below (title, game over, a run's start)", () => {
     expect(tempoStep(1, 3)).toBe(0);
     expect(tempoStep(0.8, 0)).toBe(0);
     expect(tempoStep(NaN, 2)).toBe(0);
