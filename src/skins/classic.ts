@@ -11,10 +11,11 @@ import type { CartoonSkin, Scene } from "./skin";
 
 // Sky Islands, the default look: the tower grows from a small floating island, its grass cap
 // (tufts, daisies) under the base block and its striped underside (soil, sand, clay, umber,
-// bedrock with a geode) hung with roots and vines, a spring spilling off its side; a kite
-// tied at the left edge with a bluebird on its stake, a rope bridge to an islet with a
-// birdhouse on the right. Height tells the story: a bright day over a storybook countryside
-// far below (snowy peaks, patchwork fields, a river, a village, a windmill, far balloons), up
+// bedrock with a geode) hung with roots and vines, a spring spilling off its side and falling
+// into the cloud bank; a kite tied at the left edge with a bluebird on its stake, a rope bridge
+// to an islet with a birdhouse on the right. Height tells the story: a bright day over a
+// storybook countryside far below (snowy peaks, patchwork fields with red and green tractors
+// plodding over them, a river, a village, a windmill, far balloons), up
 // into the clouds as a cloud sea gathers and covers the land, then the archipelago drifting
 // past (an island with a windmill, an airship, cottages with smoking chimneys, waterfalls
 // with rainbows in their spray) over far islands on the sea (a lighthouse, a great tree, a

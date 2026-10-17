@@ -3,12 +3,14 @@ import type { Scene } from "../skin";
 import { COLUMN, spread } from "./sky";
 import { capPath, cloud, LONG_CLOUD, undersidePath } from "./shapes";
 import { DAY_HIGH, smooth, type Tone } from "./tone";
+import { tractors } from "./tractors";
 
 // The far layer. At the start you look down from the home island over a storybook countryside
 // on the horizon: a blue mountain range with snowy peaks, two rows of rolling hills, a
 // patchwork of fields in perspective with hedgerows and groves, a river winding off to the
-// left, a village with a church spire, a windmill on a hill, two far balloons rising over the
-// village, and a few small clouds low over it all. As you climb, the cloud sea gathers below
+// left, a village with a church spire, a windmill on a hill, red and green tractors plodding
+// over the fields at the sides (tractors.ts), two far balloons rising over the village, and a
+// few small clouds low over it all. As you climb, the cloud sea gathers below
 // and covers the land; then it sinks away to a floor low on the screen and stays there, a calm
 // sea of cloud heaped up at the sides, for the sun to set into and rise out of. Far islands
 // float over it: a lighthouse on the left (its lamp lit from dusk to dawn, its beam turning
@@ -240,7 +242,7 @@ function riverX(s: Scene, f: number): number {
   return s.cssW / 2 + s.u * (-0.08 - 0.52 * f * f + 0.07 * Math.sin(f * 7.5));
 }
 
-function river(ctx: Ctx, s: Scene, tone: Tone, top: number, bottom: number): void {
+export function river(ctx: Ctx, s: Scene, tone: Tone, top: number, bottom: number): void {
   const u = s.u;
   const hz = s.horizonY + u * 0.02;
   const y = (f: number) => hz + (bottom - hz) * f;
@@ -483,6 +485,7 @@ function countryside(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void {
   village(ctx, s, tone);
   windmill(ctx, s, tone);
   groves(ctx, s, tone);
+  tractors(ctx, s, tone);
   lowClouds(ctx, s, tone);
   farBalloons(ctx, s, tone);
 }

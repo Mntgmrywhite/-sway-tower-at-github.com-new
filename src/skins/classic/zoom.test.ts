@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classic } from "../classic";
 import { drawDrifter, eachVisible } from "./drift";
-import { islandBody, islet, kite } from "./island";
+import { islandBody, islet, kite, waterfall } from "./island";
 import { context, mask, sceneAt, SIZES } from "./test-scene";
 import { toneOf } from "./tone";
 
@@ -40,6 +40,7 @@ describe("classic zoomed out", () => {
       const draws: [string, (ctx: CanvasRenderingContext2D) => void][] = [
         ["kite", (ctx) => kite(ctx, s)],
         ["island", (ctx) => islandBody(ctx, s)],
+        ["waterfall", (ctx) => waterfall(ctx, s)],
         ["islet", (ctx) => islet(ctx, s)],
       ];
       eachVisible(s, (d, _lane, at) => draws.push([`${d.kind} at ${Math.round(at)}`, (ctx) => drawDrifter(ctx, s, tone, d, at)]));

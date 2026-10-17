@@ -1,11 +1,9 @@
 import { circle, hash, ink, inkedLine, oval, roundRectPath, type Ctx } from "../../base/draw";
+import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
 import {
   BLUEBIRD,
   BLUEBIRD_SHADE,
-  CLOUD,
-  CLOUD_LIGHT,
-  CLOUD_SHADE,
   CORAL,
   CREAM,
   GEM,
@@ -41,10 +39,11 @@ import { capPath, strata, undersidePath, type Band } from "./shapes";
 // low stone plinth for the base block and a little round tree at the edge, and underneath, the
 // signature: the island's striped underside (topsoil, sand, clay, umber, plum bedrock) with
 // roots hanging from it, vines trailing over the lip, a cluster of crystals glinting in the
-// bedrock and a spring spilling out of its side in a little waterfall that turns to mist. It
-// does not bob: the tower stands on rock. A kite on a long string is tied to a stake at the
-// left edge, a bluebird perched on top of it; on the right a rope bridge crosses to a little
-// islet with a birdhouse. Everything here is near: flat two-tone fills and one ink weight.
+// bedrock and a spring spilling out of its side in a waterfall that falls all the way down into
+// the cloud bank in front. It does not bob: the tower stands on rock. A kite on a long string is
+// tied to a stake at the left edge, a bluebird perched on top of it; on the right a rope bridge
+// crosses to a little islet with a birdhouse. Everything here is near: flat two-tone fills and
+// one ink weight.
 
 /** Island proportions, in u. */
 const CAP_HW = 0.33;
@@ -99,14 +98,15 @@ export function homeIsland(ctx: Ctx, s: Scene): void {
   kite(ctx, s);
   if (s.groundY - s.u * 0.13 > s.cssH) return;
   islet(ctx, s);
+  waterfall(ctx, s);
   islandBody(ctx, s);
   islandTree(ctx, s);
   plinth(ctx, s, centerX(s), inkW(s));
 }
 
 /**
- * The island itself: the spring's waterfall, roots, the striped underside with its pebbles and
- * crystals, vines over the lip, the grass cap with its tufts and daisies.
+ * The island itself: roots, the striped underside with its pebbles and crystals, vines over the
+ * lip, the grass cap with its tufts and daisies.
  */
 export function islandBody(ctx: Ctx, s: Scene): void {
   const u = s.u;
@@ -116,7 +116,6 @@ export function islandBody(ctx: Ctx, s: Scene): void {
   const underTop = grassTop + u * CAP_H * 0.7;
   const hw = u * UNDER_HW;
   const d = u * UNDER_D;
-  spring(ctx, s, cx - hw * 0.97, underTop + d * 0.16, lw);
   roots(ctx, s, cx, underTop, hw, d, lw);
   undersidePath(ctx, cx, underTop, hw, d);
   ctx.save();
@@ -393,34 +392,70 @@ function glint(ctx: Ctx, s: Scene, x: number, y: number): void {
   ctx.fill();
 }
 
-/** How far the spring falls before it turns to mist (u). */
-const SPRING_FALL = 0.13;
+// ---------------------------------------------------------------- the waterfall
 
 /**
- * A spring spilling out of a crack in the island's side at (x, y): a little stream gushing out
- * to the left, falling and fanning out a little as it goes, a lighter core with streaks
- * sliding down it, and a puff of mist with a few droplets where it breaks up.
+ * The cloud bank's line: the front row's puffs sit on it, solid cloud below (front.ts). It
+ * drops away faster than the tower as the camera climbs (parallax 1.6, like the base band it
+ * covers), so it only frames the start.
  */
-function spring(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
+export function bankLine(s: Scene): number {
+  // The base band's top edge (its grass tips reach a little above it), a hair higher.
+  return layerGround(s, 1.6) + s.u * 0.354;
+}
+
+/** How far below the bank's line the waterfall reaches, out of sight in the solid cloud (u). */
+const INTO_BANK = 0.03;
+/** How fast the streaks slide down the falling water (u/s), and how far apart they come (u). */
+const STREAK_SPEED = 0.075;
+const STREAK_GAP = 0.055;
+
+/** Where the waterfall's water leaves the island: the crack in its left side. */
+function springMouth(s: Scene): { x: number; y: number } {
   const u = s.u;
+  const underTop = s.groundY + u * (GRASS_DROP + CAP_H * 0.7);
+  return { x: centerX(s) - u * UNDER_HW * 0.97, y: underTop + u * UNDER_D * 0.16 };
+}
+
+/**
+ * Where the waterfall's water ends: behind the cloud bank in front, so it pours into the clouds;
+ * once the bank has dropped away below the screen (the camera climbing), past the screen's bottom.
+ */
+export function fallBottom(s: Scene): number {
+  return Math.min(bankLine(s) + s.u * INTO_BANK, s.cssH + s.u * 0.02);
+}
+
+/**
+ * A spring spilling out of a crack in the island's left side: a little stream gushing out to the
+ * left, then falling all the way down into the cloud bank in front, fanning out a little as it
+ * goes, a lighter core where it gushes and streaks sliding down it. Drawn behind the island.
+ */
+export function waterfall(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  const lw = inkW(s) * 0.8;
+  const { x, y } = springMouth(s);
   const w = u * 0.012;
   const out = u * 0.032;
   const top = y + u * 0.03;
-  const bottom = y + u * SPRING_FALL;
+  const bottom = fallBottom(s);
+  if (bottom <= top) return;
   const wob = Math.sin(s.t * 2.2) * u * 0.0015;
   const fx = x - out;
   ctx.beginPath();
   ctx.moveTo(x + w * 0.4, y - w * 0.75);
   ctx.bezierCurveTo(x - out * 0.45, y - w * 1.1, fx - w * 0.75, y - w * 0.2, fx - w * 0.55, top);
-  ctx.quadraticCurveTo(fx - w * 0.35 + wob, (top + bottom) / 2, fx - w * 0.85, bottom);
-  ctx.lineTo(fx + w * 1.15, bottom);
-  ctx.quadraticCurveTo(fx + w * 0.75 - wob, (top + bottom) / 2, fx + w * 0.55, top + u * 0.004);
+  // Down the left edge, fanning out over the first stretch, then down into the bank.
+  ctx.bezierCurveTo(fx - w * 0.6 + wob, top + u * 0.05, fx - w * 1.05, top + u * 0.09, fx - w * 1.05, Math.min(bottom, top + u * 0.13));
+  ctx.lineTo(fx - w * 1.05, bottom);
+  ctx.lineTo(fx + w * 1.3, bottom);
+  ctx.lineTo(fx + w * 1.3, Math.min(bottom, top + u * 0.13));
+  ctx.bezierCurveTo(fx + w * 1.3, top + u * 0.09, fx + w * 0.75 - wob, top + u * 0.05, fx + w * 0.55, top + u * 0.004);
   ctx.bezierCurveTo(fx + w * 0.5, y + w * 0.4, x - out * 0.3, y + w * 0.3, x + w * 0.4, y + w * 0.75);
   ctx.closePath();
   ctx.fillStyle = WATER;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
-  // A lighter core, and streaks sliding down it, fading in and out so none pops.
+  ink(ctx, lw, INK);
+  // A lighter core where it gushes out.
   ctx.fillStyle = WATER_LIGHT;
   ctx.globalAlpha = 0.55;
   ctx.beginPath();
@@ -430,41 +465,19 @@ function spring(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
   ctx.quadraticCurveTo(fx + w * 0.3, y, x - out * 0.2, y + w * 0.05);
   ctx.closePath();
   ctx.fill();
+  // Streaks sliding down the fall in three lanes that spread with it, each fading in as it
+  // leaves the lip, so none pops; at the bottom they slide on behind the bank.
+  const gap = u * STREAK_GAP;
+  const sh = u * 0.018;
   for (let i = 0; i < 3; i++) {
-    const k = (s.t * 0.7 + i / 3) % 1;
-    ctx.globalAlpha = Math.sin(k * Math.PI) * 0.9;
-    ctx.fillRect(fx - w * 0.1 + (i - 1) * w * 0.28, top + (bottom - top - u * 0.03) * k, w * 0.22, u * 0.018);
+    const phase = (s.t * u * STREAK_SPEED + (i * gap) / 3 + hash(i + 2300) * gap * 0.3) % gap;
+    for (let sy = top + phase; sy < bottom; sy += gap) {
+      const f = Math.min(1, (sy - top) / (u * 0.09));
+      ctx.globalAlpha = Math.min(1, (sy - top) / (u * 0.025)) * 0.85;
+      ctx.fillRect(fx + w * (0.05 + (i - 1) * (0.3 + 0.35 * f)) - w * 0.11, sy, w * 0.22, Math.min(sh, bottom - sy));
+    }
   }
   ctx.globalAlpha = 1;
-  // Mist where it breaks up: a small inked cloud, breathing, and a few droplets.
-  const b = 1 + Math.sin(s.t * 1.1) * 0.05;
-  const mx = fx + w * 0.15;
-  const my = bottom + u * 0.004;
-  ctx.fillStyle = WATER;
-  ctx.beginPath();
-  for (let i = 0; i < 3; i++) {
-    const k = (s.t * 0.9 + i / 3) % 1;
-    circle(ctx, mx + (i - 1) * u * 0.022 * (0.6 + k), my - u * 0.012 - Math.sin(k * Math.PI) * u * 0.014, u * 0.0028 * (1 - k * 0.5));
-  }
-  ctx.fill();
-  const puffs = [
-    [-0.017, 0.002, 0.012],
-    [0, -0.006, 0.016],
-    [0.018, 0.001, 0.011],
-  ] as const;
-  ctx.beginPath();
-  for (const [dx, dy, r] of puffs) circle(ctx, mx + dx * u, my + dy * u, r * u * b);
-  ink(ctx, lw * 1.6, INK);
-  ctx.fillStyle = CLOUD_SHADE;
-  ctx.fill();
-  ctx.beginPath();
-  for (const [dx, dy, r] of puffs) circle(ctx, mx + dx * u - r * u * 0.06, my + dy * u - r * u * 0.18, r * u * b * 0.84);
-  ctx.fillStyle = CLOUD;
-  ctx.fill();
-  ctx.beginPath();
-  for (const [dx, dy, r] of puffs) circle(ctx, mx + dx * u - r * u * 0.3, my + dy * u - r * u * 0.45, r * u * 0.38);
-  ctx.fillStyle = CLOUD_LIGHT;
-  ctx.fill();
 }
 
 /** Grass tufts and daisies along the cap's top, clear of the plinth: x (u from the center line). */

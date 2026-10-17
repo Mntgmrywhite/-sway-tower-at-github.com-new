@@ -1,8 +1,7 @@
 import { circle, hash, ink, mix, type Ctx } from "../../base/draw";
-import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
 import { CLOUD, CLOUD_LIGHT, CLOUD_SHADE, INK } from "./colors";
-import { inkW } from "./island";
+import { bankLine, inkW } from "./island";
 import { COLUMN, sparkle } from "./sky";
 
 // The near edge we look over: the tops of a bank of cloud, puffy and inked like everything up
@@ -53,9 +52,8 @@ const SPARKLES = [
 
 export function front(ctx: Ctx, s: Scene): void {
   const u = s.u;
-  // The base band's top edge; its grass tips reach a little above it.
-  const band = layerGround(s, 1.6) + u * 0.36;
-  const y = band - u * 0.006;
+  // The front row's puffs sit on the bank's line (see island.ts).
+  const y = bankLine(s);
   if (y - u * 0.16 > s.cssH) return;
   const lw = inkW(s);
   // The back row: outline first (only its outer half survives the fill), shaded body, lit top.

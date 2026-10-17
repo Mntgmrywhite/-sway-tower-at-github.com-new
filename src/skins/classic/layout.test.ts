@@ -4,15 +4,17 @@ import type { Scene } from "../skin";
 import { drifters } from "./drift";
 import { farBalloons, groves, lowClouds, seaTop, village, windmill } from "./far";
 import { front } from "./front";
-import { islandBody, islandTree, islet, kite } from "./island";
+import { islandBody, islandTree, islet, kite, waterfall } from "./island";
 import { sun } from "./sky";
 import { mask, SIZES, startScene } from "./test-scene";
 import { level, toneOf } from "./tone";
+import { tractors } from "./tractors";
 
 // The start view, on a tall and a short phone, at a few animation times: each prop is drawn
-// alone, and none touches a screen edge, the HUD at the top or the cloud bank in front, none
-// stands in the tower's column above its floor line, the island's tree and the islet stay below
-// the base block (the slider's first pass never sweeps over them), and no two overlap.
+// alone, and none touches a screen edge, the HUD at the top or the cloud bank in front (but the
+// island's waterfall, which pours down into the bank), none stands in the tower's column above
+// its floor line, the island's tree and the islet stay below the base block (the slider's first
+// pass never sweeps over them), and no two overlap.
 
 const TIMES = [0, 1.3, 2.7, 4.1, 6.6, 9.4] as const;
 
@@ -20,9 +22,9 @@ type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**
  * `above`: stands above the floor line (so must keep out of the tower's column). `planted`:
  * stands on (or hangs from) the home island. `underBase`: stays below the base block's top, out
- * of the slider's first lane.
+ * of the slider's first lane. `intoBank`: meant to go down behind the cloud bank.
  */
-const PROPS: { name: string; draw: Draw; above: boolean; planted?: boolean; underBase?: boolean }[] = [
+const PROPS: { name: string; draw: Draw; above: boolean; planted?: boolean; underBase?: boolean; intoBank?: boolean }[] = [
   { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), seaTop(s, level(s))), above: true },
   { name: "balloon", draw: (ctx, s) => drifters(ctx, s, toneOf(s)), above: true },
   { name: "kite", draw: kite, above: true, planted: true },
@@ -33,6 +35,9 @@ const PROPS: { name: string; draw: Draw; above: boolean; planted?: boolean; unde
   { name: "village", draw: (ctx, s) => village(ctx, s, toneOf(s)), above: true },
   { name: "windmill", draw: (ctx, s) => windmill(ctx, s, toneOf(s)), above: true },
   { name: "far balloons", draw: (ctx, s) => farBalloons(ctx, s, toneOf(s)), above: true },
+  { name: "tractors", draw: (ctx, s) => tractors(ctx, s, toneOf(s)), above: true },
+  // The spring spills out of the island's side and falls into the cloud bank (see waterfall.test.ts).
+  { name: "waterfall", draw: waterfall, above: true, planted: true, intoBank: true },
   // The island hangs below the floor line, under the tower (its daisies stay below it too).
   { name: "island", draw: islandBody, above: true },
 ];
@@ -78,7 +83,7 @@ describe("classic layout", () => {
       expect(edge, `${prop.name}: pixels on a screen edge`).toBe(0);
       expect(column, `${prop.name}: pixels in the tower's column above its floor`).toBe(0);
       expect(top, `${prop.name}: pixels in the HUD`).toBe(0);
-      expect(low, `${prop.name}: pixels reaching the cloud bank`).toBe(0);
+      if (!prop.intoBank) expect(low, `${prop.name}: pixels reaching the cloud bank`).toBe(0);
       expect(lane, `${prop.name}: pixels above the base block (in the slider's first lane)`).toBe(0);
       for (let j = i + 1; j < PROPS.length; j++) {
         if (prop.planted && PROPS[j]!.name === "island") continue;

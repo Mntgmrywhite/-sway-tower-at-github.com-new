@@ -65,6 +65,8 @@ describe("classic drifters", () => {
         });
       }
     },
+    // Many full-scene masks: generous room for a busy machine.
+    60_000,
   );
 });
 
@@ -107,5 +109,5 @@ describe("classic drifters and the far islands", () => {
         expect(both, `level ${lvl}: ${d.kind} at ${Math.round(at)} covers a far island`).toBe(0);
       });
     }
-  });
+  }, 60_000);
 });

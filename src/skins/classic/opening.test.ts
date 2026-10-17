@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { birdDip, DIP_EVERY, GLINT_EVERY, glintPhase } from "./island";
 import { DAY_HIGH, toneAtLevel } from "./tone";
+import { roundTime, tractorAt, TRACTORS } from "./tractors";
 
 // The owner's rule: any action needs to happen within the first 10 seconds, because after that
 // players move past it and up. Scene time starts at 0 with a fresh tower (the title screen, or
@@ -8,11 +9,13 @@ import { DAY_HIGH, toneAtLevel } from "./tone";
 // key moment included, by OPENING. Later repeats keep their own rhythm.
 //
 // What the start view shows over time on Sky Islands: the bluebird on the kite's stake dipping
-// its head, and a glint flashing on the crystals in the island's underside. Everything else
-// there is ambient: the kite fluttering, the tail waving, vines and roots swaying, the spring's
-// streaks and mist, windmills turning, the sun's rays, low clouds drifting, far balloons and the
-// lane drifters bobbing in place, sparkles in the cloud bank. The shooting stars happen only at
-// night, far up the climb, so they depend on height and are exempt.
+// its head, a glint flashing on the crystals in the island's underside, and the tractors on the
+// fields far below each plodding to an end of its strip and turning round. Everything else
+// there is ambient: the kite fluttering, the tail waving, vines and roots swaying, the
+// waterfall's streaks, the tractors' smoke and dust, windmills turning, the sun's rays, low
+// clouds drifting, far balloons and the lane drifters bobbing in place, sparkles in the cloud
+// bank. The shooting stars happen only at night, far up the climb, so they depend on height and
+// are exempt.
 
 const OPENING = 10;
 const STEP = 0.005;
@@ -28,6 +31,14 @@ interface Action {
 const ACTIONS: Action[] = [
   { name: "the bluebird dips its head", at: birdDip, every: DIP_EVERY },
   { name: "a glint flashes on the crystals", at: (t) => (glintPhase(t) < 0 ? 0 : Math.sin(glintPhase(t) * Math.PI)), every: GLINT_EVERY },
+  ...TRACTORS.map((tr, i) => ({
+    name: `the ${tr.color} tractor ${i} turns at the end of its strip`,
+    at: (t: number) => {
+      const turn = tractorAt(i, t).turn;
+      return turn < 0 ? 0 : Math.sin(turn * Math.PI);
+    },
+    every: roundTime(tr),
+  })),
 ];
 
 /** The first run of an action from scene start: when it starts, peaks and ends (s). */
