@@ -1,7 +1,7 @@
 import { circle, ink, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { CLOUD, DOOR, FACE, GOLD, INK, IRON, OPENING, RAINBOW, SILL, THATCH, WHITEWASH, WOOD } from "./colors";
-import { POT_FOOT, potAndLeprechaun } from "./gold";
+import { DOOR, FACE, GOLD, INK, IRON, OPENING, RAINBOW, SILL, THATCH, WHITEWASH, WOOD } from "./colors";
+import { bowSweep, POT_FOOT, POT_X, potAndLeprechaun } from "./gold";
 import { block } from "./shapes";
 import { centerX, inkW } from "./tower";
 
@@ -9,12 +9,12 @@ import { centerX, inkW } from "./tower";
 // weight) and none of it rising above the base block's top, so the slider's first pass never
 // sweeps over it. On the left, near the wall, a whitewashed cottage under golden thatch, its red
 // half-door between two windows, a curl of turf smoke from the chimney (the flock frolics in the
-// pasture behind it: pasture.ts). On the right a rainbow comes down out of a little cloud into a
-// black pot heaped with gold, where the leprechaun hides (gold.ts); when he makes off with the
-// pot, the rainbow runs on down to the grass. In front of it a red toadstool with his cobbler's
-// work left on it: a little buckled shoe and his hammer. Two things rise higher, both at the
-// screen's edges like Classic's kite: the faint smoke, and the rainbow, whose arc and cloud reach
-// up through the slider's first lanes at the right edge, where it turns.
+// pasture behind it: pasture.ts). On the right a rainbow stands in a round arch on the grass,
+// between the round tower and the screen's edge; it sweeps into being in the first seconds, and
+// the leprechaun brings his black pot heaped with gold out from behind the round tower and sets
+// it down at its right foot, then keeps watch behind it (gold.ts). In front of them a red
+// toadstool with his cobbler's work left on it: a little buckled shoe and his hammer. Only the
+// faint smoke rises higher, at the screen's left edge like Classic's kite.
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
@@ -177,79 +177,59 @@ export function smoke(ctx: Ctx, s: Scene): void {
 
 // ---------------------------------------------------------------- the rainbow and the pot of gold
 
-/** The rainbow: center of its ellipse (u), outer radii, band width; it comes down into the pot (gold.ts). */
-const BOW_X = 0.305;
-const BOW_Y = 0.117;
-const BOW_RX = 0.13;
-const BOW_RY = 0.29;
-const BOW_BAND = 0.0075;
-/** The little cloud the rainbow comes out of. */
-const PUFF_X = 0.318;
-const PUFF_Y = -0.146;
-const PUFFS = [
-  [-0.03, 0.006, 0.019],
-  [-0.008, -0.012, 0.026],
-  [0.018, -0.004, 0.023],
-  [0.037, 0.007, 0.016],
-] as const;
+/** The rainbow's bands' width (u). */
+const BAND = 0.0085;
+/** Half the bands' total width (u). */
+const BOW_HALF = (BAND * RAINBOW.length) / 2;
+/** The ground line its feet stand on: a little behind the pot's, where the pot's belly is wide enough to hide the right foot (u). */
+export const BOW_FOOT = POT_FOOT - 0.02;
+/**
+ * Its outer radii, across and up (u): as wide as the meadow between the round tower's drum and
+ * the pot of gold allows, and a little taller than half that, so its top just clears the floor
+ * line well right of the tower's column.
+ */
+export const BOW_RX = 0.108;
+export const BOW_RY = 0.165;
+/** Its center: the right foot's bands come down right behind the pot of gold. */
+export const BOW_X = POT_X + BOW_HALF - BOW_RX;
 
 /**
- * The rainbow coming down out of its little cloud; from the arc's foot its bands run straight
- * down to the grass where the pot of gold stands (drawn after it, it hides them, unless the
- * leprechaun has made off with it).
+ * The rainbow: a round arch of six bands, red outside to violet inside, standing on the meadow
+ * right of the round tower. Its left foot stands on the grass, its right comes down behind the
+ * pot of gold (drawn after it, the pot hides the bands' ends). It forms in the first seconds:
+ * band by band, outside in, each sweeps up from the left foot, over the top and down to the
+ * right (gold.ts times it), and the ink follows the outer and inner bands as they go.
  */
 export function rainbowArc(ctx: Ctx, s: Scene): void {
   const u = s.u;
-  const cx = centerX(s);
-  if (s.groundY + PUFF_Y * u - u * 0.06 > s.cssH) return;
-  const lw = inkW(s);
-  const x = cx + BOW_X * u;
-  const y = s.groundY + BOW_Y * u;
+  const y = s.groundY + BOW_FOOT * u;
+  if (y - BOW_RY * u > s.cssH) return;
+  const n = RAINBOW.length;
+  const outer = bowSweep(0, s.t);
+  if (outer <= 0) return;
+  const x = centerX(s) + BOW_X * u;
+  const bw = BAND * u;
   const rx = BOW_RX * u;
   const ry = BOW_RY * u;
-  const bw = BOW_BAND * u;
-  const a0 = -Math.PI / 2 - 0.06;
-  const ground = s.groundY + (POT_FOOT - 0.003) * u;
-  for (let i = 0; i < RAINBOW.length; i++) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.PI * bowSweep(i, s.t);
+    if (a <= 0) break;
     ctx.beginPath();
-    ctx.ellipse(x, y, rx - i * bw, ry - i * bw, 0, a0, 0);
-    ctx.lineTo(x + rx - i * bw, ground);
-    ctx.lineTo(x + rx - (i + 1) * bw, ground);
-    ctx.ellipse(x, y, rx - (i + 1) * bw, ry - (i + 1) * bw, 0, 0, a0, true);
+    ctx.ellipse(x, y, rx - i * bw, ry - i * bw, 0, Math.PI, Math.PI + a);
+    ctx.ellipse(x, y, rx - (i + 1) * bw, ry - (i + 1) * bw, 0, Math.PI + a, Math.PI, true);
     ctx.closePath();
     ctx.fillStyle = RAINBOW[i]!;
     ctx.fill();
   }
-  const n = RAINBOW.length;
+  // The ink along its outer and inner edges, as far as their bands have come.
+  const inner = bowSweep(n - 1, s.t);
   ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, 0, a0, 0);
-  ctx.lineTo(x + rx, ground);
-  ctx.moveTo(x + rx - n * bw, ground);
-  ctx.lineTo(x + rx - n * bw, y);
-  ctx.ellipse(x, y, rx - n * bw, ry - n * bw, 0, 0, a0, true);
-  ink(ctx, lw, INK);
-  puff(ctx, s, cx + PUFF_X * u, s.groundY + PUFF_Y * u, lw);
-}
-
-/** The little inked cloud at the rainbow's top end. */
-function puff(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
-  const u = s.u;
-  ctx.beginPath();
-  for (const [dx, dy, r] of PUFFS) circle(ctx, x + dx * u, y + dy * u, r * u + lw);
-  ctx.fillStyle = INK;
-  ctx.fill();
-  ctx.beginPath();
-  for (const [dx, dy, r] of PUFFS) circle(ctx, x + dx * u, y + dy * u, r * u);
-  ctx.fillStyle = CLOUD.shade;
-  ctx.fill();
-  ctx.beginPath();
-  for (const [dx, dy, r] of PUFFS) circle(ctx, x + dx * u - r * u * 0.05, y + dy * u - r * u * 0.16, r * u * 0.88);
-  ctx.fillStyle = CLOUD.body;
-  ctx.fill();
-  ctx.beginPath();
-  for (const [dx, dy, r] of PUFFS) if (r > 0.02) circle(ctx, x + dx * u - r * u * 0.3, y + dy * u - r * u * 0.42, r * u * 0.4);
-  ctx.fillStyle = CLOUD.light;
-  ctx.fill();
+  ctx.ellipse(x, y, rx, ry, 0, Math.PI, Math.PI * (1 + outer));
+  if (inner > 0) {
+    ctx.moveTo(x - rx + n * bw, y);
+    ctx.ellipse(x, y, rx - n * bw, ry - n * bw, 0, Math.PI, Math.PI * (1 + inner));
+  }
+  ink(ctx, inkW(s), INK);
 }
 
 // ---------------------------------------------------------------- the cobbler's toadstool
@@ -348,7 +328,7 @@ export function toadstool(ctx: Ctx, s: Scene): void {
   ctx.fill();
 }
 
-/** Everything on the meadow round the tower (the tower itself is drawn after them: its drum hides the leprechaun when he runs off). */
+/** Everything on the meadow round the tower (the tower itself is drawn after them: its drum hides the leprechaun till he comes out with his pot). */
 export function meadowBack(ctx: Ctx, s: Scene): void {
   smoke(ctx, s);
   cottage(ctx, s);

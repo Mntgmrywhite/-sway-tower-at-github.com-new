@@ -14,10 +14,11 @@ import { roundTower } from "./stpatricks/tower";
 // stone round tower (its conical cap long gone, so you can build it higher), a ladder leaning
 // up to its raised doorway, on a meadow of emerald grass. On the left, near the wall, a
 // whitewashed cottage under golden thatch with a red half-door and a curl of turf smoke; behind
-// it, in the back pasture, two ewes graze while their lambs race, pronk and skip. On the right a
-// rainbow comes down out of a little cloud into a pot of gold, and behind the pot hides a
-// leprechaun of our own, who peeks out round it and over it, and now and then makes off with
-// the pot behind the round tower (and brings it back); his cobbling waits on a red toadstool.
+// it, in the back pasture, two ewes graze while their lambs race, pronk and skip. On the right
+// a rainbow sweeps into a round arch over the meadow as a tower starts, and a leprechaun of our
+// own lugs his pot of gold out from behind the round tower and sets it down at its foot, then
+// keeps watch behind it for good, peeking out round it and over it; his cobbling waits on a red
+// toadstool. (Every action of the start view happens in its first ten seconds: actions.test.ts.)
 // Beyond, hills quilted with fields, hedgerows and dry-stone walls, farmhouses on the right, on
 // the left hilltop a whole round tower and a high cross, a stream winding out under a humpbacked
 // stone bridge; and behind them the mountains: a flat-topped one with fluted flanks, and the

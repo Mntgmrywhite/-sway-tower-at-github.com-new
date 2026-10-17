@@ -10,9 +10,13 @@ import { inkW } from "./tower";
 // legs, all four at once) or skip about, turning in the air. Each spends most of its time
 // grazing, so the bursts read as bursts. Everything is a function of the scene's time: each
 // animal runs on its own cycle, and each cycle picks (by hash) what that burst is, so no two
-// cycles look quite the same and nothing ever repeats in lockstep. All of it stays in the left
-// side lane, clear of the tower's column, and no two animals ever touch: the ewes graze apart,
-// and the lambs' ring keeps them half a lap apart and clear of both.
+// cycles look quite the same and nothing ever repeats in lockstep. The first cycle of each
+// starts with the scene's clock and is set by hand, so every kind of frolic shows in the first
+// ten seconds of a tower (after that you have climbed past): the lambs race twice round, then
+// one pronks and the other skips; one ewe looks up and bounces while the other ambles a few
+// steps, then they swap. All of it stays in the left side lane, clear of the tower's column,
+// and no two animals ever touch: the ewes graze apart, and the lambs' ring keeps them half a
+// lap apart and clear of both.
 //
 // Mid-distance, but they are characters: flat wool with a shaded underside and a lit cap, and a
 // thin ink line (thinner than the near props'), so they read on the light grass.
@@ -36,11 +40,16 @@ interface Pose {
 
 const POSES: Pose[] = Array.from({ length: 4 }, () => ({ x: 0, foot: 0, L: 0, m: 1, lift: 0, stride: 0, graze: 0, nod: 0 }));
 
-/** The ewes: home x, depth, size (u), facing, their cycle (s) and its offset. */
+/**
+ * The ewes: home x, depth, size (u), facing, their cycle (s), and in their first cycle when
+ * each looks up (and bounces) and when it takes its few steps (s).
+ */
 const EWES = [
-  { X: -0.456, d: 0.14, L: 0.0195, m: 1, cycle: 17, off: 3.1 },
-  { X: -0.288, d: 0.27, L: 0.023, m: -1, cycle: 19.5, off: 11.7 },
+  { X: -0.456, d: 0.14, L: 0.0195, m: 1, cycle: 17, look: 1.6, step: 5.5 },
+  { X: -0.288, d: 0.27, L: 0.023, m: -1, cycle: 19.5, look: 6, step: 0.4 },
 ] as const;
+/** How long a ewe's few steps take (s). */
+const STEPS = 3;
 
 /** The lambs' ring: center, half width and half depth (u), their size, cycle (s). */
 const RING_X = -0.392;
@@ -77,21 +86,23 @@ function nibble(t: number, ph: number): number {
 function ewe(i: number, s: Scene, p: Pose): void {
   const e = EWES[i]!;
   const u = s.u;
-  const t = s.t + e.off;
-  const n = Math.floor(t / e.cycle);
-  const k = t - n * e.cycle;
+  const n = Math.floor(s.t / e.cycle);
+  const k = s.t - n * e.cycle;
   const h = (j: number) => hash(n * 7 + i * 131 + j + 9300);
+  const first = n === 0;
   p.L = e.L * u;
   p.m = e.m;
   p.foot = s.horizonY + e.d * u;
-  // Mostly grazing; a few seconds looking up; and in some cycles a little bounce, or a few steps.
-  const look0 = 4 + h(1) * 4;
+  // Mostly grazing; a few seconds looking up; and in some cycles (always in the first) a little
+  // bounce, or a few steps.
+  const look0 = first ? e.look : 4 + h(1) * 4;
   const up = ease((k - look0) / 0.5) * (1 - ease((k - look0 - 2.6) / 0.5));
-  const bounce = h(2) < 0.55 ? 0.6 * bounces(k, look0 + 0.9, 1.1, 2) : 0;
-  const step = h(3) < 0.5 ? Math.sin(Math.PI * clamp01((k - 11) / 3)) * 0.012 * e.m : 0;
+  const bounce = first || h(2) < 0.55 ? 0.6 * bounces(k, look0 + 0.9, 1.1, 2) : 0;
+  const walk = first || h(3) < 0.5 ? Math.sin(Math.PI * clamp01((k - (first ? e.step : 11)) / STEPS)) : 0;
+  const step = walk * 0.012 * e.m;
   p.x = s.cssW / 2 + (e.X + step) * u;
   p.lift = bounce * p.L * 0.9;
-  p.stride = step !== 0 ? Math.sin(k * 6) * 0.5 * Math.abs(Math.sin(Math.PI * clamp01((k - 11) / 3))) : 0;
+  p.stride = step !== 0 ? Math.sin(k * 6) * 0.5 * Math.abs(walk) : 0;
   p.graze = 1 - up;
   p.nod = nibble(s.t, i * 2);
 }
@@ -102,14 +113,15 @@ const RACE = { theta: 0, dir: 1, running: 0, before: 0 };
 /**
  * The lambs' race this cycle: graze, then race round the ring (one or two laps, either way
  * round), then pronk or skip, then graze again. Both lambs share the ring, half a lap apart.
+ * The first cycle sets off a second in, twice round.
  */
 function race(s: Scene): number {
   const n = Math.floor(s.t / LAMB_CYCLE);
   const k = s.t - n * LAMB_CYCLE;
   const h = (j: number) => hash(n * 11 + j + 9400);
-  const start = 2.5 + h(1) * 2;
-  const laps = h(2) < 0.6 ? 1 : 2;
-  RACE.dir = h(3) < 0.5 ? 1 : -1;
+  const start = n === 0 ? 1 : 2.5 + h(1) * 2;
+  const laps = n === 0 || h(2) >= 0.6 ? 2 : 1;
+  RACE.dir = n === 0 || h(3) < 0.5 ? 1 : -1;
   const dur = laps * LAP;
   const q = clamp01((k - start) / dur);
   // An eased run: they start and stop over the first and last fifth of a lap.
@@ -132,8 +144,9 @@ function lamb(j: number, s: Scene, p: Pose, after: number): void {
   const running = RACE.running;
   const vx = -Math.sin(th) * RACE.dir;
   const home = j === 0 ? 1 : -1;
-  // After the race: a pronk (stiff-legged bounces straight up) or a skip (little hops, turning about).
-  const pronk = h(1) < 0.55;
+  // After the race: a pronk (stiff-legged bounces straight up) or a skip (little hops, turning
+  // about); in the first cycle, one of each.
+  const pronk = n === 0 ? j === 0 : h(1) < 0.55;
   const t0 = 0.4 + h(2) * 0.8 + j * 0.35;
   let lift = 0;
   let m = running > 0 ? (vx >= 0 ? 1 : -1) : home;

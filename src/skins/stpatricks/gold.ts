@@ -1,6 +1,6 @@
 import { circle, hash, ink, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { BEARD, BELT, CHEEK, COAT, GOLD, INK, IRON, LEP_HAT, RAINBOW, SHOE, SKIN, STOCKING } from "./colors";
+import { BEARD, BELT, CHEEK, COAT, GOLD, GRASS, INK, IRON, LEP_HAT, RAINBOW, SHOE, SKIN, STOCKING } from "./colors";
 import { block } from "./shapes";
 import { sparkle } from "./sky";
 import { centerX, inkW } from "./tower";
@@ -8,37 +8,57 @@ import { centerX, inkW } from "./tower";
 // The pot of gold at the rainbow's end, and the leprechaun who keeps it: our own little fellow
 // from the old stories, in a green frock coat with brass buttons and a belt, cream stockings
 // and buckled shoes, a big ginger beard and rosy cheeks, under a tall bottle-green hat with a
-// buckle on its band. He hides behind his pot. Every so often he peeks out: round its side,
-// leaning out to look about, or up over the heap of coins, hands on the rim, eyes darting; then
-// he ducks back. And now and then he stands up, grabs the pot and hurries off with it behind the
-// old round tower, leaving the rainbow ending on bare grass (a glimmer where it touches down);
-// a while later he lugs it back, sets it down and slips behind it again.
+// buckle on its band.
 //
-// Everything is a function of the scene's time: a cycle of CYCLE seconds, and per cycle (by
-// hash) whether he runs off, when he peeks and which way. He stays on the meadow below the
-// tower's floor line, out of the slider's way, and well in from the screen's edge; the round
-// tower's drum (drawn after him) is what he disappears behind.
+// His story is told in the first seconds of every tower (the scene's clock starts at 0 with the
+// title screen's tower and with every new run): the rainbow sweeps into being over the meadow
+// (meadow.ts) and touches down on bare grass, in a tuft, where a glimmer marks its end; out
+// from behind the old round tower he comes, lugging his pot of gold, under the arch, sets it
+// down in the tuft right at the rainbow's foot (the gold glints as it lands) and slips behind
+// it, all within about five seconds. From then on he keeps watch over it for the rest of the
+// run: every so often he peeks out round one side or the other, leaning out to look about, or
+// up over the heap of coins, hands on the rim, eyes darting; then he ducks back. The pot never
+// leaves again.
+//
+// Everything is a function of the scene's time: the arrival by the clock, then a watch of
+// WATCH seconds after another, each picking (by hash) when he peeks and which way. He stays on
+// the meadow below the tower's floor line, out of the slider's way, and well in from the
+// screen's edge; the round tower's drum (drawn after him) is what he comes out from behind.
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
-/** The pot's home: its center and foot (u). */
-export const POT_X = 0.412;
+/** The pot's home, at the rainbow's right foot: its center and foot (u). */
+export const POT_X = 0.43;
 export const POT_FOOT = 0.165;
 /** The pot: half width, rim height above its foot, and the heap of gold above the rim (u). */
 const POT_HW = 0.033;
 const POT_RIM = 0.047;
 const HEAP = 0.032;
-/**
- * Where he is out of sight behind the round tower's drum (his center, u): going, with the pot
- * held out ahead of him to the left; coming back, with it ahead of him to the right, so further in.
- */
-export const HIDE_X = 0.16;
+/** Where he starts, out of sight behind the round tower's drum (his center, u), the pot held out ahead of him. */
 export const BACK_X = 0.125;
 /** How far in front of him he holds the pot when he carries it (u). */
 const REACH = 0.036;
 
-/** One cycle of his routine, seconds. */
-export const CYCLE = 24;
+/** The rainbow forms band by band, outside in: when the first starts, how far apart they start, how long each takes to sweep from foot to foot (s). */
+export const BOW_START = 0.15;
+export const BOW_STAGGER = 0.1;
+export const BOW_SWEEP = 1.5;
+/** When the rainbow's leading band touches down at its right foot, on the bare grass (s). */
+export const TOUCHDOWN = BOW_START + BOW_SWEEP;
+
+/** How far band `i` (0 outermost) has swept from the left foot to the right one at time `t` (0..1). */
+export function bowSweep(i: number, t: number): number {
+  return ease((t - BOW_START - i * BOW_STAGGER) / BOW_SWEEP);
+}
+
+/** He sets off from behind the round tower, reaches the rainbow's foot and sets the pot down, and is settled behind it (s). */
+export const SET_OFF = 1.4;
+export const SET_DOWN = 4.5;
+export const SETTLED = 5.4;
+/** The glint on the gold as the pot lands (s). */
+const GLINT = 0.8;
+/** One watch: a couple of peeks (s). */
+export const WATCH = 10;
 
 /** What the pot and he are doing this frame. */
 export interface Plan {
@@ -83,13 +103,8 @@ function window01(k: number, t0: number, dur: number, fade: number): number {
   return ease((k - t0) / fade) * (1 - ease((k - t0 - dur + fade) / fade));
 }
 
-/** Whether cycle `n` is one where he runs off with the pot: the first (so you see it soon after the start), then about every other. */
-export function runsOff(n: number): boolean {
-  return n === 0 || hash(n * 5 + 9600) < 0.45;
-}
-
-/** A peek: its start, which kind (round the side or over the rim), and its length. */
-const PEEK = 2.8;
+/** A peek's length (s). */
+export const PEEK = 2.8;
 
 /** Eyes during a peek: look out, glance at you, look out again; one blink in the middle. */
 function eyes(p: Plan, k: number, t0: number, forward: number): void {
@@ -98,21 +113,32 @@ function eyes(p: Plan, k: number, t0: number, forward: number): void {
   p.blink = q > 0.48 && q < 0.53;
 }
 
-function peek(p: Plan, k: number, t0: number, side: boolean): boolean {
+/**
+ * The ways he peeks: round the pot's left side (toward the tower), up over its rim looking
+ * toward the tower, or out the other way, or round its right side (toward the screen's edge, so
+ * only a little way: his head just clears the pot).
+ */
+export const SIDE = 0;
+export const RIM_IN = 1;
+export const RIM_OUT = 2;
+export const SIDE_OUT = 3;
+const KINDS = 4;
+
+function peek(p: Plan, k: number, t0: number, kind: number): boolean {
   const w = window01(k, t0, PEEK, 0.45);
   if (w <= 0.02) return false;
   p.shown = true;
   p.potX = POT_X;
-  if (side) {
-    // Round the pot's left side: only his head comes out, tipped, to look toward the tower.
-    p.m = -1;
+  if (kind === SIDE || kind === SIDE_OUT) {
+    // Round the pot's side: only his head comes out, tipped, to look about.
+    p.m = kind === SIDE ? -1 : 1;
     p.headOut = w;
     p.hands = w > 0.4 ? 3 : 0;
     eyes(p, k, t0, 0.0035);
   } else {
-    // Up over the heap of gold, hands on the rim.
-    p.x = POT_X - 0.006;
-    p.m = -1;
+    // Up over the heap of gold, hands on the rim, looking one way and then about.
+    p.m = kind === RIM_IN ? -1 : 1;
+    p.x = POT_X + p.m * 0.006;
     p.crouch = 1 - w;
     p.hands = w > 0.55 ? 1 : 0;
     eyes(p, k, t0, 0.0035);
@@ -121,16 +147,32 @@ function peek(p: Plan, k: number, t0: number, side: boolean): boolean {
   return true;
 }
 
+/** The two peeks of watch `n`: their kinds, and when they start (s into the watch). The first watch is fixed: round the side, then over the rim; after that, two different ones picked by hash. */
+const WATCHES = { kind0: SIDE, kind1: RIM_IN, at0: 0, at1: 0 };
+export function watch(n: number): typeof WATCHES {
+  const h = (j: number) => hash(n * 13 + j + 9700);
+  const w = WATCHES;
+  if (n === 0) {
+    w.kind0 = SIDE;
+    w.kind1 = RIM_IN;
+    w.at0 = 0.6;
+    w.at1 = w.at0 + PEEK + 0.9;
+    return w;
+  }
+  w.kind0 = Math.floor(h(3) * KINDS);
+  w.kind1 = (w.kind0 + 1 + Math.floor(h(4) * (KINDS - 1))) % KINDS;
+  w.at0 = 0.5 + h(1) * 1.2;
+  w.at1 = w.at0 + PEEK + 0.9 + h(2) * 1.6;
+  return w;
+}
+
 /**
- * Where he and the pot are at time `t`: hidden behind the pot, peeking, or (in a run-off
- * cycle) standing up, grabbing the pot, hurrying off behind the round tower, away, lugging it
- * back, setting it down and slipping behind it again.
+ * Where he and the pot are at time `t`: both out of sight behind the round tower; then him
+ * lugging it out to the rainbow's foot, setting it down and slipping behind it; then, for good,
+ * hidden behind it or peeking out.
  */
 export function plan(t: number): Plan {
   const p = PLAN;
-  const n = Math.floor(t / CYCLE);
-  const k = t - n * CYCLE;
-  const h = (j: number) => hash(n * 13 + j + 9700);
   p.shown = false;
   p.x = POT_X;
   p.m = -1;
@@ -145,94 +187,59 @@ export function plan(t: number): Plan {
   p.potX = POT_X;
   p.potLift = 0;
   p.potShown = true;
-  if (!runsOff(n)) {
-    const p0 = 1.2 + h(1) * 2;
-    const p1 = p0 + PEEK + 4 + h(2) * 2.5;
-    const p2 = p1 + PEEK + 4 + h(3) * 2.5;
-    if (peek(p, k, p0, h(4) < 0.5)) return p;
-    if (peek(p, k, p1, h(5) >= 0.5)) return p;
-    if (p2 + PEEK < CYCLE) peek(p, k, p2, h(6) < 0.5);
-    return p;
-  }
-  if (peek(p, k, 1, false)) return p;
-  if (k < 4.4) return p;
-  p.shown = true;
-  if (k < 5) {
-    // He stands up behind the pot...
-    p.x = POT_X + 0.008;
-    p.crouch = 1 - ease((k - 4.4) / 0.6);
-    p.look = 0.003;
-    return p;
-  }
-  if (k < 5.7) {
-    // ...side-steps round its right, hands to the rim, and lifts it.
-    const q = ease((k - 5) / 0.45);
-    p.x = POT_X + 0.008 + (REACH - 0.008) * q;
-    p.crouch = 0;
-    p.hands = q > 0.5 ? 2 : 0;
-    p.potLift = 0.008 * ease((k - 5.45) / 0.25);
-    p.walk = Math.sin(Math.PI * q) * 0.6;
-    p.stride = (k - 5) * 9;
-    return p;
-  }
-  if (k < 7.9) {
-    // Off he goes with it, hurrying left behind the round tower.
-    const q = (k - 5.7) / 2.2;
-    const e = q * q * (3 - 2 * q);
-    p.x = POT_X + REACH + (HIDE_X - POT_X - REACH) * e;
-    p.crouch = 0;
-    p.lean = 0.14;
-    p.hands = 2;
-    p.walk = 1;
-    p.stride = k * 11;
-    p.potX = p.x - REACH;
-    p.potLift = 0.008 + Math.abs(Math.sin(k * 11)) * 0.004;
-    return p;
-  }
-  if (k < 15.6) {
-    // Away: the rainbow ends on bare grass.
-    p.shown = false;
+  if (t < SET_OFF) {
+    // Both still behind the round tower: the rainbow's end is bare grass.
     p.potShown = false;
     return p;
   }
-  if (k < 18) {
-    // Back he comes, lugging it.
-    const q = (k - 15.6) / 2.4;
+  if (t < SET_DOWN) {
+    // Out he comes, lugging it, and lowers it to the grass as he gets there.
+    const q = (t - SET_OFF) / (SET_DOWN - SET_OFF);
     const e = q * q * (3 - 2 * q);
+    p.shown = true;
     p.m = 1;
     p.x = BACK_X + (POT_X - REACH - BACK_X) * e;
     p.crouch = 0;
-    p.lean = 0.1;
+    // Leaning into the load, and straightening up as he slows to set it down.
+    p.lean = 0.1 * (1 - ease((q - 0.8) / 0.2));
     p.hands = 2;
     p.walk = 1 - ease((q - 0.85) / 0.15);
-    p.stride = k * 9;
+    p.stride = t * 9;
+    p.look = 0.002;
     p.potX = p.x + REACH;
-    p.potLift = 0.008 * (1 - ease((q - 0.9) / 0.1)) + Math.abs(Math.sin(k * 9)) * 0.003 * p.walk;
+    p.potLift = 0.008 * (1 - ease((q - 0.88) / 0.12)) + Math.abs(Math.sin(t * 9)) * 0.003 * p.walk;
     return p;
   }
-  if (k < 18.9) {
-    // Sets it down and slips behind it.
-    const q = ease((k - 18) / 0.9);
+  if (t < SETTLED) {
+    // Lets go of it and slips round behind it.
+    const q = ease((t - SET_DOWN) / (SETTLED - SET_DOWN));
+    p.shown = true;
     p.m = 1;
     p.x = POT_X - REACH + (REACH + 0.008) * q;
     p.crouch = q;
     p.hands = q < 0.3 ? 2 : 0;
     p.walk = Math.sin(Math.PI * q) * 0.5;
-    p.stride = k * 9;
+    p.stride = t * 9;
     p.look = -0.002;
     return p;
   }
-  p.shown = false;
-  if (peek(p, k, 20.6, true)) return p;
+  // On watch for good: a couple of peeks every WATCH seconds, the first soon after he settles.
+  const k = t - SETTLED;
+  const n = Math.floor(k / WATCH);
+  const kk = k - n * WATCH;
+  const w = watch(n);
+  if (peek(p, kk, w.at0, w.kind0)) return p;
+  peek(p, kk, w.at1, w.kind1);
   return p;
 }
 
 // ---------------------------------------------------------------- drawing
 
 /**
- * The pot of gold with him, as the time has it: him first (behind the pot), then the pot, then
- * his hands where they grip it. Drawn after the rainbow and before the round tower, whose drum
- * hides him when he hurries off.
+ * The pot of gold with him, as the time has it: him (behind the pot), the pot, his hands where
+ * they grip it, then the tuft of grass it stands in, the glimmer where the rainbow touches down
+ * (gone before the pot comes near) and the glint as it lands. Drawn after the rainbow and before
+ * the round tower, whose drum hides him until he comes out.
  */
 export function potAndLeprechaun(ctx: Ctx, s: Scene): void {
   const u = s.u;
@@ -240,28 +247,112 @@ export function potAndLeprechaun(ctx: Ctx, s: Scene): void {
   if (g + (POT_FOOT - 0.16) * u > s.cssH) return;
   const cx = centerX(s);
   const lw = inkW(s);
-  const p = plan(s.t);
+  const t = s.t;
+  const p = plan(t);
   const foot = g + POT_FOOT * u;
-  if (!p.potShown) {
-    glimmer(ctx, s, cx + POT_X * u, foot);
-    return;
+  const home = cx + POT_X * u;
+  if (p.potShown) {
+    if (p.shown && p.headOut > 0) peekingHead(ctx, home, foot, u, p, lw);
+    else if (p.shown) figure(ctx, cx + p.x * u, foot, u, p, lw);
+    pot(ctx, s, cx + p.potX * u, foot - p.potLift * u, lw);
+    if (p.shown && p.hands > 0) hands(ctx, cx, foot, u, p, lw);
   }
-  if (p.shown && p.headOut > 0) peekingHead(ctx, cx + POT_X * u, foot, u, p, lw);
-  else if (p.shown) figure(ctx, cx + p.x * u, foot, u, p, lw);
-  pot(ctx, s, cx + p.potX * u, foot - p.potLift * u, lw);
-  if (p.shown && p.hands > 0) hands(ctx, cx, foot, u, p, lw);
+  tuft(ctx, home, foot, u, lw);
+  const glow = glimmerGlow(t, p);
+  if (glow > 0.01) glimmer(ctx, s, home, foot, glow);
+  const q = (t - SET_DOWN + 0.1) / GLINT;
+  if (q > 0 && q < 1) landed(ctx, s, home, foot, q);
 }
 
-/** Where the rainbow touches down on bare grass while the pot is away: a soft glimmer that twinkles. */
-function glimmer(ctx: Ctx, s: Scene, x: number, foot: number): void {
+/** The tuft of grass at the rainbow's end: blade tips [dx, height] (u), and how high the dips between them come. */
+const TUFT = [
+  [-0.033, 0.013],
+  [-0.022, 0.019],
+  [-0.011, 0.015],
+  [0, 0.021],
+  [0.011, 0.016],
+  [0.022, 0.02],
+  [0.033, 0.012],
+] as const;
+const TUFT_DIP = 0.0095;
+/** Half its width at the ground, and how far up its outer edges are inked. */
+const TUFT_HW = 0.035;
+const TUFT_INKED = 0.005;
+/** How far the blades fan out toward their tips. */
+const LEAN = 1.1;
+
+/** The tuft's blades, tip to tip, from `h0` up its left edge to `h0` down its right (heights in u). */
+function tuftBlades(ctx: Ctx, x: number, foot: number, u: number, h0: number, start: boolean): void {
+  const [dx0, t0] = TUFT[0];
+  const [dx1, t1] = TUFT[6];
+  // The outer edges run from the ground out to the outer tips, which lean outward.
+  const edge = (dx: number, h: number, side: number) => x + u * (side * TUFT_HW + (dx * LEAN - side * TUFT_HW) * (h0 / h));
+  if (start) ctx.moveTo(edge(dx0, t0, -1), foot - u * h0);
+  else ctx.lineTo(edge(dx0, t0, -1), foot - u * h0);
+  TUFT.forEach(([dx, h], i) => {
+    if (i > 0) ctx.lineTo(x + u * (dx - 0.0055), foot - u * TUFT_DIP);
+    ctx.lineTo(x + u * dx * LEAN, foot - u * h);
+  });
+  ctx.lineTo(edge(dx1, t1, 1), foot - u * h0);
+}
+
+/**
+ * A tuft of grass at the rainbow's end, where the pot stands: the pot sits down into it, and it
+ * hides the leprechaun's shoes under the pot while he crouches behind it. A clump a shade darker
+ * than the meadow, rounded at its foot, inked along its blades only, so it melts into the grass.
+ */
+function tuft(ctx: Ctx, x: number, foot: number, u: number, lw: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x - u * TUFT_HW, foot);
+  tuftBlades(ctx, x, foot, u, 0, false);
+  ctx.quadraticCurveTo(x, foot + u * 0.008, x - u * TUFT_HW, foot);
+  ctx.closePath();
+  ctx.fillStyle = GRASS.body;
+  ctx.fill();
+  ctx.beginPath();
+  tuftBlades(ctx, x, foot, u, TUFT_INKED, true);
+  ink(ctx, lw * 0.7, INK);
+}
+
+/** The glint as the pot lands: a bright star swelling and fading on the gold, two little ones beside it. */
+function landed(ctx: Ctx, s: Scene, x: number, foot: number, q: number): void {
+  const u = s.u;
+  const k = Math.sin(Math.PI * q);
+  const top = foot - (POT_RIM + HEAP * 0.7) * u;
+  ctx.fillStyle = "#ffffff";
+  ctx.globalAlpha = Math.min(1, k * 1.6);
+  ctx.beginPath();
+  sparkle(ctx, x + u * 0.004, top - u * 0.004, u * 0.024 * k);
+  sparkle(ctx, x - u * 0.024, top + u * 0.008 - u * 0.012 * q, u * 0.009 * k);
+  sparkle(ctx, x + u * 0.027, top + u * 0.002 - u * 0.014 * q, u * 0.008 * k);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+/** How far the glimmer reaches either side of the rainbow's end, and the pot (his hands round its rim and the ink included) either side of its center (u). */
+export const GLIMMER_HW = 0.03;
+export const POT_REACH = 0.042;
+
+/**
+ * The glimmer at the rainbow's end (0..1): it comes up as the rainbow touches down on the bare
+ * grass and fades out as the pot comes near, gone before the pot gets to it (drawn over the
+ * pot, it would twinkle on the iron).
+ */
+export function glimmerGlow(t: number, p: Plan = plan(t)): number {
+  const gap = p.potShown ? POT_X - p.potX - POT_REACH - GLIMMER_HW : 1;
+  return ease((t - TOUCHDOWN + 0.1) / 0.4) * ease(gap / 0.04);
+}
+
+/** Where the rainbow touches down on the bare grass, before the pot comes: a soft glimmer that twinkles (`a` fades it). */
+function glimmer(ctx: Ctx, s: Scene, x: number, foot: number, a: number): void {
   const u = s.u;
   ctx.fillStyle = RAINBOW[2];
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.35 * a;
   ctx.beginPath();
   oval(ctx, x + u * 0.001, foot - u * 0.002, u * 0.03, u * 0.007);
   ctx.fill();
   const tw = 0.5 + 0.5 * Math.sin(s.t * 3.1);
-  ctx.globalAlpha = 0.6 + 0.4 * tw;
+  ctx.globalAlpha = (0.6 + 0.4 * tw) * a;
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
   sparkle(ctx, x - u * 0.014, foot - u * 0.012, u * (0.006 + 0.004 * tw));
@@ -354,15 +445,15 @@ function hands(ctx: Ctx, cx: number, foot: number, u: number, p: Plan, lw: numbe
   ctx.beginPath();
   if (p.hands === 1) {
     // Fingers curled over the rim either side of where he peeks.
-    mitten(ctx, px - u * 0.021, rim - u * 0.0005, u);
-    mitten(ctx, px + u * 0.006, rim - u * 0.0005, u);
+    mitten(ctx, px + p.m * u * 0.021, rim - u * 0.0005, u);
+    mitten(ctx, px - p.m * u * 0.006, rim - u * 0.0005, u);
   } else if (p.hands === 2) {
     // Gripping the pot either side of its rim.
     mitten(ctx, px - u * POT_HW * 0.95, rim + u * 0.004, u);
     mitten(ctx, px + u * POT_HW * 0.95, rim + u * 0.004, u);
   } else {
-    // One hand round the pot's left side.
-    mitten(ctx, px - u * POT_HW * 1.0, rim + u * 0.014, u);
+    // One hand round the pot's side, the side he peeks round.
+    mitten(ctx, px + p.m * u * POT_HW, rim + u * 0.014, u);
   }
   ctx.fillStyle = SKIN.body;
   ctx.fill();
@@ -376,6 +467,9 @@ function hands(ctx: Ctx, cx: number, foot: number, u: number, p: Plan, lw: numbe
  * buttons, arms, then the head: ears, face, rosy cheeks and nose, eyes and brows, the beard,
  * and the hat with its buckle.
  */
+/** How much further his head drops as he crouches right down behind the pot (u). */
+const DUCK = 0.01;
+
 function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: number): void {
   const w = lw / u;
   ctx.save();
@@ -476,15 +570,26 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
     ctx.fill();
     ink(ctx, w * 0.7, INK);
   }
-  head(ctx, p, w, -0.054 + p.crouch * 0.028);
+  // Right down, he ducks his head into his collar too, so not even his hat's crown shows over the gold.
+  head(ctx, p, w, -0.054 + p.crouch * 0.028 + DUCK * p.crouch ** 6);
   ctx.restore();
 }
 
-/** His head (and hat) coming out round the left side of the pot at `px`, tipped as he peeks: the rest of him is behind the pot. */
+/** How high his head's center is (u above the pot's foot) when it is all behind the pot, hat and beard included, and when he peeks round its side. */
+const HEAD_HIDDEN = 0.03;
+const HEAD_OUT = 0.056;
+
+/**
+ * His head (and hat) coming out round the side of the pot at `px` that he faces, tipped as he
+ * peeks: the rest of him is behind the pot. It leans out and up from right behind the pot's
+ * middle, so it slides into sight bit by bit (the hat never pops up over the gold). Round the
+ * right side (toward the screen's edge) it comes out less far.
+ */
 function peekingHead(ctx: Ctx, px: number, foot: number, u: number, p: Plan, lw: number): void {
   const k = p.headOut;
+  const out = 0.02 + (p.m < 0 ? 0.026 : 0.006);
   ctx.save();
-  ctx.translate(px - u * (0.02 + 0.026 * k), foot - u * (0.05 + 0.006 * k));
+  ctx.translate(px + p.m * u * out * k, foot - u * (HEAD_HIDDEN + (HEAD_OUT - HEAD_HIDDEN) * k));
   ctx.scale(p.m * u, u);
   ctx.rotate(-0.42 * k);
   ctx.lineCap = "round";

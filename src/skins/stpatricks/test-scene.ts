@@ -63,10 +63,10 @@ export function zoomedScene(W: number, H: number, z: number, lvl: number, t: num
   };
 }
 
-/** The scene the start shot renders with, `t` seconds later. */
+/** The scene the start shot renders with (the title screen's fresh tower), at `t` seconds of the scene's clock. */
 export function startScene(W: number, H: number, t: number): Scene {
   const shot = shots().find((s) => s.name === "start")!;
-  shot.view.t += t;
+  shot.view.t = t;
   let scene: Scene | undefined;
   const spy: CartoonSkin = { ...stPatricks, ground: (_, s) => (scene = { ...s }) };
   const canvas = createCanvas(W, H);

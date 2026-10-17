@@ -17,17 +17,22 @@ import { inkW, roundTower } from "./tower";
 // alone, and none touches a screen edge, the HUD at the top or the wall in front, none stands
 // in the tower's column above its floor line, nothing on the meadow beside the base block rises
 // above its top (the slider's first pass never sweeps over it), and no two overlap, except where
-// that is the design: the rainbow comes down into the pot of gold (where the leprechaun hides),
-// and he runs off behind the round tower.
+// that is the design: the rainbow's right foot comes down behind the pot of gold (where the
+// leprechaun hides), and he brings the pot out from behind the round tower.
 
-/** Moments after the start shot: the first cycle has the leprechaun peek, then run off with the pot and bring it back. */
-const TIMES = [0, 1.3, 2.3, 2.7, 3.4, 4.1, 5.2, 6.6, 9.4, 13.7, 15.8, 17.6] as const;
+/**
+ * Moments of the scene's clock: the rainbow forming over bare grass, the leprechaun lugging the
+ * pot out from behind the round tower, under the arch, setting it down and slipping behind it,
+ * then peeking round its left side, over its rim (toward the tower, and away), round its right.
+ */
+const TIMES = [0, 0.8, 1.6, 2.2, 3, 3.8, 4.6, 5, 6.6, 8.2, 10.6, 17.4, 37.5] as const;
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**
  * `above`: stands above the floor line (so must keep out of the tower's column). `beside`:
  * stands on the meadow beside the base block, so must stay below its top, out of the slider's
- * first lane. `away`: may be gone at times (the pot while the leprechaun has it).
+ * first lane. `away`: may be missing at times (the pot before he brings it, the rainbow before
+ * it forms).
  */
 const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean; away?: boolean }[] = [
   { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), floorTop(s, level(s))), above: true },
@@ -40,7 +45,7 @@ const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean; away?
   { name: "flock", draw: flock, above: true },
   { name: "smoke", draw: smoke, above: true },
   { name: "cottage", draw: cottage, above: true, beside: true },
-  { name: "rainbow", draw: rainbowArc, above: true },
+  { name: "rainbow", draw: rainbowArc, above: true, beside: true, away: true },
   { name: "pot of gold and leprechaun", draw: potAndLeprechaun, above: true, beside: true, away: true },
   { name: "toadstool", draw: toadstool, above: true, beside: true },
   // The drum's top course is the tower's floor; the mound, ladder and doorway hang below it.
@@ -49,7 +54,9 @@ const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean; away?
 
 /** The meetings that are the design. */
 const ALLOWED = [
+  // The rainbow's right foot comes down behind the pot, and he carries it out under the arch.
   ["rainbow", "pot of gold and leprechaun"],
+  // He comes out from behind the round tower.
   ["pot of gold and leprechaun", "round tower base"],
   // The far range of mountains stands behind everything on the horizon.
   ["mountains", "round tower and high cross"],
@@ -77,6 +84,7 @@ describe("st. patrick's layout", () => {
     const hud = Math.round(H * 0.14 + s.u * 0.13);
     const baseTop = s.groundY - BLOCK_HEIGHT * s.scale;
     const potHome = plan(s.t).potShown;
+    const formed = s.t > 0.4;
 
     PROPS.forEach((prop, i) => {
       const m = masks[i]!;
@@ -95,7 +103,7 @@ describe("st. patrick's layout", () => {
           if (prop.beside && y < baseTop) lane++;
         }
       }
-      if (!prop.away || potHome) expect(drawn, `${prop.name} is drawn`).toBeGreaterThan(20);
+      if (!prop.away || (prop.name === "rainbow" ? formed : potHome)) expect(drawn, `${prop.name} is drawn`).toBeGreaterThan(20);
       // The mountains are scenery: their flanks run off the screen's sides like the hills'.
       if (prop.name !== "mountains") expect(edge, `${prop.name}: pixels on a screen edge`).toBe(0);
       expect(column, `${prop.name}: pixels in the tower's column above its floor`).toBe(0);
