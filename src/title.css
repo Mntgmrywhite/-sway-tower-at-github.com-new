@@ -26,8 +26,12 @@
 }
 
 #title {
+  /* Over the canvas exactly (main.ts sets the box): the page may push the canvas down. */
   position: fixed;
-  inset: 0;
+  left: var(--box-left, 0px);
+  top: var(--box-top, 0px);
+  width: var(--box-w, 100vw);
+  height: var(--box-h, 100dvh);
   /* The scene shows through; only the controls take taps. */
   pointer-events: none;
   animation: title-in 0.25s ease-out;
@@ -58,7 +62,7 @@
   top: var(--top);
   left: 50%;
   transform: translateX(-50%);
-  width: min(calc(var(--u) * 0.84), calc(100vw - 32px));
+  width: min(calc(var(--u) * 0.84), calc(var(--box-w, 100vw) - 32px));
   display: grid;
   justify-items: center;
   gap: calc(var(--u) * 0.045);
@@ -175,8 +179,8 @@
 
 #over-menu {
   position: fixed;
-  top: var(--menu-top);
-  left: 50%;
+  top: calc(var(--box-top, 0px) + var(--menu-top));
+  left: calc(var(--box-left, 0px) + var(--box-w, 100vw) / 2);
   transform: translateX(-50%);
   border: 0;
   animation: title-in 0.25s ease-out;

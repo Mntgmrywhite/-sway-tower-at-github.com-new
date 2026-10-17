@@ -143,6 +143,14 @@ export interface SmallButton {
   onClick(): void;
 }
 
+/** Where the canvas sits in the window (CSS px), as getBoundingClientRect gives it. */
+export interface CanvasBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export interface Title {
   show(): void;
   hide(): void;
@@ -151,9 +159,12 @@ export interface Title {
   showMenu(on: boolean): void;
   /**
    * Place the overlay to match the canvas: `u` is render.ts's size unit, `top` the y the column
-   * starts at (under the logo), `menuTop` the y of the game-over Menu button (CSS px).
+   * starts at (under the logo), `menuTop` the y of the game-over Menu button (CSS px, from the
+   * canvas's top), and `box` where the canvas sits in the window. The page can push the canvas
+   * down (the Artifact page pads the top by the phone's safe area), and the overlay must follow it
+   * or its column rides up over the logo.
    */
-  layout(u: number, top: number, menuTop: number): void;
+  layout(u: number, top: number, menuTop: number, box?: CanvasBox): void;
   /** Colors and faces from the skin's HUD, cartoon or neon. */
   setSkin(skin: Skin): void;
   /** Re-read the mode, the bests and the sound switch. */
@@ -332,11 +343,17 @@ export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
       if (!on && document.activeElement === menu) menu.blur();
       menu.hidden = !on;
     },
-    layout(u, top, menuTop) {
+    layout(u, top, menuTop, box) {
       for (const node of [root, menu]) {
         node.style.setProperty("--u", `${u}px`);
         node.style.setProperty("--top", `${top}px`);
         node.style.setProperty("--menu-top", `${menuTop}px`);
+        if (box) {
+          node.style.setProperty("--box-left", `${box.left}px`);
+          node.style.setProperty("--box-top", `${box.top}px`);
+          node.style.setProperty("--box-w", `${box.width}px`);
+          node.style.setProperty("--box-h", `${box.height}px`);
+        }
       }
     },
     setSkin(skin) {

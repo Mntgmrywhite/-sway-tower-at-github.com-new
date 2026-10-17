@@ -102,7 +102,7 @@ function resize(): void {
   canvas!.height = Math.round(cssH * dpr);
   ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
   const at = titleLayout(cssW, cssH);
-  title.layout(at.u, at.top, at.menuTop);
+  title.layout(at.u, at.top, at.menuTop, canvas!.getBoundingClientRect());
 }
 
 function restart(): void {
