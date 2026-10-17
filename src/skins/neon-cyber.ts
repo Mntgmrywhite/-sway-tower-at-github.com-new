@@ -13,9 +13,11 @@ import { farRain, nearRain } from "./neon-cyber/weather";
 // Neon Cyberpunk: tech noir in neon blue, electric purple and magenta on charcoal. A rainy
 // megacity at night, and a climb out of it. On the street: wet asphalt mirroring the neon, a
 // figure under a glowing umbrella beneath a street lamp, a steaming noodle stall, vending
-// machines and a parked hover car, the megacity's towers rising from the far edge of the street
-// with lit windows, glyph signs (our own abstract marks) and a holographic billboard, and a low
-// ceiling of smog with searchlights sweeping into it. Climb, and you rise past the towers'
+// machines, a parked hover car and a street racer at the curb (in the first seconds it peels out
+// through a puddle, soaks the walker, who shields behind the umbrella, and speeds off: peel.ts),
+// the megacity's towers rising from the far edge of the street with lit windows, glyph signs
+// (our own abstract marks) and a holographic billboard, and a low ceiling of smog with
+// searchlights sweeping into it. Climb, and you rise past the towers'
 // faces, their rooftop gardens and antenna forests, while the city's lights spread out below
 // and drones, sky docks, holo billboards and a sky garden hang in the lanes at the sides. The
 // rain thins, you rise through the smog (a deep violet murk, strata of denser smog lit from

@@ -13,6 +13,8 @@ import { toneOf } from "./tone";
 // light, so for that pair only the solid parts (not the faint cone and pool) must stay apart.
 // Whatever hangs in a lane also keeps clear of the city's most characterful details behind it:
 // the antenna forests, the roof gardens, the signs and the holo billboard.
+// The start shot's clock is already about 3 s in, so the street racer has peeled out and gone by
+// these times; peel.test.ts checks it and its spray frame by frame from t = 0.
 
 const TIMES = [0, 1.3, 2.7, 4.1, 6.6, 9.4] as const;
 /** Pairs that may share light, compared by their solid parts only. */

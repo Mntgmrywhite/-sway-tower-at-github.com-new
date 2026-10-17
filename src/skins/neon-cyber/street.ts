@@ -1,9 +1,11 @@
-import { alpha, hash, type Ctx } from "../../base/draw";
+import { alpha, hash, oval, type Ctx } from "../../base/draw";
 import { fieldY, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
 import { heroFoot, HOLO, SIGNS, STRIP_COLORS } from "./city";
-import { BASE_BAR, BLUE, CYAN, MAGENTA, PINK, PURPLE, WINDOW_COLORS } from "./colors";
-import { noodleStall, parkedCar, puddle, streetLamp, umbrellaWalker, vending } from "./props";
+import { BASE_BAR, BLUE, CYAN, MAGENTA, PINK, PURPLE, RED, WINDOW_COLORS } from "./colors";
+import { gone, jiggleAt, racerX, shakeOff, shieldAt, pitch, power, shiver, spin, spray, travel, wake } from "./peel";
+import { canopyAt, noodleStall, parkedCar, puddle, streetLamp, umbrellaWalker, vending, type Canopy } from "./props";
+import { REAR, streetRacer, WHEEL_R, WHEEL_X } from "./racer";
 import { COLUMN } from "./sky";
 import type { Tone } from "./tone";
 import { splashes } from "./weather";
@@ -13,6 +15,8 @@ import { splashes } from "./weather";
 // splashes, and street life on both sides of the tower's column: a lamp with a pedestrian under a
 // glowing umbrella, a steaming noodle stall, and in front, vending machines and a parked hover
 // car. Behind the tower everything on the street holds still.
+// In front of the tower a street racer waits at the curb by the walker; in the first seconds it
+// peels out, soaks the walker (who shields behind the umbrella) and speeds off (peel.ts).
 
 /** Scratch point for `spot()`, reused so placing props allocates nothing per frame. */
 const P = { x: 0, y: 0, k: 1 };
@@ -140,9 +144,17 @@ function reflections(ctx: Ctx, s: Scene, foot: number): void {
 // a nearer prop, sinking faster, only ever moves away from a farther one.
 const STALL = { X: 0.455, z: 3.6 };
 const LAMP = { X: -0.4545, z: 2.9 };
-const WALKER = { X: -0.358, z: 2.9 };
+const WALKER = { X: -0.358, z: 2.9, seed: 1 };
+/** The street racer at the curb, in front of the tower's floor line: its rear wheel by the walker. */
+const RACER = { X: -0.074, z: 2.05 };
+/** The racer's length (U at its depth). */
+const RACER_LENGTH = 0.18;
+/** The puddle the racer's rear wheel stands in, and the one in the middle of the street it rips through. */
+const REAR_PUDDLE = { X: RACER.X - RACER_LENGTH * WHEEL_X, z: RACER.z, rx: 0.035, ry: 0.006, rim: CYAN };
+const MID_PUDDLE = { X: 0.03, z: 2.05, rx: 0.075, ry: 0.012, rim: PURPLE };
 const PUDDLES = [
-  { X: 0.03, z: 2.05, rx: 0.075, ry: 0.012, rim: PURPLE },
+  MID_PUDDLE,
+  REAR_PUDDLE,
   { X: 0.17, z: 2.75, rx: 0.05, ry: 0.008, rim: BLUE },
   { X: -0.12, z: 4.2, rx: 0.06, ry: 0.006, rim: MAGENTA },
 ];
@@ -165,10 +177,117 @@ export function lamp(ctx: Ctx, s: Scene): void {
   streetLamp(ctx, p.x, p.y, U, 1, CYAN);
 }
 
-/** The pedestrian under a glowing umbrella. */
+/** Scratch canopy for the walker's umbrella. */
+const CANOPY: Canopy = { x: 0, y: 0, angle: 0, r: 0, dome: 0 };
+
+/** Where the walker's umbrella is at the scene's time. */
+export function walkerCanopy(s: Scene): Canopy {
+  const p = spot(s, WALKER.X, WALKER.z);
+  return canopyAt(CANOPY, p.x, p.y, s.u * p.k, s.t, WALKER.seed, shieldAt(s.t), jiggleAt(s.t));
+}
+
+/** The pedestrian under a glowing umbrella, tipping it down against the racer's spray and shaking it off. */
 export function walker(ctx: Ctx, s: Scene): void {
   const p = spot(s, WALKER.X, WALKER.z);
-  umbrellaWalker(ctx, p.x, p.y, s.u * p.k, CYAN, s.t, 1);
+  umbrellaWalker(ctx, p.x, p.y, s.u * p.k, CYAN, s.t, WALKER.seed, shieldAt(s.t), jiggleAt(s.t));
+  walkerShake(ctx, s);
+}
+
+/** The water the walker shakes off the umbrella after the splash (peel.ts). */
+export function walkerShake(ctx: Ctx, s: Scene): void {
+  const p = spot(s, WALKER.X, WALKER.z);
+  shakeOff(ctx, s, p.x, p.y, s.u * p.k, WALKER.seed, p.y);
+}
+
+const RACER_GLOW = alpha(PURPLE, 0.2);
+const RACER_REFLECT = alpha(PURPLE, 0.3);
+const TAIL_STREAK = alpha(RED, 0.4);
+const GLOW_STREAK = alpha(PURPLE, 0.35);
+const BEAM = alpha(CYAN, 0.08);
+
+/** Where the racer's rear wheel throws the water from (screen px), parked. */
+const SOURCE = { x: 0, y: 0 };
+/** The two puddles it splashes through (screen px). */
+const PUD = { px: 0, py: 0, prx: 0, qx: 0, qy: 0, qrx: 0 };
+/** The racer's spot, parked: its middle on the floor (screen px), and its size. */
+const SPOT = { x: 0, y: 0, U: 0, L: 0 };
+
+function racerSpot(s: Scene): typeof SPOT {
+  const p = spot(s, RACER.X, RACER.z);
+  SPOT.x = p.x;
+  SPOT.y = p.y;
+  SPOT.U = s.u * p.k;
+  SPOT.L = SPOT.U * RACER_LENGTH;
+  return SPOT;
+}
+
+/** The racer itself: parked at the curb, then peeling out and away to the right, its glow and reflection with it. */
+export function racerCar(ctx: Ctx, s: Scene): void {
+  const t = s.t;
+  const { x: x0, y, U, L } = racerSpot(s);
+  const x = racerX(s, x0, t);
+  if (gone(s, x, L)) return;
+  // Its glow and reflection on the wet floor, the headlight's pool ahead.
+  ctx.beginPath();
+  oval(ctx, x, y, L * 0.52, L * 0.06);
+  ctx.fillStyle = RACER_GLOW;
+  ctx.fill();
+  ctx.beginPath();
+  oval(ctx, x + L * 0.85, y + L * 0.012, L * 0.3, L * 0.035);
+  ctx.fillStyle = BEAM;
+  ctx.fill();
+  shimmer(ctx, s, x, y + 2, y + U * 0.08, L * 0.7, RACER_REFLECT, 66);
+  // Speed streaks off its tail once it's flying.
+  const v = travel(t + 0.05) - travel(t);
+  if (v > 0.02) {
+    const len = Math.min(s.u * 0.4, (v / 0.05) * s.u * 0.12);
+    const back = x - REAR * L;
+    ctx.beginPath();
+    ctx.moveTo(back, y - 0.145 * L);
+    ctx.lineTo(back - len, y - 0.145 * L);
+    ctx.strokeStyle = TAIL_STREAK;
+    ctx.lineWidth = Math.max(1, L * 0.02);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(back + L * 0.3, y - 0.04 * L);
+    ctx.lineTo(back + L * 0.3 - len * 0.8, y - 0.04 * L);
+    ctx.moveTo(back + L * 0.2, y - 0.23 * L);
+    ctx.lineTo(back + L * 0.2 - len * 0.6, y - 0.23 * L);
+    ctx.strokeStyle = GLOW_STREAK;
+    ctx.lineWidth = Math.max(1, L * 0.012);
+    ctx.stroke();
+  }
+  streetRacer(ctx, x, y + shiver(t) * L, L, 1, { spin: spin(t, L / s.u), power: power(t), pitch: pitch(t) });
+}
+
+/** The racer's water: the rooster tail onto the walker's umbrella and the splashes off the puddles. */
+export function racerWater(ctx: Ctx, s: Scene): void {
+  const { x: x0, y, L } = racerSpot(s);
+  SOURCE.x = x0 - (WHEEL_X + WHEEL_R * 1.1) * L;
+  SOURCE.y = y - WHEEL_R * 0.3 * L;
+  const q = spot(s, REAR_PUDDLE.X, REAR_PUDDLE.z);
+  PUD.px = q.x;
+  PUD.py = q.y;
+  PUD.prx = REAR_PUDDLE.rx * s.u * q.k;
+  const m = spot(s, MID_PUDDLE.X, MID_PUDDLE.z);
+  PUD.qx = m.x;
+  PUD.qy = m.y;
+  PUD.qrx = MID_PUDDLE.rx * s.u * m.k;
+  wake(ctx, s, x0, y, L, PUD);
+  const floor = spot(s, WALKER.X, WALKER.z).y;
+  spray(ctx, s, SOURCE.x, SOURCE.y, walkerCanopy(s), floor);
+}
+
+/**
+ * The street racer and its water (peel.ts). Saved and restored around, so the props drawn after
+ * it (the parked hover car and its reflection take the caps and joins the walker leaves) look
+ * exactly as they did before the racer was added.
+ */
+export function racer(ctx: Ctx, s: Scene): void {
+  ctx.save();
+  racerCar(ctx, s);
+  racerWater(ctx, s);
+  ctx.restore();
 }
 
 /** The parked hover car, and its underglow on the wet floor. */
@@ -189,7 +308,7 @@ export function machines(ctx: Ctx, s: Scene): void {
 }
 
 /** Every street prop, back to front (the layout test draws them one by one). */
-export const PROPS = [stall, lamp, walker, parked, machines] as const;
+export const PROPS = [stall, lamp, walker, racer, parked, machines] as const;
 
 /**
  * The wet street floor behind the tower: asphalt from the towers' foot down, their reflections,

@@ -244,39 +244,76 @@ export function noodleStall(ctx: Ctx, s: Scene, x: number, y: number, U: number)
 }
 
 const SCALLOPS = 4;
+const COAT = "#050409";
+
+/** Where the umbrella's canopy is: the middle of its rim, its tilt (radians, clockwise from up), radius and dome (px). */
+export interface Canopy {
+  x: number;
+  y: number;
+  angle: number;
+  r: number;
+  dome: number;
+}
+
+/** The canopy tipped all the way down as a shield: its rim's middle (U from the walker's foot) and its tilt. */
+const SHIELD_X = 0.032;
+const SHIELD_Y = 0.07;
+export const SHIELD_ANGLE = (100 / 180) * Math.PI;
+
+/**
+ * The canopy of a walker standing at (x, y) at size U: overhead and swaying in the wind, or, as
+ * `shield` goes 0 to 1, tipped down sideways toward the street on the right, held close like a
+ * shield (`jiggle` shakes it about its tilt). Written to `out`.
+ */
+export function canopyAt(out: Canopy, x: number, y: number, U: number, t: number, seed: number, shield = 0, jiggle = 0): Canopy {
+  const sway = Math.sin(t * 1.3 + seed) * U * 0.004;
+  out.x = x + sway + (U * SHIELD_X - sway) * shield;
+  out.y = y - U * 0.185 + U * (0.185 - SHIELD_Y) * shield;
+  out.angle = SHIELD_ANGLE * shield + jiggle;
+  out.r = U * 0.064;
+  out.dome = U * 0.04;
+  return out;
+}
+
+const C: Canopy = { x: 0, y: 0, angle: 0, r: 0, dome: 0 };
 
 /**
  * A pedestrian in a long coat under a see-through umbrella lit by its glowing shaft (the
- * canopy glows `color`, its rim is a neon tube). The umbrella sways a little in the wind.
+ * canopy glows `color`, its rim is a neon tube). The umbrella sways a little in the wind. With
+ * `shield` (0..1) they duck and tip it down sideways to the right, a shield against the street.
  */
-export function umbrellaWalker(ctx: Ctx, x: number, y: number, U: number, color: string, t: number, seed: number): void {
+export function umbrellaWalker(ctx: Ctx, x: number, y: number, U: number, color: string, t: number, seed: number, shield = 0, jiggle = 0): void {
   const sway = Math.sin(t * 1.3 + seed) * U * 0.004;
+  // Ducking behind the shield: the shoulders drop and lean away from the street.
+  const duck = U * 0.014 * shield;
+  const lean = -U * 0.006 * shield;
   // Legs, coat, head
   ctx.beginPath();
   ctx.rect(x - U * 0.012, y - U * 0.048, U * 0.008, U * 0.048);
   ctx.rect(x + U * 0.004, y - U * 0.048, U * 0.008, U * 0.048);
-  ctx.moveTo(x - U * 0.016, y - U * 0.128);
-  ctx.lineTo(x + U * 0.016, y - U * 0.128);
+  ctx.moveTo(x - U * 0.016 + lean, y - U * 0.128 + duck);
+  ctx.lineTo(x + U * 0.016 + lean, y - U * 0.128 + duck);
   ctx.lineTo(x + U * 0.026, y - U * 0.04);
   ctx.lineTo(x - U * 0.026, y - U * 0.04);
   ctx.closePath();
-  circle(ctx, x, y - U * 0.142, U * 0.012);
-  ctx.fillStyle = "#050409";
+  circle(ctx, x + lean * 1.4, y - U * 0.142 + duck * 1.1, U * 0.012);
+  ctx.fillStyle = COAT;
   ctx.fill();
   edge(ctx, U);
 
-  const cx = x + sway;
-  const rim = y - U * 0.185;
-  const r = U * 0.064;
-  const dome = U * 0.04;
-  // Canopy lit from the shaft
+  const c = canopyAt(C, x, y, U, t, seed, shield, jiggle);
+  const { r, dome } = c;
+  // Canopy lit from the shaft, drawn upright about the middle of its rim, then tipped.
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  if (c.angle !== 0) ctx.rotate(c.angle);
   ctx.beginPath();
-  ctx.moveTo(cx - r, rim);
-  ctx.quadraticCurveTo(cx - r * 0.9, rim - dome * 1.1, cx, rim - dome);
-  ctx.quadraticCurveTo(cx + r * 0.9, rim - dome * 1.1, cx + r, rim);
+  ctx.moveTo(-r, 0);
+  ctx.quadraticCurveTo(-r * 0.9, -dome * 1.1, 0, -dome);
+  ctx.quadraticCurveTo(r * 0.9, -dome * 1.1, r, 0);
   for (let i = SCALLOPS; i > 0; i--) {
-    const x1 = cx - r + ((i - 1) / SCALLOPS) * r * 2;
-    ctx.quadraticCurveTo((x1 + cx - r + (i / SCALLOPS) * r * 2) / 2, rim - dome * 0.22, x1, rim);
+    const x1 = -r + ((i - 1) / SCALLOPS) * r * 2;
+    ctx.quadraticCurveTo((x1 - r + (i / SCALLOPS) * r * 2) / 2, -dome * 0.22, x1, 0);
   }
   ctx.closePath();
   ctx.fillStyle = tint(color, 0.22);
@@ -287,22 +324,32 @@ export function umbrellaWalker(ctx: Ctx, x: number, y: number, U: number, color:
   // Ribs
   ctx.beginPath();
   for (let i = 1; i < SCALLOPS; i++) {
-    ctx.moveTo(cx, rim - dome);
-    ctx.lineTo(cx - r + (i / SCALLOPS) * r * 2, rim);
+    ctx.moveTo(0, -dome);
+    ctx.lineTo(-r + (i / SCALLOPS) * r * 2, 0);
   }
   ctx.strokeStyle = tint(color, 0.45);
   ctx.lineWidth = Math.max(0.6, U * 0.002);
   ctx.stroke();
+  ctx.restore();
+
+  // The shaft runs from the handle up through the canopy to its tip; held overhead the hand is
+  // low on it, tipped down as a shield it grips it close under the canopy.
+  const ax = Math.sin(c.angle);
+  const ay = -Math.cos(c.angle);
+  const tipX = c.x + ax * dome;
+  const tipY = c.y + ay * dome;
+  const hx = x + U * 0.004 + (c.x - ax * U * 0.024 - x - U * 0.004) * shield;
+  const hy = y - U * 0.088 + (c.y - ay * U * 0.024 - y + U * 0.088) * shield;
   // Arm and the glowing shaft
   ctx.beginPath();
-  ctx.moveTo(x + U * 0.012, y - U * 0.118);
-  ctx.lineTo(x + U * 0.004 + sway * 0.5, y - U * 0.1);
-  ctx.strokeStyle = "#050409";
+  ctx.moveTo(x + U * 0.012 + lean, y - U * 0.118 + duck);
+  ctx.lineTo(x + U * 0.004 + sway * 0.5 + (hx - x - U * 0.004 - sway * 0.5) * shield, y - U * 0.1 + (hy - y + U * 0.1) * shield);
+  ctx.strokeStyle = COAT;
   ctx.lineWidth = Math.max(1, U * 0.007);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x + U * 0.004, y - U * 0.088);
-  ctx.lineTo(cx, rim - dome);
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(tipX, tipY);
   tube(ctx, color, Math.max(0.8, U * 0.004), 2.4);
 }
 

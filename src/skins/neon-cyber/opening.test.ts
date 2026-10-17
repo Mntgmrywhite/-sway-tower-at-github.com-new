@@ -10,12 +10,14 @@ import { toneOf } from "./tone";
 // The owner's rule: any action happens within the first 10 seconds of a tower's scene (s.t = 0
 // on the title's fresh tower and on play again), because after that players have moved on and up.
 //
-// Cyberpunk is calm by design and has no actions in its start view: nothing arrives, leaves or
-// goes anywhere. Everything keyed to the clock there is ambient and in motion from t = 0:
+// Cyberpunk is calm by design and has one action in its start view: the street racer at the curb
+// peels out at about 1 s, soaks the umbrella walker (who shields behind the umbrella) and is out
+// of view and the walker back under the umbrella by 3 s (peel.ts; peel.test.ts holds it to that).
+// Everything else keyed to the clock there is ambient and in motion from t = 0:
 //   - rain streaks and splash rings on the wet floor (weather.ts), and the ripples of the neon in
 //     the street (street.ts);
 //   - the steam from the noodle stall's flue, the cook's bob, the swinging lanterns, the
-//     umbrella swaying over the walker, the parked car hovering, the vending buttons (props.ts);
+//     umbrella swaying over the walker, the parked hover car bobbing, the vending buttons (props.ts);
 //   - windows switching on and off every 3 s, the beacons blinking (city.ts), tired signs
 //     flickering, the billboard's glitches (signs.ts);
 //   - the two searchlights' slow sweep (sky.ts, about 27 s a round);
@@ -26,8 +28,8 @@ import { toneOf } from "./tone";
 // climb), so the rule leaves it be.
 //
 // These tests hold the skin to that: the billboard's pictures all show within the first 10 s,
-// and nothing on the street or in the lanes of the start view, watched for a minute and a half,
-// ever goes anywhere it hadn't already been within the first 10 s.
+// and nothing on the street (the racer and its spray included) or in the lanes of the start view,
+// watched for a minute and a half, ever goes anywhere it hadn't already been within the first 10 s.
 
 /** Seconds into a tower's scene by which every action has happened. */
 const OPENING = 10;
