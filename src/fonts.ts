@@ -2,9 +2,11 @@
 // the single-file web build draw their titles without the network. The files are Fontsource's
 // copies of the Google Fonts faces (latin subset, same weights the page used to request).
 // Licenses: SIL OFL 1.1 (Fredoka, Monoton, Orbitron, Creepster, Abril Fatface, Limelight, Zen Dots,
-// Uncial Antiqua), except Luckiest Guy and Chewy (Apache 2.0); see public/font-licenses.txt.
+// Uncial Antiqua, Rye, Alfa Slab One, Pacifico, Pirata One), except Luckiest Guy and Chewy
+// (Apache 2.0); see public/font-licenses.txt.
 
 import abrilFatface from "@fontsource/abril-fatface/files/abril-fatface-latin-400-normal.woff2?inline";
+import alfaSlabOne from "@fontsource/alfa-slab-one/files/alfa-slab-one-latin-400-normal.woff2?inline";
 import chewy from "@fontsource/chewy/files/chewy-latin-400-normal.woff2?inline";
 import creepster from "@fontsource/creepster/files/creepster-latin-400-normal.woff2?inline";
 import fredoka600 from "@fontsource/fredoka/files/fredoka-latin-600-normal.woff2?inline";
@@ -14,6 +16,9 @@ import luckiestGuy from "@fontsource/luckiest-guy/files/luckiest-guy-latin-400-n
 import monoton from "@fontsource/monoton/files/monoton-latin-400-normal.woff2?inline";
 import orbitron600 from "@fontsource/orbitron/files/orbitron-latin-600-normal.woff2?inline";
 import orbitron700 from "@fontsource/orbitron/files/orbitron-latin-700-normal.woff2?inline";
+import pacifico from "@fontsource/pacifico/files/pacifico-latin-400-normal.woff2?inline";
+import pirataOne from "@fontsource/pirata-one/files/pirata-one-latin-400-normal.woff2?inline";
+import rye from "@fontsource/rye/files/rye-latin-400-normal.woff2?inline";
 import uncialAntiqua from "@fontsource/uncial-antiqua/files/uncial-antiqua-latin-400-normal.woff2?inline";
 import zenDots from "@fontsource/zen-dots/files/zen-dots-latin-400-normal.woff2?inline";
 
@@ -35,6 +40,30 @@ export const FONT_FILES: Record<string, [weight: string, url: string][]> = {
   Limelight: [["400", limelight]],
   "Zen Dots": [["400", zenDots]],
   "Uncial Antiqua": [["400", uncialAntiqua]],
+  Rye: [["400", rye]],
+  "Alfa Slab One": [["400", alfaSlabOne]],
+  Pacifico: [["400", pacifico]],
+  "Pirata One": [["400", pirataOne]],
+};
+
+/** Each family's license, as public/font-licenses.txt heads its text ("Fredoka (OFL-1.1)"). */
+export type FontLicense = "OFL-1.1" | "Apache-2.0";
+
+export const FONT_LICENSES: Record<string, FontLicense> = {
+  Fredoka: "OFL-1.1",
+  Monoton: "OFL-1.1",
+  Orbitron: "OFL-1.1",
+  "Luckiest Guy": "Apache-2.0",
+  Chewy: "Apache-2.0",
+  Creepster: "OFL-1.1",
+  "Abril Fatface": "OFL-1.1",
+  Limelight: "OFL-1.1",
+  "Zen Dots": "OFL-1.1",
+  "Uncial Antiqua": "OFL-1.1",
+  Rye: "OFL-1.1",
+  "Alfa Slab One": "OFL-1.1",
+  Pacifico: "OFL-1.1",
+  "Pirata One": "OFL-1.1",
 };
 
 /** The HUD and UI faces every skin uses (cartoon body, neon body, the options title). */

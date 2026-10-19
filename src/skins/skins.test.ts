@@ -20,8 +20,21 @@ describe("skin by date", () => {
     [1, 1, "newyear"],
     [1, 6, "newyear"],
     [1, 7, "classic"],
+    [1, 12, "mlk"],
+    [1, 21, "mlk"],
+    [1, 22, "classic"],
+    [2, 7, "valentines"],
+    [2, 14, "valentines"],
+    [2, 16, "classic"],
     [3, 3, "classic"],
-    [9, 30, "classic"],
+    [3, 17, "stpatricks"],
+    [6, 28, "july4"],
+    [7, 4, "july4"],
+    [7, 8, "classic"],
+    [8, 15, "classic"],
+    [9, 11, "classic"],
+    [9, 12, "oktoberfest"],
+    [9, 30, "oktoberfest"],
   ])("%i/%i → %s", (m, d, id) => {
     expect(skinForDate(day(m, d)).id).toBe(id);
   });

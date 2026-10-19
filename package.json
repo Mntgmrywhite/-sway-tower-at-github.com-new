@@ -19,12 +19,14 @@
     "snap": "tsx scripts/preview.ts",
     "music": "tsx scripts/music/render.ts",
     "music:check": "tsx scripts/music/check.ts",
-    "sfx": "tsx scripts/music/sfx.ts"
+    "sfx": "tsx scripts/music/sfx.ts",
+    "store": "tsx scripts/store/build.ts"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",
     "@eslint/js": "^10.0.1",
     "@fontsource/abril-fatface": "^5.3.0",
+    "@fontsource/alfa-slab-one": "^5.3.0",
     "@fontsource/chewy": "^5.3.0",
     "@fontsource/creepster": "^5.3.0",
     "@fontsource/fredoka": "^5.3.0",
@@ -32,6 +34,9 @@
     "@fontsource/luckiest-guy": "^5.3.0",
     "@fontsource/monoton": "^5.3.0",
     "@fontsource/orbitron": "^5.3.0",
+    "@fontsource/pacifico": "^5.3.0",
+    "@fontsource/pirata-one": "^5.3.0",
+    "@fontsource/rye": "^5.3.0",
     "@fontsource/uncial-antiqua": "^5.3.0",
     "@fontsource/zen-dots": "^5.3.0",
     "@napi-rs/canvas": "^1.0.11",

@@ -1,16 +1,21 @@
 import { christmas } from "./christmas";
 import { classic } from "./classic";
 import { halloween } from "./halloween";
+import { july4 } from "./july4";
+import { mlk } from "./mlk";
 import { neon } from "./neon";
 import { neonCyber } from "./neon-cyber";
 import { newYear } from "./newyear";
+import { oktoberfest } from "./oktoberfest";
 import type { Skin } from "./skin";
 import { stPatricks } from "./stpatricks";
 import { thanksgiving } from "./thanksgiving";
 import { toyBlock } from "./toyblock";
+import { valentines } from "./valentines";
 
 /** Every skin, in picker order. Classic is always first and is the fallback. */
-export const SKINS: Skin[] = [classic, toyBlock, neon, neonCyber, halloween, thanksgiving, christmas, newYear, stPatricks];
+/** The holidays run in calendar order from the autumn: a season a player is in sits near the top. */
+export const SKINS: Skin[] = [classic, toyBlock, neon, neonCyber, halloween, thanksgiving, christmas, newYear, mlk, valentines, stPatricks, july4, oktoberfest];
 
 /** Skins that were retired, and the skin a saved choice of them now shows. */
 const RETIRED: Record<string, string> = { "neon-glow": "neon", "neon-minimal": "neon" };
