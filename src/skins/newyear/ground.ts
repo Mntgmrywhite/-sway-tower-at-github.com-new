@@ -2,6 +2,7 @@ import { alpha, circle, hash, ink, mix, outlined, type Ctx } from "../../base/dr
 import { fieldY, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
 import { EMERALD, GOLD, GOLD_LIGHT, INK, IVORY, LACQUER, MARBLE_FAR, PARTY, ROSE, TAU, WATER_FAR, WATER_NEAR } from "./colors";
+import { EYES, eckleburg } from "./eckleburg";
 import { estate, mansionReflections } from "./estate";
 import { friezeTop } from "./front";
 import { HERO_SPANS } from "./landmarks";
@@ -12,7 +13,8 @@ import { champagneTower, gramophone, roadster } from "./props";
 // the mansion's windows mirrored on it in wavering gold; the mansion's point across it
 // (estate.ts); then our terrace: ivory marble with a gold-and-
 // emerald Deco sunburst inlaid around the tower's foot, confetti and fallen feathers, and the
-// props (props.ts): a gramophone, a roadster pulled up in front, a champagne tower.
+// props (props.ts): a gramophone, a roadster pulled up in front, a champagne tower; behind them,
+// across the bay, Doctor T. J. Eckleburg's billboard (eckleburg.ts).
 // Floor things are placed in perspective: a field row at depth z is at fieldY(scene, z) and
 // scaled by TOWER_DEPTH / z. Nothing on this layer stands in the tower column above the
 // ground line.
@@ -371,7 +373,8 @@ function terrace(ctx: Ctx, s: Scene, ye: number): void {
 /* ---------------------------------------------------------------- layer */
 
 /** Every prop, back to front: screen x offset (u), depth, how tall it stands (u at the tower's line). */
-const PROPS = [
+export const PROPS = [
+  { ...EYES, draw: eckleburg },
   { dx: 0.37, z: 3.45, tall: 0.27, draw: gramophone },
   { dx: 0.315, z: 1.9, tall: 0.1, draw: roadster },
   { dx: -0.358, z: 1.85, tall: 0.19, draw: champagneTower },
