@@ -23,10 +23,14 @@ import { toneOf } from "./tone";
 
 /**
  * Scene times: through the actions of the first 10 s (the mouse's run-down, its waddle leaning
- * both ways), the rocket's launch after them (ignition, lift-off, the corkscrew),
- * then at rest.
+ * both ways), the rocket's launch after them (the countdown, ignition, lift-off, the corkscrew),
+ * its way back down and its landing (legs out, the landing burn, the bounce, the legs folding,
+ * the vent's wisp), the next trip's start (the old trail clearing) and its launch, then at rest.
  */
-const TIMES = [0, 0.17, 0.52, 1.3, 2.7, 4.3, 5.7, 7.1, 9.6, 10.6, 11.9, 12.4, 13.6, 14.7, 16.7, 40] as const;
+const TIMES = [
+  0, 0.17, 0.52, 1.3, 2.7, 4.3, 5.7, 7.1, 9.6, 10.6, 11.9, 12.4, 13.6, 14.7, 16.7, 21.3, 23.4, 24.9, 26.4, 27.42, 29.1, 30.7, 34.6, 40, 42.6, 44.3,
+  48.1,
+] as const;
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**

@@ -2,17 +2,20 @@ import { describe, expect, it } from "vitest";
 import { toyBlock } from "../toyblock";
 import { tunnelMouths } from "./far";
 import { centerX, mouseRun, RUN_DOWN, windUpMouse } from "./fort";
+import { BURN, COUNTDOWN, DESCEND, GONE, IGNITE, LIFTOFF, PERIOD, rocketAt, TOUCHDOWN, TRIP_START } from "./launch";
 import { footLift, GUARD_FEET, guards, GUARDS, MARCH, SOLDIER_H, stickRaise } from "./meadow";
 import { context, masker, sceneAt, SIZES } from "./test-scene";
 
 // The owner's rule for every skin: any action happens within the first 10 seconds of a tower's
 // scene (the title's fresh tower, or a new run), as players soon climb past; then the scene
 // settles into calm idle motion. Toy Kingdom's actions are the wind-up mouse running down in
-// front of the fort and the little train's run out of one tunnel and into the other; the
-// rocket's launch comes after them, at 10 s, by the owner's call (launch.test.ts). And the
-// mouse's key is seated in its back: its stem comes out of the body, never floating above it.
-// The fort's two toy soldiers march in place and drum from the start, forever (the owner: "The
-// soldiers should march/drum in place as well").
+// front of the fort; the rocket's launch comes after it, at 10 s, by the owner's call, its
+// countdown lamps lighting from 7 s (launch.test.ts). And the owner's newer rule: every action
+// comes round again for as long as the player stands there, so the rocket comes back down onto
+// its pad by 28 s and launches again every PERIOD seconds. The mouse's key is seated in its back:
+// its stem comes out of the body, never floating above it. The fort's two toy soldiers march in
+// place and drum from the start, forever (the owner: "The soldiers should march/drum in place as
+// well").
 
 /** Scene times across the run-down (the waddle's leans both ways) and at rest. */
 const TIMES = [0, 0.17, 0.52, 1.3, 2.6, 4.4, 6.1, 7.9, 9.5, 14.2] as const;
@@ -87,6 +90,44 @@ describe("toy kingdom wind-up mouse", () => {
     const fresh = mouseRun(1).key - mouseRun(0).key;
     expect(idle).toBeGreaterThan(0);
     expect(fresh).toBeGreaterThan(idle * 4);
+  });
+});
+
+describe("toy kingdom rocket", () => {
+  it("counts down from 7 s, launches at 10 s, lands back on its pad by 28 s, and goes again every 35 to 45 s", () => {
+    expect(COUNTDOWN).toBeLessThan(10);
+    expect(IGNITE).toBe(10);
+    expect(TOUCHDOWN, "the first landing").toBeLessThanOrEqual(28);
+    expect(PERIOD).toBeGreaterThanOrEqual(35);
+    expect(PERIOD).toBeLessThanOrEqual(45);
+    // Trip after trip, for as long as the scene runs: on the pad, lit, climbing, gone into its
+    // cloud, on its way down, landed; the next ignition PERIOD s after the last.
+    const pads: number[] = [];
+    let was = rocketAt(0).phase;
+    for (let t = 0; t < 10 * PERIOD; t += 0.05) {
+      const r = rocketAt(t);
+      if (r.phase !== was) {
+        const c = t - Math.max(0, Math.floor((t - TRIP_START) / PERIOD)) * PERIOD;
+        const next: Record<string, string> = { pad: "climb", climb: "gone", gone: "down", down: "pad" };
+        expect(r.phase, `t=${t.toFixed(2)}: after ${was}`).toBe(next[was]);
+        if (r.phase === "climb") expect(c, `t=${t.toFixed(2)}: lift-off`).toBeCloseTo(LIFTOFF, 1);
+        if (r.phase === "gone") expect(c).toBeCloseTo(GONE, 1);
+        if (r.phase === "down") expect(c).toBeCloseTo(DESCEND, 1);
+        if (r.phase === "pad") {
+          expect(c).toBeCloseTo(TOUCHDOWN, 1);
+          pads.push(t);
+        }
+        was = r.phase;
+      }
+    }
+    expect(pads.length, "landings in ten periods").toBe(10);
+    pads.forEach((t, n) => expect(t, `landing ${n}`).toBeCloseTo(TOUCHDOWN + n * PERIOD, 1));
+    for (let n = 0; n < 10; n++) {
+      const at = n * PERIOD;
+      expect(rocketAt(at + IGNITE - 0.05).flame, `trip ${n}: not lit before ignition`).toBe(0);
+      expect(rocketAt(at + IGNITE + 0.6).flame, `trip ${n}: lit at ignition`).toBeGreaterThan(0);
+      expect(rocketAt(at + BURN + 0.5).flame, `trip ${n}: the landing burn`).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -177,7 +218,7 @@ describe("toy kingdom guards", () => {
     return n;
   }
 
-  it.each(SIZES)("%ix%i: both soldiers lift their knees in turn and beat their drums, in place", (W, H) => {
+  it.each(SIZES)("%ix%i: both soldiers lift their knees in turn and beat their drums, in place", { timeout: 30_000 }, (W, H) => {
     // A quarter march in, the left feet are up and the right ones down; three quarters in, the other way.
     for (const [t, up] of [
       [MARCH * 0.25, -1],

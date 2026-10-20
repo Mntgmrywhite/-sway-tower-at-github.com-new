@@ -4,22 +4,52 @@ import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
 import { drawDrifter, eachVisible, FAR_LANES, NEAR_P, type Placed } from "./drift";
 import { launchPad } from "./far";
-import { armSwing, CLOUD_Z, GONE, IGNITE, LIFTOFF, nozzleOnScreen, PAD_SQUASH, PAD_X, padRocket, padSmokeBehind, padSmokeFront, pathX, rocketAt, rocketSky } from "./launch";
+import {
+  armSwing,
+  BURN,
+  CLOUD_Z,
+  COUNTDOWN,
+  DESCEND,
+  gantryBounce,
+  GONE,
+  IGNITE,
+  lampLit,
+  LIFTOFF,
+  nozzleOnScreen,
+  PAD_SQUASH,
+  PAD_X,
+  padRocket,
+  padSmokeBehind,
+  padSmokeFront,
+  pathX,
+  PERIOD,
+  rocketAt,
+  rocketSky,
+  type Rocket,
+  TOUCHDOWN,
+  TRIP_START,
+  tripIndex,
+  tripTime,
+} from "./launch";
 import { COLUMN, horizon, landShows, seaTop } from "./place";
 import { moon, sun } from "./sky";
 import { context, masker, overlap, sceneAt, SIZES, VIEWS } from "./test-scene";
 import { LOOP_START, toneOf } from "./tone";
 
-// The rocket launch (launch.ts): the owner asked for the rocket to take off after 10 seconds and
-// corkscrew up into the clouds, the tower following its launch cloud. So: it stands on its pad
-// until 10 s, lights, lifts off and climbs ever faster, corkscrewing, into a cloud, all within a
-// few seconds; at every height and every moment the rocket, its smoke and the cloud keep to the
-// right lane (out of the tower's column, clear of the screen's sides, never over the other things
-// in the sky at their depth); its corkscrew of smoke stays put in the sky, so the tower climbs
-// past it to the cloud the rocket flew into, and it is all gone well before the story loops; the
-// smoke comes out of the rocket's nozzle all the way up, wherever the camera is; the rocket goes
-// into its cloud without popping out of sight; the smoke thins away without leaving specks; and
-// the launch tower stays standing on its pad.
+// The rocket's round trip (launch.ts): the owner asked for the rocket to take off after 10 seconds
+// and corkscrew up into the clouds, the tower following its launch cloud; and then for it to come
+// back and land ("think Tesla") and go again, as every action must come round again. So: it
+// stands on its pad until 10 s, the lamps counting down, lights, lifts off and climbs ever faster,
+// corkscrewing, into a cloud, all within a few seconds; it comes back out of the cloud tail first,
+// falls, folds out its legs, brakes on its landing burn to a stop on its pad by 28 s, settles and
+// goes again every PERIOD seconds, each trip the same as the first; at every height and every
+// moment the rocket, its smoke and the cloud keep to the right lane (out of the tower's column,
+// clear of the screen's sides, never over the other things in the sky at their depth, nor the sun
+// or the moon); its corkscrew of smoke stays put in the sky, so the tower climbs past it to the
+// cloud the rocket flew into, and it is all gone well before the story loops; the smoke comes out
+// of the rocket's nozzle all the way up, wherever the camera is; the rocket goes into its cloud and
+// comes back out of it without popping in or out of sight, and never jumps; the smoke thins away
+// without leaving specks; and the launch tower stays standing on its pad.
 
 const FRAME = 1 / 60;
 
@@ -80,10 +110,28 @@ describe("toy kingdom rocket launch", () => {
     expect(rocketAt(GONE - 0.01).k).toBeLessThan(0.35);
   });
 
-  it.each(SIZES)("%ix%i: nothing of the launch shows until the arm swings, then the pad lights up", (W, H) => {
+  it("the lamps count down a second apart, red, yellow, green, into ignition", () => {
+    expect(COUNTDOWN).toBe(IGNITE - 3);
+    for (let n = 0; n < 4; n++) {
+      const at = n * PERIOD;
+      for (let i = 0; i < 3; i++) {
+        expect(lampLit(at + COUNTDOWN + i - 0.05, i), `trip ${n}: lamp ${i} still dark`).toBe(false);
+        expect(lampLit(at + COUNTDOWN + i + 0.1, i), `trip ${n}: lamp ${i} lit`).toBe(true);
+        expect(lampLit(at + COUNTDOWN + i + 0.3, i), `trip ${n}: lamp ${i} blinks`).toBe(false);
+        expect(lampLit(at + IGNITE + 0.5, i), `trip ${n}: lamp ${i} lit at ignition`).toBe(true);
+      }
+      // Dark the rest of the trip.
+      for (let c = LIFTOFF + 1.6; c < PERIOD + COUNTDOWN - 0.01; c += 0.25) {
+        for (let i = 0; i < 3; i++) expect(lampLit(at + c, i), `trip ${n}, ${c.toFixed(2)} s in: lamp ${i}`).toBe(false);
+      }
+    }
+    for (let t = 0; t < COUNTDOWN; t += 0.1) for (let i = 0; i < 3; i++) expect(lampLit(t, i)).toBe(false);
+  });
+
+  it.each(SIZES)("%ix%i: nothing of the launch shows until the countdown, then the pad lights up", (W, H) => {
     const s0 = sceneAt(W, H, 0, 0.5);
-    // Another moment before the launch with the beacon in the same state.
-    let t1 = 8;
+    // Another moment before the countdown with the beacon in the same state.
+    let t1 = 4;
     while (Math.sin(t1 * 2.2) > 0 !== Math.sin(0.5 * 2.2) > 0) t1 += 0.05;
     const draw = masker(W, H);
     const pad0 = draw((ctx) => launchPad(ctx, s0, toneOf(s0)));
@@ -112,8 +160,313 @@ describe("toy kingdom rocket launch", () => {
   });
 });
 
-/** Moments through the launch, and long after it. */
-const MOMENTS = [IGNITE + 0.6, LIFTOFF + 0.8, LIFTOFF + 1.6, LIFTOFF + 2.4, LIFTOFF + 3, LIFTOFF + 3.5, LIFTOFF + 4, GONE - 0.15, GONE + 0.5, 90];
+describe("toy kingdom rocket round trip", () => {
+  it("comes back out of its cloud tail first, falls, folds out its legs and brakes to a stop on its pad", () => {
+    expect(DESCEND - GONE, "a few seconds up in its cloud").toBeGreaterThan(2);
+    expect(DESCEND - GONE).toBeLessThan(6);
+    expect(TOUCHDOWN, "down by 28 s").toBeLessThanOrEqual(28);
+    const pad = { ...rocketAt(0) };
+    let last = { ...rocketAt(DESCEND) };
+    expect(last.phase).toBe("down");
+    expect(last.flame, "coasting out of the cloud").toBe(0);
+    expect(last.legs, "legs folded").toBe(0);
+    let lastStep = 0;
+    for (let t = DESCEND + FRAME; t < TOUCHDOWN; t += FRAME) {
+      const r = rocketAt(t);
+      const what = `t=${t.toFixed(3)}`;
+      expect(r.phase, what).toBe("down");
+      const step = last.z - r.z;
+      expect(step, `${what}: coming down`).toBeGreaterThan(0);
+      expect(step, `${what}: no jump`).toBeLessThan(0.008);
+      expect(Math.abs(r.x - last.x), `${what}: no jump across`).toBeLessThan(0.002);
+      expect(Math.abs(r.lean), `${what}: upright, tail first`).toBeLessThan(0.08);
+      expect(r.k, `${what}: bigger as it comes nearer`).toBeGreaterThanOrEqual(last.k - 1e-9);
+      // Falling ever faster until the landing burn, then braking evenly.
+      if (t < BURN) expect(step, `${what}: falling faster`).toBeGreaterThanOrEqual(lastStep - 1e-9);
+      if (t > BURN + 2 * FRAME) expect(step, `${what}: braking`).toBeLessThanOrEqual(lastStep + 1e-9);
+      // The landing burn: lit from BURN to touchdown, not before.
+      if (t < BURN - 0.3) expect(r.flame, `${what}: no flame yet`).toBe(0);
+      if (t > BURN + 0.2) expect(r.flame, `${what}: the landing burn`).toBeGreaterThan(0.05);
+      // Legs out well before touchdown.
+      if (t > BURN + 0.6) expect(r.legs, `${what}: legs down`).toBe(1);
+      lastStep = step;
+      last = { ...r };
+    }
+    expect(lastStep, "at a standstill as it touches down").toBeLessThan(0.0002);
+    // Touchdown: on its legs, on its pad, right where it lifted off from, without a jump.
+    const down = { ...rocketAt(TOUCHDOWN) };
+    expect(down.phase).toBe("pad");
+    expect(down.x).toBeCloseTo(pad.x, 9);
+    expect(Math.abs(down.z - last.z)).toBeLessThan(0.0002);
+    expect(down.nz, "standing on its legs, a little higher than on its fins").toBeGreaterThan(pad.nz);
+    expect(down.legs).toBe(1);
+    // It bounces on its legs, the flame dies, it folds its legs and settles onto its fins.
+    let squashed = 1;
+    for (let t = TOUCHDOWN; t < TOUCHDOWN + 1.2; t += FRAME) squashed = Math.min(squashed, rocketAt(t).squash);
+    expect(squashed, "a squash at touchdown").toBeLessThan(0.97);
+    expect(rocketAt(TOUCHDOWN + 0.4).flame).toBe(0);
+    let prev = { ...rocketAt(TOUCHDOWN) };
+    for (let t = TOUCHDOWN; t < TRIP_START + PERIOD; t += FRAME) {
+      const r = rocketAt(t);
+      expect(r.phase).toBe("pad");
+      expect(Math.abs(r.nz - prev.nz), `t=${t.toFixed(3)}: settling without a jump`).toBeLessThan(0.002);
+      expect(Math.abs(r.squash - prev.squash)).toBeLessThan(0.03);
+      prev = { ...r };
+    }
+    const settled = rocketAt(TRIP_START + PERIOD - 0.01);
+    expect(settled.legs, "legs folded away").toBe(0);
+    expect(settled.nz).toBeCloseTo(pad.nz, 9);
+    expect(settled.z).toBeCloseTo(pad.z, 9);
+    expect(settled.squash).toBe(1);
+    // The arm swings back to it once it has settled, and is there when the next trip begins.
+    expect(armSwing(TOUCHDOWN + 2)).toBeGreaterThan(1.2);
+    expect(armSwing(TRIP_START + PERIOD - 0.01)).toBe(0);
+    // The launch tower bounces at touchdown, and only then.
+    let bounce = 0;
+    for (let t = 0; t < TRIP_START + PERIOD; t += FRAME) {
+      const b = Math.abs(gantryBounce(t));
+      if (t < TOUCHDOWN || t > TOUCHDOWN + 1.6) expect(b, `t=${t.toFixed(3)}`).toBe(0);
+      bounce = Math.max(bounce, b);
+    }
+    expect(bounce).toBeGreaterThan(0.02);
+  });
+
+  it("every later trip replays the first, PERIOD seconds on, for as long as the scene runs", () => {
+    expect(PERIOD).toBeGreaterThanOrEqual(35);
+    expect(PERIOD).toBeLessThanOrEqual(45);
+    // Each trip starts with the rocket on its pad, as at the start, before its countdown.
+    expect(TRIP_START).toBeGreaterThan(TOUCHDOWN - PERIOD);
+    expect(TRIP_START).toBeLessThan(COUNTDOWN);
+    const a = (t: number) => ({ ...rocketAt(t) });
+    /** The same rocket, give or take the clock's rounding. */
+    const same = (p: Rocket, q: Rocket, what: string) => {
+      expect(p.phase, what).toBe(q.phase);
+      for (const k of ["z", "nz", "x", "y", "k", "lean", "flame", "near", "legs", "squash"] as const) expect(p[k], `${what}: ${k}`).toBeCloseTo(q[k], 9);
+    };
+    for (let n = 1; n <= 12; n++) {
+      expect(tripIndex(TRIP_START + n * PERIOD + 0.01)).toBe(n);
+      expect(tripIndex(TRIP_START + n * PERIOD - 0.01)).toBe(n - 1);
+      for (let c = TRIP_START; c < TRIP_START + PERIOD; c += 0.37) {
+        expect(tripTime(c + n * PERIOD)).toBeCloseTo(c, 9);
+        same(a(c + n * PERIOD), a(c), `trip ${n}, ${c.toFixed(2)} s in`);
+      }
+    }
+    // Phases in order, every trip.
+    for (let n = 0; n <= 12; n++) {
+      const at = n * PERIOD;
+      expect(rocketAt(at + COUNTDOWN).phase).toBe("pad");
+      expect(rocketAt(at + IGNITE + 0.6).flame).toBeGreaterThan(0.05);
+      expect(rocketAt(at + LIFTOFF + 1).phase).toBe("climb");
+      expect(rocketAt(at + GONE + 1).phase).toBe("gone");
+      expect(rocketAt(at + DESCEND + 1).phase).toBe("down");
+      expect(rocketAt(at + TOUCHDOWN + 1).phase).toBe("pad");
+    }
+    // Where each trip hands over to the next, it stands on its pad just as at the start.
+    same(a(TRIP_START + PERIOD - 1e-6), a(TRIP_START + PERIOD + 1e-6), "the hand-over");
+    same(a(TRIP_START + PERIOD), a(TRIP_START), "a trip's start");
+    same(a(TRIP_START), a(0), "the start");
+  });
+
+  it.each(SIZES)("%ix%i: each later trip draws just as the first: the old trail clears before the countdown ends", { timeout: 60_000 }, (W, H) => {
+    const pixels = (t: number, lvl: number) => {
+      const s = sceneAt(W, H, lvl, t);
+      const ctx = context(W, H);
+      const tone = toneOf(s);
+      if (landShows(s, seaTop(s))) launchPad(ctx, s, tone);
+      rocketSky(ctx, s, tone);
+      return ctx.getImageData(0, 0, W, H).data;
+    };
+    for (const lvl of [0, 18]) {
+      // From the first ignition on, two trips later it all looks the same, but for the launch
+      // tower's beacon, which blinks on its own (the scene's) clock.
+      const s0 = sceneAt(W, H, lvl, 0);
+      const bx = W / 2 + (PAD_X + 0.061) * s0.u;
+      const by = horizon(s0) - (0.36 + 0.016) * PAD_SQUASH * s0.u;
+      const r = s0.u * 0.012;
+      for (const c of [IGNITE + 0.61, LIFTOFF + 2.21, GONE + 1.01, DESCEND + 2.51, BURN + 1.11, TOUCHDOWN + 0.31, TOUCHDOWN + 4.13, TRIP_START + PERIOD - 1.01]) {
+        const a = pixels(c, lvl);
+        const b = pixels(c + 2 * PERIOD, lvl);
+        let n = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          if (a[i] === b[i] && a[i + 1] === b[i + 1] && a[i + 2] === b[i + 2] && a[i + 3] === b[i + 3]) continue;
+          const x = (i / 4) % W;
+          const y = Math.floor(i / 4 / W);
+          if (Math.abs(x - bx) <= r && Math.abs(y - by) <= r) continue;
+          n++;
+        }
+        expect(n, `level ${lvl}, ${c.toFixed(2)} s in: pixels differing two trips later`).toBe(0);
+      }
+      // As a later trip begins its sky still shows the last trip's trail, clearing; before the
+      // arm swings away for the ignition it is gone, as at the start.
+      const sky = (t: number) => {
+        const s = sceneAt(W, H, lvl, t);
+        const m = masker(W, H)((ctx) => rocketSky(ctx, s, toneOf(s)));
+        return sum(m);
+      };
+      expect(sky(PERIOD + TRIP_START + 0.05), `level ${lvl}: the old trail at the trip's start`).toBeGreaterThan(sky(TRIP_START + PERIOD + 2.5));
+      for (const t of [IGNITE - 1, IGNITE, LIFTOFF - 0.01]) expect(sky(PERIOD + t), `level ${lvl}: ${t} s into the next trip`).toBe(sky(t));
+    }
+  });
+
+  it.each(SIZES)("%ix%i: the rocket never jumps on screen, wherever the camera is", { timeout: 60_000 }, (W, H) => {
+    // Its nozzle on screen moves on smoothly from frame to frame through the whole trip, except
+    // while it is hidden in its cloud, and through the hand-over to the next trip.
+    for (const lvl of [0, 12, 16, 20, 24, 30, 40, 60]) {
+      let last: { x: number; y: number } | null = null;
+      for (let t = 0; t < TRIP_START + PERIOD + LIFTOFF; t += FRAME) {
+        const r = rocketAt(t);
+        if (r.phase === "gone") {
+          last = null;
+          continue;
+        }
+        const s = sceneAt(W, H, lvl, t);
+        const at = { ...nozzleOnScreen(s, r) };
+        if (last) {
+          const jump = Math.hypot(at.x - last.x, at.y - last.y);
+          expect(jump, `level ${lvl}, t=${t.toFixed(3)}: px moved in a frame`).toBeLessThan(s.u * 0.02);
+        }
+        last = at;
+      }
+    }
+  });
+
+  it.each(SIZES)("%ix%i: on its way down and landed it stands in front of its smoke, wherever the camera is", { timeout: 60_000 }, (W, H) => {
+    // The owner's booster landing must read: once out of its cloud the rocket comes down in front
+    // of its old corkscrew (never behind its near side, the landing burn hidden in the smoke), and
+    // standing on its pad it stays in front of the smoke hanging over it, as the camera climbs (the
+    // trail's foot comes down over its nose from about level 15) and as the next trip clears the
+    // old trail. Every pixel of its cream body and red nose and band that the rocket shows drawn on
+    // its own must show in the drawing with the smoke: above the land's nearer rows and the smoke
+    // at its foot, which rightly stand in front of it, and right of its middle, clear of the vent's
+    // wisp on its left shoulder, which is let out in front of it.
+    let checked = 0;
+    for (const lvl of [0, 8, 12, 16, 18]) {
+      const times: number[] = [];
+      for (let t = DESCEND + 2; t < TOUCHDOWN; t += 0.1) times.push(t);
+      for (let t = TOUCHDOWN; t < TRIP_START + PERIOD + 3.5; t += 0.25) times.push(t);
+      for (const t of times) {
+        const s = sceneAt(W, H, lvl, t);
+        const tone = toneOf(s);
+        const land = landShows(s, seaTop(s));
+        const smoke = smokeColors(s);
+        const colors = [tone.landCream.body, tone.landCream.shade, tone.land[0].body].map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
+        const x0 = Math.ceil(W / 2 + (PAD_X - 0.02) * s.u);
+        const y1 = Math.floor(horizon(s) - 0.13 * s.u);
+        const body = (draw: (ctx: CanvasRenderingContext2D) => void) => {
+          const ctx = context(W, H);
+          draw(ctx);
+          if (y1 < 1) return 0;
+          const d = ctx.getImageData(x0, 0, W - x0, y1).data;
+          let n = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3]! < 255) continue;
+            if (colors.some(([r, g, b]) => Math.abs(d[i]! - r!) + Math.abs(d[i + 1]! - g!) + Math.abs(d[i + 2]! - b!) <= 6)) n++;
+          }
+          return n;
+        };
+        const alone = body((ctx) => {
+          const c = only(ctx, (k) => !smoke.has(k));
+          if (land) padRocket(c, s, tone);
+          rocketSky(c, s, tone);
+        });
+        if (alone < 100) continue;
+        checked++;
+        const shown = body((ctx) => {
+          if (land) launchPad(ctx, s, tone);
+          rocketSky(ctx, s, tone);
+        });
+        expect(shown, `level ${lvl}, t=${t.toFixed(2)}: px of it showing, of ${alone}`).toBeGreaterThanOrEqual(alone * 0.98);
+      }
+    }
+    expect(checked, "moments with the rocket on screen").toBeGreaterThan(300);
+  });
+
+  it.each(SIZES)("%ix%i: its landing legs slide out and back in without popping", { timeout: 60_000 }, (W, H) => {
+    // The legs come out of their hinges and go back in: from one frame to the next, the legs as
+    // drawn never jump in size (they would if they appeared, or vanished, at any length).
+    const draw = masker(W, H);
+    const legPixels = (t: number) => {
+      const s = sceneAt(W, H, 0, t);
+      const tone = toneOf(s);
+      const [, yellow, blue] = tone.land;
+      const legs = new Set([yellow.body, blue.shade]);
+      return sum(
+        draw((ctx) => {
+          const c = only(ctx, (k) => legs.has(k));
+          padRocket(c, s, tone);
+          rocketSky(c, s, tone);
+        }),
+      );
+    };
+    // Folded away as it comes down, out by the landing burn, folded away again on the pad.
+    const [t0, t1] = [BURN - 1.6, TOUCHDOWN + 5.5];
+    expect(legPixels(t0)).toBe(0);
+    expect(legPixels(t1)).toBe(0);
+    for (const [a, b] of [
+      [t0, BURN + 0.8],
+      [TOUCHDOWN + 2.5, t1],
+    ] as const) {
+      let last = legPixels(a);
+      let most = 0;
+      for (let t = a + FRAME; t < b; t += FRAME) {
+        const n = legPixels(t);
+        most = Math.max(most, n);
+        expect(Math.abs(n - last), `t=${t.toFixed(3)}: leg px from ${last} to ${n}`).toBeLessThanOrEqual(0.2 * Math.max(n, last) + 6);
+        last = n;
+      }
+      expect(most, "the legs show").toBeGreaterThan(40);
+    }
+  });
+
+  it.each(VIEWS.map(([W, H, u]) => [W, H, u] as const))("%ix%i (u %i): the rocket comes back out of its cloud without a pop", (W, H, u) => {
+    for (const lvl of W > 600 ? [0, 14] : [16, 22]) {
+      const visible = (t: number) => {
+        const s = sceneAt(W, H, lvl, t, u);
+        const smoke = smokeColors(s);
+        const all = context(W, H);
+        rocketSky(all, s, toneOf(s));
+        const bare = context(W, H);
+        rocketSky(only(bare, (k) => smoke.has(k)), s, toneOf(s));
+        const a = all.getImageData(0, 0, W, H).data;
+        const b = bare.getImageData(0, 0, W, H).data;
+        let n = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          if (Math.max(Math.abs(a[i]! - b[i]!), Math.abs(a[i + 1]! - b[i + 1]!), Math.abs(a[i + 2]! - b[i + 2]!), Math.abs(a[i + 3]! - b[i + 3]!)) > 24) n++;
+        }
+        return n;
+      };
+      expect(visible(DESCEND), `level ${lvl}: still hidden in its cloud as it starts down`).toBeLessThanOrEqual(2);
+      expect(visible(DESCEND + 1.5), `level ${lvl}: out of the cloud`).toBeGreaterThan(30);
+    }
+  });
+});
+
+/**
+ * Moments through the launch, the way back down and the landing, the next trip's countdown (the
+ * old trail clearing) and its launch, and long after.
+ */
+const MOMENTS = [
+  IGNITE + 0.6,
+  LIFTOFF + 0.8,
+  LIFTOFF + 1.6,
+  LIFTOFF + 2.4,
+  LIFTOFF + 3,
+  LIFTOFF + 3.5,
+  LIFTOFF + 4,
+  GONE - 0.15,
+  GONE + 0.5,
+  DESCEND + 0.8,
+  DESCEND + 2.2,
+  DESCEND + 3.4,
+  BURN + 0.3,
+  BURN + 1.4,
+  TOUCHDOWN - 0.5,
+  TOUCHDOWN + 0.2,
+  TOUCHDOWN + 3.6,
+  TRIP_START + PERIOD + 1.6,
+  PERIOD + LIFTOFF + 2.4,
+  90,
+];
 /** Masks are drawn at this fraction of the screen's size, to keep this quick. */
 const K = 0.5;
 
@@ -182,7 +535,8 @@ function at(W: number, H: number, lvl: number, t: number): Scene {
 }
 
 describe("toy kingdom rocket trail", () => {
-  const LATE = 60;
+  // Landed and standing on its pad: its trail settled in the sky, the smoke at the pad gone.
+  const LATE = TOUCHDOWN + 5;
   it.each(SIZES)("%ix%i: the corkscrew of smoke stays in the sky, and the tower climbs past it to the cloud", { timeout: 60_000 }, (W, H) => {
     const draw = masker(W, H);
     // At the start, long after the launch: a tall column of smoke up the right lane, from a little

@@ -18,7 +18,7 @@ import * as toy from "./toys";
 // lane on wide screens (`lightsSpan`, sky.ts); on a phone there is none, and it stays empty.
 // The near lane (parallax NEAR_P) is the right one: the toys, with block clouds between them: a
 // loose kite, flights of paper planes, a biplane trailing bunting, a teddy in a hot-air balloon,
-// the airship with its windows lit at dusk, a satellite, the rocket that launched from the pad, a
+// the airship with its windows lit at dusk, a satellite, a toy rocket out among the stars, a
 // ringed toy planet, a flying saucer, a toy soldier on a parachute at dawn, and party balloons
 // carrying a block away in the morning. Far lanes (FAR_P, behind the near ones): small faded
 // clouds, spreading out on wide screens.
@@ -116,8 +116,8 @@ function drifter(spec: Spec, side: number, k: number, salt: number, far: boolean
 // The near right lane, one lap: toys at the hours they suit. The lap starts at NEAR_FROM (a high
 // day; LOOP levels later it is high day again), so: a kite by day, then paper planes, the
 // biplane in the afternoon and more paper planes, the hot-air balloon at sunset, the airship at
-// dusk, the satellite and the rocket as night falls (the one that launched from the pad, on its
-// way out among the stars), the planet and the saucer in the deep night, the parachute at dawn,
+// dusk, the satellite and a toy rocket as night falls (out among the stars), the planet and the
+// saucer in the deep night, the parachute at dawn,
 // the balloons in the morning and paper planes again. The kite and the first paper planes keep
 // above the cloud the rocket flew into on its launch (launch.ts, at the same depth). Block
 // clouds, now low and wide, now tall, come down between the toys every other gap (listed last,

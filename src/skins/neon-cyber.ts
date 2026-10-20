@@ -14,7 +14,9 @@ import { farRain, nearRain } from "./neon-cyber/weather";
 // megacity at night, and a climb out of it. On the street: wet asphalt mirroring the neon, a
 // figure under a glowing umbrella beneath a street lamp, a steaming noodle stall, vending
 // machines, a parked hover car and a street racer at the curb (in the first seconds it peels out
-// through a puddle, soaks the walker, who shields behind the umbrella, and speeds off: peel.ts),
+// through a puddle, soaks the walker, who shields behind the umbrella, and speeds off; then it
+// comes back round and pulls up at the curb again, the walker peeking out warily, and every 20 s
+// it does it all again: peel.ts),
 // the megacity's towers rising from the far edge of the street with lit windows, glyph signs
 // (our own abstract marks) and a holographic billboard, and a low ceiling of smog with
 // searchlights sweeping into it. Climb, and you rise past the towers'

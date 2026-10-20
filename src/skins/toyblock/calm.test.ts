@@ -13,8 +13,12 @@ import { LOOP, LOOP_START } from "./tone";
 
 const FIRST = [0, 3, 8, 14, 20, 26, 34, 48, 62, 78, 96] as const;
 const LOOPED = [0, 20, 40, 60, 80, 100, 120].flatMap((d) => [LOOP_START + d, LOOP_START + LOOP + d + 7]);
-/** Moments compared with the first: spread over the train's run, the drifters' sway and the stars' twinkle. */
-const TIMES = [0, 1.7, 4.4, 8.3, 13.1, 21.9] as const;
+/**
+ * Moments compared with the first: spread over the mouse's run, the drifters' sway, the stars'
+ * twinkle and the rocket's round trip (its launch, its way back down, its landing and the next
+ * trip's start).
+ */
+const TIMES = [0, 1.7, 4.4, 8.3, 13.1, 21.9, 25.6, 27.5, 30.6, 42.7] as const;
 
 function frame(W: number, H: number, u: number, lvl: number, t: number): Uint8ClampedArray {
   const ctx = context(W, H);

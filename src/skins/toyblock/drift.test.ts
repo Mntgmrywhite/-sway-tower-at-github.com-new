@@ -6,6 +6,7 @@ import { COLUMN, landShows, RISE1, seaTop } from "./place";
 import { cloudSea } from "./sea";
 import { lightsSpan, moon, stars, sun } from "./sky";
 import { bandMasker, bandOverlap, context, masker, sceneAt, SIZES, VIEWS, type Band } from "./test-scene";
+import { PERIOD, TOUCHDOWN, TRIP_START } from "./launch";
 import { DAY_HIGH, LOOP, LOOP_START, toneOf } from "./tone";
 
 // Everything drifting past in the side lanes, all the way up and twice round the loop, on a tall
@@ -177,12 +178,14 @@ describe("toy kingdom sun and moon", () => {
   // The owner's rule: nothing passes over the sun or the moon, at any height, on any screen.
   // Wherever the sun or the moon is drawn, the whole frame must match the frame with only the
   // sky, the sun, the moon and the cloud sea: nothing else (a lane's cloud or toy, the land, the
-  // rocket's smoke, the meadow's toys, the shelf) ever covers a pixel of them. Every level from
-  // the start to twice round the loop, the drifters at a different moment of their sway each time.
+  // rocket and its smoke, on its way up or back down, the meadow's toys, the shelf) ever covers a
+  // pixel of them. Every level from the start to twice round the loop, the drifters at a different
+  // moment of their sway each time, and the rocket at a different moment of its round trip (the
+  // first, and the next one's start, when the old trail clears).
   it.each(VIEWS.map(([W, H, u]) => [W, H, u] as const))("%ix%i (u %i): nothing ever covers them", { timeout: 60_000 }, (W, H, u) => {
     let shown = 0;
     for (let lvl = 0; lvl <= LOOP_START + 2 * LOOP; lvl++) {
-      const r = lightsCovered(W, H, u, lvl, (lvl * 0.37) % 30);
+      const r = lightsCovered(W, H, u, lvl, (lvl * 0.37) % (TRIP_START + PERIOD + 4));
       expect(r.covered, `level ${lvl}: pixels of the sun or the moon covered`).toBe(0);
       shown += r.shown;
     }
@@ -271,9 +274,10 @@ describe("toy kingdom lane bounds", () => {
 
 describe("toy kingdom drifters over the land", () => {
   // While the land still shows (until the cloud sea covers it), nothing in the near lanes comes
-  // down past the landmarks or the far props: the castle, the launch pad, the bridge, the tunnel
-  // mouths and the lollipop trees. (The far lanes are behind the land.)
-  it.each(VIEWS.flatMap(([W, H, u]) => [0, 5.3, 11].map((t) => [W, H, u, t] as const)))(
+  // down past the landmarks or the far props: the castle, the launch pad (the rocket on it,
+  // lifting off, or coming back down onto it), the bridge, the tunnel mouths and the lollipop
+  // trees. (The far lanes are behind the land.)
+  it.each(VIEWS.flatMap(([W, H, u]) => [0, 5.3, 11, TOUCHDOWN - 1.2, TOUCHDOWN + 2].map((t) => [W, H, u, t] as const)))(
     "%ix%i (u %i) at t=%s: nothing near drifts over the land",
     { timeout: 30_000 },
     (W, H, u, t) => {

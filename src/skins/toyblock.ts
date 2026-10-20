@@ -18,17 +18,20 @@ import { toneIndex, toneOf } from "./toyblock/tone";
 // rocking horse and two drummers of the fort's guard marching in place. Beyond lies the kingdom:
 // block mountains, a toy town, the King's castle flying its flag up the left lane and the toy
 // rocket on its launch tower up the right, a toy railway between two tunnels, and a block bridge
-// over a pool; in front, a shelf of big letter blocks. At 10 s the
-// rocket lights, lifts off in a cloud of smoke and corkscrews up into a cloud high above, leaving
-// its corkscrew of smoke in the sky for the tower to climb past, up to that cloud (launch.ts).
+// over a pool; in front, a shelf of big letter blocks. At 10 s, after a countdown of the launch
+// tower's lamps, the rocket lights, lifts off in a cloud of smoke and corkscrews up into a cloud
+// high above, leaving its corkscrew of smoke in the sky for the tower to climb past, up to that
+// cloud; then it comes back down tail first like a booster, legs out, on its landing burn, sets
+// down on its pad by 28 s (the launch tower bounces), stands venting a wisp, and goes again, every
+// 36 s for as long as the scene runs (launch.ts).
 //
 // Climb, and a sea of block clouds billows up and swallows the kingdom (the meadow's toys stand
 // in front of it), then falls away below you (place.ts). The day goes on up the sky (tone.ts):
 // toys and block clouds drift down the right lane (a loose kite, flights of paper planes, a
 // biplane trailing bunting, a teddy in a hot-air balloon, the airship at dusk), the sun sets into
 // the clouds up the left lane (nothing ever drifts over it, nor over the moon), and a sleepy moon
-// with a mobile of stars rises there for the night, when the rocket (out among the stars since
-// its launch) flies past a ringed toy planet, a satellite and a flying saucer, and
+// with a mobile of stars rises there for the night, when a toy rocket out among the stars flies
+// past a ringed toy planet, a satellite and a flying saucer, and
 // constellations in toy shapes come out under the moon. Then dawn: a toy
 // soldier parachutes down, party balloons carry a block away, the sun comes back up, and the day
 // goes round again, forever.

@@ -138,7 +138,7 @@ const MARIA = [
 ];
 
 /** Halo radius in moon radii. Clear past it, so it is painted as a disc of that size. */
-const HALO_R = 3.2;
+export const HALO_R = 3.2;
 /** One cached halo: the moon only moves when the screen changes size. */
 const HALO_AT = { ctx: null as Ctx | null, x: NaN, y: NaN, r: NaN };
 let halo: CanvasGradient | null = null;

@@ -24,16 +24,19 @@ import { glow, snowCap } from "./shapes";
 
 // A horse-drawn carriage loping round the street: a chestnut horse in a red collar hung with
 // brass bells, pulling a blue coach with a lit window, a coach lamp and big yellow wheels, a
-// coachman in a caped greatcoat and top hat up on the box. Modelled facing right in a frame
-// with its origin on the ground under the middle of the rig, x right, y UP in depth units
-// (mirrored to face left); the whole rig stays under 0.13 units tall, so in front it never
-// rises past the tower's floor line, and further back never past the base block's top.
+// coachman in a caped greatcoat and top hat up on the box, the reins running from his hands
+// down to the horse's bit and one whip held up over the horse (carriage.test.ts). Modelled
+// facing right in a frame with its origin on the ground under the middle of the rig, x right,
+// y UP in depth units (mirrored to face left); the whole rig stays under 0.13 units tall, so in
+// front it never rises past the tower's floor line, and further back never past the base
+// block's top.
 
 const Y = (v: number) => -v;
 
 /** The rig is modelled at full size, then drawn at this scale so it stays low. */
-const SCALE = 0.8;
-const MODEL_LENGTH = 0.28;
+export const SCALE = 0.8;
+/** Length of the model, tail-board to nose, before SCALE; its origin is MODEL_LENGTH / 2 behind the rig's middle. */
+export const MODEL_LENGTH = 0.28;
 /** Length of the rig, tail-board to nose, in units (for timing its crossing). */
 export const RIG_LENGTH = MODEL_LENGTH * SCALE;
 /** Gait phase per unit travelled: a stride every 0.11 units, about half the rig's length. */
@@ -92,6 +95,25 @@ const TAU = Math.PI * 2;
 /** How far the body rocks, radians either way, and its pivot behind the withers. */
 const ROCK = 0.06;
 const ROCK_X = 0.045;
+
+/**
+ * Where the reins run (x, y up), refilled every frame (no allocations): from the coachman's
+ * hands, forward over the horse's back to the top of its collar, and on to the bit at the
+ * corner of its mouth.
+ */
+const REINS = { hand: { x: 0, y: 0 }, collar: { x: 0, y: 0 }, bit: { x: 0, y: 0 } };
+/** How far the reins sag between his hands and the collar, at the control point (units). */
+const REINS_SAG = 0.008;
+
+/** Sets `p` to the horse's body point (x, y up) as drawn, rocked `rock` radians about (px, py). */
+function rocked(p: { x: number; y: number }, x: number, y: number, px: number, py: number, rock: number): void {
+  const c = Math.cos(rock);
+  const sn = Math.sin(rock);
+  const dx = x - px;
+  const dy = y - py;
+  p.x = px + dx * c - dy * sn;
+  p.y = py + dx * sn + dy * c;
+}
 
 /** The horse, its hindquarters at x = hx, loping with gait phase `g` (one stride per 2π). */
 function horse(ctx: Ctx, hx: number, g: number, lw: number, t: number): void {
@@ -192,6 +214,9 @@ function horse(ctx: Ctx, hx: number, g: number, lw: number, t: number): void {
   ctx.fillStyle = SNOW;
   ctx.fill();
   ctx.restore();
+  // Where the reins meet it, rocking with it: the top of the collar, and the bit.
+  rocked(REINS.collar, hx + 0.075, by + 0.03, px, by, rock);
+  rocked(REINS.bit, hx + 0.113, by + 0.023, px, by, rock);
   // Near legs
   step(hx + 0.018, by - 0.008, 0.06, LOPE.nearHind, HORSE);
   step(hx + 0.072, by - 0.008, 0.06, LOPE.nearFore, HORSE);
@@ -287,13 +312,9 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
   snowCap(ctx, cx + 0.11, cx + 0.131, Y(hy + 0.032), 0.004);
   ctx.fillStyle = SNOW;
   ctx.fill();
-  // Reins and whip
-  ctx.beginPath();
-  ctx.moveTo(cx + 0.13, Y(sy + 0.01));
-  ctx.quadraticCurveTo(cx + 0.18, Y(sy - 0.012), cx + 0.222, Y(0.12 + bob));
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = lw * 0.6;
-  ctx.stroke();
+  // His hands, holding the reins (drawn over the horse, in reins()), and the one whip.
+  REINS.hand.x = cx + 0.13;
+  REINS.hand.y = sy + 0.01;
   ctx.beginPath();
   ctx.moveTo(cx + 0.128, Y(sy + 0.006));
   ctx.lineTo(cx + 0.15, Y(sy + 0.05));
@@ -320,6 +341,21 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
 }
 
 /**
+ * The reins, over the horse: one thin leather strap from the coachman's hands, sagging a little
+ * over the horse's back to the top of its collar, then down the neck to the bit. They run down
+ * to the horse, never up, so they never read as a second whip; a strap no wider than the horse's
+ * outline, so they never read as a pole.
+ */
+function reins(ctx: Ctx, lw: number): void {
+  const { hand, collar, bit } = REINS;
+  ctx.beginPath();
+  ctx.moveTo(hand.x, Y(hand.y));
+  ctx.quadraticCurveTo((hand.x + collar.x) / 2, Y(Math.min(hand.y, collar.y) - REINS_SAG), collar.x, Y(collar.y));
+  ctx.lineTo(bit.x, Y(bit.y));
+  inkedLine(ctx, MANE, lw * 0.45, lw * 0.22, INK);
+}
+
+/**
  * The rig with the middle of its ground line at screen (x, y), U px per unit, having travelled
  * `dist` units (for the wheels and the lope), facing right (dir 1) or left (-1).
  */
@@ -338,5 +374,6 @@ export function carriage(ctx: Ctx, x: number, y: number, U: number, lwPx: number
   ctx.fill();
   coach(ctx, 0, dist / (0.033 * SCALE), lw, t, bob);
   horse(ctx, 0.155, g, lw, t);
+  reins(ctx, lw);
   ctx.restore();
 }
