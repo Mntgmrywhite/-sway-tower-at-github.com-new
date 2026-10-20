@@ -1,9 +1,67 @@
-import { PALETTE } from "./classic/colors";
-import * as glyph from "./glyphs";
-import type { CartoonSkin } from "./skin";
+import type { Ctx } from "../base/draw";
+import type { CartoonSkin, Scene } from "./skin";
+import { PALETTE } from "./july4/colors";
+import { drifters } from "./july4/drift";
+import { cloudFloor, farLayer, floorTop, landShows, skyBottom } from "./july4/far";
+import { fireworks } from "./july4/fireworks";
+import { front } from "./july4/front";
+import * as icon from "./july4/icons";
+import { parade } from "./july4/parade";
+import { moon, skyFill, stars, sun } from "./july4/sky";
+import { bandstand, barbecue, hedge, lampPosts, lawn, path, sparklerKids } from "./july4/square";
+import { level, toneOf } from "./july4/tone";
 
-// Independence Day: a placeholder until its own scene lands (see the brief in this skin's build). It
-// registers the id, the dates, the title font and a bar set, and draws the base cartoon world.
+// Independence Day: a small-town Fourth of July in our bright cartoon style. The tower is
+// stacked on the white bandstand in the town square (its roof long gone, so you can build it
+// higher), bunting swagged round its deck, three steps down to a path across the lawn. Behind
+// it, Main Street: brick storefronts hung with bunting and flags, a white church with a tall
+// steeple, a stone courthouse with a clock tower and a dome flying the flag, big summer trees,
+// and a bald eagle circling over the park. As a tower starts, the parade comes through the
+// square in front of the bandstand: the drum major, the color guard, snares, the glockenspiel
+// lyre, sousaphones, the vintage fire truck full of waving kids, Uncle Sam on stilts tipping
+// his hat at the tower, a girl on a bike with streamers and a dog (every bit of it past the
+// tower within ten seconds: actions.test.ts). The barbecue corner is on the left (the cook
+// flips burgers), two kids wave sparklers on the right, and the street in front is painted up
+// for the Fourth. Climb, and balloons, a kite and a banner plane drift down the right lane,
+// the clouds gather into a floor that swallows the town (only the steeple and the dome stand
+// out of it) and sinks to rest low on the screen for good, the afternoon turns to a golden
+// barbecue evening and a rose dusk with the first stars and a crescent moon where the sun set,
+// and then the night brings the big fireworks show in both lanes, red, white, blue and gold,
+// building to its finale that lights the cloud floor; the smoke drifts off and the stars have
+// the sky. Then the story loops: the night gives way to a peach dawn with the sun coming back
+// up out of the clouds, and the day comes round again (tone.ts). The left of the sky is the
+// sun's and the moon's: nothing drifts across them, and the fireworks there burst below the
+// moon. Calm by design: flat fills, one ink weight up close, faded silhouettes far away, and
+// nothing moves behind the tower above its floor line (the parade passes below it).
+//
+// The altitude story needs every layer of the backdrop, so Independence Day paints all of it
+// in one pass (`backdrop`, in the ground hook). The celestial and far hooks are empty on
+// purpose: they switch off the base moon and skyline, which the backdrop would only paint over.
+
+function backdrop(ctx: Ctx, s: Scene): void {
+  const tone = toneOf(s);
+  const floor = floorTop(s, level(s));
+  skyFill(ctx, s, tone, skyBottom(s, floor));
+  stars(ctx, s, tone);
+  moon(ctx, s, tone);
+  sun(ctx, s, tone, floor);
+  fireworks(ctx, s, tone, floor);
+  farLayer(ctx, s, tone, floor);
+  drifters(ctx, s, tone);
+  if (landShows(s) && s.horizonY < s.cssH) {
+    lawn(ctx, s, tone);
+    hedge(ctx, s, tone);
+    lampPosts(ctx, s, tone);
+    path(ctx, s);
+    barbecue(ctx, s);
+    sparklerKids(ctx, s);
+    bandstand(ctx, s);
+    parade(ctx, s);
+  }
+  if (floor < s.cssH + s.u * 0.15) cloudFloor(ctx, s, tone, floor);
+}
+
+function none(): void {}
 
 export const july4: CartoonSkin = {
   id: "july4",
@@ -11,19 +69,22 @@ export const july4: CartoonSkin = {
   dates: [{ from: [6, 28], to: [7, 7] }],
   fonts: ["Rye"],
   palette: PALETTE,
+  // Our own Fourth of July symbols. Red, blue, gold and white go round (warm and cool by
+  // turns, so every seam reads), and every color holds up against the day sky, the sunset and
+  // the night of the show.
   bars: [
-    { color: "#e03a3e", icon: glyph.star },
-    { color: "#f4f4f4", icon: glyph.ring },
-    { color: "#2b4bbf", icon: glyph.diamond },
-    { color: "#ffd447", icon: glyph.triangle },
-    { color: "#e03a3e", icon: glyph.hexagon },
-    { color: "#f4f4f4", icon: glyph.chevron },
-    { color: "#2b4bbf", icon: glyph.plus },
-    { color: "#ffd447", icon: glyph.wave },
-    { color: "#e03a3e", icon: glyph.square },
-    { color: "#f4f4f4", icon: glyph.dots },
-    { color: "#2b4bbf", icon: glyph.bolt },
-    { color: "#ffd447", icon: glyph.cross },
+    { color: "#e8393f", icon: icon.star },
+    { color: "#2f58d6", icon: icon.firework },
+    { color: "#ffc93a", icon: icon.eagle },
+    { color: "#f6f3ea", icon: icon.flag },
+    { color: "#e8393f", icon: icon.bell },
+    { color: "#2f58d6", icon: icon.drum },
+    { color: "#ffc93a", icon: icon.hotDog },
+    { color: "#f6f3ea", icon: icon.pieSlice },
+    { color: "#e8393f", icon: icon.watermelon },
+    { color: "#2f58d6", icon: icon.rocket },
+    { color: "#ffc93a", icon: icon.topHat },
+    { color: "#f6f3ea", icon: icon.sparkler },
   ],
   hud: {
     display: "'Rye', 'Arial Black', Impact, sans-serif",
@@ -32,4 +93,9 @@ export const july4: CartoonSkin = {
     accent: "#ffd447",
     life: "#ff5a5a",
   },
+  celestial: none,
+  far: none,
+  ground: backdrop,
+  paintsBackdrop: true,
+  foreground: front,
 };
