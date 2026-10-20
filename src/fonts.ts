@@ -2,11 +2,11 @@
 // the single-file web build draw their titles without the network. The files are Fontsource's
 // copies of the Google Fonts faces (latin subset, same weights the page used to request).
 // Licenses: SIL OFL 1.1 (Fredoka, Monoton, Orbitron, Creepster, Abril Fatface, Limelight, Zen Dots,
-// Uncial Antiqua, Rye, Alfa Slab One, Pacifico, Pirata One), except Luckiest Guy and Chewy
+// Uncial Antiqua, Rye, Pacifico, Pirata One, Bungee), except Luckiest Guy and Chewy
 // (Apache 2.0); see public/font-licenses.txt.
 
 import abrilFatface from "@fontsource/abril-fatface/files/abril-fatface-latin-400-normal.woff2?inline";
-import alfaSlabOne from "@fontsource/alfa-slab-one/files/alfa-slab-one-latin-400-normal.woff2?inline";
+import bungee from "@fontsource/bungee/files/bungee-latin-400-normal.woff2?inline";
 import chewy from "@fontsource/chewy/files/chewy-latin-400-normal.woff2?inline";
 import creepster from "@fontsource/creepster/files/creepster-latin-400-normal.woff2?inline";
 import fredoka600 from "@fontsource/fredoka/files/fredoka-latin-600-normal.woff2?inline";
@@ -41,9 +41,9 @@ export const FONT_FILES: Record<string, [weight: string, url: string][]> = {
   "Zen Dots": [["400", zenDots]],
   "Uncial Antiqua": [["400", uncialAntiqua]],
   Rye: [["400", rye]],
-  "Alfa Slab One": [["400", alfaSlabOne]],
   Pacifico: [["400", pacifico]],
   "Pirata One": [["400", pirataOne]],
+  Bungee: [["400", bungee]],
 };
 
 /** Each family's license, as public/font-licenses.txt heads its text ("Fredoka (OFL-1.1)"). */
@@ -61,9 +61,9 @@ export const FONT_LICENSES: Record<string, FontLicense> = {
   "Zen Dots": "OFL-1.1",
   "Uncial Antiqua": "OFL-1.1",
   Rye: "OFL-1.1",
-  "Alfa Slab One": "OFL-1.1",
   Pacifico: "OFL-1.1",
   "Pirata One": "OFL-1.1",
+  Bungee: "OFL-1.1",
 };
 
 /** The HUD and UI faces every skin uses (cartoon body, neon body, the options title). */

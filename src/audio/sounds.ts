@@ -1,6 +1,7 @@
 // Which sound effects a drop makes. Pure, so it is unit-tested; main.ts plays the result.
 
 import type { DropResult } from "../game";
+import type { BlastVariant } from "../fx/topple";
 import type { Sound } from "./engine";
 
 export interface SoundCue {
@@ -40,11 +41,22 @@ export function dropSounds(r: DropResult, streak: number): SoundCue[] {
 }
 
 /**
- * The end of a run: the toppling tower blows up (a boom with the debris rattling down after it,
- * src/audio/sfx/boom.mp4). The miss before it has already made its own sound.
+ * The end of a run: the toppling tower blows up, each way with its own sound (src/audio/sfx/,
+ * made by scripts/music/sfx.ts): the starburst's boom with the debris rattling down after it, a
+ * firework's whump with a glitter tail, the shockwave's deep whoomp, the confetti's bright pop
+ * with a paper flutter, and popcorn's pop-pop-pop-BOOM (cued at its first pop: see blastCueAt
+ * in src/fx/topple.ts). The miss before it has already made its own sound.
  */
-export function blastSounds(): SoundCue[] {
-  return [{ sound: "boom" }];
+export const BLAST_SOUND: Record<BlastVariant, Sound> = {
+  starburst: "boom",
+  fireworks: "firework",
+  shockwave: "shockwave",
+  confetti: "confetti",
+  popcorn: "popcorn",
+};
+
+export function blastSounds(variant: BlastVariant = "starburst"): SoundCue[] {
+  return [{ sound: BLAST_SOUND[variant] }];
 }
 
 /**

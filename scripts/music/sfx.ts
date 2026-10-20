@@ -1,6 +1,10 @@
 // Build the game's sound effects into short AAC files.
 //   npm run sfx              every effect
 //   npm run sfx -- boom ...  just these
+// The game-over blasts (boom, firework, shockwave, confetti, popcorn: one per BlastVariant in
+// src/fx/topple.ts) are synthesized here with our own synth, so nothing crackles or hisses: every
+// noise layer is band-limited and short, and the bright parts are tones (a glockenspiel's glitter,
+// a pop's ping) rather than noise.
 // Sources are CC0 (Kenney impact/interface packs and the VCSL glockenspiel; see
 // ~/APP/samples/PROVENANCE.json) and our own synthesis (synth.ts). Writes
 // src/audio/sfx/<name>.mp4 (mono). Work files go to preview/sfx (or $SFX_TMP).
@@ -8,6 +12,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { BLAST_AT, POPCORN_POPS as POPCORN_POPS_AT } from "../../src/fx/topple";
 import { instrument } from "./instruments";
 import { midi, renderNotes, SAMPLES } from "./sampler";
 import { renderSynth, type MembranePatch, type VoicePatch } from "./synth";
@@ -139,6 +144,135 @@ const DEBRIS_KNOCKS = 15;
 /** The boom's layers' levels. */
 const BOOM_LEVELS = { body: 0.8, roar: 3, crack: 0.6, debris: 2.6 };
 
+/** A firework's whump: a softer, rounder thump than the boom's, falling from about 150 Hz to 48. */
+const WHUMP: MembranePatch = {
+  kind: "membrane",
+  freq: 48,
+  sweep: 3.2,
+  sweepTime: 0.06,
+  hold: 0.015,
+  decay: 0.5,
+  click: 0.3,
+  drive: 2,
+};
+/** ...and its breath: a dark puff of air, no top end at all. */
+const WHUMP_AIR: VoicePatch = {
+  kind: "voice",
+  osc: [{ wave: "noise" }],
+  filter: { slope: 24, cutoff: 2200 },
+  ramp: { cutoff: -3.5, curve: 0.5 },
+  amp: { attack: 0.004, decay: 0.7, sustain: 0, release: 0.2 },
+  highpass: 60,
+  range: ["C4", "C4"],
+  home: "C4",
+};
+/** The glitter that follows a bloom: glockenspiel notes up a pentatonic, sprinkled over the tail. */
+const GLITTER_NOTES = ["C6", "D6", "E6", "G6", "A6", "C7", "D7", "E7", "G7"];
+
+/** The shockwave's whoomp: a very deep thump that falls from about 180 Hz to 36 over a tenth of a second... */
+const WHOOMP: MembranePatch = {
+  kind: "membrane",
+  freq: 36,
+  sweep: 5,
+  sweepTime: 0.1,
+  hold: 0.04,
+  decay: 1,
+  click: 0.2,
+  drive: 2.2,
+};
+/** ...a sub-bass swell under it (headphones feel it; a phone speaker gets the thump)... */
+const WHOOMP_SUB: VoicePatch = {
+  kind: "voice",
+  osc: [{ wave: "sine" }],
+  filter: { slope: 12, cutoff: 200 },
+  amp: { attack: 0.03, decay: 0.9, sustain: 0, release: 0.3 },
+  range: ["C1", "C2"],
+  home: "C1",
+};
+/** ...a dark rumble that dies away... */
+const WHOOMP_RUMBLE: VoicePatch = {
+  kind: "voice",
+  osc: [{ wave: "noise" }],
+  filter: { slope: 24, cutoff: 1400 },
+  ramp: { cutoff: -3, curve: 0.5 },
+  amp: { attack: 0.003, decay: 0.9, sustain: 0, release: 0.3 },
+  highpass: 40,
+  range: ["C4", "C4"],
+  home: "C4",
+};
+/** ...and a dull knock at the front, so it has an edge without any crack. */
+const WHOOMP_KNOCK: MembranePatch = {
+  kind: "membrane",
+  freq: 90,
+  sweep: 2,
+  sweepTime: 0.02,
+  decay: 0.25,
+  mode2: [1.5, 0.3],
+  click: 0.5,
+  drive: 2.5,
+};
+
+/** The confetti's pop: a cork's, bright and short, with a quick puff of air behind it... */
+const POP: MembranePatch = {
+  kind: "membrane",
+  freq: 320,
+  sweep: 2.6,
+  sweepTime: 0.012,
+  decay: 0.14,
+  mode2: [1.8, 0.3],
+  noise: 0.8,
+  noiseDecay: 0.06,
+  noiseBand: [1200, 5000],
+  click: 1.2,
+  drive: 2.5,
+};
+/** ...a ping on top, so it reads as a party popper and not a gun... */
+const POP_PING: VoicePatch = {
+  kind: "voice",
+  osc: [{ wave: "sine" }, { wave: "sine", semi: 12, level: 0.3 }],
+  amp: { attack: 0.001, decay: 0.12, sustain: 0, release: 0.05 },
+  range: ["C7", "C8"],
+  home: "C7",
+};
+/** ...and the paper flutter: soft little puffs (a sheet flapping), tuned and spaced so they never run into a hiss. */
+const FLUTTER: MembranePatch & { keyed: true } = {
+  kind: "membrane",
+  freq: 500,
+  sweep: 1.2,
+  sweepTime: 0.005,
+  decay: 0.05,
+  noise: 1.2,
+  noiseDecay: 0.035,
+  noiseBand: [600, 2600],
+  drive: 1,
+  keyed: true,
+};
+const FLUTTER_PUFFS = 11;
+
+/** Popcorn's little pops, each a touch higher and lighter than the boom's crack... */
+const KERNEL: MembranePatch & { keyed: true } = {
+  kind: "membrane",
+  freq: 240,
+  sweep: 2.5,
+  sweepTime: 0.012,
+  decay: 0.11,
+  mode2: [1.7, 0.25],
+  noise: 0.5,
+  noiseDecay: 0.04,
+  noiseBand: [900, 4500],
+  click: 1,
+  drive: 2.2,
+  keyed: true,
+};
+/**
+ * ...at these times (seconds into the sound, which main.ts starts at the first pop: see blastCueAt
+ * in src/fx/topple.ts), then the big one at POPCORN_BOOM_AT: the game's own pop and blast ages, so
+ * the sound can't drift from the picture (0, 0.08, 0.16 and 0.24 at the shipped timings).
+ */
+const sinceFirstPop = (at: number) => Math.round((at - POPCORN_POPS_AT[0]!) * 1000) / 1000;
+const POPCORN_POPS = POPCORN_POPS_AT.map(sinceFirstPop);
+const POPCORN_BOOM_AT = sinceFirstPop(BLAST_AT);
+
 const EFFECTS: Record<string, () => void> = {
   // Landing: three wooden knocks, picked in turn at runtime.
   land() {
@@ -165,26 +299,101 @@ const EFFECTS: Record<string, () => void> = {
     renderNotes(instrument("glockenspiel"), [{ time: 0, dur: 1.5, note: midi("C6"), vel: 0.85 }], a.left, a.right, RATE, 1, 0);
     save("chime", a);
   },
-  // Game over: the toppling tower blows up. A boom (synthesized: a falling thump, a crack, a dark
-  // rumble), then the debris rattling down, a little quieter and further apart as it goes.
+  // Game over, the starburst: the toppling tower blows up. A boom (synthesized: a falling thump,
+  // a crack, a dark rumble), then the debris rattling down, a little quieter and further apart
+  // as it goes.
   boom() {
     const a = silence(1.6);
-    const hit = [{ time: 0, dur: 0.9, note: 60, vel: 1 }];
-    renderSynth(BOOM_BODY, hit, a.left, a.right, RATE, BOOM_LEVELS.body, 0);
-    renderSynth(BOOM_ROAR, hit, a.left, a.right, RATE, BOOM_LEVELS.roar, 0);
-    renderSynth(BOOM_CRACK, hit, a.left, a.right, RATE, BOOM_LEVELS.crack, 0);
-    const knocks = DEBRIS.map((name) => load(`kenney_impact-sounds/Audio/${name}.ogg`));
-    const rnd = seeded(20261016);
-    for (let i = 0; i < DEBRIS_KNOCKS; i++) {
-      const k = i / DEBRIS_KNOCKS;
-      const time = 0.08 + 0.8 * k ** 1.4 + 0.03 * rnd();
-      const knock = knocks[Math.floor(rnd() * knocks.length)]!;
-      // Smaller pieces knock higher; anywhere from three semitones down to five up.
-      mixIn(a, speed(knock, 2 ** ((rnd() * 8 - 3) / 12)), time, BOOM_LEVELS.debris * (1 - 0.6 * k) * (0.7 + 0.3 * rnd()));
-    }
+    boomInto(a, 0, 1, DEBRIS_KNOCKS, 20261016);
     save("boom", a);
   },
+  // Game over, the fireworks: a whump (rounder and softer than the boom: a shell bursting in the
+  // air), then a soft tail of glockenspiel glitter sprinkling down; the second, smaller bloom
+  // whumps in the middle of it.
+  firework() {
+    const a = silence(1.7);
+    const rnd = seeded(20261019);
+    const whump = (time: number, level: number) => {
+      const hit = [{ time, dur: 0.8, note: 60, vel: 1 }];
+      renderSynth(WHUMP, hit, a.left, a.right, RATE, 0.75 * level, 0);
+      renderSynth(WHUMP_AIR, hit, a.left, a.right, RATE, 2 * level, 0);
+    };
+    const glitter = (from: number, span: number, count: number, level: number) => {
+      const notes = [];
+      for (let i = 0; i < count; i++) {
+        const k = i / count;
+        notes.push({ time: from + span * k + 0.02 * rnd(), dur: 0.5, note: midi(GLITTER_NOTES[Math.floor(rnd() * GLITTER_NOTES.length)]!), vel: level * (0.7 - 0.35 * k) });
+      }
+      renderNotes(instrument("glockenspiel"), notes, a.left, a.right, RATE, 2.6, 0);
+    };
+    whump(0, 1);
+    glitter(0.1, 0.6, 12, 1);
+    whump(0.3, 0.55);
+    glitter(0.42, 0.5, 7, 0.7);
+    save("firework", a);
+  },
+  // Game over, the shockwave: one deep whoomp (a sub-bass swell under a slow, falling thump and a
+  // dark rumble), with a dull knock at its front and nothing bright anywhere.
+  shockwave() {
+    const a = silence(1.7);
+    const hit = [{ time: 0, dur: 1, note: 60, vel: 1 }];
+    renderSynth(WHOOMP, hit, a.left, a.right, RATE, 0.9, 0);
+    renderSynth(WHOOMP_SUB, [{ time: 0, dur: 0.5, note: midi("C1"), vel: 1 }], a.left, a.right, RATE, 0.5, 0);
+    renderSynth(WHOOMP_RUMBLE, hit, a.left, a.right, RATE, 2.4, 0);
+    renderSynth(WHOOMP_KNOCK, hit, a.left, a.right, RATE, 0.5, 0);
+    save("shockwave", a);
+  },
+  // Game over, the confetti: a bright pop (a party popper: a cork's pop with a ping on top), then
+  // the paper fluttering down: soft little puffs, each a different pitch, slowing and fading.
+  confetti() {
+    const a = silence(1.3);
+    const hit = [{ time: 0, dur: 0.3, note: 60, vel: 1 }];
+    renderSynth(POP, hit, a.left, a.right, RATE, 0.9, 0);
+    renderSynth(POP_PING, [{ time: 0, dur: 0.06, note: midi("E7"), vel: 1 }], a.left, a.right, RATE, 0.25, 0);
+    const rnd = seeded(20261020);
+    const puffs = [];
+    let time = 0.07;
+    for (let i = 0; i < FLUTTER_PUFFS; i++) {
+      const k = i / FLUTTER_PUFFS;
+      puffs.push({ time, dur: 0.05, note: 60 + Math.round(rnd() * 8 - 4), vel: 1 - 0.65 * k });
+      time += 0.045 + 0.045 * k + 0.02 * rnd();
+    }
+    renderSynth(FLUTTER, puffs, a.left, a.right, RATE, 0.7, 0);
+    save("confetti", a);
+  },
+  // Game over, the popcorn: pop, pop, pop (each a little higher, with a light wooden knock as its
+  // chunk flies), then the BOOM with a shorter rattle of debris after it.
+  popcorn() {
+    const a = silence(1.8);
+    const knock = load("kenney_impact-sounds/Audio/impactWood_light_002.ogg");
+    POPCORN_POPS.forEach((time, i) => {
+      renderSynth(KERNEL, [{ time, dur: 0.2, note: 60 + i * 3, vel: 0.9 }], a.left, a.right, RATE, 0.7, 0);
+      mixIn(a, speed(knock, 1.3 + 0.12 * i), time + 0.01, 0.6);
+    });
+    boomInto(a, POPCORN_BOOM_AT, 0.95, 9, 20261021);
+    save("popcorn", a);
+  },
 };
+
+/**
+ * The starburst's boom into `a` at `time`: its three layers at `level`, then `knocks` pieces of
+ * debris rattling down after it, a little quieter and further apart as they go.
+ */
+function boomInto(a: Audio, time: number, level: number, knocks: number, seed: number): void {
+  const hit = [{ time, dur: 0.9, note: 60, vel: 1 }];
+  renderSynth(BOOM_BODY, hit, a.left, a.right, RATE, BOOM_LEVELS.body * level, 0);
+  renderSynth(BOOM_ROAR, hit, a.left, a.right, RATE, BOOM_LEVELS.roar * level, 0);
+  renderSynth(BOOM_CRACK, hit, a.left, a.right, RATE, BOOM_LEVELS.crack * level, 0);
+  const pieces = DEBRIS.map((name) => load(`kenney_impact-sounds/Audio/${name}.ogg`));
+  const rnd = seeded(seed);
+  for (let i = 0; i < knocks; i++) {
+    const k = i / knocks;
+    const at = time + 0.08 + 0.8 * k ** 1.4 + 0.03 * rnd();
+    const knock = pieces[Math.floor(rnd() * pieces.length)]!;
+    // Smaller pieces knock higher; anywhere from three semitones down to five up.
+    mixIn(a, speed(knock, 2 ** ((rnd() * 8 - 3) / 12)), at, BOOM_LEVELS.debris * level * (1 - 0.6 * k) * (0.7 + 0.3 * rnd()));
+  }
+}
 
 mkdirSync(OUT, { recursive: true });
 mkdirSync(TMP, { recursive: true });

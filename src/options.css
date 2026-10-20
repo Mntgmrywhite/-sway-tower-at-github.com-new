@@ -1,7 +1,43 @@
+/*
+ * The Settings sheet (src/options.ts) and the in-run Settings button: dark glass rimmed in the
+ * skin's --accent (set on the page by main.ts), with --hl (the skin's highlight), --display and
+ * --body from the skin too, like the Medals and Credits sheets. Text sizes follow the OS text
+ * size a little (--fs: 1rem is iOS's Dynamic Type body size, set on :root below), capped so the
+ * layout holds. Every control is at least 44px tall.
+ */
+
+/*
+ * Dynamic Type: on iOS (the app's WKWebView, Safari), 1rem becomes the system body size (17px at
+ * the default setting, up to 23px before the accessibility sizes), so the sheets' --fs scales
+ * with it. Only there: macOS Safari knows the keyword too, but its body size is 13px, which would
+ * shrink the sheets on a Mac; every other browser keeps the 17px root. The canvas and the title
+ * size from --u, not rem.
+ */
+:root {
+  font-size: 17px;
+}
+
+@supports (-webkit-touch-callout: none) {
+  :root {
+    font: -apple-system-body;
+  }
+}
+
+/* What a screen reader hears while stacking (src/announce.ts): off screen, never hidden from it. */
+.announce-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 #options-toggle {
   position: fixed;
   top: max(10px, env(safe-area-inset-top));
   left: max(10px, env(safe-area-inset-left));
+  z-index: 1;
   width: 44px;
   height: 44px;
   display: grid;
@@ -22,29 +58,48 @@
 }
 
 #options-toggle:focus-visible,
-#options .choice:focus-visible,
-#options .close:focus-visible {
+#options button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 #options {
+  --hl: #ffe066;
+  --display: system-ui, sans-serif;
+  --body: system-ui, sans-serif;
+  --fs: clamp(13px, calc(15rem / 17), 19px);
+  --dim: rgba(243, 233, 245, 0.72);
   position: fixed;
   inset: 0;
+  z-index: 2;
   display: grid;
   place-items: end center;
   background: rgba(4, 2, 10, 0.55);
   touch-action: none;
+  animation: options-fade 0.2s ease-out;
 }
 
 #options[hidden] {
   display: none;
 }
 
+@keyframes options-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes options-rise {
+  from {
+    transform: translateY(24px);
+  }
+}
+
 #options .sheet {
-  width: min(420px, 100vw);
-  max-height: 80dvh;
+  width: min(460px, 100vw);
+  max-height: 88dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-sizing: border-box;
   padding: 16px max(16px, env(safe-area-inset-left)) max(18px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
   border-radius: 18px 18px 0 0;
@@ -53,47 +108,61 @@
   border-bottom: 0;
   box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
   color: #f3e9f5;
-  font: 15px/1.3 system-ui, sans-serif;
+  font-family: var(--body);
+  font-size: var(--fs);
+  line-height: 1.3;
   touch-action: pan-y;
+  animation: options-rise 0.22s ease-out;
 }
 
 #options .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 4px;
 }
 
 #options h2 {
   margin: 0;
-  font: 400 22px/1 Monoton, Orbitron, system-ui, sans-serif;
-  letter-spacing: 0.04em;
-  color: color-mix(in srgb, var(--accent) 35%, white);
-  text-shadow: 0 0 10px var(--accent);
+  font: 400 calc(var(--fs) * 1.6) / 1.1 var(--display);
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--hl) 70%, white);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 #options .close {
-  width: 40px;
-  height: 40px;
+  flex: none;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   color: inherit;
   font-size: 18px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 #options h3 {
   margin: 14px 0 8px;
-  font: 600 12px/1 system-ui, sans-serif;
+  font: 600 calc(var(--fs) * 0.8) / 1 var(--body);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(243, 233, 245, 0.6);
+  color: var(--dim);
 }
+
+#options button {
+  font-family: inherit;
+  font-size: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --- Sound: music, effects, haptics; as many to a row as fit --- */
 
 #options .toggles {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 8px;
 }
 
@@ -101,15 +170,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   min-height: 48px;
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
   color: inherit;
-  font: inherit;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+#options .toggle[hidden] {
+  display: none;
 }
 
 /* The switch's track and knob. */
@@ -131,17 +204,89 @@
   background: radial-gradient(circle at 24px 50%, #ffffff 6px, transparent 7px) var(--accent);
 }
 
-#options .toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+/* --- Motion: Reduce motion, Auto / On / Off --- */
+
+#options .motion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
 }
+
+#options .segments {
+  display: flex;
+  flex: none;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#options .segment {
+  min-width: 52px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dim);
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* The chosen one: a tint of the accent under white, like a switch that is on (readable on every skin's accent). */
+#options .segment[aria-checked="true"] {
+  background: color-mix(in srgb, var(--accent) 30%, #1a1030);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+  color: #ffffff;
+}
+
+#options .hint {
+  margin: 6px 2px 0;
+  color: var(--dim);
+  font-size: calc(var(--fs) * 0.85);
+}
+
+/* --- Game Center (the iOS app): who is signed in, and Sign in or Leaderboard --- */
+
+#options .gc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+#options .gc[hidden],
+#options h3[hidden] {
+  display: none;
+}
+
+#options .gc .link {
+  flex: none;
+}
+
+#options .gc .link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* --- Mode: Slide and Drop (ids "normal" and "hard") side by side; and the skins --- */
 
 #options .list {
   display: grid;
   gap: 8px;
 }
 
-/* Mode: Slide and Drop (ids "normal" and "hard") side by side. */
 #options .modes {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -163,9 +308,9 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
   color: inherit;
-  font: inherit;
   text-align: left;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 #options .choice[aria-checked="true"] {
@@ -181,8 +326,8 @@
 }
 
 #options small {
-  color: rgba(243, 233, 245, 0.6);
-  font-size: 12px;
+  color: var(--dim);
+  font-size: calc(var(--fs) * 0.85);
 }
 
 #options .swatch {
@@ -198,4 +343,50 @@
   background: color-mix(in srgb, var(--c) 25%, black);
   border: 1.5px solid var(--c);
   box-shadow: 0 0 6px var(--c);
+}
+
+/* --- Footer: the version, Credits, Rate --- */
+
+#options .foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#options .version {
+  color: var(--dim);
+  font-size: calc(var(--fs) * 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+#options .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#options .link {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: color-mix(in srgb, var(--hl) 70%, white);
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#options .link[hidden] {
+  display: none;
+}
+
+:root[data-motion="reduce"] #options,
+:root[data-motion="reduce"] #options .sheet {
+  animation: none;
 }

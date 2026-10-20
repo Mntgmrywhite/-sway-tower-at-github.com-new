@@ -8,6 +8,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
+import { settings } from "./settings";
 
 /** A perfect; a perfect that completes a run of STREAK_STEP; the toppling tower blowing up at game over. */
 export type Haptic = "perfect" | "streak" | "blast";
@@ -50,7 +51,20 @@ export function dropHaptic(kind: "perfect" | "sliced" | "miss", streak: number):
 
 const native = Capacitor.isNativePlatform();
 
+/**
+ * Whether this device can play a haptic at all (the Settings sheet hides the switch where it
+ * can't): the app, or a browser with vibration on a touch device. A desktop browser has the
+ * function too but no motor (Chrome's does nothing), so a mouse-driven page gets no switch.
+ */
+export function hapticsAvailable(): boolean {
+  if (native) return true;
+  if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return false;
+  return typeof matchMedia !== "function" || !matchMedia("(pointer: fine)").matches;
+}
+
+/** Play a cue, unless the player switched haptics off in Settings. */
 export function buzz(kind: Haptic): void {
+  if (!settings.haptics) return;
   if (native) {
     for (const step of NATIVE[kind]) {
       const play = () =>

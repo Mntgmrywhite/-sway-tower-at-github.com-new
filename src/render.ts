@@ -40,7 +40,7 @@ export interface RenderOptions {
   newMedals?: readonly Achievement[];
   /** Seconds the game-over card has been up, for the medals' pop-in (default: fully in). */
   cardAge?: number;
-  /** The player asked for less motion: the game-over blast doesn't shake the scene. */
+  /** The player asked for less motion: the game-over blast doesn't shake the scene or flash the whole screen. */
   still?: boolean;
 }
 
@@ -389,7 +389,7 @@ export function render(
   if (zoomed) ctx.restore();
   if (shake && shake.amp > 0) ctx.restore();
   // The blast's flash lights the whole scene for a moment (the HUD stays on top).
-  if (view.topple) kit.blast.flash(ctx, cssW, cssH, flashAlpha(view.topple));
+  if (view.topple && !opts.still) kit.blast.flash(ctx, cssW, cssH, flashAlpha(view.topple));
 
   // HUD: outlined type (plus glow in neon), so it reads over any part of the scene.
   ctx.save();

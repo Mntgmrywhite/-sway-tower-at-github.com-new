@@ -7,7 +7,8 @@ import type { Skin } from "./skins/skin";
 // logo (drawn on the canvas by render.ts, where the name sits during a run), the Slide / Drop
 // choice (modes "normal" / "hard") with each mode's best, one big PLAY, and a row of small buttons
 // (Skins & options, Sound).
-// The game-over card gets a Menu button back here. Nothing of this shows while stacking.
+// The game-over card gets a row of its own under it: Share (the tower as a picture, where the
+// platform can share one: src/share.ts) and Menu, back here. Nothing of this shows while stacking.
 //
 // The DOM side is styled per skin from CSS variables (setSkin), cartoon or neon like the HUD. The
 // flow (which screen, what a key or a tap does) is pure and lives at the top so it can be tested
@@ -124,6 +125,11 @@ export interface TitleHost {
   play(): void;
   /** The game-over card's Menu: back to the title. */
   menu(): void;
+  /**
+   * The game-over card's Share: the tower as a picture (`from` is the button, to anchor an iPad
+   * popover). Absent where nothing can share a picture: the button is then never shown.
+   */
+  share?(from: HTMLElement): void;
   /** Open the Options sheet (skins, sound, mode); focus returns to `from` when it closes. */
   openOptions(from: HTMLElement): void;
   /** Whether any sound is on (music or effects). */
@@ -156,11 +162,13 @@ export interface Title {
   show(): void;
   hide(): void;
   isShown(): boolean;
-  /** Show or hide the game-over card's Menu button. */
-  showMenu(on: boolean): void;
+  /** Show or hide the game-over card's row (Menu, and Share when `withShare` and the host can share). */
+  showMenu(on: boolean, withShare?: boolean): void;
+  /** The picture is being made and the share sheet is on its way (it can take a moment): Share says so. */
+  setSharing(on: boolean): void;
   /**
    * Place the overlay to match the canvas: `u` is render.ts's size unit, `top` the y the column
-   * starts at (under the logo), `menuTop` the y of the game-over Menu button (CSS px, from the
+   * starts at (under the logo), `menuTop` the y of the game-over card's row (CSS px, from the
    * canvas's top), and `box` where the canvas sits in its parent (offsetLeft/Top, its CSS size).
    * The page can push the canvas down (the Artifact page pads the top by the phone's safe area),
    * and the overlay must follow it or its column rides up over the logo.
@@ -197,6 +205,13 @@ const ICONS = {
     <path d="M4 11.5 12 4.5l8 7M6.5 9.5V19.5h4v-5h3v5h4V9.5" fill="none" stroke="currentColor" stroke-width="2"
       stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`,
+  // The box with the arrow out of it: the share sign everyone knows.
+  share: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 3.5v11M8.5 7 12 3.5 15.5 7" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M8.5 10.5h-2A1.5 1.5 0 0 0 5 12v7.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V12a1.5 1.5 0 0 0-1.5-1.5h-2"
+      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>`,
 };
 
 /** Keys that move the focus: after one, the focused control keeps Space and Enter. */
@@ -222,7 +237,7 @@ function smallButton(b: SmallButton): HTMLButtonElement {
   return button;
 }
 
-/** Builds the title overlay and the game-over Menu button, right after `canvas` (under the sheets). */
+/** Builds the title overlay and the game-over card's row (Share, Menu), right after `canvas` (under the sheets). */
 export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
   const root = el("section");
   root.id = "title";
@@ -265,7 +280,7 @@ export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
   const skins = smallButton({
     id: "title-options",
     caption: "Skins",
-    label: "Skins and options",
+    label: "Skins and settings",
     icon: ICONS.skins,
     onClick: () => host.openOptions(skins),
   });
@@ -279,26 +294,39 @@ export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
     },
   });
   sound.setAttribute("role", "switch");
+  sound.setAttribute("aria-label", "Sound");
   row.append(skins, sound);
 
   column.append(modes, play, row);
   root.append(heading, column);
 
+  // The game-over card's row: Share (only where the host can share a picture) and Menu.
+  const over = el("div");
+  over.id = "over";
+  over.hidden = true;
+  const share = smallButton({
+    id: "over-share",
+    caption: "Share",
+    // The accessible names start with the captions, so "click Share" works by voice too.
+    label: "Share: your tower as a picture",
+    icon: ICONS.share,
+    onClick: () => host.share?.(share),
+  });
+  share.hidden = true;
   const menu = smallButton({
     id: "over-menu",
     caption: "Menu",
-    // The accessible name starts with the caption, so "click Menu" works by voice too.
     label: "Menu: back to the title screen",
     icon: ICONS.home,
     onClick: () => host.menu(),
   });
-  menu.hidden = true;
+  over.append(share, menu);
 
   // Beside the canvas, placed from its offset in their shared parent (layout), so the overlay can't
   // drift from the logo when the page pads or pushes the canvas.
   const parent = canvas.parentElement;
   if (parent && getComputedStyle(parent).position === "static") parent.style.position = "relative";
-  canvas.after(root, menu);
+  canvas.after(root, over);
 
   // Whether the keyboard put the focus where it is (Tab, the arrows), not a click or a tap. A
   // button keeps the focus after a click (Chrome), and Space or Enter must still play then, not
@@ -322,6 +350,8 @@ export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
     for (const card of modeCards(host.bests(), host.mode())) {
       const c = cards.find((x) => x.value === card.value)!;
       c.best.textContent = card.best;
+      // Named outright, so every screen reader hears the mode and its best, not just the text nodes.
+      c.button.setAttribute("aria-label", `${card.title}, ${card.best}`);
       c.button.setAttribute("aria-checked", String(card.checked));
       // Only the chosen mode is in the tab order; the arrows reach the other.
       c.button.tabIndex = card.checked ? 0 : -1;
@@ -332,10 +362,10 @@ export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
   return {
     show() {
       // Back from the game-over card by keyboard: the focus moves on to PLAY.
-      const keyboard = document.activeElement === menu;
+      const keyboard = over.contains(document.activeElement);
       refresh();
       root.hidden = false;
-      menu.hidden = true;
+      over.hidden = true;
       if (keyboard) play.focus({ preventScroll: true });
     },
     hide() {
@@ -343,13 +373,17 @@ export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
       root.hidden = true;
     },
     isShown: () => !root.hidden,
-    showMenu(on) {
-      if (menu.hidden === !on) return;
-      if (!on && document.activeElement === menu) menu.blur();
-      menu.hidden = !on;
+    showMenu(on, withShare = true) {
+      share.hidden = !(on && withShare && host.share !== undefined);
+      if (over.hidden === !on) return;
+      if (!on && over.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+      over.hidden = !on;
+    },
+    setSharing(on) {
+      share.setAttribute("aria-busy", String(on));
     },
     layout(u, top, menuTop, box) {
-      for (const node of [root, menu]) {
+      for (const node of [root, over]) {
         node.style.setProperty("--u", `${u}px`);
         node.style.setProperty("--top", `${top}px`);
         node.style.setProperty("--menu-top", `${menuTop}px`);
@@ -370,7 +404,7 @@ export function createTitle(host: TitleHost, canvas: HTMLElement): Title {
         "--display": skin.hud.display,
         "--body": kitFor(skin).body,
       };
-      for (const node of [root, menu]) {
+      for (const node of [root, over]) {
         node.dataset.style = style;
         for (const [k, v] of Object.entries(vars)) node.style.setProperty(k, v);
       }

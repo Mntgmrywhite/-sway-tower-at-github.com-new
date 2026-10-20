@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { blastSounds, chimeStep, dropSounds, unlockSounds } from "./sounds";
+import { BLAST_VARIANTS } from "../fx/topple";
+import { BLAST_SOUND, blastSounds, chimeStep, dropSounds, unlockSounds } from "./sounds";
 
 describe("drop sounds", () => {
   it("a perfect lands softly and rings a chime that climbs with the streak", () => {
@@ -30,9 +31,21 @@ describe("drop sounds", () => {
 });
 
 describe("game over", () => {
-  it("the toppling tower blows up with a boom (the debris rattling after it), from a file that ships", () => {
+  it("the toppling tower blows up with the starburst's boom (the debris rattling after it) unless told which blast", () => {
     expect(blastSounds()).toEqual([{ sound: "boom" }]);
-    expect(existsSync(new URL("./sfx/boom.mp4", import.meta.url))).toBe(true);
+    expect(blastSounds("starburst")).toEqual([{ sound: "boom" }]);
+  });
+
+  it.each(BLAST_VARIANTS)("%s: one sound of its own, from a file that ships", (variant) => {
+    const cues = blastSounds(variant);
+    expect(cues).toHaveLength(1);
+    expect(cues[0]!.sound).toBe(BLAST_SOUND[variant]);
+    expect(cues[0]!.delay ?? 0).toBe(0);
+    expect(existsSync(new URL(`./sfx/${cues[0]!.sound}.mp4`, import.meta.url))).toBe(true);
+  });
+
+  it("every blast sounds different", () => {
+    expect(new Set(BLAST_VARIANTS.map((v) => blastSounds(v)[0]!.sound)).size).toBe(BLAST_VARIANTS.length);
   });
 });
 

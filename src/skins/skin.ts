@@ -83,6 +83,9 @@ export interface NeonPalette {
   star: string;
 }
 
+/** An inclusive [month, day] window (1-based months); it may wrap the new year. */
+export type DateWindow = { from: [number, number]; to: [number, number] };
+
 export interface Bar {
   /** Bar fill color, #rrggbb. Bright and saturated. */
   color: string;
@@ -93,7 +96,9 @@ interface SkinBase {
   id: string;
   name: string;
   /** Inclusive [month, day] windows (1-based months) in which "Auto" picks this skin. */
-  dates?: { from: [number, number]; to: [number, number] }[];
+  dates?: DateWindow[];
+  /** A season that moves (Mardi Gras with Easter): the windows for a given year, used instead of `dates`. */
+  datesFor?: (year: number) => DateWindow[];
   /** Google Fonts families this skin needs (CSS2 `family=` values, e.g. "Creepster"). */
   fonts?: string[];
   /** Bars cycle up the tower in this order. Neighbors should contrast. 8–12 entries. */

@@ -8,7 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 
 /** Every saved key starts with this (best score, tuning, audio settings, …). */
-const PREFIX = "sway-stack:";
+export const PREFIX = "sway-stack:";
 /** How often to mirror changed keys, ms. Cheap: a few short strings compared. */
 const SYNC_EVERY_MS = 2000;
 

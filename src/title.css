@@ -1,5 +1,5 @@
 /*
- * The title screen and the game-over Menu button (src/title.ts). Sizes follow render.ts's unit
+ * The title screen and the game-over card's row of buttons, Share and Menu (src/title.ts). Sizes follow render.ts's unit
  * --u (the portrait play area's width) so the overlay scales with the logo drawn on the canvas.
  * Colors and faces come from the skin's HUD (set by title.ts): --ui (card color), --title (logo),
  * --hl (highlight: PERFECT, the chosen mode, PLAY), --display and --body.
@@ -8,7 +8,7 @@
  */
 
 #title,
-#over-menu {
+#over {
   --u: min(100vw, 60dvh);
   --top: calc(14dvh + var(--u) * 0.05);
   --menu-top: calc(42dvh + var(--u) * 0.47);
@@ -39,7 +39,8 @@
 }
 
 #title[hidden],
-#over-menu[hidden] {
+#over[hidden],
+#over .small[hidden] {
   display: none;
 }
 
@@ -69,12 +70,13 @@
   gap: calc(var(--u) * 0.045);
 }
 
-#title button {
+#title button,
+#over button {
   font: inherit;
 }
 
 #title button,
-#over-menu {
+#over button {
   pointer-events: auto;
   margin: 0;
   cursor: pointer;
@@ -83,7 +85,7 @@
 }
 
 #title button:focus-visible,
-#over-menu:focus-visible {
+#over button:focus-visible {
   outline: 3px solid var(--hl);
   outline-offset: 3px;
 }
@@ -135,7 +137,7 @@
   text-transform: uppercase;
 }
 
-/* --- The small buttons: Skins, (Achievements), Sound; and the game-over Menu --- */
+/* --- The small buttons: Skins, (Achievements), Sound; and the game-over Share and Menu --- */
 
 #title .row {
   display: flex;
@@ -144,7 +146,7 @@
 }
 
 #title .small,
-#over-menu {
+#over .small {
   display: grid;
   justify-items: center;
   align-content: center;
@@ -157,13 +159,13 @@
 }
 
 #title .small svg,
-#over-menu svg {
+#over .small svg {
   width: max(22px, calc(var(--u) * 0.068));
   height: max(22px, calc(var(--u) * 0.068));
 }
 
 #title .caption,
-#over-menu .caption {
+#over .caption {
   font-size: max(11px, calc(var(--u) * 0.031));
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -178,20 +180,31 @@
   opacity: 0.8;
 }
 
-#over-menu {
+/* Under the game-over card, centered on the canvas: Share (when it can) and Menu side by side. */
+#over {
   position: absolute;
   top: calc(var(--box-top, 0px) + var(--menu-top));
   left: calc(var(--box-left, 0px) + var(--box-w, 100vw) / 2);
   transform: translateX(-50%);
-  border: 0;
+  display: flex;
+  gap: calc(var(--u) * 0.045);
+  pointer-events: none;
   animation: title-in 0.25s ease-out;
+}
+
+#over button {
+  border: 0;
+}
+
+/* Share while the picture is made and the sheet comes up (a moment on a phone). */
+#over button[aria-busy="true"] {
+  opacity: 0.6;
 }
 
 /* --- Cartoon: flat fills, ink outline, light top and shaded bottom; a press sinks the button --- */
 
 [data-style="cartoon"] .mode,
 [data-style="cartoon"] .small,
-#over-menu[data-style="cartoon"],
 [data-style="cartoon"] .play {
   border: var(--line) solid var(--ink);
   box-shadow:
@@ -202,10 +215,10 @@
   transition: transform 0.06s, box-shadow 0.06s;
 }
 
+/* A tenth deeper than the skin's UI color, so the white captions read on every skin (4.5:1). */
 [data-style="cartoon"] .mode,
-[data-style="cartoon"] .small,
-#over-menu[data-style="cartoon"] {
-  background: var(--ui);
+[data-style="cartoon"] .small {
+  background: color-mix(in srgb, var(--ui) 90%, black);
 }
 
 /* The mode not chosen sits back; the chosen one gets the highlight ring and a check. */
@@ -235,8 +248,7 @@
     0 calc(var(--u) * 0.016) 0 var(--ink);
 }
 
-[data-style="cartoon"] button:active,
-#over-menu[data-style="cartoon"]:active {
+[data-style="cartoon"] button:active {
   transform: translateY(calc(var(--u) * 0.008));
   box-shadow:
     inset 0 calc(var(--u) * 0.008) 0 rgba(255, 255, 255, 0.28),
@@ -244,15 +256,10 @@
     0 calc(var(--u) * 0.004) 0 var(--ink);
 }
 
-#over-menu[data-style="cartoon"]:active {
-  transform: translate(-50%, calc(var(--u) * 0.008));
-}
-
 /* --- Neon: dark glass, glowing rims (the Options sheet's look) --- */
 
 [data-style="neon"] .mode,
 [data-style="neon"] .small,
-#over-menu[data-style="neon"],
 [data-style="neon"] .play {
   border: 1.5px solid color-mix(in srgb, var(--ui) 70%, transparent);
   background: rgba(10, 4, 22, 0.82);
@@ -295,19 +302,16 @@
     inset 0 0 calc(var(--u) * 0.04) color-mix(in srgb, var(--ui) 45%, transparent);
 }
 
-[data-style="neon"] button:active,
-#over-menu[data-style="neon"]:active {
+[data-style="neon"] button:active {
   background: color-mix(in srgb, var(--ui) 30%, rgba(10, 4, 22, 0.9));
 }
 
-@media (prefers-reduced-motion: reduce) {
-  #title,
-  #over-menu {
-    animation: none;
-  }
+/* Reduce motion (Settings: the player's choice, or the device's on Auto; main.ts marks the page). */
+:root[data-motion="reduce"] #title,
+:root[data-motion="reduce"] #over {
+  animation: none;
+}
 
-  [data-style="cartoon"] button,
-  #over-menu {
-    transition: none;
-  }
+:root[data-motion="reduce"] [data-style="cartoon"] button {
+  transition: none;
 }

@@ -80,13 +80,6 @@ export const INSTRUMENTS = {
   // Its files are named an octave above the pitch they sound (the set's own SFZ maps B3.flac
   // to B2) and run 7-38 cents sharp; autotune takes out the cents.
   accordion: { dir: `${FP}/Button Accordion HN SFZ+FLAC-20240329`, attack: 0.02, release: 0.15, gain: 0.8, transpose: -12, autotune: "heard", harmonic: true },
-  // MLK Day's reed organ (a church harmonium): the same free-reed recordings swelling in slowly,
-  // low-passed by the song. The takes hold 1.3-2.5 s and stop dead, so chords are re-struck each
-  // pulse and never held longer than a second; the 0.45 s release (-6 dB at 50 ms) carries each
-  // chord down through the next one's attack, so the re-strikes crossfade instead of dipping.
-  // Without the E5 take (E4): at its own pitch it is heard 9 cents sharp (a scoop its measured
-  // tuning misses), so E4 plays on the D5 take, F4 on F#5.
-  reedOrgan: { dir: `${FP}/Button Accordion HN SFZ+FLAC-20240329`, exclude: /E5\.flac/, attack: 0.09, release: 0.45, gain: 0.8, transpose: -12, autotune: "heard", harmonic: true },
   whistle: { dir: `${VCSL}/Aerophones/Edge-blown Aerophones/Baroque Soprano Recorder/Sustain`, attack: 0.02, release: 0.12, gain: 0.8, transpose: OCT, autotune: "heard", harmonic: true },
   whistleShort: { dir: `${VCSL}/Aerophones/Edge-blown Aerophones/Baroque Soprano Recorder/Staccato`, oneShot: true, transpose: OCT, autotune: "heard", harmonic: true },
 

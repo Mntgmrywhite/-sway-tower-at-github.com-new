@@ -1,5 +1,5 @@
 import { drop, newGame, step, swayOffset, top, type Block, type DropResult, type GameState, type Mode } from "../game";
-import { BLAST_AT, TOPPLE_TIME } from "../fx/topple";
+import { BLAST_AT, TOPPLE_TIME, type BlastVariant } from "../fx/topple";
 import { newView, showLanding, updateView, type View } from "../render";
 import { topAtContact } from "../testing/bots";
 
@@ -138,6 +138,16 @@ export function shots(): Shot[] {
   dropAt(hardBlast, -hardBlast.state.slider.w - 3);
   until(hardBlast, BLAST_AT + 0.12);
 
+  // The other ways a run ends (the run above got the starburst): each just after it goes off, and
+  // the two that linger (the fireworks' second bloom, the floating confetti) later on too.
+  const fireworks = ending("fireworks", 1, BLAST_AT + 0.14);
+  const fireworksLate = ending("fireworks", 1, BLAST_AT + 0.42);
+  const shockwave = ending("shockwave", -1, BLAST_AT + 0.16);
+  const confetti = ending("confetti", 1, BLAST_AT + 0.12);
+  const confettiLate = ending("confetti", -1, BLAST_AT + 0.5);
+  // Popcorn: the second little pop has just gone off while the section still swings.
+  const popcorn = ending("popcorn", -1, 0.36);
+
   return [
     { name: "start", ...start, best: 52 },
     { name: "climb", ...mid, best: 52 },
@@ -150,5 +160,24 @@ export function shots(): Shot[] {
     { name: "hardClimb", ...hardClimb, best: 17 },
     { name: "hardFall", ...hardFall, best: 17 },
     { name: "hardBlast", ...hardBlast, best: 17 },
+    { name: "fireworks", ...fireworks, best: 52 },
+    { name: "fireworksLate", ...fireworksLate, best: 52 },
+    { name: "shockwave", ...shockwave, best: 52 },
+    { name: "confetti", ...confetti, best: 52 },
+    { name: "confettiLate", ...confettiLate, best: 52 },
+    { name: "popcorn", ...popcorn, best: 52 },
   ];
+}
+
+/**
+ * A run's end in the blast `variant`, `seconds` after the last miss, which the bar missed on `side`
+ * (the run's own pick is overridden for the preview; the swing before the blast is the same for all).
+ */
+function ending(variant: BlastVariant, side: -1 | 1, seconds: number): Sim {
+  const s = climb(20, "normal", [0, 0, 3, 0, -4, 0, 2, 0, -2, 0]);
+  s.state.lives = 1;
+  dropAt(s, side * (s.state.slider.w + 3));
+  s.view.topple!.variant = variant;
+  until(s, seconds);
+  return s;
 }

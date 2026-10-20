@@ -17,8 +17,9 @@ import type { Skin } from "./skins/skin";
 // look (dark glass, the skin's accent), with the best stack and best perfect streak as progress
 // toward the next medal, and every medal in a grid, earned (in its metal, with the mode that
 // earned it first) or locked (an outline with its goal). Medals earned since the last visit are
-// marked NEW here and counted on the button. Also a polite live region that reads out the medals
-// a run earned when the game-over card comes up (the card itself is canvas).
+// marked NEW here and counted on the button. In the iOS app, a signed-in player gets a "See in
+// Game Center" button (the same medals live there as achievements). Also a polite live region
+// that reads out the medals a run earned when the game-over card comes up (the card is canvas).
 
 /** One line per kind for the progress tiles and the grid headings. */
 const KINDS: Record<MedalKind, { heading: string; best: string; unit: (n: number) => string; list: readonly Achievement[] }> = {
@@ -42,6 +43,8 @@ export interface AchievementsHost {
   save(): AchievementSave;
   /** The screen was opened: clear the NEW marks and save. */
   seen(): void;
+  /** Game Center (the iOS app): whether the player is signed in, and its achievements screen. Absent on the web. */
+  gameCenter?: { authenticated(): boolean; show(): void };
 }
 
 export interface AchievementsSheet {
@@ -53,7 +56,7 @@ export interface AchievementsSheet {
   setSkin(skin: Skin): void;
   /** The title's Medals button: its NEW count and accessible name follow the save. */
   bindButton(button: HTMLButtonElement): void;
-  /** Re-read the save for the button (after a run earned medals). */
+  /** Re-read the save for the button (after a run earned medals), and the Game Center status. */
   refresh(): void;
   /** Read out a run's new medals (the game-over card is canvas). */
   announce(medals: readonly Achievement[]): void;
@@ -133,9 +136,14 @@ export function createAchievements(host: AchievementsHost): AchievementsSheet {
 
   const count = el("p", "count");
   count.id = "achievements-count";
+  // "See in Game Center": only in the app, only once signed in (hidden otherwise).
+  const gcButton = el("button", "link gc", "See in Game Center");
+  gcButton.type = "button";
+  gcButton.hidden = true;
+  gcButton.addEventListener("click", () => host.gameCenter?.show());
   const tiles = el("div", "progress");
   const grids = el("div", "grids");
-  sheet.append(head, count, tiles, grids);
+  sheet.append(head, count, gcButton, tiles, grids);
   backdrop.append(sheet);
 
   // Reads out a run's new medals; separate from the sheet so it works while the sheet is closed.
@@ -206,7 +214,12 @@ export function createAchievements(host: AchievementsHost): AchievementsSheet {
     );
   }
 
+  function refreshGameCenter(): void {
+    gcButton.hidden = !host.gameCenter?.authenticated();
+  }
+
   function refreshButton(save: AchievementSave): void {
+    refreshGameCenter();
     if (!button) return;
     const fresh = save.fresh.filter((id) => ACHIEVEMENTS.some((a) => a.id === id)).length;
     // The accessible name starts with the caption ("Medals"), so voice control finds it.
@@ -245,9 +258,11 @@ export function createAchievements(host: AchievementsHost): AchievementsSheet {
       e.preventDefault();
       setOpen(false);
     } else if (e.key === "Tab") {
-      // A modal: the focus stays in the sheet, whose only control is Close (the arrows scroll).
+      // A modal: the focus stays in the sheet, between Close and the Game Center button (the arrows scroll).
+      const controls = gcButton.hidden ? [close] : [close, gcButton];
+      const at = controls.indexOf(document.activeElement as HTMLButtonElement);
       e.preventDefault();
-      close.focus();
+      controls[(at + (e.shiftKey ? -1 : 1) + controls.length) % controls.length]!.focus();
     }
   });
 

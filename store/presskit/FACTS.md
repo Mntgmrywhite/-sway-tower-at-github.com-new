@@ -9,7 +9,7 @@ medals as SVG, the logo in each world's face): montgomerylwhite@gmail.com.
 | | |
 | --- | --- |
 | Name | Sway Tower |
-| Developer | Monty White (independent; design, code, art and music) |
+| Developer | Turk White (independent; design, code, art and music) |
 | Platforms | iPhone and iPad (iOS 15 and later; portrait, full screen). Playable in the browser at https://claude.ai/artifact/1iy2tocHgvV3jfE1CLE9v3 |
 | Price | Free. No ads, no in-app purchases |
 | Release | TBD (version 1.0; coming to the App Store) |
@@ -77,10 +77,10 @@ they match what players see.
 
 ## Credits
 
-An original game: design, code, art and music by Monty White. The music is rendered from
+An original game: design, code, art and music by Turk White. The music is rendered from
 CC0 sample libraries (Versilian VCSL and VSCO 2 CE, FreePats, BigSoundBank, Kenney) and our
 own synthesizer. Fonts: Luckiest Guy and Chewy (Apache 2.0); Fredoka, Monoton, Orbitron,
-Creepster, Abril Fatface, Limelight, Zen Dots, Uncial Antiqua, Rye, Alfa Slab One, Pacifico and
+Creepster, Abril Fatface, Limelight, Zen Dots, Uncial Antiqua, Rye, Pacifico and
 Pirata One (SIL Open Font License 1.1).
 
-© 2026 Monty White
+© 2026 Turk White

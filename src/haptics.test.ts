@@ -1,6 +1,48 @@
 import { ImpactStyle } from "@capacitor/haptics";
-import { describe, expect, it } from "vitest";
-import { dropHaptic, NATIVE, STREAK_STEP, VIBRATE } from "./haptics";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { buzz, dropHaptic, hapticsAvailable, NATIVE, STREAK_STEP, VIBRATE } from "./haptics";
+import { settings } from "./settings";
+
+describe("the haptics switch", () => {
+  const vibrate = vi.fn();
+  const had = Object.getOwnPropertyDescriptor(navigator, "vibrate");
+  Object.defineProperty(navigator, "vibrate", { value: vibrate, configurable: true, writable: true });
+  afterEach(() => {
+    vibrate.mockClear();
+    settings.haptics = true;
+  });
+  afterAll(() => {
+    if (had) Object.defineProperty(navigator, "vibrate", had);
+    else delete (navigator as { vibrate?: unknown }).vibrate;
+  });
+
+  it("plays the cue while haptics are on (here: the browser's vibration)", () => {
+    expect(hapticsAvailable()).toBe(true);
+    buzz("perfect");
+    expect(vibrate).toHaveBeenCalledWith(VIBRATE.perfect);
+  });
+
+  it("plays nothing once the player switches haptics off", () => {
+    settings.haptics = false;
+    buzz("perfect");
+    buzz("blast");
+    expect(vibrate).not.toHaveBeenCalled();
+  });
+
+  it("offers the switch on a touch device with vibration, not on a desktop browser that only has the function", () => {
+    const g = globalThis as { matchMedia?: (q: string) => { matches: boolean } };
+    const hadMatchMedia = g.matchMedia;
+    try {
+      g.matchMedia = (q) => ({ matches: q === "(pointer: fine)" });
+      expect(hapticsAvailable()).toBe(false);
+      g.matchMedia = (q) => ({ matches: q === "(pointer: coarse)" });
+      expect(hapticsAvailable()).toBe(true);
+    } finally {
+      if (hadMatchMedia) g.matchMedia = hadMatchMedia;
+      else delete g.matchMedia;
+    }
+  });
+});
 
 describe("drop haptics", () => {
   it("only a perfect hits: ordinary landings and misses are silent", () => {

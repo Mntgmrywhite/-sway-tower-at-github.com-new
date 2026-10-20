@@ -2,7 +2,8 @@
 //   npm run snap -- <skinId> [width] [height] [songTime]
 // Writes preview/<skin>-<shot>.png for every shot in src/preview/shots.ts (Slide's start, climb,
 // high, the last life's topple, blast, debris and the over card; Drop's hard, hardClimb, hardFall,
-// hardBlast), drawn at that screen size, and
+// hardBlast; and each of the other blasts: fireworks, shockwave, confetti, popcorn, plus
+// fireworksLate and confettiLate further in), drawn at that screen size, and
 // preview/<skin>-bars.png. With a songTime (seconds into the skin's music loop), the
 // shots are drawn as if the music were that far in, for scenery that keeps time with it.
 // Web fonts aren't available offline, so text uses fallback faces here.

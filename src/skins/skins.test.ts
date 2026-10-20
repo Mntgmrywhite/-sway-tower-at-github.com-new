@@ -7,6 +7,19 @@ import { AUTO, resolveSkin, SKINS, skinForDate } from ".";
 const day = (m: number, d: number) => new Date(2026, m - 1, d, 12);
 
 describe("skin by date", () => {
+  it("Mardi Gras moves with Easter and leaves February 14 to Valentine's", () => {
+    const at = (y: number, m: number, d: number) => skinForDate(new Date(y, m - 1, d, 12)).id;
+    expect(at(2027, 2, 3)).toBe("classic");
+    expect(at(2027, 2, 4)).toBe("mardigras");
+    expect(at(2027, 2, 9)).toBe("mardigras");
+    expect(at(2027, 2, 10)).toBe("valentines");
+    expect(at(2027, 2, 14)).toBe("valentines");
+    expect(at(2026, 2, 14)).toBe("valentines");
+    expect(at(2028, 2, 29)).toBe("mardigras");
+    expect(at(2030, 3, 5)).toBe("mardigras");
+    expect(at(2030, 3, 6)).toBe("classic");
+  });
+
   it.each([
     [10, 15, "halloween"],
     [10, 1, "halloween"],
@@ -20,12 +33,16 @@ describe("skin by date", () => {
     [1, 1, "newyear"],
     [1, 6, "newyear"],
     [1, 7, "classic"],
-    [1, 12, "mlk"],
-    [1, 21, "mlk"],
+    [1, 12, "classic"],
+    [1, 21, "classic"],
     [1, 22, "classic"],
     [2, 7, "valentines"],
+    [2, 11, "valentines"],
+    [2, 12, "mardigras"],
     [2, 14, "valentines"],
-    [2, 16, "classic"],
+    [2, 15, "mardigras"],
+    [2, 17, "mardigras"],
+    [2, 18, "classic"],
     [3, 3, "classic"],
     [3, 17, "stpatricks"],
     [6, 28, "july4"],

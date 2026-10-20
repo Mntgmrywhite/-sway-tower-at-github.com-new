@@ -56,4 +56,4 @@ The first nomination is for launch (version 1.0, Sky Islands as the lead art). T
 - Screenshots and app previews for every display size: see store/README.md (store/out/screenshots and store/out/preview).
 - App icon: the Sky Islands island with a stack of bars (Assets.xcassets/AppIcon, 1024 × 1024, no alpha).
 - Additional art on request: the home island, each world's title scene, the medals (SVG), the logo in each world's face.
-- Contact: Montgomery White, montgomerylwhite@gmail.com.
+- Contact: Turk White, montgomerylwhite@gmail.com.

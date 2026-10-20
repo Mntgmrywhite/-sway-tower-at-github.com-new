@@ -2,7 +2,7 @@ import { christmas } from "./christmas";
 import { classic } from "./classic";
 import { halloween } from "./halloween";
 import { july4 } from "./july4";
-import { mlk } from "./mlk";
+import { mardiGras } from "./mardigras";
 import { neon } from "./neon";
 import { neonCyber } from "./neon-cyber";
 import { newYear } from "./newyear";
@@ -15,7 +15,7 @@ import { valentines } from "./valentines";
 
 /** Every skin, in picker order. Classic is always first and is the fallback. */
 /** The holidays run in calendar order from the autumn: a season a player is in sits near the top. */
-export const SKINS: Skin[] = [classic, toyBlock, neon, neonCyber, halloween, thanksgiving, christmas, newYear, mlk, valentines, stPatricks, july4, oktoberfest];
+export const SKINS: Skin[] = [classic, toyBlock, neon, neonCyber, halloween, thanksgiving, christmas, newYear, mardiGras, valentines, stPatricks, july4, oktoberfest];
 
 /** Skins that were retired, and the skin a saved choice of them now shows. */
 const RETIRED: Record<string, string> = { "neon-glow": "neon", "neon-minimal": "neon" };
@@ -35,8 +35,10 @@ function inWindow(month: number, day: number, from: [number, number], to: [numbe
 export function skinForDate(date: Date): Skin {
   const month = date.getMonth() + 1;
   const day = date.getDate();
+  const year = date.getFullYear();
   for (const skin of SKINS) {
-    if (skin.dates?.some((w) => inWindow(month, day, w.from, w.to))) return skin;
+    const windows = skin.datesFor?.(year) ?? skin.dates;
+    if (windows?.some((w) => inWindow(month, day, w.from, w.to))) return skin;
   }
   return classic;
 }

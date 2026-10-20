@@ -32,6 +32,9 @@ class GameViewController: CAPBridgeViewController {
 
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
+        // The game's own plugin (NativePlugin.swift): the review prompt, the store page, Game
+        // Center and the share sheet.
+        bridge?.registerPluginInstance(NativePlugin())
         restoreSaves()
     }
 

@@ -133,9 +133,9 @@ game, not enrolled in the Kids category). Result: **4+**.
 ## Copyright
 
 ```
-© 2026 Montgomery White
+© 2026 Turk White
 ```
-(the year of first publication; App Store Connect shows it as "© 2026 Montgomery White")
+(the year of first publication; App Store Connect shows it as "© 2026 Turk White")
 
 ## Game Center (prepared, ships with the next update)
 

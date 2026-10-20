@@ -29,7 +29,7 @@ const SFX = import.meta.glob("./sfx/*.mp4", { query: "?inline", import: "default
 /** Loop points, and for some songs named moments in them (seconds as written: "countdownStart"). */
 const LOOPS = manifest as Record<string, LoopInfo & { cues?: Record<string, number> }>;
 
-export type Sound = "land" | "slice" | "miss" | "click" | "chime" | "boom";
+export type Sound = "land" | "slice" | "miss" | "click" | "chime" | "boom" | "firework" | "shockwave" | "confetti" | "popcorn";
 
 const SETTINGS_KEY = "sway-stack:audio";
 const MUSIC_LEVEL = 0.55;
