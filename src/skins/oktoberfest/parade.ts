@@ -1,7 +1,6 @@
 import { circle, ink, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import {
-  BASKET,
   BRASS,
   CANVAS_BLUE,
   CANVAS_WHITE,
@@ -11,36 +10,39 @@ import {
   INK,
   IRON,
   MANE,
-  PRETZEL,
-  SALT,
+  PEWTER,
   SKIN,
   WAGON,
   WHEEL,
   WOOD,
-  WOOD_DARK,
   WREATH,
 } from "./colors";
 import { DRIVER, figure, WAITRESS, WOMAN_H } from "./folk";
 import { centerX, inkW } from "./ground";
-import { block, pill, pretzelPath } from "./shapes";
+import { block, pill } from "./shapes";
+import { barrels, steins } from "./stein";
 
 // What crosses in front of the bandstand, below the floor line (so nothing moves behind the
-// tower): the harvest parade, two draft horses in brass-studded harness with blue-and-white
-// plumes pulling a blue wagon dressed with flowers (two flower boxes, a garland arch between
-// them and a giant pretzel standing under it), a driver up on the box, in from the left and away
-// out the right, past the tower by the third second and gone by the eighth; then the pretzel
-// girl, in from the left with a basket of pretzels, across the front and away out the right,
-// past the tower by the ninth second. Both go behind the stalls and the fence in front, and
+// tower): the brewers' parade, two draft horses in brass-studded harness with blue-and-white
+// plumes pulling a blue barrel wagon (three oak barrels stacked on its bed, a garland of flowers
+// festooned along its rim), a driver up on the box, in from the left and away out the right, past the
+// tower by the third second and gone by the eighth; then the waitress, in from the left with a
+// pewter tray of foaming steins held out before her, across the front and away out the right,
+// past the tower by the tenth second. Both go behind the stalls and the fence in front, and
 // keep coming round for as long as you stand there: the parade every PARADE_EVERY seconds, the
-// pretzel seller every WAITRESS_EVERY, the other way each time, timed so they never meet. They
+// waitress every WAITRESS_EVERY, the other way each time, timed so they never meet. They
 // enter and leave through the sides of the screen, however wide it is (`half`: the screen's
 // half width in u). Everything is a function of the scene's time.
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
-/** The parade's line (u below the floor) and the pretzel seller's. */
+/**
+ * The parade's line (u below the floor) and the waitress's: her shoes keep clear above the
+ * trodden sand in front (front.ts, from 0.332 u down), and her head stays under the stalls'
+ * awnings (from 0.16 u down) as she passes behind them.
+ */
 export const PARADE_LINE = 0.245;
-export const WAITRESS_LINE = 0.33;
+export const WAITRESS_LINE = 0.322;
 /** The parade: when the lead horse's nose passes the tower's center line (s), how fast it goes (u/s), how often it comes round (s). */
 export const PARADE_PASS = 2.45;
 export const PARADE_SPEED = 0.22;
@@ -48,11 +50,11 @@ export const PARADE_EVERY = 48;
 /** How long the parade is, nose to tail (u), and how far its drawing reaches past either end (u). */
 export const PARADE_LENGTH = 0.56;
 export const PARADE_REACH = 0.03;
-/** The pretzel seller: when she first passes the tower's center line (s), her pace (u/s), how often she crosses (s). */
+/** The waitress: when she first passes the tower's center line (s), her pace (u/s), how often she crosses (s). */
 export const WAITRESS_PASS = 9.5;
 export const WAITRESS_SPEED = 0.12;
 export const WAITRESS_EVERY = 24;
-/** How far she and her basket reach either side of her center (u). */
+/** How far she and her tray reach either side of her center (u). */
 export const WAITRESS_REACH = 0.07;
 
 /** t folded into [-every / 2, every / 2). */
@@ -73,7 +75,7 @@ export function paradeAt(t: number, half = 0.5): { x: number; shown: boolean } {
 const PARADE = { x: 0, shown: false };
 
 /**
- * Where the pretzel seller is at time t: her center (u from the tower's center), her facing, and
+ * Where the waitress is at time t: her center (u from the tower's center), her facing, and
  * whether she is in view on a screen `half` u either side of the center. She passes the tower
  * every WAITRESS_EVERY seconds, the first time going right, then the other way each time.
  */
@@ -284,7 +286,7 @@ function wheel(ctx: Ctx, u: number, lw: number, x: number, y: number, r: number,
   ink(ctx, lw * 0.7, INK);
 }
 
-/** Flower colors for the wagon's garland and boxes, by turns. */
+/** Flower colors for the wagon's garland, by turns. */
 const FLOWERS = ["#ff5a6e", "#ffd23f", "#ff8fc8", "#ffffff"] as const;
 
 /** Flowers at the scratch points, one fill per color, each inked. */
@@ -300,93 +302,77 @@ function flowers(ctx: Ctx, lw: number, n: number, r: number): void {
 const BLOOM_X = new Float64Array(16);
 const BLOOM_Y = new Float64Array(16);
 
+/** The barrels on the bed: how long and high each is (u), and how far in from the bed's back end the stack starts (u). */
+const BARREL_W = 0.104;
+const BARREL_H = 0.05;
+const STACK_IN = 0.02;
+
 /**
- * The wagon's load: a flower box at each end of the bed, a garland arch sprung between them
- * with flowers along it, and a giant pretzel on a post standing under the arch.
+ * The wagon's load: three oak barrels lying along the bed, two side by side and one on top,
+ * chocked with wedges, and a garland of flowers festooned along the bed's rim in front of them.
  */
 function cargo(ctx: Ctx, u: number, lw: number, bx: number, bedY: number): void {
-  const ax0 = bx + u * 0.04;
-  const ax1 = bx + u * 0.21;
-  const am = (ax0 + ax1) / 2;
-  const top = bedY - u * 0.135;
-  // The giant pretzel on its post.
+  const w = BARREL_W * u;
+  const h = BARREL_H * u;
+  const x0 = bx + STACK_IN * u;
+  const x1 = x0 + w + u * 0.008;
+  const xt = (x0 + x1) / 2;
+  const yt = bedY - h * 2 + u * 0.006;
+  // Wedges under the bottom pair, so they cannot roll.
   ctx.beginPath();
-  ctx.rect(am - u * 0.003, bedY - u * 0.03, u * 0.006, u * 0.03);
-  ctx.fillStyle = WOOD_DARK.body;
+  for (let i = 0; i < 2; i++) {
+    const x = i ? x1 + w * 0.8 : x0 + w * 0.2;
+    ctx.moveTo(x - u * 0.009, bedY);
+    ctx.lineTo(x + u * 0.009, bedY);
+    ctx.lineTo(x, bedY - u * 0.012);
+    ctx.closePath();
+  }
+  ctx.fillStyle = WOOD.shade;
   ctx.fill();
   ink(ctx, lw * 0.7, INK);
-  const py = bedY - u * 0.056;
+  // The bottom pair side by side, then the one lying on top of them.
+  barrels(ctx, lw, x0, x1 - x0, 2, bedY - h, w, h);
+  barrels(ctx, lw, xt, 0, 1, yt, w, h);
+  // The garland: a green festoon along the bed's top, sagging in two loops in front of the
+  // bottom barrels, with flowers along it.
+  const gx0 = bx + u * 0.008;
+  const gx1 = bx + u * 0.248;
+  const gm = (gx0 + gx1) / 2;
+  const gy = bedY + u * 0.002;
+  const sag = u * 0.022;
   ctx.beginPath();
-  pretzelPath(ctx, am, py, u * 0.072);
+  ctx.moveTo(gx0, gy);
+  ctx.quadraticCurveTo((gx0 + gm) / 2, gy + sag * 0.9, gm, gy);
+  ctx.quadraticCurveTo((gm + gx1) / 2, gy + sag * 0.9, gx1, gy);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = u * 0.008 + lw * 1.6;
   ctx.lineCap = "round";
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = u * 0.014 + lw * 1.6;
-  ctx.stroke();
-  ctx.strokeStyle = PRETZEL.body;
-  ctx.lineWidth = u * 0.014;
-  ctx.stroke();
-  ctx.fillStyle = SALT;
-  ctx.beginPath();
-  circle(ctx, am - u * 0.02, py - u * 0.008, u * 0.0026);
-  circle(ctx, am + u * 0.014, py - u * 0.018, u * 0.0024);
-  circle(ctx, am + u * 0.022, py + u * 0.004, u * 0.0026);
-  circle(ctx, am - u * 0.008, py + u * 0.016, u * 0.0024);
-  ctx.fill();
-  // The garland arch: a thick green bough from box to box.
-  ctx.beginPath();
-  ctx.moveTo(ax0, bedY - u * 0.02);
-  ctx.bezierCurveTo(ax0, top, ax1, top, ax1, bedY - u * 0.02);
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = u * 0.011 + lw * 1.6;
   ctx.stroke();
   ctx.strokeStyle = WREATH.body;
-  ctx.lineWidth = u * 0.011;
+  ctx.lineWidth = u * 0.008;
   ctx.stroke();
-  // Flowers along it.
-  const n = 11;
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
-    const a = 1 - t;
-    BLOOM_X[i] = a * a * a * ax0 + 3 * a * a * t * ax0 + 3 * a * t * t * ax1 + t * t * t * ax1;
-    BLOOM_Y[i] = a * a * a * (bedY - u * 0.02) + 3 * a * a * t * top + 3 * a * t * t * top + t * t * t * (bedY - u * 0.02);
-  }
-  flowers(ctx, lw, n, u * 0.0055);
-  // The flower boxes at the arch's feet, blooms heaped on top.
-  for (const x of [ax0, ax1]) {
-    ctx.beginPath();
-    block(ctx, x - u * 0.024, bedY - u * 0.026, u * 0.048, u * 0.026, u * 0.004);
-    ctx.fillStyle = CANVAS_WHITE;
-    ctx.fill();
-    ctx.fillStyle = CANVAS_BLUE;
-    ctx.beginPath();
-    for (let i = -1; i <= 1; i++) {
-      const dx = x + i * u * 0.014;
-      ctx.moveTo(dx, bedY - u * 0.021);
-      ctx.lineTo(dx + u * 0.006, bedY - u * 0.013);
-      ctx.lineTo(dx, bedY - u * 0.005);
-      ctx.lineTo(dx - u * 0.006, bedY - u * 0.013);
-      ctx.closePath();
-    }
-    ctx.fill();
-    ctx.beginPath();
-    block(ctx, x - u * 0.024, bedY - u * 0.026, u * 0.048, u * 0.026, u * 0.004);
-    ink(ctx, lw * 0.8, INK);
-  }
-  let k = 0;
-  for (const x of [ax0, ax1]) {
+  // Flowers at the knots and along each loop.
+  let n = 0;
+  for (let loop = 0; loop < 2; loop++) {
+    const a0 = loop ? gm : gx0;
+    const a1 = loop ? gx1 : gm;
     for (let i = 0; i < 4; i++) {
-      BLOOM_X[k] = x + (i - 1.5) * u * 0.012;
-      BLOOM_Y[k] = bedY - u * (0.031 + (i % 2) * 0.006);
-      k++;
+      const t = i / 4;
+      BLOOM_X[n] = a0 + (a1 - a0) * t;
+      BLOOM_Y[n] = gy + 2 * t * (1 - t) * sag * 0.9;
+      n++;
     }
   }
-  flowers(ctx, lw, k, u * 0.0062);
+  BLOOM_X[n] = gx1;
+  BLOOM_Y[n] = gy;
+  n++;
+  flowers(ctx, lw, n, u * 0.0055);
 }
 
 /**
- * The flower wagon at its nose x: the horses (the far one a little higher and smaller, then the
- * near one), the shafts, the wagon's blue bed on gold wheels, its load of flowers and the giant
- * pretzel, and the driver up on the box with the reins.
+ * The barrel wagon at its nose x: the horses (the far one a little higher and smaller, then the
+ * near one), the shafts, the wagon's blue bed on gold wheels, its load of barrels under their
+ * garland, and the driver up on the box with the reins.
  */
 function wagon(ctx: Ctx, s: Scene, nose: number): void {
   const u = s.u;
@@ -479,62 +465,18 @@ export function parade(ctx: Ctx, s: Scene): void {
   wagon(ctx, s, p.x);
 }
 
-// ---------------------------------------------------------------- the pretzel seller
+// ---------------------------------------------------------------- the waitress
 
-/** A round wicker basket at (x, rim) heaped with pretzels, the rim `w` wide. */
-function pretzelBasket(ctx: Ctx, u: number, lw: number, x: number, rim: number, w: number): void {
-  // Pretzels heaped up out of it, behind its rim.
-  ctx.lineCap = "round";
-  for (let i = 0; i < 3; i++) {
-    const px = x + (i - 1) * w * 0.3;
-    const py = rim - u * (i === 1 ? 0.016 : 0.009);
-    ctx.beginPath();
-    pretzelPath(ctx, px, py, u * 0.026);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = u * 0.0062 + lw * 1.3;
-    ctx.stroke();
-    ctx.strokeStyle = PRETZEL.body;
-    ctx.lineWidth = u * 0.0062;
-    ctx.stroke();
-  }
-  ctx.fillStyle = SALT;
-  ctx.beginPath();
-  circle(ctx, x - w * 0.06, rim - u * 0.022, u * 0.0018);
-  circle(ctx, x + w * 0.08, rim - u * 0.018, u * 0.0018);
-  ctx.fill();
-  // The bowl, woven, and its rim.
-  const hw = w / 2;
-  ctx.beginPath();
-  ctx.moveTo(x - hw, rim);
-  ctx.quadraticCurveTo(x - hw * 0.95, rim + u * 0.03, x, rim + u * 0.03);
-  ctx.quadraticCurveTo(x + hw * 0.95, rim + u * 0.03, x + hw, rim);
-  ctx.closePath();
-  ctx.fillStyle = BASKET.body;
-  ctx.fill();
-  ctx.strokeStyle = BASKET.shade;
-  ctx.lineWidth = Math.max(1, u * 0.0025);
-  ctx.beginPath();
-  for (let i = 1; i < 3; i++) {
-    const y = rim + i * u * 0.009;
-    const k = Math.sqrt(1 - (i * 0.3) ** 2) * hw * 0.92;
-    ctx.moveTo(x - k, y);
-    ctx.lineTo(x + k, y);
-  }
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x - hw, rim);
-  ctx.quadraticCurveTo(x - hw * 0.95, rim + u * 0.03, x, rim + u * 0.03);
-  ctx.quadraticCurveTo(x + hw * 0.95, rim + u * 0.03, x + hw, rim);
-  ctx.closePath();
-  ink(ctx, lw * 0.8, INK);
-  ctx.beginPath();
-  pill(ctx, x - hw - u * 0.003, rim - u * 0.004, w + u * 0.006, u * 0.008);
-  ctx.fillStyle = BASKET.light;
-  ctx.fill();
-  ink(ctx, lw * 0.8, INK);
-}
+/** Her tray: how far before her it is held (u, at full size), its half width and height above her feet (u). */
+const TRAY_X = 0.058;
+const TRAY_HW = 0.045;
+const TRAY_UP = 0.088;
+/** The steins on it: their glass height, where the first stands (u from the tray's center, out from her) and the next (u further out). */
+const STEIN_H = 0.034;
+const STEIN_AT = -0.026;
+const STEIN_STEP = 0.028;
 
-/** The pretzel seller crossing in front with a basket of pretzels held out before her. */
+/** The waitress crossing in front with a tray of foaming steins held out before her. */
 export function waitress(ctx: Ctx, s: Scene): void {
   const wa = waitressAt(s.t, halfWidth(s));
   if (!wa.shown) return;
@@ -547,6 +489,7 @@ export function waitress(ctx: Ctx, s: Scene): void {
   const x = cx + wa.x * u;
   const stride = s.t * 8;
   const f = WAITRESS;
+  const size = f.size;
   f.m = wa.m;
   f.lift = Math.abs(Math.sin(stride)) * 0.003;
   f.lean = 0.03;
@@ -554,20 +497,31 @@ export function waitress(ctx: Ctx, s: Scene): void {
   f.footR = 0.009 - Math.sin(stride) * 0.012;
   f.raiseL = Math.max(0, Math.cos(stride)) * 0.008;
   f.raiseR = Math.max(0, -Math.cos(stride)) * 0.008;
-  f.handLx = 0.02;
-  f.handLy = -0.086;
-  f.handRx = 0.052;
-  f.handRy = -0.086;
+  // Both hands under the tray's near rim, the far one a little further out.
+  f.handLx = TRAY_X - TRAY_HW * 0.55;
+  f.handLy = -TRAY_UP + 0.004;
+  f.handRx = TRAY_X - TRAY_HW * 0.2;
+  f.handRy = -TRAY_UP + 0.006;
   f.flare = 0.15;
   f.mouth = 0;
   figure(ctx, u, lw, x, foot, f);
-  // The basket, held out by its rim in both hands; her near hand over the rim.
-  const size = f.size;
-  const rim = foot - (0.086 * size + f.lift) * u;
-  const bx = x + wa.m * 0.036 * size * u;
-  pretzelBasket(ctx, u, lw, bx, rim, u * 0.058);
+  // The tray, held level (it rides her step), and the steins on it, handles out the way she
+  // goes: each stein's handle tucks behind the next one, and the leading one's shows whole.
+  const ty = foot - (TRAY_UP * size + f.lift) * u;
+  const tx = x + wa.m * TRAY_X * size * u;
+  steins(ctx, tx + wa.m * STEIN_AT * size * u, wa.m * STEIN_STEP * size * u, 3, ty, STEIN_H * size * u, lw, wa.m);
   ctx.beginPath();
-  circle(ctx, x + wa.m * f.handRx * size * u, rim, u * 0.0058);
+  pill(ctx, tx - TRAY_HW * size * u, ty - u * 0.002, TRAY_HW * 2 * size * u, u * 0.009);
+  ctx.fillStyle = PEWTER.body;
+  ctx.fill();
+  ctx.fillStyle = PEWTER.light;
+  ctx.fillRect(tx - TRAY_HW * size * u * 0.8, ty - u * 0.0005, TRAY_HW * 1.6 * size * u, u * 0.0022);
+  ctx.beginPath();
+  pill(ctx, tx - TRAY_HW * size * u, ty - u * 0.002, TRAY_HW * 2 * size * u, u * 0.009);
+  ink(ctx, lw * 0.8, INK);
+  // Her near hand on the tray's rim.
+  ctx.beginPath();
+  circle(ctx, x + wa.m * f.handRx * size * u, ty + u * 0.004, u * 0.0058);
   ctx.fillStyle = SKIN.body;
   ctx.fill();
   ink(ctx, lw * 0.7, INK);

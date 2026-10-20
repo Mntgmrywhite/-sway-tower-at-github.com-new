@@ -3,9 +3,10 @@ import type { Palette } from "../skin";
 
 // Oktoberfest colors: a Bavarian festival meadow under the Alps, in bright cartoon. Bavarian
 // blue and white for the tent, the flags and the maypole, pretzel gold and gingerbread brown
-// for the stalls, amber for the lanterns, alpine green for the meadow and the pines, snow on the peaks, and one deep indigo ink for every outline up close. Near things use
-// these as they are (flat, two-tone, inked); far things are mixed toward the sky of the hour
-// (see tone.ts) and never outlined.
+// for the stalls, golden amber under white foam for the steins, oak and iron for the barrels,
+// alpine green for the meadow and the pines, snow on the peaks, and one deep indigo ink for every
+// outline up close. Near things use these as they are (flat, two-tone, inked); far things are
+// mixed toward the sky of the hour (see tone.ts) and never outlined.
 
 /** Outline color for everything up close, and the bars' ink. */
 export const INK = "#22233f";
@@ -53,13 +54,19 @@ export const GOLD = shades("#ffc734", 0.45, 0.2);
 export const GINGER = shades("#8a4a22", 0.36, 0.26);
 export const ICING = "#ffffff";
 export const ICING_PINK = "#ff7eb0";
-/** The pretzel seller's wicker basket. */
-export const BASKET = shades("#d9a45a", 0.42, 0.3);
+/** Beer: golden amber under a white head of foam, in a dimpled glass stein with a clear glass handle; the waitress's pewter tray. */
+export const AMBER = shades("#f6aa22", 0.45, 0.2);
+export const FOAM = "#fffaf0";
+export const FOAM_SHADE = "#efe4cc";
+export const GLASS = "#fff3cf";
+export const PEWTER = shades("#aeb6c8", 0.42, 0.26);
+/** The barrels on the wagon: oak staves bound with iron hoops. */
+export const BARREL = shades("#d48a3c", 0.42, 0.28);
 /** Sausages on the grill, the roast chicken. */
 export const SAUSAGE = shades("#c75a3a", 0.36, 0.26);
 export const CHICKEN = shades("#d98a3a", 0.4, 0.26);
 export const GRILL = shades("#4a4a5a", 0.34, 0.3);
-/** Iron fittings: the wagon wheels' hubs. */
+/** Iron fittings: the wagon wheels' hubs, the barrels' hoops. */
 export const IRON: Shades = { light: "#6a667e", body: "#3a3747", shade: "#26232f" };
 
 // ---------------------------------------------------------------- the meadow and the folk

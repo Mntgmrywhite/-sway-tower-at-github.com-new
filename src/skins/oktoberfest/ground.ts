@@ -1,13 +1,18 @@
 import { alpha, circle, hash, ink, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import {
+  AMBER,
+  BARREL,
+  BRASS,
   CANVAS_BLUE,
   CANVAS_BLUE_SHADE,
   CANVAS_WHITE,
   CANVAS_WHITE_SHADE,
+  FOAM,
   GOLD,
   GRASS,
   INK,
+  IRON,
   LANTERN_GLOW,
   LANTERN_LIT,
   MEADOW,
@@ -30,11 +35,11 @@ import { block, diamond, lattice } from "./shapes";
 import type { Tone } from "./tone";
 
 // What stands on the meadow round the tower, all of it near: flat two-tone fills and one ink
-// weight. The big festival tent, its blue-and-white striped front open behind the tower: a wide
+// weight. The big beer tent, its blue-and-white striped front open behind the tower: a wide
 // marquee under a flat ridge with a row of pennants, a scalloped valance along its eaves, our
 // own FESTZELT sign on the gable, and inside, under garlands hung with paper lanterns (lit from
-// the golden evening on), the long tables laid with plates of pretzels and little vases of
-// flowers, fading back to a wall of blue-white lattice. In front
+// the golden evening on), the long tables laid with plates of pretzels and foaming steins,
+// and at the back, under a wall of blue-white lattice, the bar's row of barrels on tap. In front
 // of the opening the wooden bandstand the bars are stacked on: a plank stage with a railing at
 // each end and a step down to the trodden ground. Behind the tent's right roof a maypole rises,
 // blue-and-white spirals up its shaft, little figures of the village trades on its cross arms,
@@ -164,7 +169,83 @@ function gablePath(ctx: Ctx, cx: number, g: number, u: number): void {
   ctx.closePath();
 }
 
-/** Inside the tent, seen through its open front: the back wall of lattice, the long tables, the garlands and lanterns. */
+/** The barrels on tap at the back of the tent: how many, their spacing and radius (u), and their centers' height above the floor (u). */
+const TAPS = 7;
+const TAP_STEP = 0.06;
+const TAP_R = 0.0145;
+const TAP_UP = 0.158;
+
+/**
+ * The bar along the back wall: a row of barrels lying on a rack, heads out, each with an iron
+ * hoop round its head, a lit rim and a brass tap.
+ */
+function taps(ctx: Ctx, cx: number, g: number, u: number, lw: number): void {
+  const y = g - TAP_UP * u;
+  const r = TAP_R * u;
+  const half = ((TAPS - 1) / 2) * TAP_STEP * u;
+  // The rack they lie on.
+  ctx.fillStyle = WOOD_DARK.shade;
+  ctx.fillRect(cx - half - r * 1.4, y + r * 0.8, half * 2 + r * 2.8, u * 0.006);
+  ctx.beginPath();
+  for (let i = 0; i < TAPS; i++) circle(ctx, cx - half + i * TAP_STEP * u, y, r);
+  ctx.fillStyle = BARREL.body;
+  ctx.fill();
+  ink(ctx, lw * 0.7, INK);
+  ctx.beginPath();
+  for (let i = 0; i < TAPS; i++) circle(ctx, cx - half + i * TAP_STEP * u, y, r * 0.72);
+  ctx.strokeStyle = IRON.body;
+  ctx.lineWidth = Math.max(1, r * 0.16);
+  ctx.stroke();
+  ctx.fillStyle = BARREL.light;
+  ctx.beginPath();
+  for (let i = 0; i < TAPS; i++) oval(ctx, cx - half + i * TAP_STEP * u - r * 0.25, y - r * 0.3, r * 0.26, r * 0.16, -0.5);
+  ctx.fill();
+  // The taps: a brass spout from each head's foot.
+  ctx.fillStyle = BRASS.body;
+  ctx.beginPath();
+  for (let i = 0; i < TAPS; i++) {
+    const x = cx - half + i * TAP_STEP * u;
+    ctx.rect(x - r * 0.12, y + r * 0.3, r * 0.24, r * 0.5);
+    ctx.rect(x - r * 0.3, y + r * 0.35, r * 0.6, r * 0.18);
+  }
+  ctx.fill();
+}
+
+/** Where the tables' tiny steins stand: x centers relative to the table's center, as shares of its half width, for the back row (the front row skips the middle pair the tower hides). */
+const TABLE_STEINS = [-0.66, -0.22, 0.22, 0.66] as const;
+
+/**
+ * Tiny steins along the two tables' top edges, a pair between each two plates: amber glass, a
+ * cap of foam, a handle, all in three fills.
+ */
+function tableSteins(ctx: Ctx, cx: number, g: number, u: number): void {
+  const w = u * 0.0075;
+  const h = u * 0.0105;
+  for (let pass = 0; pass < 3; pass++) {
+    ctx.beginPath();
+    for (let row = 0; row < 2; row++) {
+      const y = g - u * (0.13 - row * 0.06) + u * 0.001;
+      const hw = (POST_X - 0.03 + row * 0.015) * u;
+      for (const k of TABLE_STEINS) {
+        if (row === 1 && Math.abs(k) < 0.5) continue;
+        for (const dx of PAIR) {
+          const x = cx + k * hw + dx * u;
+          if (pass === 0) {
+            ctx.rect(x - w / 2 - u * 0.001, y - h - u * 0.001, w + u * 0.002, h + u * 0.001);
+            ctx.rect(x + w / 2, y - h * 0.75, u * 0.003, h * 0.5);
+          } else if (pass === 1) ctx.rect(x - w / 2, y - h, w, h);
+          else ctx.rect(x - w / 2 - u * 0.0008, y - h - u * 0.0035, w + u * 0.0016, u * 0.0042);
+        }
+      }
+    }
+    ctx.fillStyle = pass === 0 ? INK : pass === 1 ? AMBER.body : FOAM;
+    ctx.fill();
+  }
+}
+/** The two steins of a pair, either side of the gap between two plates (u). */
+const PAIR = [-0.007, 0.006] as const;
+
+/** Inside the tent, seen through its open front: the back wall of lattice, the barrels on tap, the long tables, the garlands and lanterns. */
 function inside(ctx: Ctx, s: Scene, cx: number, g: number, tone: Tone, lw: number): void {
   const u = s.u;
   const l = cx - POST_X * u;
@@ -183,9 +264,11 @@ function inside(ctx: Ctx, s: Scene, cx: number, g: number, tone: Tone, lw: numbe
   ctx.beginPath();
   innerLattice(ctx, l + u * 0.02, wallTop + u * 0.02, r - l - u * 0.04, u * 0.07, u * 0.0105, u * 0.0145);
   ctx.fill();
-  // The floor between the tables, deeper; the long tables in perspective with their benches.
+  // The floor between the tables, deeper; the bar's barrels against the back wall; the long
+  // tables in perspective with their benches.
   ctx.fillStyle = TENT_INSIDE_DEEP;
   ctx.fillRect(l, wallBot, r - l, g - wallBot + 1);
+  taps(ctx, cx, g, u, lw);
   for (let row = 0; row < 2; row++) {
     const y = g - u * (0.13 - row * 0.06);
     const h = u * (0.016 + row * 0.006);
@@ -196,8 +279,8 @@ function inside(ctx: Ctx, s: Scene, cx: number, g: number, tone: Tone, lw: numbe
     ctx.fill();
     ctx.fillStyle = WOOD_DARK.light;
     ctx.fillRect(cx - hw, y, hw * 2, h * 0.3);
-    // Along the table's top edge, tiny: white plates with a pretzel on each, and between every
-    // other pair a little blue vase with a red flower.
+    // Along the table's top edge, tiny: white plates with a pretzel on each (and between each
+    // two plates a pair of steins: tableSteins, below).
     ctx.fillStyle = CANVAS_WHITE;
     ctx.beginPath();
     for (let i = -4; i <= 4; i++) {
@@ -212,21 +295,8 @@ function inside(ctx: Ctx, s: Scene, cx: number, g: number, tone: Tone, lw: numbe
       oval(ctx, cx + i * hw * 0.22, y - u * 0.005, u * 0.0055, u * 0.0035);
     }
     ctx.fill();
-    ctx.fillStyle = CANVAS_BLUE;
-    ctx.beginPath();
-    for (let i = -3; i <= 3; i += 2) {
-      if (row === 1 && Math.abs(i) < 2) continue;
-      ctx.rect(cx + i * hw * 0.22 - u * 0.0025, y - u * 0.008, u * 0.005, u * 0.008);
-    }
-    ctx.fill();
-    ctx.fillStyle = LANTERN_COLORS[0];
-    ctx.beginPath();
-    for (let i = -3; i <= 3; i += 2) {
-      if (row === 1 && Math.abs(i) < 2) continue;
-      circle(ctx, cx + i * hw * 0.22, y - u * 0.011, u * 0.0035);
-    }
-    ctx.fill();
   }
+  tableSteins(ctx, cx, g, u);
   // Two garlands swagged from the beam between the posts, and the lanterns hanging from them.
   ctx.strokeStyle = WREATH.shade;
   ctx.lineWidth = Math.max(1.5, u * 0.007);
@@ -236,40 +306,78 @@ function inside(ctx: Ctx, s: Scene, cx: number, g: number, tone: Tone, lw: numbe
   ctx.quadraticCurveTo(cx - POST_X * u * 0.5, top + u * 0.11, cx, top + u * 0.03);
   ctx.quadraticCurveTo(cx + POST_X * u * 0.5, top + u * 0.11, r, top + u * 0.004);
   ctx.stroke();
-  for (let i = 0; i < LANTERNS.length; i++) {
-    const [X, d] = LANTERNS[i]!;
-    const x = cx + X * u;
-    const y = top + d * u + u * 0.028;
-    const rr = LANTERN_R * u;
-    if (tone.lights > 0.01) {
-      ctx.fillStyle = alpha(LANTERN_GLOW, 0.32 * tone.lights);
-      ctx.beginPath();
-      circle(ctx, x, y, rr * 2.1);
-      ctx.fill();
-    }
+  lanterns(ctx, cx, top, u, lw, tone);
+}
+
+/** Whether lantern i is the first of its color (so each color is filled once). */
+function firstOfColor(i: number): boolean {
+  return LANTERN_COLORS.indexOf(LANTERN_COLORS[i]!) === i;
+}
+
+/**
+ * The paper lanterns hanging under the garlands from the beam at `top`, each part of all of them
+ * in one fill or stroke: the glow round them once lit, the strings, the paper (by color, or lit),
+ * the ink, a band of color round each, the caps.
+ */
+function lanterns(ctx: Ctx, cx: number, top: number, u: number, lw: number, tone: Tone): void {
+  const rr = LANTERN_R * u;
+  const n = LANTERNS.length;
+  const lit = tone.lights > 0.5;
+  if (tone.lights > 0.01) {
     ctx.beginPath();
-    ctx.moveTo(x, y - rr - u * 0.012);
-    ctx.lineTo(x, y - rr);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = lw * 0.6;
-    ctx.stroke();
-    ctx.beginPath();
-    oval(ctx, x, y, rr, rr * 0.86);
-    ctx.fillStyle = tone.lights > 0.5 ? LANTERN_LIT : LANTERN_COLORS[i]!;
-    ctx.fill();
-    ink(ctx, lw * 0.7, INK);
-    ctx.fillStyle = LANTERN_COLORS[i]!;
-    ctx.globalAlpha = tone.lights > 0.5 ? 0.55 : 0.35;
-    ctx.beginPath();
-    ctx.rect(x - rr * 0.95, y - rr * 0.25, rr * 1.9, rr * 0.5);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = INK;
-    ctx.beginPath();
-    ctx.rect(x - rr * 0.3, y - rr - u * 0.003, rr * 0.6, u * 0.004);
-    ctx.rect(x - rr * 0.25, y + rr * 0.86 - u * 0.001, rr * 0.5, u * 0.004);
+    for (let i = 0; i < n; i++) circle(ctx, cx + LANTERNS[i]![0] * u, top + (LANTERNS[i]![1] + 0.028) * u, rr * 2.1);
+    ctx.fillStyle = alpha(LANTERN_GLOW, 0.32 * tone.lights);
     ctx.fill();
   }
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = cx + LANTERNS[i]![0] * u;
+    const y = top + (LANTERNS[i]![1] + 0.028) * u;
+    ctx.moveTo(x, y - rr - u * 0.012);
+    ctx.lineTo(x, y - rr);
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = lw * 0.6;
+  ctx.stroke();
+  // The paper: lit all alike, or by day in each lantern's color.
+  for (let c = 0; c < n; c++) {
+    if (lit ? c > 0 : !firstOfColor(c)) continue;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      if (!lit && LANTERN_COLORS[i] !== LANTERN_COLORS[c]) continue;
+      oval(ctx, cx + LANTERNS[i]![0] * u, top + (LANTERNS[i]![1] + 0.028) * u, rr, rr * 0.86);
+    }
+    ctx.fillStyle = lit ? LANTERN_LIT : LANTERN_COLORS[c]!;
+    ctx.fill();
+  }
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) oval(ctx, cx + LANTERNS[i]![0] * u, top + (LANTERNS[i]![1] + 0.028) * u, rr, rr * 0.86);
+  ink(ctx, lw * 0.7, INK);
+  // A band of the lantern's color round its middle.
+  ctx.globalAlpha = lit ? 0.55 : 0.35;
+  for (let c = 0; c < n; c++) {
+    if (!firstOfColor(c)) continue;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      if (LANTERN_COLORS[i] !== LANTERN_COLORS[c]) continue;
+      const x = cx + LANTERNS[i]![0] * u;
+      const y = top + (LANTERNS[i]![1] + 0.028) * u;
+      ctx.rect(x - rr * 0.95, y - rr * 0.25, rr * 1.9, rr * 0.5);
+    }
+    ctx.fillStyle = LANTERN_COLORS[c]!;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // The caps, top and bottom.
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = cx + LANTERNS[i]![0] * u;
+    const y = top + (LANTERNS[i]![1] + 0.028) * u;
+    ctx.rect(x - rr * 0.3, y - rr - u * 0.003, rr * 0.6, u * 0.004);
+    ctx.rect(x - rr * 0.25, y + rr * 0.86 - u * 0.001, rr * 0.5, u * 0.004);
+  }
+  ctx.fillStyle = INK;
+  ctx.fill();
 }
 
 /** The tent's side walls: canvas panels from the eaves down to the ground, a blue stripe on each, inked. */
@@ -579,10 +687,17 @@ export const POLE_TOP = 0.7;
 const POLE_W = 0.013;
 export const WREATH_UP = 0.62;
 export const WREATH_R = 0.042;
-const ARMS = [0.46, 0.54] as const;
-const ARM_HW = 0.03;
+/** The cross arms' heights (u above the floor): the lower clear of the tent's roof, the upper's figures clear of the wreath's ribbons. */
+export const ARMS = [0.44, 0.495] as const;
+export const ARM_HW = 0.03;
+/** How high the figures on an arm reach above it (u: the baker's pretzel held up). */
+export const FIGURES_UP = 0.0325;
+/** The ribbons: where they hang from (u below the wreath's center), how far they hang and how wide they are (u). */
+export const RIBBON_FROM = WREATH_R * 0.8;
+export const RIBBON_DROP = 0.048;
+export const RIBBON_W = 0.006;
 
-/** Little figures on the cross arms: a dancing couple on the upper arm, a wheelwright with his wheel and a pretzel baker on the lower. */
+/** Little figures on the cross arms: a dancing couple on the lower arm, a brewer with his barrel and a pretzel baker on the upper. */
 function poleFigures(ctx: Ctx, cx: number, g: number, u: number, lw: number): void {
   ctx.fillStyle = CANVAS_BLUE;
   for (let a = 0; a < ARMS.length; a++) {
@@ -603,14 +718,20 @@ function poleFigures(ctx: Ctx, cx: number, g: number, u: number, lw: number): vo
         }
         ctx.rect(x - u * 0.012, y - u * 0.019, u * 0.024, u * 0.003);
       } else if (m < 0) {
-        // A wheelwright standing his wagon wheel up beside him: a rim round a hub.
-        circle(ctx, x - u * 0.004, y - u * 0.024, u * 0.005);
-        ctx.rect(x - u * 0.008, y - u * 0.02, u * 0.008, u * 0.018);
+        // A brewer beside his barrel, standing on end: the staves bulge, two hoops cut across it.
+        circle(ctx, x - u * 0.006, y - u * 0.024, u * 0.005);
+        ctx.rect(x - u * 0.01, y - u * 0.02, u * 0.008, u * 0.018);
         ctx.fill();
+        const bx = x + u * 0.0065;
         ctx.beginPath();
-        circle(ctx, x + u * 0.008, y - u * 0.009, u * 0.0085);
-        circle(ctx, x + u * 0.008, y - u * 0.009, u * 0.0052);
-        circle(ctx, x + u * 0.008, y - u * 0.009, u * 0.002);
+        ctx.moveTo(bx - u * 0.0055, y - u * 0.019);
+        ctx.lineTo(bx + u * 0.0055, y - u * 0.019);
+        ctx.quadraticCurveTo(bx + u * 0.0095, y - u * 0.0105, bx + u * 0.0055, y - u * 0.002);
+        ctx.lineTo(bx - u * 0.0055, y - u * 0.002);
+        ctx.quadraticCurveTo(bx - u * 0.0095, y - u * 0.0105, bx - u * 0.0055, y - u * 0.019);
+        ctx.closePath();
+        ctx.rect(bx - u * 0.01, y - u * 0.0155, u * 0.02, u * 0.0018);
+        ctx.rect(bx - u * 0.01, y - u * 0.0073, u * 0.02, u * 0.0018);
         ctx.fill("evenodd");
         continue;
       } else {
@@ -692,19 +813,20 @@ export function maypole(ctx: Ctx, s: Scene): void {
   ctx.arc(x, wy, r, Math.PI * 1.15, Math.PI * 1.85);
   ctx.stroke();
   // Ribbons from the wreath's foot, each hanging its own way (still: the wreath's edge is at
-  // the tower's column, where nothing moves).
-  const drop = u * 0.09;
+  // the tower's column, where nothing moves), ending just above the upper arm's figures.
+  const drop = u * RIBBON_DROP;
+  const from = wy + RIBBON_FROM * u;
   for (let i = 0; i < 4; i++) {
     const rx = x + (i - 1.5) * u * 0.012;
     const sway = (hash(i + 7500) - 0.5) * u * 0.012;
     ctx.beginPath();
-    ctx.moveTo(rx, wy + r * 0.8);
-    ctx.quadraticCurveTo(rx + sway * 0.4, wy + r * 0.8 + drop * 0.5, rx + sway, wy + r * 0.8 + drop);
+    ctx.moveTo(rx, from);
+    ctx.quadraticCurveTo(rx + sway * 0.4, from + drop * 0.5, rx + sway, from + drop);
     ctx.strokeStyle = INK;
-    ctx.lineWidth = u * 0.006 + lw * 1.2;
+    ctx.lineWidth = u * RIBBON_W + lw * 1.2;
     ctx.stroke();
     ctx.strokeStyle = i % 2 ? RIBBON_BLUE : RIBBON_WHITE;
-    ctx.lineWidth = u * 0.006;
+    ctx.lineWidth = u * RIBBON_W;
     ctx.stroke();
   }
   // The finial: a gold ball on the top.

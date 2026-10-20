@@ -12,8 +12,9 @@ import { DAY_HIGH, level, smooth, type Tone } from "./tone";
 // Ferris wheel turning slowly (its bulbs lit by night) and the chain carousel, its chairs
 // flying out round the crown as it turns. Both rides stand low enough to keep below the
 // massif's ridge behind them, so when the sun sets behind the Alps nothing of the fair ever
-// passes in front of it. Below them the festival meadow, lighter far off, with picnic tables on
-// the left (benches, folk sat at them under a sunshade) and round hay bales on the right.
+// passes in front of it. Below them the festival meadow, lighter far off, with the beer garden's
+// long tables on the left (benches, folk sat at them with plates and steins, under a sunshade)
+// and round hay bales on the right.
 // Above the start a floor of mist gathers below you and covers the meadow: from then on its
 // puffy top is the horizon, and the peaks, the steeple and the rides stand out of it. Then it
 // sinks with them to rest low on the screen, and there it stays for good, a calm sea of cloud
@@ -780,9 +781,9 @@ export function meadowFar(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void 
   ctx.fill();
 }
 
-// ---------------------------------------------------------------- the picnic tables
+// ---------------------------------------------------------------- the beer garden
 
-/** The far picnic tables on the left meadow: X (u from center), depth below the far line (u), and who sits there (cloth indexes, -1 for an empty seat). */
+/** The beer garden's far tables on the left meadow: X (u from center), depth below the far line (u), and who sits there (cloth indexes, -1 for an empty seat). */
 const TABLES: readonly (readonly [number, number, number, number])[] = [
   [-0.46, 0.075, 0, 2],
   [-0.4, 0.092, 1, -1],
@@ -790,10 +791,10 @@ const TABLES: readonly (readonly [number, number, number, number])[] = [
 ];
 
 /**
- * Picnic tables far off on the left meadow: three long tables on trestles receding up the
- * meadow, benches along them, a few folk sat at them with their plates, and a sunshade.
+ * The beer garden far off on the left meadow: three long tables on trestles receding up the
+ * meadow, benches along them, a few folk sat at them with their plates and steins, and a sunshade.
  */
-export function picnicTables(ctx: Ctx, s: Scene, tone: Tone, hz: number): void {
+export function beerGarden(ctx: Ctx, s: Scene, tone: Tone, hz: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
   for (const [X, d, a, b] of TABLES) {
@@ -827,6 +828,17 @@ export function picnicTables(ctx: Ctx, s: Scene, tone: Tone, hz: number): void {
     ctx.beginPath();
     ctx.rect(x - hw * 0.45 - u * 0.004 * k, y - u * 0.0055 * k, u * 0.008 * k, u * 0.0018 * k);
     ctx.rect(x + hw * 0.45 - u * 0.004 * k, y - u * 0.0055 * k, u * 0.008 * k, u * 0.0018 * k);
+    ctx.fill();
+    // A stein beside each plate, toward the table's middle: amber under a cap of foam.
+    ctx.fillStyle = tone.beer;
+    ctx.beginPath();
+    ctx.rect(x - hw * 0.12 - u * 0.0022 * k, y - u * 0.0098 * k, u * 0.0044 * k, u * 0.0058 * k);
+    ctx.rect(x + hw * 0.12 - u * 0.0022 * k, y - u * 0.0098 * k, u * 0.0044 * k, u * 0.0058 * k);
+    ctx.fill();
+    ctx.fillStyle = tone.foam;
+    ctx.beginPath();
+    ctx.rect(x - hw * 0.12 - u * 0.0026 * k, y - u * 0.0118 * k, u * 0.0052 * k, u * 0.0022 * k);
+    ctx.rect(x + hw * 0.12 - u * 0.0026 * k, y - u * 0.0118 * k, u * 0.0052 * k, u * 0.0022 * k);
     ctx.fill();
   }
   // A sunshade over the far table: a pole and a round canopy in the village's red.
@@ -956,7 +968,7 @@ export function farLayer(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   if (landShows(s, top)) {
     const bottom = Math.min(s.cssH, top + s.u * 0.12);
     meadowFar(ctx, s, tone, bottom);
-    picnicTables(ctx, s, tone, hz);
+    beerGarden(ctx, s, tone, hz);
     hayBales(ctx, s, tone, hz);
   }
   church(ctx, s, tone, hz);

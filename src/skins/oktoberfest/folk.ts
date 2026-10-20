@@ -30,8 +30,8 @@ import { centerX, inkW } from "./ground";
 // shirt, cream stockings and black shoes, and a green alpine hat with a feather; the women a
 // dirndl (a dark bodice over a white blouse with puffed sleeves, a wide skirt and an apron),
 // their fair hair in braids. Arms and legs are strokes from the shoulders and hips to wherever
-// a pose puts the hands and feet, so one figure serves the band, the dancers, the pretzel seller
-// and the wagon's driver.
+// a pose puts the hands and feet, so one figure serves the band, the dancers, the waitress and
+// the wagon's driver.
 //
 // Beside the tent on the left, in front of the bandstand's end, the oompah band strikes up in
 // the first second: a tuba player (his cheeks puffing on the beat), an accordion player (the
@@ -41,8 +41,8 @@ import { centerX, inkW } from "./ground";
 // right a dancing pair: he does a schuhplattler, the traditional slap dance (slapping his
 // thighs, clapping, slapping a raised knee, the sole of his shoe behind him, a stamp and a
 // leap), while she twirls, her skirt flaring; then the two of them bow, by the ninth second.
-// Then they rest a while, swaying, and go again (every DANCE_ROUND seconds). And the pretzel
-// girl crosses in front with her basket (parade.ts times her).
+// Then they rest a while, swaying, and go again (every DANCE_ROUND seconds). And the waitress
+// carries a tray of foaming steins across the front (parade.ts times her).
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
@@ -852,7 +852,7 @@ export function dancers(ctx: Ctx, s: Scene): void {
   figure(ctx, u, lw, cx + DANCER_X[1] * u, foot, w);
 }
 
-/** A dirndl in blue for the pretzel seller, and the wagon's driver's colors, for parade.ts. */
+/** A dirndl in blue for the waitress, and the wagon's driver's colors, for parade.ts. */
 export const WAITRESS = standing(true, DIRNDL_BLUE, APRON_BLUE, HAIR);
 WAITRESS.size = 0.92;
 export const DRIVER = standing(false, SHIRT_WHITE, SHIRT_CHECK, HAIR);

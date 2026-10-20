@@ -9,9 +9,9 @@ import { PARADE_EVERY, PARADE_LENGTH, PARADE_REACH, paradeAt, WAITRESS_EVERY, WA
 // happens for the first time, key moment included, by OPENING, and then again and again.
 //
 // What the start view shows over time at the Oktoberfest: the oompah band striking up (and,
-// after each set, resting a moment and striking up again), the harvest parade crossing in front
+// after each set, resting a moment and striking up again), the brewers' parade crossing in front
 // (past the tower, and away out the right), the dancers' schuhplattler with its leap and their
-// bow, and the pretzel seller crossing with her basket (past the tower). The rest is ambient: the
+// bow, and the waitress crossing with her tray of steins (past the tower). The rest is ambient: the
 // rides turning, the stall's smoke, the band playing on. The lane's balloons and lanterns, the
 // lights and the stars come with the height you climb to, so they are exempt.
 
@@ -94,7 +94,7 @@ describe("oktoberfest actions happen in the first 10 seconds", () => {
     expect(rest).toBeLessThanOrEqual(OPENING + 0.1);
   });
 
-  it("the pretzel seller comes in from the left after the parade and passes the tower by the tenth second", () => {
+  it("the waitress comes in from the left after the parade and passes the tower by the tenth second", () => {
     for (const half of HALVES) {
       let out = -1;
       let past = -1;
@@ -117,7 +117,7 @@ describe("oktoberfest actions happen in the first 10 seconds", () => {
 describe("oktoberfest actions repeat", () => {
   // Over ten minutes of the clock, each action comes round again and again, never more than
   // RHYTHM seconds apart, and each round is the same as the first (the dance, the band's set,
-  // the parade), or the mirror of it (the pretzel seller, who goes the other way each time).
+  // the parade), or the mirror of it (the waitress, who goes the other way each time).
   it("the band rests after each set and strikes up again", () => {
     const strikes = starts((t) => playing(t) > 0.95);
     const rests = starts((t) => playing(t) < 0.05);
@@ -148,7 +148,7 @@ describe("oktoberfest actions repeat", () => {
     expect(paradeAt(PARADE_EVERY * 5 + 2, half).x).toBeCloseTo(paradeAt(2, half).x, 6);
   });
 
-  it.each(HALVES)("the pretzel seller crosses again and again, each way in turn (half width %s u)", (half) => {
+  it.each(HALVES)("the waitress crosses again and again, each way in turn (half width %s u)", (half) => {
     const right = starts((t) => {
       const w = waitressAt(t, half);
       return w.shown && w.m > 0 && w.x >= 0;
@@ -163,7 +163,7 @@ describe("oktoberfest actions repeat", () => {
   });
 
   it.each(HALVES)("everything that crosses enters and leaves through the screen's sides, never popping up in view (half width %s u)", (half) => {
-    // Whenever the parade or the pretzel seller turns up or goes, the part of it nearest the
+    // Whenever the parade or the waitress turns up or goes, the part of it nearest the
     // screen is just past a side of it.
     let wasP = paradeAt(0, half).shown;
     let wasW = waitressAt(0, half).shown;
@@ -182,15 +182,15 @@ describe("oktoberfest actions repeat", () => {
     }
   });
 
-  it.each(HALVES)("the parade and the pretzel seller never meet, for as long as a tower lasts (half width %s u)", (half) => {
-    // Whenever both are in view, the wagon (nose to tail) and she (with her basket) keep clear of each other.
+  it.each(HALVES)("the parade and the waitress never meet, for as long as a tower lasts (half width %s u)", (half) => {
+    // Whenever both are in view, the wagon (nose to tail) and she (with her tray) keep clear of each other.
     for (let t = 0; t < STAND; t += FRAME) {
       const p = paradeAt(t, half);
       const w = waitressAt(t, half);
       if (!p.shown || !w.shown) continue;
       const wagon = [p.x - PARADE_LENGTH - PARADE_REACH, p.x + PARADE_REACH];
       const her = [w.x - WAITRESS_REACH, w.x + WAITRESS_REACH];
-      expect(her[1]! < wagon[0]! || her[0]! > wagon[1]!, `t=${t.toFixed(2)}: the pretzel seller meets the parade`).toBe(true);
+      expect(her[1]! < wagon[0]! || her[0]! > wagon[1]!, `t=${t.toFixed(2)}: the waitress meets the parade`).toBe(true);
     }
   });
 });

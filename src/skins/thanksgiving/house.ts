@@ -13,7 +13,7 @@ const CLAPBOARD = "#e2cfa6";
 const ROOF = tone("#c2533a", 0.3, 0.26);
 const TRIM = "#fffaf0";
 const SHUTTER = "#5f8a4a";
-const DOOR = tone("#b8432e");
+const DOOR_TONE = tone("#b8432e");
 const BRICK = tone("#a8513c");
 const SMOKE = "#f4ecf4";
 
@@ -26,6 +26,13 @@ const GABLE_HW = 0.058;
 const GABLE_Y = -0.272;
 const PORCH_TOP = -0.074;
 const FLOOR = -0.014;
+
+/** The front door, in the house's local units: its sides, top, sill, and the foot of the steps. */
+export const DOOR = { x0: -0.02, x1: 0.02, top: -0.066, sill: FLOOR, foot: 0.018 } as const;
+/** Where the house may be overlapped by the family coming and going (the door bay and its steps). */
+export const DOOR_BAY = { x0: -0.04, x1: 0.04, top: -0.075, bottom: 0.03 } as const;
+const INSIDE = "#ffd27a";
+const INSIDE_DEEP = "#e8a64a";
 
 /** Window centers: x, y (center), w, h. */
 const WINDOWS = [
@@ -117,8 +124,8 @@ export function farmhouse(ctx: Ctx, s: Scene, x: number, y: number, scale: numbe
 
   // Door with a knob and a little wreath of leaves
   ctx.beginPath();
-  R(ctx, -0.02, -0.066, 0.04, 0.052);
-  cel(ctx, DOOR, -0.066, FLOOR, thin, 0.15, 0.2);
+  R(ctx, DOOR.x0, DOOR.top, DOOR.x1 - DOOR.x0, DOOR.sill - DOOR.top);
+  cel(ctx, DOOR_TONE, DOOR.top, FLOOR, thin, 0.15, 0.2);
   ctx.beginPath();
   C(ctx, 0.012, -0.04, 0.0035);
   ctx.fillStyle = "#ffd768";
@@ -188,4 +195,32 @@ export function farmhouse(ctx: Ctx, s: Scene, x: number, y: number, scale: numbe
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+}
+
+/**
+ * The front door standing open on the warm, lamplit hall (drawn over the house while someone
+ * comes or goes): the doorway glowing, the door swung in against its left jamb. Same pen as
+ * `farmhouse`: the house's spot and scale.
+ */
+export function openDoor(ctx: Ctx, x: number, y: number, scale: number, lw: number): void {
+  const thin = Math.max(1, lw * 0.7);
+  pen(x, y, scale, 12);
+  ctx.beginPath();
+  RS(ctx, DOOR.x0, DOOR.top, DOOR.x1 - DOOR.x0, DOOR.sill - DOOR.top);
+  ctx.fillStyle = INSIDE;
+  ctx.fill();
+  ctx.fillStyle = INSIDE_DEEP;
+  ctx.fillRect(X(DOOR.x0), Y(DOOR.top), len(DOOR.x1 - DOOR.x0), len(0.012));
+  ink(ctx, thin);
+  ctx.beginPath();
+  M(ctx, DOOR.x0, DOOR.top);
+  S(ctx, DOOR.x0 + 0.009, DOOR.top + 0.005);
+  S(ctx, DOOR.x0 + 0.009, DOOR.sill - 0.003);
+  S(ctx, DOOR.x0, DOOR.sill);
+  ctx.closePath();
+  cel(ctx, DOOR_TONE, DOOR.top, DOOR.sill, thin, 0.15, 0.2);
+}
+
+function ink(ctx: Ctx, w: number): void {
+  line(ctx, INK, w);
 }

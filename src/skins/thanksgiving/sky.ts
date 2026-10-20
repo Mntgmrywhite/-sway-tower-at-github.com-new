@@ -3,6 +3,7 @@ import { altitude01 } from "../../base/world";
 import type { Scene } from "../skin";
 import { INK, PALETTE } from "./colors";
 import { addLeaf, LEAF_BACKS, LEAF_COLORS } from "./leaves";
+import { keepClear } from "./shown";
 import { level, LOOP_START, loopTone, moonDown, skyFloor, sunUp, type Tone } from "./story";
 
 // The afternoon sky over the hollow: a low comic-strip sun resting on the clouds at the right
@@ -10,6 +11,9 @@ import { level, LOOP_START, loopTone, moonDown, skyFloor, sunUp, type Tone } fro
 // and tumbling down, and now and then a faded V of geese heading south. Past the first pass the
 // day comes round again (story.ts): the sky is repainted in the loop's light, the moon goes down
 // and comes back up the left lane, and the sun the right one.
+//
+// Nothing passes over the sun or the moon (the owner's rule): the V of geese glides down to pass
+// under their light, and the leaves blowing about near us swing round them.
 
 /** Bright sky things stay out of the top-center HUD zone: below this, or outside 0.2..0.8 of the width. */
 export const HUD_BAND = 0.32;
@@ -40,7 +44,12 @@ const LANE_ROOM = 0.02;
 /** A body is fully shown once it is this far up its lane (0 at the low end, 1 at the top). */
 const LANE_FADE = 0.35;
 
-/** Where a sky body is this frame: center, radius, how far its light reaches, its opacity, and whether it shows. */
+/**
+ * Where a sky body is this frame: center, radius, how far its light reaches, its opacity, whether
+ * it shows, how present it is for the leaves to swing round (0..1, smooth in the climb: up from
+ * behind the clouds, or faded in at the low end of its lane), and in the loop how far it has come
+ * on in its lane for what keeps off its light (`lead`, see `laneLead`; 1 in the first pass).
+ */
 export interface Body {
   x: number;
   y: number;
@@ -48,19 +57,46 @@ export interface Body {
   reach: number;
   alpha: number;
   on: boolean;
+  shown: number;
+  lead: number;
 }
 
-const SUN_AT: Body = { x: 0, y: 0, r: 0, reach: 0, alpha: 1, on: false };
-const MOON_AT: Body = { x: 0, y: 0, r: 0, reach: 0, alpha: 1, on: false };
+const SUN_AT: Body = { x: 0, y: 0, r: 0, reach: 0, alpha: 1, on: false, shown: 1, lead: 1 };
+const MOON_AT: Body = { x: 0, y: 0, r: 0, reach: 0, alpha: 1, on: false, shown: 1, lead: 1 };
 
 /** In the loop: the screen y of the low end of a body's lane (`low` down the screen, the whole body on it). */
 function laneLow(s: Scene, low: number, reach: number): number {
   return Math.min(s.cssH * low, s.cssH - reach - s.u * LANE_ROOM);
 }
 
+/** A body fading in at the low end of its lane is all there, for what keeps off its light, by this opacity. */
+const SHOWN_ALPHA = 0.15;
+
 /** How opaque a body is `up` of the way up its lane (0 at the low end). */
 function laneAlpha(up: number): number {
   return smooth(clamp01(up / LANE_FADE));
+}
+
+/** How far up its lane a body coming on at the low end of it is SHOWN_ALPHA opaque. */
+const UP_SHOWN = (() => {
+  let lo = 0;
+  let hi = LANE_FADE;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (laneAlpha(mid) < SHOWN_ALPHA) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+})();
+
+/**
+ * In the loop, how far a body `up` of the way up its lane has come on, for what keeps off its
+ * light (the leaves, the V of geese, the clouds you climb past): from 0 as it starts up at the
+ * low end, evenly with its climb, to 1 by the time it is SHOWN_ALPHA opaque. Not eased like its
+ * opacity: that comes on so steeply that what swings round it would lurch as the camera climbs.
+ */
+function laneLead(up: number): number {
+  return clamp01(up / UP_SHOWN);
 }
 
 /**
@@ -81,6 +117,8 @@ export function sunSpot(s: Scene): Body {
     b.y = s.horizonY - s.u * 0.4 + s.rise * 0.2;
     if (inHud) b.y = Math.max(b.y, s.cssH * HUD_BAND + b.reach);
     b.alpha = 1;
+    b.shown = 1;
+    b.lead = 1;
     b.on = b.y - b.r * 1.6 <= s.cssH;
     return b;
   }
@@ -90,6 +128,8 @@ export function sunSpot(s: Scene): Body {
   const low = laneLow(s, SUN_LOW, b.reach);
   b.y = low + (day - low) * up;
   b.alpha = laneAlpha(up);
+  b.lead = laneLead(up);
+  b.shown = b.lead;
   b.on = up > 0;
   return b;
 }
@@ -156,6 +196,9 @@ export function moonSpot(s: Scene): Body {
     const low = s.horizonY - s.u * 0.12;
     b.y = low + (high - low) * up;
     b.alpha = 1;
+    // Present once it is about to peek over the cloud pile it rises from behind.
+    b.shown = clamp01((low - b.y) / (s.u * 0.04));
+    b.lead = 1;
     b.on = b.y - b.r * 1.5 <= s.cssH && up > 0;
     return b;
   }
@@ -163,6 +206,8 @@ export function moonSpot(s: Scene): Body {
   const low = laneLow(s, MOON_LOW, b.reach);
   b.y = low + (high - low) * up;
   b.alpha = laneAlpha(up);
+  b.lead = laneLead(up);
+  b.shown = b.lead;
   b.on = up > 0;
   return b;
 }
@@ -234,16 +279,26 @@ function loopSky(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.globalAlpha = 1;
 }
 
-/** The skin's celestial layer: in the loop, its sky first; then the moon and the sun. */
+/** The skin's celestial layer: in the loop, its sky first; then the far-off geese, and the moon and the sun. */
 export function celestial(ctx: Ctx, s: Scene): void {
   const tone = loopTone(s);
   if (tone) loopSky(ctx, s, tone);
+  geese(ctx, s);
+  bodies(ctx, s);
+}
+
+/** The moon and the sun: drawn last in the celestial layer. */
+function bodies(ctx: Ctx, s: Scene): void {
   moon(ctx, s);
   sun(ctx, s);
 }
 
 // Leaves blown in from the side edges below the title, curling inward on the wind as they
-// fall. They stay out of the top-center HUD zone: they only reach the middle further down.
+// fall. They stay out of the top-center HUD zone: they only reach the middle further down. And
+// none ever crosses the sun or the moon (the sun keeps the right lane, the moon the left): near a
+// body's height, a leaf blowing down its side of the screen is carried out past the screen's
+// edge and back in below it, and one from the far side that has drifted that way is held back on
+// the body's inner side, easing in and out over SWERVE.
 
 /** Leaves in the air near the ground; more are swept up as the tower climbs into open sky. */
 const LEAVES_LOW = 8;
@@ -266,6 +321,24 @@ const DRIFT = Array.from({ length: 18 }, (_, i) => {
   };
 });
 
+/** How far above and below a body (in u) the leaves start and finish swinging round it. */
+const SWERVE = 0.16;
+
+/**
+ * Keep a leaf of this size at height y clear of a body: level with it, the leaf is kept right of
+ * the body's light (`pastRight`) or left of it, easing to no limit at all over SWERVE above and
+ * below. Returns the leaf's x.
+ */
+function swerve(s: Scene, b: Body, x: number, y: number, size: number, pastRight: boolean): number {
+  const clear = b.reach + size * 1.25;
+  const free = pastRight ? -size * 2 : s.cssW + size * 2;
+  const limit = pastRight ? b.x + clear : b.x - clear;
+  const dy = Math.abs(y - b.y) - clear;
+  const k = b.shown * (1 - smooth(clamp01(dy / (s.u * SWERVE))));
+  const at = free + (limit - free) * k;
+  return pastRight ? Math.max(x, at) : Math.min(x, at);
+}
+
 /** Per-leaf state this frame, reused so drawing allocates nothing. */
 const LEAF_NOW = DRIFT.map(() => ({ x: 0, y: 0, size: 0, angle: 0, flip: 0, on: false }));
 
@@ -276,6 +349,8 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
   const band = s.cssH * HUD_BAND;
   // Down to the horizon (held to a fixed depth in the loop, so the leaves keep their pace).
   const floor = skyFloor(s);
+  const sunB = sunSpot(s);
+  const moonB = moonSpot(s);
   for (let i = 0; i < DRIFT.length; i++) {
     const d = DRIFT[i]!;
     const n = LEAF_NOW[i]!;
@@ -291,6 +366,10 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
     const fx =
       d.x0 + 0.1 * Math.min(1, (n.y - top) / (band - top)) + d.drift * Math.max(0, (n.y - band) / (s.cssH * 0.5));
     n.x = (d.side < 0 ? fx : 1 - fx) * W + Math.sin(s.t * d.swayF + d.off) * d.sway * W;
+    // The sun on the right: leaves down the right side go out past it, the rest keep left of it;
+    // the moon on the left the other way round.
+    n.x = swerve(s, sunB, n.x, n.y, n.size, d.side > 0);
+    n.x = swerve(s, moonB, n.x, n.y, n.size, d.side > 0);
     n.angle = d.side * 0.5 + Math.sin(s.t * d.rockF + d.off * 3) * 0.75 + s.t * d.spin;
     const f = Math.cos(s.t * d.flipF + d.off);
     n.flip = (f < 0 ? -1 : 1) * (0.25 + 0.75 * Math.abs(f));
@@ -321,6 +400,31 @@ export function driftingLeaves(ctx: Ctx, s: Scene): void {
 export const GEESE_PERIOD = 28; // seconds between flights
 export const GEESE_FLIGHT = 13; // seconds to cross the screen
 const GEESE = 7;
+/** Rows back from the leader on each side of the V. */
+const GEESE_RANK = Math.ceil((GEESE - 1) / 2);
+/** How far the V reaches above and below its leader's line (wings up, bobbing), in body lengths. */
+const V_REACH = GEESE_RANK * 0.38 + 0.62;
+/** Clear space kept between the V and a body's light, and how far off (u) the V at least starts down. */
+const V_ROOM = 0.02;
+const V_RAMP = 0.3;
+/** The V glides down no steeper than this: its run sideways per unit of drop. */
+const V_GLIDE = 2.4;
+
+/**
+ * The leader's line `ly` for a V spanning x0..x1, taken under body b's light while it shows
+ * (`keep`, see shown.ts): all the way under while the V is beside the light, gliding down to it
+ * and back up again either side. Always under, never over: a V that chose its side by where it
+ * was would switch sides, and jump, as the climbing camera carried the body past its line.
+ */
+function under(s: Scene, b: Body, keep: number, x0: number, x1: number, ly: number, g: number): number {
+  if (keep <= 0) return ly;
+  const below = b.y + b.reach + s.u * V_ROOM + g * V_REACH;
+  if (ly >= below) return ly;
+  const gap = Math.max(0, b.x - b.reach - x1, x0 - (b.x + b.reach));
+  const run = Math.max(s.u * V_RAMP, (below - ly) * V_GLIDE);
+  const k = keep * smooth(clamp01(1 - gap / run));
+  return ly + (below - ly) * k;
+}
 const GOOSE = mix(PALETTE.far, "#4a3a6e", 0.35);
 
 /** Which flight of geese time t falls in (one sets off every GEESE_PERIOD seconds, the first at t = 0). */
@@ -334,21 +438,71 @@ export function geeseAcross(t: number): number {
   return tt > GEESE_FLIGHT ? -1 : tt / GEESE_FLIGHT;
 }
 
-export function geese(ctx: Ctx, s: Scene): void {
+/** Where the V of geese is this frame: whether it shows, its leader's x and line, which way it flies, a goose's length (px). */
+export interface Flock {
+  on: boolean;
+  lx: number;
+  ly: number;
+  dir: number;
+  g: number;
+}
+
+const FLOCK: Flock = { on: false, lx: 0, ly: 0, dir: 1, g: 0 };
+
+/** A box round the whole V, wings, bobbing and all: screen px. */
+export interface Box {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+const BOX: Box = { x0: 0, y0: 0, x1: 0, y1: 0 };
+
+/** The box round a V led from (lx, ly) flying `dir`, geese g long. Reused object: read it before the next call. */
+export function flockBox(lx: number, ly: number, dir: number, g: number): Box {
+  const back = g * (GEESE_RANK * 1.05 + 0.7);
+  BOX.x0 = Math.min(lx - dir * back, lx + dir * g);
+  BOX.x1 = Math.max(lx - dir * back, lx + dir * g);
+  BOX.y0 = ly - g * V_REACH;
+  BOX.y1 = ly + g * V_REACH;
+  return BOX;
+}
+
+/** The V's place this frame (what `geese` draws, and the tests read). Reused object: read it before the next call. */
+export function flockAt(s: Scene): Flock {
+  const f = FLOCK;
+  f.on = false;
   const cycle = geeseCycle(s.t);
   const k = geeseAcross(s.t);
-  if (k < 0) return;
+  if (k < 0) return f;
   const dir = hash(cycle * 7 + 3) < 0.6 ? -1 : 1;
   const g = s.u * 0.042; // body length
   const span = s.cssW + g * 14;
   const lx = dir > 0 ? -g * 2 + k * span : s.cssW + g * 2 - k * span;
   const lowest = Math.min(s.horizonY - s.u * 0.42, s.cssH * 0.6);
-  const ly = Math.max(
+  let ly = Math.max(
     s.cssH * HUD_BAND + g * 2,
     lowest - s.u * 0.12 * hash(cycle * 5 + 1) + Math.sin(k * 5) * s.u * 0.008,
   );
-  if (ly > s.horizonY - g * 3) return;
+  // Under the sun's and the moon's light as the V comes by them (gone low, it passes behind the
+  // hills, the town and the cloud bank, which are drawn over this layer).
+  const { x0, x1 } = flockBox(lx, ly, dir, g);
+  const sun = sunSpot(s);
+  ly = under(s, sun, keepClear(s, sun), x0, x1, ly, g);
+  const moon = moonSpot(s);
+  ly = under(s, moon, keepClear(s, moon), x0, x1, ly, g);
+  f.lx = lx;
+  f.ly = ly;
+  f.dir = dir;
+  f.g = g;
+  f.on = ly - g * 2 <= Math.min(s.cssH, s.horizonY);
+  return f;
+}
 
+export function geese(ctx: Ctx, s: Scene): void {
+  const { on, lx, ly, dir, g } = flockAt(s);
+  if (!on) return;
   ctx.beginPath();
   for (let j = 0; j < GEESE; j++) {
     const rank = Math.ceil(j / 2);

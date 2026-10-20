@@ -8,7 +8,8 @@ import { LOOP_LEVELS, LOOP_START } from "./story";
 import { context, PHONES, pixels, sceneAt, SCREENS, ZOOMED } from "./test-scene";
 
 // The looping day as drawn. Handing over from the first pass to the loop shows nothing; once the
-// hollow has sunk out of view, the skin's own layers repeat exactly every loop; the sun and the
+// hollow has sunk out of view, the whole backdrop (the skin paints it all, the clouds you climb
+// past included) repeats exactly every loop; the sun and the
 // moon keep to their side lanes (out of the tower's column, the HUD and the slider's run, never
 // cut off by a screen edge) through two whole loops, on phones and zoomed out; and the whole
 // scene draws at any height without trouble.
@@ -23,11 +24,8 @@ function scenery(ctx: CanvasRenderingContext2D, s: Scene): void {
   kit.front(ctx, s);
 }
 
-/** Only the skin's own layers (the base world's drifting height clouds left out). */
+/** Everything the skin paints behind the tower (with `paintsBackdrop`, the whole backdrop). */
 function ownLayers(ctx: CanvasRenderingContext2D, s: Scene): void {
-  thanksgiving.celestial!(ctx, s);
-  thanksgiving.sky!(ctx, s);
-  thanksgiving.far!(ctx, s);
   thanksgiving.ground!(ctx, s);
 }
 
@@ -54,7 +52,7 @@ describe("thanksgiving looping day", () => {
     }
   });
 
-  it.each(PHONES)("%ix%i: past the hollow, the skin's layers repeat every loop", (W, H) => {
+  it.each(PHONES)("%ix%i: past the hollow, the backdrop repeats every loop", (W, H) => {
     for (let lvl = 2 * P + A + 3; lvl < 3 * P + A; lvl += 9.5) {
       for (const t of [0.4, 7.7]) {
         const a = pixels(W, H, (ctx) => ownLayers(ctx, sceneAt(W, H, lvl, t)));

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
-import { beadsInFlight, familyOnDeck, sidewalkKids } from "./balcony";
+import { beadsInFlight, familyOnDeck, sidewalkKids, TOSS_EVERY } from "./balcony";
 import { CURB } from "./colors";
 import { farLayer, floorTop } from "./far";
 import { curbTop, front, GAP } from "./front";
@@ -10,7 +10,7 @@ import { inkW } from "./place";
 import { sun } from "./sky";
 import { square } from "./square";
 import { reviewingStand } from "./stand";
-import { cafe, cakeCart, centerBlock, lamppost, leftHouse } from "./street";
+import { cafe, cakeCart, centerBlock, deckY, lamppost, leftHouse } from "./street";
 import { context, mask, overlap, sceneAt, SIZES, startScene, zoomedScene } from "./test-scene";
 import { level, toneOf } from "./tone";
 
@@ -128,6 +128,27 @@ describe("mardi gras layout", () => {
       let over = 0;
       for (let y = 0; y < floor; y++) for (let x = x0; x <= x1; x++) if (m[y * W + x]) over++;
       expect(over, `t=${t}: parade pixels above the floor in the tower's column`).toBe(0);
+    }
+  });
+});
+
+describe("mardi gras gallery", () => {
+  // The family stands on the left house's gallery right under its eave: the feathers and the
+  // plume on their Carnival masks, the little one's jester's hat and his hands up for the
+  // skeletons' beads all keep under the roof's edge, through every pose of their tosses.
+  it.each(SIZES)("%ix%i: the family on the gallery keeps under the eave", (W, H) => {
+    const K = 4;
+    for (let t = 0; t < TOSS_EVERY * 2 + 1; t += 0.05) {
+      const s = sceneAt(W, H, 0, t);
+      const ctx = context(W, H, K);
+      familyOnDeck(ctx, s, deckY(s, 1));
+      // The band just over the lower edge of the eave's ink line, where a feather would poke through.
+      const eave = Math.floor((deckY(s, 2) + inkW(s) / 2) * K);
+      const top = eave - Math.ceil(s.u * 0.08 * K);
+      const data = ctx.getImageData(0, top, Math.round(W * K), eave - top).data;
+      let over = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i]! > 40) over++;
+      expect(over, `t=${t.toFixed(2)}: pixels over the eave`).toBe(0);
     }
   });
 });

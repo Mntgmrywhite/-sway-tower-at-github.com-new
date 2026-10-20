@@ -18,18 +18,22 @@ import type { CartoonSkin, Scene } from "./skin";
 // its front hung with purple, green and gold bunting under a fleur-de-lis crest. Behind it
 // the Quarter's galleried townhouses: lacy cast-iron galleries draped in bunting and strings
 // of beads, ferns on the rails, paper lanterns strung across the fronts. On the left a family
-// at a gallery rail tosses beads down to two kids jumping for them on the sidewalk by a
-// king-cake cart; on the right a corner café under a striped awning, with a lamppost crowned
-// by a fleur-de-lis. Over the roofs, the river at the end of the street: a riverboat
-// churning upriver with its twin stacks smoking, a streetcar rolling along the levee to its
-// stop and back, and straight ahead the three spires of our own cathedral on its square, with
-// a live oak at the corner. In a tower's first ten seconds the parade passes in front of the
-// stand: the grand marshal under his second-line umbrella, flambeaux carriers with their
-// torches, a brass band, the jester-and-crown float with masked riders throwing beads to the
-// crowd on both sides, a jester on stilts and a little dancer behind; it comes round the block
-// again every forty seconds, and the family and the kids keep tossing and catching for as long
-// as you stand there. In front, the curb with a parade ladder where two kids sit reaching for
-// throws, and barricades either side.
+// in Carnival masks (sequined, feathered) at a gallery rail tosses beads down to two kids (one
+// in a skeleton suit) jumping for them on the sidewalk by a king-cake cart; on the right a
+// corner café under a striped awning, with a lamppost crowned by a fleur-de-lis. Over the
+// roofs, the river at the end of the street: a riverboat churning upriver with its twin stacks
+// smoking, a streetcar rolling along the levee to its stop and back, and straight ahead the
+// three spires of our own cathedral on its square, with a live oak at the corner. In a
+// tower's first ten seconds the parade passes in front of the stand: the grand marshal under
+// his second-line umbrella, flambeaux carriers with their torches, a brass band, the skeleton
+// krewe's float (our own, in the spirit of the city's old bone gangs: grinning cartoon
+// skeletons in top hats and tailcoats dancing to the band, waving white gloves and tossing
+// beads, under a giant grinning skull in a top hat), the jester-and-crown float with riders
+// in a sun, a moon and a feathered mask throwing beads to the crowd on both sides, a jester on
+// stilts in a harlequin mask and a little dancer in a cat mask behind; it comes round the
+// block again every forty seconds, and the family and the kids keep tossing and catching for
+// as long as you stand there. In front, the curb with a parade ladder where two kids sit
+// reaching for throws (one in a skeleton suit), and barricades either side.
 // Climb, and the townhouses drop away to show the cathedral's square behind them (a fenced
 // garden of lawns and paths round a fountain, trees, brick rows with galleries down its sides:
 // far.ts, square.ts); the sun goes down over the river while a floor of cloud gathers below

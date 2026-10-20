@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { reachAt, TOSS_AT, TOSS_EVERY, tossAt } from "./balcony";
+import { littleReach, reachAt, TOSS_AT, TOSS_EVERY, tossAt } from "./balcony";
 import { TRAM_AT, TRAM_EVERY, TRAM_STOP, tramAt, WHISTLE_AT, WHISTLE_EVERY, whistleAt } from "./far";
-import { reachAt as ladderReach, seatReach } from "./front";
-import { headX, LENGTH, PARADE_AT, PERIOD, THROW_COUNT, throwAt, throwKid, throwSeat, UNITS } from "./parade";
+import { jumperReach, reachAt as ladderReach, seatReach } from "./front";
+import { FLOAT_AT, FLOAT_HL, headX, LENGTH, PARADE_AT, PERIOD, THROW_COUNT, throwAt, throwFloat, throwKid, throwSeat, throwTarget, UNITS } from "./parade";
 
 // The owner's rules: any action needs to happen within the first 10 seconds, because after that
 // players move past it and up; and every action comes round again on a rhythm for as long as
@@ -11,7 +11,9 @@ import { headX, LENGTH, PARADE_AT, PERIOD, THROW_COUNT, throwAt, throwKid, throw
 // included, by OPENING, and again a period later.
 //
 // What the start view shows over time: the parade stepping in, passing the stand and gone past
-// it, the float's riders throwing beads to both sides, the family on the gallery tossing beads
+// it, the skeleton krewe dancing on their float and tossing beads up to the gallery, down to the
+// kid at the curb and over to the ladder, the jester float's riders throwing beads to both
+// sides, the family on the gallery tossing beads
 // to the kids below (who reach up and catch them), the kids on the parade ladder reaching up,
 // the streetcar rolling in to its stop and back out, and the riverboat blowing its whistle.
 // The rest is ambient: the smoke, the paddlewheel, the little one waving. The lane's drifters,
@@ -43,37 +45,64 @@ describe("mardi gras actions happen in the first 10 seconds, and again", () => {
     expect(PERIOD).toBeLessThanOrEqual(45);
   });
 
-  it("the float's riders throw beads to the left and to the right of the stand, all within ten seconds", () => {
+  it("the floats' riders throw beads to the left and to the right of the stand, all within ten seconds", () => {
     const flights: number[] = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < THROW_COUNT; i++) {
       const start = first((t) => throwAt(t, i).flight >= 0);
       const wind = first((t) => throwAt(t, i).wind >= 0);
       expect(wind, `throw ${i} winds up`).toBeLessThan(start);
       expect(start, `throw ${i} flies`).toBeLessThan(OPENING);
+      // Caught by ten seconds too.
+      expect(first((t) => throwAt(t, i).flight < 0, start), `throw ${i} is caught`).toBeLessThan(OPENING);
       flights.push(start);
       // And again a period later.
       expect(throwAt(start + PERIOD + 0.1, i).flight).toBeCloseTo(throwAt(start + 0.1, i).flight, 6);
     }
-    // Two throws come while the float is on the left, two on the right, in order.
-    expect(flights[0]!).toBeLessThan(flights[1]!);
-    expect(flights[1]!).toBeLessThan(flights[2]!);
-    expect(flights[2]!).toBeLessThan(flights[3]!);
-    expect(throwAt(flights[1]! + 0.1, 1).x).toBeLessThan(-0.25);
-    expect(throwAt(flights[2]! + 0.1, 2).x).toBeGreaterThan(0.2);
-    // The first two go back to the kids on the far sidewalk, the last two ahead to the ladder.
-    expect([0, 1].map(throwKid)).toEqual([0, 1]);
-    expect([2, 3].map(throwSeat)).toEqual([0, 1]);
+    // In order, each from the float as it passes the place it throws from.
+    for (let i = 1; i < THROW_COUNT; i++) expect(flights[i]!, `throw ${i} after throw ${i - 1}`).toBeGreaterThan(flights[i - 1]!);
+    const where = (i: number) => throwAt(flights[i]! + 0.1, i).x;
+    // The skeleton krewe's float: up to the little one on the gallery and down to the kid at the
+    // curb on the left, over to the skeleton kid on the ladder on the right.
+    const bones = [...Array(THROW_COUNT).keys()].filter((i) => throwFloat(i) === 0);
+    expect(bones.map(throwTarget).map((th) => `${th.to} ${th.n}`)).toEqual(["gallery 0", "jumper 0", "seat 1"]);
+    expect(bones.map(where).map((x) => Math.sign(x))).toEqual([-1, -1, 1]);
+    // The jester's float: two back to the kids on the far sidewalk while it is on the left, two
+    // ahead to the ladder on the right.
+    const jester = [...Array(THROW_COUNT).keys()].filter((i) => throwFloat(i) === 1);
+    expect(jester.map(throwKid)).toEqual([0, 1, -1, -1]);
+    expect(jester.map(throwSeat)).toEqual([-1, -1, 0, 1]);
+    for (const i of jester.slice(0, 2)) expect(where(i)).toBeLessThan(-0.25);
+    for (const i of jester.slice(2)) expect(where(i)).toBeGreaterThan(0.2);
+    // The skeletons throw first: their float leads the jester's.
+    expect(Math.max(...bones.map((i) => flights[i]!))).toBeLessThan(Math.max(...jester.map((i) => flights[i]!)));
+  });
+
+  it("the skeleton krewe's float rides between the band and the jester's float, clear of both", () => {
+    const at = (unit: string) => UNITS.find(([u]) => u === unit)![1];
+    expect(FLOAT_AT).toEqual([at("bones"), at("float")]);
+    // The bass drummer's back and the skull at the prow, the waving glove at the stern and the
+    // jester's grin at the next prow, the crown at its stern and the stilt walker's arms.
+    expect(at("bones") - FLOAT_HL - at("bass")).toBeGreaterThan(0.06);
+    expect(at("float") - at("bones") - FLOAT_HL * 2).toBeGreaterThan(0.05);
+    expect(at("stilts") - at("float") - FLOAT_HL).toBeGreaterThan(0.06);
+    // Everyone in order, and the parade's length covers the last of them.
+    for (let i = 1; i < UNITS.length; i++) expect(UNITS[i]![1]).toBeGreaterThan(UNITS[i - 1]![1]);
+    expect(LENGTH).toBeGreaterThan(UNITS[UNITS.length - 1]![1]);
   });
 
   it("whoever a string of beads flies to has their arms up when it gets there", () => {
-    // The float's throws, to the sidewalk kids and to the ladder.
+    // The floats' throws: to the sidewalk kids, the ladder, the little one on the gallery and the kid at the curb.
+    const reachOf = (i: number, t: number): number => {
+      const { to, n } = throwTarget(i);
+      if (to === "kid") return reachAt(t, n);
+      if (to === "seat") return seatReach(t, n);
+      if (to === "gallery") return littleReach(t);
+      return jumperReach(t);
+    };
     for (let i = 0; i < THROW_COUNT; i++) {
       const start = first((t) => throwAt(t, i).flight >= 0);
       const land = first((t) => throwAt(t, i).flight < 0, start);
-      for (const t of [land - 0.12, land - 0.12 + PERIOD]) {
-        const reach = throwKid(i) >= 0 ? reachAt(t, throwKid(i)) : seatReach(t, throwSeat(i));
-        expect(reach, `throw ${i} at ${t.toFixed(2)} s`).toBeGreaterThan(0.9);
-      }
+      for (const t of [land - 0.12, land - 0.12 + PERIOD]) expect(reachOf(i, t), `throw ${i} at ${t.toFixed(2)} s`).toBeGreaterThan(0.9);
     }
     // And their arms go up and come down again smoothly, never in one frame's jump.
     for (let t = FRAME; t < PERIOD + 5; t += FRAME) {
@@ -81,7 +110,13 @@ describe("mardi gras actions happen in the first 10 seconds, and again", () => {
         expect(Math.abs(reachAt(t, j) - reachAt(t - FRAME, j)), `sidewalk kid ${j} at ${t.toFixed(2)} s`).toBeLessThan(0.2);
         expect(Math.abs(seatReach(t, j) - seatReach(t - FRAME, j)), `ladder kid ${j} at ${t.toFixed(2)} s`).toBeLessThan(0.2);
       }
+      expect(Math.abs(littleReach(t) - littleReach(t - FRAME)), `the little one at ${t.toFixed(2)} s`).toBeLessThan(0.2);
+      expect(Math.abs(jumperReach(t) - jumperReach(t - FRAME)), `the kid at the curb at ${t.toFixed(2)} s`).toBeLessThan(0.2);
     }
+    // The little one is waving again between catches.
+    const caught = first((t) => littleReach(t) > 0.9);
+    expect(caught).toBeLessThan(OPENING);
+    expect(first((t) => littleReach(t) === 0, caught)).toBeLessThan(caught + 1);
     // The family's tosses down to the kids.
     for (let i = 0; i < 2; i++) {
       const fly = first((t) => tossAt(t, i).flight >= 0);

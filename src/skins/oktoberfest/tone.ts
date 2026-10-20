@@ -154,8 +154,10 @@ export interface Tone {
   /** The village windows: lit amount (0 by day) and the lit color. */
   windows: number;
   windowLit: string;
-  /** The far picnic tables and the folk at them (wood, cloth, skin), and the hay bales, far off. */
+  /** The far beer garden's tables and the folk at them (wood, cloth, skin), the steins on them (beer, foam), and the hay bales, far off. */
   wood: string;
+  beer: string;
+  foam: string;
   bale: string;
   baleShade: string;
   cloth: [string, string, string];
@@ -249,6 +251,8 @@ function toneFrom(k: Key, l: Light): Tone {
     windows: l.windows,
     windowLit: "#ffd98a",
     wood: fade("#b7793f", k, VILLAGE),
+    beer: fade("#f6aa22", k, VILLAGE),
+    foam: fade("#fffaf0", k, VILLAGE),
     bale: fade("#e8c463", k, VILLAGE),
     baleShade: fade("#b98a32", k, VILLAGE),
     cloth: [fade("#d8415a", k, VILLAGE), fade("#3a7fd6", k, VILLAGE), fade("#f4f1e8", k, VILLAGE)],

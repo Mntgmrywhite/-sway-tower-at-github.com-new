@@ -39,6 +39,11 @@ export const KID_SPOTS = [
   { x: -0.408, size: 0.37 },
 ] as const;
 
+/** The little one in the jester's hat at the gallery rail (u from the screen's center, and size): the skeletons toss beads up to him. */
+export const LITTLE = { x: -0.335, size: 0.4 } as const;
+/** The kid in the jester's hat jumping at the left of the curb in front (u from the screen's center, and size). */
+export const JUMPER = { x: -0.36, size: 0.52 } as const;
+
 const CATCH = { x: 0, y: 0 };
 
 /** Where sidewalk kid `j`'s raised hands meet (screen px), for the beads to fly to: scratch result. */

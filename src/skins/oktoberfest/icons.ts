@@ -1,8 +1,8 @@
 import { circle, oval } from "../../base/draw";
 import type { Icon } from "../skin";
-import { heartPath, pill, pretzelPath, starPath } from "./shapes";
+import { block, heartPath, pill, pretzelPath, starPath } from "./shapes";
 
-// Symbols for the Oktoberfest bars, our own simple glyphs: a pretzel, a cuckoo clock, a
+// Symbols for the Oktoberfest bars, our own simple glyphs: a pretzel, a foaming stein, a
 // gingerbread heart, a sausage, a feathered hat, an accordion, a rhombus pennant, a Ferris wheel,
 // a horse, a paper lantern, a roast chicken and an edelweiss. Each draws one bold shape centered at (cx, cy),
 // about `s` pixels tall, with the caller's ink style. In play `s` is only ~12 px, so they are
@@ -22,35 +22,29 @@ export const pretzel: Icon = (ctx, cx, cy, s) => {
   ctx.lineWidth = lw;
 };
 
-export const cuckooClock: Icon = (ctx, cx, cy, s) => {
-  // A little carved house under a steep overhanging roof, a round clock face cut out of it, and
-  // two weights hanging below on their chains.
+export const stein: Icon = (ctx, cx, cy, s) => {
+  // A glass stein, its handle on the right: the glass with two facets cut down it, and a head of
+  // foam heaped over the rim and overhanging it, parted from the glass by a thin line that one
+  // drip of foam runs down across.
   ctx.beginPath();
-  ctx.moveTo(cx - s * 0.5, cy - s * 0.08);
-  ctx.lineTo(cx, cy - s * 0.5);
-  ctx.lineTo(cx + s * 0.5, cy - s * 0.08);
-  ctx.lineTo(cx + s * 0.32, cy - s * 0.08);
-  ctx.lineTo(cx + s * 0.32, cy + s * 0.24);
-  ctx.lineTo(cx - s * 0.32, cy + s * 0.24);
-  ctx.lineTo(cx - s * 0.32, cy - s * 0.08);
-  ctx.closePath();
-  circle(ctx, cx, cy + s * 0.04, s * 0.15);
+  block(ctx, cx - s * 0.34, cy - s * 0.14, s * 0.5, s * 0.6, s * 0.07);
+  ctx.rect(cx - s * 0.23, cy - s * 0.02, s * 0.07, s * 0.34);
+  ctx.rect(cx - s * 0.05, cy - s * 0.02, s * 0.07, s * 0.34);
   ctx.fill("evenodd");
-  // The hands, and the weights on their chains.
-  ctx.beginPath();
-  ctx.rect(cx - s * 0.025, cy - s * 0.06, s * 0.05, s * 0.12);
-  oval(ctx, cx - s * 0.16, cy + s * 0.42, s * 0.07, s * 0.1);
-  oval(ctx, cx + s * 0.16, cy + s * 0.42, s * 0.07, s * 0.1);
-  ctx.fill();
   const lw = ctx.lineWidth;
-  ctx.lineWidth = Math.max(1, s * 0.06);
+  ctx.lineWidth = Math.max(1.4, s * 0.13);
   ctx.beginPath();
-  ctx.moveTo(cx - s * 0.16, cy + s * 0.22);
-  ctx.lineTo(cx - s * 0.16, cy + s * 0.34);
-  ctx.moveTo(cx + s * 0.16, cy + s * 0.22);
-  ctx.lineTo(cx + s * 0.16, cy + s * 0.34);
+  ctx.moveTo(cx + s * 0.16, cy - s * 0.02);
+  ctx.bezierCurveTo(cx + s * 0.5, cy - s * 0.04, cx + s * 0.5, cy + s * 0.34, cx + s * 0.16, cy + s * 0.32);
   ctx.stroke();
   ctx.lineWidth = lw;
+  ctx.beginPath();
+  pill(ctx, cx - s * 0.42, cy - s * 0.28, s * 0.66, s * 0.12);
+  circle(ctx, cx - s * 0.26, cy - s * 0.3, s * 0.12);
+  circle(ctx, cx - s * 0.07, cy - s * 0.37, s * 0.14);
+  circle(ctx, cx + s * 0.11, cy - s * 0.3, s * 0.11);
+  oval(ctx, cx - s * 0.28, cy - s * 0.17, s * 0.05, s * 0.085);
+  ctx.fill();
 };
 
 export const gingerbreadHeart: Icon = (ctx, cx, cy, s) => {

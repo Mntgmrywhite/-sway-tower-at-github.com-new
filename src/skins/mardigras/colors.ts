@@ -83,8 +83,14 @@ export const COAT = shades("#3b3a52", 0.34, 0.24);
 /** Torch flame. */
 export const FLAME = "#ffb02e";
 export const FLAME_CORE = "#fff1a8";
-/** Masks: the riders' half masks. */
-export const MASKS = [GOLD, GREEN, VIOLET] as const;
+/** Masks: feathers, the sun's rays, the moon's silver, a cat's pink ears and nose. */
+export const FEATHER = shades("#ff5fa8", 0.4, 0.26);
+export const SUN_RAY = shades("#ff9a2e", 0.4, 0.22);
+export const SILVER = shades("#dfe3ff", 0.5, 0.24);
+export const PINK = "#ffb3cf";
+/** The skeleton krewe: bone white (the skulls, ribs and gloves) and the tailcoats' deep indigo (light enough that the ink outlines still read on them). */
+export const BONE = shades("#fbf4e2", 0.6, 0.16);
+export const TAILS = shades("#40346c", 0.26, 0.3);
 /** Drums. */
 export const DRUM_SHELL = shades("#d64a6a", 0.38, 0.24);
 export const DRUM_HEAD = "#fff7e6";

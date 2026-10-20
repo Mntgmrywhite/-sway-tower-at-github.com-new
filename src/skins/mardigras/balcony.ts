@@ -1,29 +1,31 @@
 import { hash, ink, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { GOLD, GREEN, HAIRS, INK, PURPLE, SHIRTS, SKINS, VIOLET, type Shades } from "./colors";
+import { GOLD, GREEN, HAIRS, INK, PURPLE, SHIRTS, SKINS, TAILS, VIOLET, type Shades } from "./colors";
 import { figure, nearHand, standing, type Figure } from "./folk";
-import { LOWER, THROW_COUNT, throwAt, throwKid } from "./parade";
-import { inkW, KID_SPOTS, kidCatch, SIDEWALK, streetLevel } from "./place";
+import { CATCH_AHEAD, CATCH_UP, catchReach, LOWER, THROW_COUNT, throwAt, throwKid } from "./parade";
+import { inkW, KID_SPOTS, kidCatch, LITTLE, SIDEWALK, streetLevel } from "./place";
 import { beadLoop } from "./shapes";
 import { deckY } from "./street";
 
 // The family on the left house's gallery and the kids on the sidewalk below. Three of them
-// stand at the rail in masks and a jester's hat, sized to the house (the French doors are a
-// grown-up's height): the father winds up and tosses a string of beads down to the kids, the
-// mother another a few seconds later, and the little one waves; each toss flings a handful of
-// confetti after it. Below, two kids jump with their arms up to catch what comes down, from
-// the gallery or from the float as it passes. The first tosses land within the first seconds of a tower (the owner's
+// stand at the rail, the mother in a sequined mask with a plume, the father in a feathered one
+// and the little one in a jester's hat, sized to the house (the French doors are a grown-up's
+// height): the father winds up and tosses a string of beads down to the kids, the mother another
+// a few seconds later, and the little one waves, and reaches up to catch the string a skeleton
+// tosses up to him from its float; each toss flings a handful of confetti after it. Below, two
+// kids (one in a skeleton suit) jump with their arms up to catch what comes down, from the
+// gallery or from the float as it passes. The first tosses land within the first seconds of a tower (the owner's
 // rule), and they keep coming round every TOSS_EVERY seconds, for as long as you stand there.
 // Everything is a function of the scene's clock. Positions are in u from the screen center.
 
 /** Who stands where on the gallery (u from center), their size, and who they toss to. */
 const FAMILY = [
-  { x: -0.44, size: 0.56, hat: "mask" as const, skirt: true, tossTo: 1, top: VIOLET, bottom: GREEN, skin: 1, hair: 0 },
-  { x: -0.385, size: 0.6, hat: "mask" as const, skirt: false, tossTo: 0, top: GREEN, bottom: PURPLE, skin: 2, hair: 3 },
-  { x: -0.335, size: 0.4, hat: "jester" as const, skirt: false, tossTo: -1, top: GOLD, bottom: PURPLE, skin: 0, hair: 1 },
+  { x: -0.44, size: 0.56, mask: "sequin" as const, maskColor: GREEN, skirt: true, tossTo: 1, top: VIOLET, bottom: GREEN, skin: 1, hair: 0 },
+  { x: -0.385, size: 0.6, mask: "feather" as const, maskColor: GOLD, skirt: false, tossTo: 0, top: GREEN, bottom: PURPLE, skin: 2, hair: 3 },
+  { x: LITTLE.x, size: LITTLE.size, mask: "none" as const, maskColor: GOLD, skirt: false, tossTo: -1, top: GOLD, bottom: PURPLE, skin: 0, hair: 1 },
 ] as const;
-/** The kids on the sidewalk: where they stand and their size (place.ts), their shirt, skin and hair. */
-const KIDS = KID_SPOTS.map((k, j) => ({ ...k, ...[{ shirt: 0, skin: 3, hair: 2 }, { shirt: 3, skin: 2, hair: 3 }][j]! }));
+/** The kids on the sidewalk: where they stand and their size (place.ts), their shirt, skin and hair; the second in a skeleton suit. */
+const KIDS = KID_SPOTS.map((k, j) => ({ ...k, ...[{ shirt: 0, skin: 3, hair: 2, bones: false }, { shirt: 3, skin: 2, hair: 3, bones: true }][j]! }));
 
 /** When each tosser first winds up (s), and how often the tosses come round. */
 export const TOSS_AT = [1.0, 3.4] as const;
@@ -84,19 +86,29 @@ function smoothstep(x: number): number {
 const POSES: Figure[] = FAMILY.map((p) => {
   const f = standing(p.top, p.bottom, SKINS[p.skin]!, HAIRS[p.hair]!);
   f.size = p.size;
-  f.hat = p.hat;
-  f.hatColor = p.hat === "jester" ? GOLD : i(p) % 2 ? GOLD : GREEN;
+  f.mask = p.mask;
+  f.maskColor = p.maskColor;
+  if (p.tossTo < 0) {
+    f.hat = "jester";
+    f.hatColor = GOLD;
+  }
   f.skirt = p.skirt;
   return f;
 });
-function i(p: (typeof FAMILY)[number]): number {
-  return FAMILY.indexOf(p);
-}
 const KID_POSES: Figure[] = KIDS.map((k) => {
-  const f = standing(SHIRTS[k.shirt]!, PURPLE, SKINS[k.skin]!, HAIRS[k.hair]!);
+  const f = k.bones ? standing(TAILS, TAILS, SKINS[k.skin]!, HAIRS[k.hair]!) : standing(SHIRTS[k.shirt]!, PURPLE, SKINS[k.skin]!, HAIRS[k.hair]!);
   f.size = k.size;
+  if (k.bones) {
+    f.suit = "bones";
+    f.skull = true;
+  }
   return f;
 });
+
+/** How much the little one on the gallery reaches up for the skeletons' beads at time t (0 waving, 1 both hands up together). */
+export function littleReach(t: number): number {
+  return catchReach(t, "gallery", 0, 0.1);
+}
 
 /** The bead colors the tosses come in, by toss. */
 const BEAD_COLORS: readonly Shades[] = [PURPLE, GOLD, GREEN];
@@ -121,14 +133,16 @@ export function familyOnDeck(ctx: Ctx, s: Scene, deck: number): void {
     f.lift = 0;
     f.mouth = 0.2;
     if (p.tossTo < 0) {
-      // The little one waves with both arms, bouncing.
+      // The little one waves with both arms, bouncing; when a skeleton tosses him a string, his
+      // hands come up together over his head to catch it (CATCH_UP, CATCH_AHEAD), and he hops.
       const w = Math.sin(s.t * 5);
-      f.handLx = -0.02;
-      f.handLy = -0.17 + w * 0.012;
-      f.handRx = 0.03;
-      f.handRy = -0.165 - w * 0.012;
-      f.lift = Math.max(0, Math.sin(s.t * 2.5)) * 0.01;
-      f.mouth = 0.6;
+      const r = littleReach(s.t);
+      f.handLx = -0.02 + r * (CATCH_AHEAD - 0.008 + 0.02);
+      f.handLy = -0.17 + w * 0.012 * (1 - r) - r * (CATCH_UP - 0.17);
+      f.handRx = 0.03 + r * (CATCH_AHEAD + 0.008 - 0.03);
+      f.handRy = -0.165 - w * 0.012 * (1 - r) - r * (CATCH_UP - 0.165);
+      f.lift = Math.max(0, Math.sin(s.t * 2.5)) * 0.01 * (1 - r) + r * Math.max(0, Math.sin(s.t * 9)) * 0.012;
+      f.mouth = 0.6 + r * 0.3;
     } else {
       const toss = tossAt(s.t, i);
       // At rest: the near hand holds the beads up by the shoulder; the wind-up draws it back and up, the throw swings it out and down.

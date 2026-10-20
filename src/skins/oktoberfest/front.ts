@@ -24,13 +24,15 @@ import {
 } from "./colors";
 import { inkW } from "./ground";
 import { block, heartPath, pretzelPath } from "./shapes";
+import { steins } from "./stein";
 import { toneOf } from "./tone";
 
 // The near edge we look over: a festival stall at either side and a low wooden fence between
 // them with a gap in the middle, where a gravel path runs out through the grass. On the left the
 // pretzel stall: a counter under a blue-and-white scalloped awning, a canvas back, pretzels
-// hanging on a rail and a row of iced gingerbread hearts; on the right the sausage stall: a
-// grill with bratwurst on it under its awning, a thin smoke rising from its pipe. From the
+// hanging on a rail, a pair of foaming steins set out on the counter and a row of iced
+// gingerbread hearts on its front; on the right the sausage stall: two steins on the counter
+// beside a grill of bratwurst, a thin smoke rising from its pipe. From the
 // golden evening both are strung with lights. Each stall is a whole booth, both its ends on
 // screen (on the narrowest phone too), standing on two posts planted in the grass behind its
 // counter; every fence post is planted the same way, its foot sunk into the grass under a tuft
@@ -55,6 +57,12 @@ const AWNING_H = 0.03;
 export const POST_W = 0.014;
 /** Where the grass begins in front (u below the band's top), and how far into it every post and counter is sunk. */
 export const GRASS_AT = 0.04;
+/**
+ * How far above the band's top the trodden sand and the path in front begin (u): just over the
+ * base band's grass tips (they reach 0.024 u up), and no higher, so the waitress's shoes, on her
+ * line just above it (parade.ts), are never hidden under it.
+ */
+export const TRODDEN_UP = 0.028;
 export const FOOT = 0.054;
 
 /** The band's top edge on screen (it moves with the base band). */
@@ -208,21 +216,28 @@ function stallFrame(ctx: Ctx, s: Scene, side: number, top: number, lw: number, o
   lights(ctx, u, x0, x1, awn + u * 0.009, on);
 }
 
-/** The pretzel stall on the left: pretzels hanging from a rail, gingerbread hearts on the counter's front. */
+/** The steins set out on the counters: their glass height (u), where the first stands (u in from the stall's inner edge) and the next (u further in). */
+const STEIN_H = 0.024;
+const STEIN_IN = 0.03;
+const STEIN_STEP = 0.028;
+
+/** The pretzel stall on the left: pretzels hanging from a rail, two steins on the counter, gingerbread hearts on the counter's front. */
 export function pretzelStall(ctx: Ctx, s: Scene, top: number, lw: number, on: number): void {
   const u = s.u;
   const [inner] = stallEdges(s, -1);
   const counter = top - COUNTER_UP * u;
   const awn = top - AWNING_UP * u;
   stallFrame(ctx, s, -1, top, lw, on);
-  // The rail under the awning, and three pretzels hung on it.
+  // Two steins on the counter at its inner end, handles out toward the path.
+  steins(ctx, inner - STEIN_IN * u, -STEIN_STEP * u, 2, counter - u * 0.006, STEIN_H * u, lw, 1);
+  // The rail under the awning over the rest of the counter, and two pretzels hung on it.
   ctx.beginPath();
-  ctx.rect(inner - u * 0.172, awn + u * 0.048, u * 0.16, u * 0.006);
+  ctx.rect(inner - u * 0.172, awn + u * 0.048, u * 0.088, u * 0.006);
   ctx.fillStyle = WOOD_DARK.body;
   ctx.fill();
   ink(ctx, lw * 0.7, INK);
-  for (let i = 0; i < 3; i++) {
-    const x = inner - u * (0.045 + i * 0.048);
+  for (let i = 0; i < 2; i++) {
+    const x = inner - u * (0.106 + i * 0.046);
     const y = awn + u * 0.08;
     ctx.beginPath();
     ctx.moveTo(x, awn + u * 0.052);
@@ -290,7 +305,7 @@ export function stallSmoke(ctx: Ctx, s: Scene, top: number): void {
   ctx.globalAlpha = 1;
 }
 
-/** The sausage stall on the right: a grill of bratwurst on the counter, a pipe up through the awning, a sign. */
+/** The sausage stall on the right: two steins and a grill of bratwurst on the counter, a pipe up through the awning, a sign. */
 export function sausageStall(ctx: Ctx, s: Scene, top: number, lw: number, on: number): void {
   const u = s.u;
   const [inner] = stallEdges(s, 1);
@@ -298,9 +313,11 @@ export function sausageStall(ctx: Ctx, s: Scene, top: number, lw: number, on: nu
   const awn = top - AWNING_UP * u;
   stallSmoke(ctx, s, top);
   stallFrame(ctx, s, 1, top, lw, on);
-  // The grill on the counter: a dark box with a glowing bed and a grate of bars, sausages on it.
-  const gx = inner + u * 0.028;
-  const gw = u * 0.135;
+  // Two steins on the counter at its inner end, handles out toward the path.
+  steins(ctx, inner + STEIN_IN * u, STEIN_STEP * u, 2, counter - u * 0.006, STEIN_H * u, lw, -1);
+  // The grill on the counter beside them: a dark box with a glowing bed and a grate of bars, sausages on it.
+  const gx = inner + u * 0.082;
+  const gw = u * 0.094;
   const gy = counter - u * 0.03;
   ctx.beginPath();
   block(ctx, gx, gy, gw, u * 0.034, u * 0.004);
@@ -323,10 +340,10 @@ export function sausageStall(ctx: Ctx, s: Scene, top: number, lw: number, on: nu
   }
   ctx.stroke();
   for (let i = 0; i < 3; i++) {
-    const x = gx + u * 0.022 + i * u * 0.034;
+    const x = gx + u * 0.012 + i * u * 0.026;
     ctx.beginPath();
     ctx.moveTo(x, gy - u * 0.006);
-    ctx.quadraticCurveTo(x + u * 0.013, gy - u * 0.016, x + u * 0.026, gy - u * 0.006);
+    ctx.quadraticCurveTo(x + u * 0.01, gy - u * 0.015, x + u * 0.02, gy - u * 0.006);
     ctx.strokeStyle = INK;
     ctx.lineWidth = u * 0.011 + lw * 1.4;
     ctx.lineCap = "round";
@@ -415,17 +432,18 @@ export function fence(ctx: Ctx, s: Scene, top: number, lw: number): void {
 export function frontGround(ctx: Ctx, s: Scene, top: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
+  const from = top - u * TRODDEN_UP;
   ctx.fillStyle = TRODDEN.body;
-  ctx.fillRect(0, top - u * 0.04, s.cssW, s.cssH - top + u * 0.04);
+  ctx.fillRect(0, from, s.cssW, s.cssH - from);
   ctx.fillStyle = GRASS.body;
   ctx.fillRect(0, top + u * GRASS_AT, s.cssW, s.cssH - top);
   ctx.fillStyle = GRAVEL;
   ctx.beginPath();
-  ctx.moveTo(cx - u * 0.1, top - u * 0.04);
-  ctx.lineTo(cx + u * 0.1, top - u * 0.04);
+  ctx.moveTo(cx - u * 0.1, from);
+  ctx.lineTo(cx + u * 0.1, from);
   ctx.quadraticCurveTo(cx + u * 0.14, top + u * 0.08, cx + u * 0.2, s.cssH);
   ctx.lineTo(cx - u * 0.2, s.cssH);
-  ctx.quadraticCurveTo(cx - u * 0.14, top + u * 0.08, cx - u * 0.1, top - u * 0.04);
+  ctx.quadraticCurveTo(cx - u * 0.14, top + u * 0.08, cx - u * 0.1, from);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = GRAVEL_DARK;

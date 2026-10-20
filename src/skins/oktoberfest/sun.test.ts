@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
 import { drifters } from "./drift";
 import {
+  beerGarden,
   church,
   cloudBank,
   cloudFloor,
@@ -15,7 +16,6 @@ import {
   meadowFar,
   mistBand,
   mountains,
-  picnicTables,
   swingRide,
 } from "./far";
 import { band, dancers } from "./folk";
@@ -143,7 +143,7 @@ describe("oktoberfest: only the mountains and the mist cover the sun and the moo
           cloudBank(ctx, s, tone, hz);
           if (landShows(s, floor)) {
             meadowFar(ctx, s, tone, Math.min(H, floor + s.u * 0.12));
-            picnicTables(ctx, s, tone, hz);
+            beerGarden(ctx, s, tone, hz);
             hayBales(ctx, s, tone, hz);
           }
           church(ctx, s, tone, hz);

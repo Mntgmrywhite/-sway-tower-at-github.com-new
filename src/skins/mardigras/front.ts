@@ -2,16 +2,17 @@ import { circle, ink, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { BARRICADE, CURB, GOLD, GREEN, HAIRS, INK, LADDER, PURPLE, SHIRTS, SKINS } from "./colors";
 import { figure, standing, type Figure } from "./folk";
-import { LOWER, THROW_COUNT, throwAt, throwSeat } from "./parade";
-import { curbTop, inkW } from "./place";
+import { catchReach, LOWER, THROW_COUNT, throwAt, throwSeat } from "./parade";
+import { curbTop, inkW, JUMPER } from "./place";
 import { beadLoop, block } from "./shapes";
 
 export { curbTop };
 
 // The near curb we look over: a pale stone curb along the top of the base band (the flagstones
 // of the sidewalk), confetti and a few dropped bead strings on it, a low steel barricade either
-// side, and at the right a parade ladder with a seat box on top where two kids sit, reaching
-// up for throws (and a kid in a jester's hat jumping at the left). It covers the base band's
+// side, and at the right a parade ladder with a seat box on top where two kids sit (one of them
+// in a skeleton suit), reaching up for throws (and a kid in a jester's hat jumping at the left,
+// who catches a string from the skeleton krewe's float). It covers the base band's
 // lip and drops away faster than the tower as the camera climbs (parallax 1.6, like the band),
 // so it only frames the start. The middle stays clear: render.ts writes "tap to drop" there at
 // the start (at 0.9 of the screen height).
@@ -25,27 +26,31 @@ const LADDER_X = 0.36;
 const LADDER_H = 0.2;
 const SEAT_W = 0.1;
 const SEAT_H = 0.05;
-/** The kid at the left: where she stands. */
-const KID_X = -0.36;
 
 /** The top of the ladder's seat, the highest thing in front (its riders sit on it). */
 function frontTop(s: Scene): number {
   return curbTop(s) - s.u * (LADDER_H + 0.14);
 }
 
-const RIDERS: Figure[] = [
-  standing(SHIRTS[1]!, PURPLE, SKINS[0]!, HAIRS[1]!),
-  standing(SHIRTS[4]!, GOLD, SKINS[2]!, HAIRS[0]!),
-].map((f, i) => {
+/**
+ * The ladder's kids: one in a cap, one in a skeleton suit with its skull hood up. His suit is
+ * Carnival green, not the krewe's dark tailcoats: the skeletons' float passes right behind the
+ * seat as they toss him his beads, and a dark suit there would vanish among them.
+ */
+const RIDERS: Figure[] = [standing(SHIRTS[1]!, PURPLE, SKINS[0]!, HAIRS[1]!), standing(GREEN, GREEN, SKINS[2]!, HAIRS[0]!)].map((f, i) => {
   f.size = 0.5;
   f.hat = i ? "none" : "cap";
   f.hatColor = GREEN;
+  if (i) {
+    f.suit = "bones";
+    f.skull = true;
+  }
   return f;
 });
-const JUMPER: Figure = standing(SHIRTS[2]!, GREEN, SKINS[1]!, HAIRS[4]!);
-JUMPER.size = 0.52;
-JUMPER.hat = "jester";
-JUMPER.hatColor = PURPLE;
+const KID: Figure = standing(SHIRTS[2]!, GREEN, SKINS[1]!, HAIRS[4]!);
+KID.size = JUMPER.size;
+KID.hat = "jester";
+KID.hatColor = PURPLE;
 
 /** Whether the kids reach up at time t (0 at ease, 1 arms up), on their own rhythm. */
 export function reachAt(t: number): number {
@@ -186,20 +191,26 @@ function ladder(ctx: Ctx, s: Scene, top: number, lw: number): void {
   ctx.fill();
 }
 
+/** Whether the kid at the left of the curb reaches up at time t: on her own rhythm, and whenever the skeletons' beads are on their way to her. */
+export function jumperReach(t: number): number {
+  return Math.max(reachAt(t + 2.5), catchReach(t, "jumper", 0));
+}
+
 /** A kid in a jester's hat at the left of the curb, jumping with her arms up for the throws. */
 function jumper(ctx: Ctx, s: Scene, top: number, lw: number): void {
   const u = s.u;
-  const f = JUMPER;
-  const reach = reachAt(s.t + 2.5);
+  const f = KID;
+  const reach = jumperReach(s.t);
   const hop = reach * Math.max(0, Math.sin(s.t * 8)) * 0.02;
+  // Arms up, the hands meeting over her head where a throw comes down (CATCH_UP, CATCH_AHEAD).
   f.m = 1;
   f.lift = hop;
-  f.handLx = -0.03 + reach * 0.01;
-  f.handLy = -0.07 - reach * 0.11;
-  f.handRx = 0.03 - reach * 0.01;
-  f.handRy = -0.07 - reach * 0.11;
+  f.handLx = -0.03 + reach * 0.03;
+  f.handLy = -0.07 - reach * 0.115;
+  f.handRx = 0.03 - reach * 0.014;
+  f.handRy = -0.07 - reach * 0.115;
   f.mouth = reach * 0.9;
-  figure(ctx, f, s.cssW / 2 + KID_X * u, top + u * 0.004, u, lw);
+  figure(ctx, f, s.cssW / 2 + JUMPER.x * u, top + u * 0.004, u, lw);
 }
 
 export function front(ctx: Ctx, s: Scene): void {

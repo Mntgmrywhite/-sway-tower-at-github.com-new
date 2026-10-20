@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
 import { drifters } from "./drift";
-import { BALES_AT, church, farLine, ferrisWheel, floorTop, foothills, hayBales, house, mountains, picnicTables, swingRide, VILLAGE_FOOT } from "./far";
+import { BALES_AT, beerGarden, church, farLine, ferrisWheel, floorTop, foothills, hayBales, house, mountains, swingRide, VILLAGE_FOOT } from "./far";
 import { band, dance, dancers, FOLK_LINE, LEAP } from "./folk";
-import { AWNING_UP, bandTop, fence, FENCE_POSTS, FOOT, front, frontFoot, GATE, GRASS_AT, POST_W, pretzelStall, sausageStall, STALL_IN, STALL_OUT, stallSmoke } from "./front";
+import { AWNING_UP, bandTop, fence, FENCE_POSTS, FOOT, front, frontFoot, frontGround, GATE, GRASS_AT, POST_W, pretzelStall, sausageStall, STALL_IN, STALL_OUT, stallSmoke } from "./front";
 import { WOOD, WOOD_DARK } from "./colors";
 import { bandstand, inkW, maypole, SKIRT, tent } from "./ground";
 import { halfWidth, parade, PARADE_LINE, paradeAt, waitress, WAITRESS_LINE, waitressAt } from "./parade";
@@ -18,13 +18,13 @@ import { level, toneOf } from "./tone";
 // maypole and the bandstand with its railings, all of them still), nothing beside the base
 // block rises above its top (the slider's first pass never sweeps over the band, the dancers
 // or anything else), and no two overlap, except where that is the design: the parade crosses
-// in front of the band, the dancers and the bandstand, the parade and the pretzel seller enter and
+// in front of the band, the dancers and the bandstand, the parade and the waitress enter and
 // leave through the screen's sides and pass behind the stalls and the fence, the folk and the
 // parade stand in front of the tent's walls and the bandstand, the maypole rises behind the
 // tent's roof, the mountains and foothills run off the screen's sides and stand behind the fair
 // and the village.
 
-/** Moments of the scene's clock: the band striking up, the parade crossing, the slap dance, the leap and the bow, the pretzel seller crossing, the band's rest, and later rounds. */
+/** Moments of the scene's clock: the band striking up, the parade crossing, the slap dance, the leap and the bow, the waitress crossing, the band's rest, and later rounds. */
 const TIMES = [0, 0.6, 1.5, 2.7, 4, 5.5, 7, 7.5, 8.9, 9.5, 11, 17.4, 21.6, 23, 26.5, 33.5, 41, 50.5] as const;
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
@@ -54,7 +54,7 @@ const PROPS: Prop[] = [
   { name: "house", draw: (ctx, s) => house(ctx, s, toneOf(s), hz(s)) },
   { name: "ferris wheel", draw: (ctx, s) => ferrisWheel(ctx, s, toneOf(s), hz(s)) },
   { name: "chain carousel", draw: (ctx, s) => swingRide(ctx, s, toneOf(s), hz(s)) },
-  { name: "picnic tables", draw: (ctx, s) => picnicTables(ctx, s, toneOf(s), hz(s)) },
+  { name: "beer garden", draw: (ctx, s) => beerGarden(ctx, s, toneOf(s), hz(s)) },
   { name: "hay bales", draw: (ctx, s) => hayBales(ctx, s, toneOf(s), hz(s)) },
   { name: "maypole", draw: maypole, column: true },
   { name: "tent", draw: (ctx, s) => tent(ctx, s, toneOf(s)), column: true },
@@ -62,7 +62,7 @@ const PROPS: Prop[] = [
   { name: "band", draw: band, beside: true },
   { name: "dancers", draw: dancers, beside: true },
   { name: "parade", draw: parade, vehicle: true, away: true },
-  { name: "pretzel seller", draw: waitress, vehicle: true, away: true },
+  { name: "waitress", draw: waitress, vehicle: true, away: true },
 ];
 
 /** The meetings that are the design. */
@@ -71,7 +71,7 @@ const ALLOWED = [
   ["parade", "dancers"],
   ["parade", "bandstand"],
   ["parade", "tent"],
-  ["pretzel seller", "bandstand"],
+  ["waitress", "bandstand"],
   ["band", "tent"],
   ["band", "bandstand"],
   ["dancers", "tent"],
@@ -83,8 +83,8 @@ const ALLOWED = [
   ["tent", "mountains"],
   ["tent", "foothills"],
   ["mountains", "foothills"],
-  ["mountains", "picnic tables"],
-  ["foothills", "picnic tables"],
+  ["mountains", "beer garden"],
+  ["foothills", "beer garden"],
   ["mountains", "church"],
   ["mountains", "house"],
   ["mountains", "ferris wheel"],
@@ -134,13 +134,13 @@ describe("oktoberfest layout", () => {
         }
       }
       const expected =
-        prop.name === "parade" ? paradeShown : prop.name === "pretzel seller" ? girl.shown && Math.abs(girl.x) < 0.42 : prop.name === "lane" ? false : true;
+        prop.name === "parade" ? paradeShown : prop.name === "waitress" ? girl.shown && Math.abs(girl.x) < 0.42 : prop.name === "lane" ? false : true;
       if (expected) expect(drawn, `${prop.name} is drawn`).toBeGreaterThan(20);
       if (!prop.scenery && !prop.vehicle) expect(edge, `${prop.name}: pixels on a screen edge`).toBe(0);
       expect(column, `${prop.name}: pixels in the tower's column above its floor`).toBe(0);
       expect(top, `${prop.name}: pixels in the HUD`).toBe(0);
       expect(lane, `${prop.name}: pixels above the base block (in the slider's first lane)`).toBe(0);
-      // The parade and the pretzel seller pass behind the stalls and the fence in front; nothing else reaches them.
+      // The parade and the waitress pass behind the stalls and the fence in front; nothing else reaches them.
       if (!prop.vehicle) expect(overlap(m, stalls), `${prop.name} reaches the stalls in front`).toBe(0);
       for (let j = i + 1; j < PROPS.length; j++) {
         if (allowed(prop.name, PROPS[j]!.name)) continue;
@@ -149,7 +149,7 @@ describe("oktoberfest layout", () => {
     });
   }, 60_000);
 
-  it.each(SIZES)("%ix%i: the pretzel seller comes in through one side of the screen and goes out through the other", (W, H) => {
+  it.each(SIZES)("%ix%i: the waitress comes in through one side of the screen and goes out through the other", (W, H) => {
     // Her first crossing goes left to right, the next right to left: in the first frame any of
     // her shows she is at the side she comes from, and in the last at the side she leaves by.
     const probe = startScene(W, H, 0);
@@ -265,7 +265,7 @@ function pieces(m: Uint8Array, W: number, H: number, min: number): { size: numbe
 
 /** The screens the footing is checked on: the two phones and a tablet. */
 const FOOTING_SIZES: readonly (readonly [number, number])[] = [...SIZES, [1024, 1366]];
-/** Moments: the parade and the pretzel seller crossing, the dance (not mid-leap), the band at rest. */
+/** Moments: the parade and the waitress crossing, the dance (not mid-leap), the band at rest. */
 const FOOTING_TIMES = [0.4, 3.3, 5.2, 8.3, 9.4, 12.5, 22.3] as const;
 
 describe("oktoberfest footing", () => {
@@ -305,7 +305,7 @@ describe("oktoberfest footing", () => {
     // The folk and the parade on the trodden ground (the band bobs to the beat, the dancers hop).
     expect(check("band", (ctx) => band(ctx, s), [g + FOLK_LINE * u], u * 0.006)).toBeGreaterThan(0);
     expect(check("dancers", (ctx) => dancers(ctx, s), [g + FOLK_LINE * u], u * (0.01 + LEAP * dance(t).leap))).toBeGreaterThan(0);
-    check("pretzel seller", (ctx) => waitress(ctx, s), [g + WAITRESS_LINE * u], u * 0.004);
+    check("waitress", (ctx) => waitress(ctx, s), [g + WAITRESS_LINE * u], u * 0.004);
     // (The far horse of the pair walks a little further back, on its own line.)
     check("parade", (ctx) => parade(ctx, s), [g + PARADE_LINE * u, g + (PARADE_LINE - 0.03) * u], u * 0.004);
     // The tent on the floor line, the bandstand down to its step.
@@ -333,9 +333,28 @@ describe("oktoberfest footing", () => {
     expect(check("ferris wheel", (ctx) => ferrisWheel(ctx, s, tone, far), [far + u * 0.014])).toBeGreaterThan(0);
     expect(check("chain carousel", (ctx) => swingRide(ctx, s, tone, far), [far + u * 0.014])).toBeGreaterThan(0);
     const tables = [0.075, 0.092, 0.108].map((d) => far + u * (d + 0.009 * (0.8 + (d - 0.075) * 6)));
-    expect(check("picnic tables", (ctx) => picnicTables(ctx, s, tone, far), tables)).toBeGreaterThan(0);
+    expect(check("beer garden", (ctx) => beerGarden(ctx, s, tone, far), tables)).toBeGreaterThan(0);
     expect(check("hay bales", (ctx) => hayBales(ctx, s, tone, far), [far + u * BALES_AT])).toBeGreaterThan(0);
   }, 60_000);
+
+  it.each(FOOTING_SIZES)("%ix%i: the waitress and the parade are never cut off by the ground in front", (W, H) => {
+    // They pass behind the stalls and the fence by design, but the trodden sand and the path in
+    // front run the whole width of the screen: nothing of them, the waitress's shoes at the
+    // bottom of her step included, may reach down under it (her feet once vanished into the path).
+    const half = halfWidth(startScene(W, H, 0));
+    let seen = 0;
+    for (let t = 0; t < 60; t += 0.2) {
+      const her = waitressAt(t, half).shown;
+      const wagon = paradeAt(t, half).shown;
+      if (!her && !wagon) continue;
+      const s = startScene(W, H, t);
+      const ground = mask(W, H, (ctx) => frontGround(ctx, s, bandTop(s)));
+      if (her) expect(overlap(mask(W, H, (ctx) => waitress(ctx, s)), ground), `t=${t.toFixed(1)}: the waitress reaches under the ground in front`).toBe(0);
+      if (wagon) expect(overlap(mask(W, H, (ctx) => parade(ctx, s)), ground), `t=${t.toFixed(1)}: the parade reaches under the ground in front`).toBe(0);
+      seen++;
+    }
+    expect(seen, "moments checked").toBeGreaterThan(60);
+  }, 120_000);
 
   it.each(SIZES)("%ix%i: every fence post and stall post runs from over the rail down into the grass", (W, H) => {
     // Down each post's middle the drawing is solid from its top to its foot in the grass (a

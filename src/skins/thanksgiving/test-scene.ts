@@ -1,7 +1,10 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { horizonFor } from "../../base/world";
 import { BASE_WIDTH, BLOCK_HEIGHT, WORLD_WIDTH } from "../../config";
-import type { Scene } from "../skin";
+import { shots } from "../../preview/shots";
+import { render } from "../../render";
+import { thanksgiving } from "../thanksgiving";
+import type { CartoonSkin, Scene } from "../skin";
 
 // Test helpers for Thanksgiving's story and layout tests (not a test file itself): the scene the
 // renderer builds at a camera level, on a phone or zoomed out, and canvases to draw it on.
@@ -49,9 +52,33 @@ export function sceneAt(W: number, H: number, lvl: number, t = 0, u = Math.min(W
   };
 }
 
-/** A transparent canvas context of the scene's size. */
+/**
+ * Canvases by size, reused. A canvas's pixels (and every pixel read back from one) live outside
+ * the JavaScript heap, where the garbage collector does not see them: a test that makes a fresh
+ * full-screen canvas for each of thousands of frames grows a worker by gigabytes before anything
+ * is freed, enough to run the machine out of memory with a few workers going. So each size has
+ * one canvas, wiped and its state reset each time it is handed out (the few most recent sizes
+ * are kept).
+ */
+const CANVASES = new Map<string, CanvasRenderingContext2D>();
+const KEEP = 8;
+
+/**
+ * A transparent canvas context of the scene's size: a reused one, wiped clean, its transform,
+ * clip and styles reset. Finish with it (read its pixels) before asking for another of the same size.
+ */
 export function context(W: number, H: number): CanvasRenderingContext2D {
-  return createCanvas(W, H).getContext("2d") as unknown as CanvasRenderingContext2D;
+  const key = `${W}x${H}`;
+  let ctx = CANVASES.get(key);
+  if (ctx) {
+    CANVASES.delete(key);
+    ctx.reset();
+  } else {
+    ctx = createCanvas(W, H).getContext("2d") as unknown as CanvasRenderingContext2D;
+    if (CANVASES.size >= KEEP) CANVASES.delete(CANVASES.keys().next().value!);
+  }
+  CANVASES.set(key, ctx);
+  return ctx;
 }
 
 /** The pixels of a drawing, RGBA. */
@@ -59,4 +86,20 @@ export function pixels(W: number, H: number, draw: (ctx: CanvasRenderingContext2
   const ctx = context(W, H);
   draw(ctx);
   return ctx.getImageData(0, 0, W, H).data;
+}
+
+/** The scene the start shot renders with on each screen (the shots are slow to build: once each). */
+const START = new Map<string, Scene>();
+
+/** The start shot's scene (the title's fresh tower, the renderer's own camera) at scene time t. */
+export function startScene(W: number, H: number, t: number): Scene {
+  const key = `${W}x${H}`;
+  if (!START.has(key)) {
+    const shot = shots().find((s) => s.name === "start")!;
+    let scene: Scene | undefined;
+    const spy: CartoonSkin = { ...thanksgiving, ground: (_, s) => (scene = { ...s }) };
+    render(createCanvas(W, H).getContext("2d") as unknown as CanvasRenderingContext2D, W, H, shot.state, shot.view, shot.best, spy);
+    START.set(key, scene!);
+  }
+  return { ...START.get(key)!, t };
 }

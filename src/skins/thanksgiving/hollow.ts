@@ -26,6 +26,11 @@ function backHill(fx: number): number {
   return 0.14 + 0.29 * side * side + side * (0.04 * Math.sin(fx * 15 + 0.6) + 0.014 * Math.sin(fx * 31 + 2));
 }
 
+/** Screen y of the far hills' ridge (the back one, the higher) at screen x: what the sun and moon set behind. */
+export function ridgeY(s: Scene, x: number): number {
+  return s.horizonY - backHill(Math.min(1, Math.max(0, x / s.cssW))) * s.u;
+}
+
 function frontHill(fx: number): number {
   const side = Math.abs(fx - 0.5) * 2;
   return 0.07 + 0.2 * side * side * side + 0.016 * Math.sin(fx * 9.1 + 1.7);

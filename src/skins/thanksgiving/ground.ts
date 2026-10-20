@@ -7,7 +7,7 @@ import { rollingFields } from "./fields";
 import { farmhouse } from "./house";
 import { addLeaf, LEAF_COLORS } from "./leaves";
 import { inkW, spot } from "./pen";
-import { table } from "./table";
+import { supper } from "./table";
 import { ORANGE_TREE, tree } from "./tree";
 import { turkey } from "./turkey";
 
@@ -15,8 +15,9 @@ import { turkey } from "./turkey";
 // hills on either side of the hollow, the farmhouse with its porch at the back left, a big
 // orange tree with a swing at the back right letting go of its leaves, the turkey yard below
 // it (one turkey in the yard behind its rail fence, a hen and her poult wandered out onto the
-// lawn), and the Thanksgiving table set out in front with its mismatched chairs and a
-// steaming pie. Leaves lie about.
+// lawn), and the Thanksgiving table out in front with its mismatched chairs, the family
+// coming and going down the garden path from the porch door to set it, eat and clear it
+// (table.ts, supper.ts). Leaves lie about.
 //
 // Props stand on field rows (see `spot`): X in u from the center at the tower's depth, z the
 // depth (3 = the tower's line). Props at or behind that line keep out of the tower's column;
@@ -24,7 +25,7 @@ import { turkey } from "./turkey";
 // another (layout.test.ts checks it), and they are drawn back to front.
 
 /** Farmhouse at the back left. */
-const HOUSE = { X: -0.56, z: 4.5 } as const;
+export const HOUSE = { X: -0.56, z: 4.5 } as const;
 /** The big tree at the back right, far enough back that the turkey yard fits below it. */
 const TREE = { X: 0.76, z: 6, size: 1.25 } as const;
 /** The turkey yard's rail fence across the right, in front of the tree. */
@@ -34,10 +35,10 @@ const FENCE = { X0: 0.24, X1: 0.38, z: 2.4, posts: 3 } as const;
 export const TURKEYS = [
   [0.372, 3.6, 0.1, -1, 0.0],
   [0.19, 1.6, 0.075, -1, 0.6],
-  [0.116, 1.74, 0.048, -1, 1.7],
+  [0.168, 2.0, 0.048, -1, 1.7],
 ] as const;
-/** The dinner table, front left. */
-const TABLE = { X: -0.1, z: 1.62 } as const;
+/** The supper table, front left, the family coming and going from the farmhouse door. */
+export const TABLE = { X: -0.08, z: 1.62 } as const;
 
 /** One thing standing on the lawn. `name` is for the layout test. */
 export interface Prop {
@@ -84,7 +85,9 @@ export const PROPS: readonly Prop[] = [
     name: "table",
     draw(ctx, s) {
       const p = spot(s, TABLE.X, TABLE.z);
-      table(ctx, s.t, p.x, p.y, s.u * p.k, inkW(s, p.k));
+      const tbl = { x: p.x, y: p.y, k: p.k };
+      const h = spot(s, HOUSE.X, HOUSE.z);
+      supper(ctx, s, tbl, h);
     },
   },
   turkeyProp(1),
@@ -93,10 +96,10 @@ export const PROPS: readonly Prop[] = [
 /** Leaves lying on the open lawn, clear of the props: [X, z, angle, color, oak]. */
 const LITTER = [
   [-0.539, 3.67, 0.4, 0, 0],
-  [-0.338, 3.27, -1.1, 1, 1],
+  [-0.326, 3.47, -1.1, 1, 1],
   [-0.462, 2.95, 2.2, 2, 0],
-  [0.163, 2.57, 0.9, 3, 0],
-  [0.105, 1.58, 2.6, 1, 0],
+  [0.21, 2.6, 0.9, 3, 0],
+  [0.14, 1.5, 2.6, 1, 0],
   [0.6, 4.09, -0.7, 2, 1],
 ] as const;
 
