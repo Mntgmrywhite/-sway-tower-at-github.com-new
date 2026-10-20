@@ -319,18 +319,25 @@ async function shareTower(from: HTMLElement): Promise<void> {
   if (sharing || state.phase !== "over") return;
   sharing = true;
   title.setSharing(true);
+  // The run as the tap found it: a Menu tap during the wait below starts a fresh tower.
+  const shot = state;
+  const shotView = view;
+  const shotMode = mode;
+  const shotBest = best;
   try {
     // The app: let the dimmed Share button show before the picture is made (a moment's work). The
     // web keeps it all in the tap, or the browser may refuse to share outside the gesture.
     if (isNativeApp) await new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    // Gone from the card meanwhile (Menu, or play again): no sheet over the next screen.
+    if (state !== shot || screen !== "run") return;
     const card = document.createElement("canvas");
     card.width = SHARE_W;
     card.height = SHARE_H;
     const c = card.getContext("2d");
     if (!c) return;
-    drawShareCard(c, state, view, best, currentSkin(), audio.position());
+    drawShareCard(c, shot, shotView, shotBest, currentSkin(), audio.position());
     const png = pngBase64(card.toDataURL("image/png"));
-    const text = shareText(state.score, mode);
+    const text = shareText(shot.score, shotMode);
     const url = SHARE_LINK || undefined;
     if (isNativeApp) {
       const r = from.getBoundingClientRect();

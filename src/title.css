@@ -196,9 +196,13 @@
   border: 0;
 }
 
-/* Share while the picture is made and the sheet comes up (a moment on a phone). */
+/*
+ * Share while the picture is made and the sheet comes up (a moment on a phone): dimmed, but still
+ * solid (see-through, the base bar behind it showed through the word).
+ */
 #over button[aria-busy="true"] {
-  opacity: 0.6;
+  filter: brightness(0.7) saturate(0.6);
+  cursor: progress;
 }
 
 /* --- Cartoon: flat fills, ink outline, light top and shaded bottom; a press sinks the button --- */
