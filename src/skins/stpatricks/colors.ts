@@ -79,6 +79,20 @@ export const STOCKING = "#fff6e4";
 export const SHOE = "#2b2838";
 export const BELT = "#5b3a26";
 
+// ---------------------------------------------------------------- the session outside
+
+/** Pints of green brew: a bright lime green (it reads against the meadow behind it) under a creamy head. */
+export const BREW = shades("#a5e046", 0.4, 0.2);
+export const FOAM: Shades = { light: "#ffffff", body: "#fff4d8", shade: "#ead8ae" };
+/** The box player: a cream Aran jumper, slate-blue trousers, a tweed flat cap, a short white beard. */
+export const ARAN: Shades = { light: "#fffaf0", body: "#f0e4c8", shade: "#d3c29c" };
+export const TROUSERS = shades("#4d5d92", 0.36, 0.24);
+export const CAP = shades("#8c6c50", 0.36, 0.24);
+export const WHISKERS: Shades = { light: "#ffffff", body: "#e4e1db", shade: "#aaa49a" };
+/** His button accordion: a red box with a gold trim, black bellows with pale pleats. */
+export const BOX = shades("#e0473d", 0.36, 0.24);
+export const BELLOWS: Shades = { light: "#d9d6e4", body: "#33303f", shade: "#22202b" };
+
 // ---------------------------------------------------------------- near clouds
 
 export const CLOUD: Shades = { light: "#ffffff", body: "#f4f8ff", shade: "#d3e1f4" };

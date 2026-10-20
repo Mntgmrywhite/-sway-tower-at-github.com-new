@@ -8,6 +8,7 @@ import { front, wallFoot, wallTop } from "./front";
 import { plan, potAndLeprechaun } from "./gold";
 import { cottage, rainbowArc, smoke, toadstool } from "./meadow";
 import { flock } from "./pasture";
+import { session } from "./session";
 import { sun } from "./sky";
 import { context, mask, overlap, SIZES, startScene } from "./test-scene";
 import { level, toneOf } from "./tone";
@@ -54,6 +55,8 @@ const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean; away?
   { name: "rainbow", draw: rainbowArc, above: false, away: true },
   { name: "pot of gold and leprechaun", draw: potAndLeprechaun, above: true, beside: true, away: true },
   { name: "toadstool", draw: toadstool, above: true, beside: true },
+  // The session outside: the box player by his barrel of pints (session.test.ts follows him through his toasts).
+  { name: "session", draw: session, above: true, beside: true },
   // The drum's top course is the tower's floor; the mound, ladder and doorway hang below it.
   { name: "round tower base", draw: roundTower, above: true, beside: true },
 ];

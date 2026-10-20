@@ -18,8 +18,10 @@ import { roundTower } from "./stpatricks/tower";
 // starts, a big rainbow sweeps into a round arch behind the round tower, from a tuft of grass by
 // the cottage to the meadow on the right, and a leprechaun of our own lugs his pot of gold out
 // from behind the round tower and sets it down at its right foot, then keeps watch behind it for
-// good, peeking out round it and over it; his cobbling waits on a red toadstool. (Every action of
-// the start view happens in its first ten seconds: actions.test.ts.)
+// good, peeking out round it and over it; his cobbling waits on a red toadstool. Beside it an old
+// box player plays jigs on his accordion by an upturned barrel with three pints of green brew on
+// it, and between tunes raises his pint in a toast to the gold, sets it down and plays on. (Every
+// action of the start view happens in its first ten seconds: actions.test.ts.)
 // Beyond, hills quilted with fields, hedgerows and dry-stone walls, farmhouses on the right, on
 // the left hilltop a whole round tower and a high cross, a stream winding out under a humpbacked
 // stone bridge; and behind them the mountains: a flat-topped one with fluted flanks, and the

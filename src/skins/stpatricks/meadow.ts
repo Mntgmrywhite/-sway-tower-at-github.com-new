@@ -2,6 +2,7 @@ import { circle, ink, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { DOOR, FACE, GOLD, INK, IRON, OPENING, RAINBOW, SILL, THATCH, WHITEWASH, WOOD } from "./colors";
 import { bowSweep, POT_FOOT, POT_X, potAndLeprechaun, tuft } from "./gold";
+import { session } from "./session";
 import { block } from "./shapes";
 import { centerX, inkW } from "./tower";
 
@@ -15,8 +16,9 @@ import { centerX, inkW } from "./tower";
 // still behind the base block and the first bars), and the leprechaun brings his black pot
 // heaped with gold out from behind the round tower and sets it down at its right foot, then
 // keeps watch behind it (gold.ts). In front of them a red toadstool with his cobbler's work left
-// on it: a little buckled shoe and his hammer. Only the faint smoke rises higher, at the
-// screen's left edge like Classic's kite.
+// on it: a little buckled shoe and his hammer; beside it, in the corner, the session outside: an
+// old box player on his stool by a barrel with pints of green brew on it (session.ts). Only the
+// faint smoke rises higher, at the screen's left edge like Classic's kite.
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
@@ -369,4 +371,5 @@ export function meadowBack(ctx: Ctx, s: Scene): void {
   rainbowArc(ctx, s);
   potAndLeprechaun(ctx, s);
   toadstool(ctx, s);
+  session(ctx, s);
 }

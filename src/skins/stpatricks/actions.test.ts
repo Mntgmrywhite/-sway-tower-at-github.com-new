@@ -3,6 +3,7 @@ import { RAINBOW } from "./colors";
 import { BACK_X, bowSweep, plan, POT_X, SETTLED } from "./gold";
 import { atRest, FULL_RISE, lookout, PEEK_RISE } from "./lookout";
 import { flockPoses } from "./pasture";
+import { FIRST_TOAST, pose, TOAST, toastAt } from "./session";
 import { sceneAt } from "./test-scene";
 
 // The owner's rule: any action needs to happen within the first 10 seconds, because after that
@@ -15,10 +16,12 @@ import { sceneAt } from "./test-scene";
 // only keeps watch, peeking out now and then), the second leprechaun coming up from behind the
 // gatepost with the hat on his head, grinning and winking, and ducking back down (then he comes
 // up now and then), and the flock in the back pasture frolicking (the lambs race and then pronk
-// or skip, the ewes look up, bounce and amble a few steps). The rest is ambient: the turf
-// smoke, the glint winking on the gold, the swallows wheeling on their spot, the clouds
-// bobbing. The lane's geese, swans and larks, the rain, the sky's rainbow and the
-// shooting stars come with the height you climb to, so they are exempt.
+// or skip, the ewes look up, bounce and amble a few steps), and the box player outside the
+// session, who stops his tune, raises his pint of green brew in a toast, sets it down and plays
+// on (then again every 20 to 30 seconds). The rest is ambient: the turf smoke, the glint winking
+// on the gold, the swallows wheeling on their spot, the clouds bobbing, the bellows and his
+// tapping boot. The lane's geese, swans and larks, the rain, the sky's rainbow and the shooting
+// stars come with the height you climb to, so they are exempt.
 
 const OPENING = 10;
 const FRAME = 1 / 60;
@@ -110,6 +113,61 @@ describe("st. patrick's actions happen in the first 10 seconds", () => {
         expect(p.graze, `t=${t.toFixed(2)}: animal ${i} looks up`).toBeGreaterThan(0.99);
         expect(Math.abs(p.x - home[i]!.x), `t=${t.toFixed(2)}: animal ${i} away from home`).toBeLessThan(0.5);
       });
+    }
+  });
+
+  it("the box player stops his tune, raises his pint of green brew in a toast, sets it down and plays on; then again every 20 to 30 s", () => {
+    // In the tune from the start.
+    for (let t = 0; t < FIRST_TOAST; t += FRAME) {
+      const p = pose(t);
+      expect(p.playing, `t=${t.toFixed(2)}: playing`).toBe(1);
+      expect(p.holding, `t=${t.toFixed(2)}: his pint on the barrel`).toBe(false);
+    }
+    // Then the toast, every step of it in order, and back in the tune, all by OPENING.
+    let quiet = -1;
+    let lifted = -1;
+    let high = -1;
+    let cheers = -1;
+    let down = -1;
+    let again = -1;
+    for (let t = 0; t < OPENING; t += FRAME) {
+      const p = pose(t);
+      if (quiet < 0 && p.playing < 0.01) quiet = t;
+      if (lifted < 0 && p.holding) lifted = t;
+      if (high < 0 && p.raise > 0.99) high = t;
+      if (cheers < 0 && p.cheers > 0.9 && p.beam > 0.99) cheers = t;
+      if (high > 0 && down < 0 && !p.holding) down = t;
+      if (down > 0 && again < 0 && p.playing > 0.99 && p.reach === 0) again = t;
+    }
+    expect(quiet, "the box goes quiet").toBeGreaterThan(0);
+    expect(lifted, "takes up his pint").toBeGreaterThan(quiet);
+    expect(high, "raises it high").toBeGreaterThan(lifted);
+    expect(cheers, "a beaming cheers up there").toBeGreaterThan(high);
+    expect(down, "sets it back down").toBeGreaterThan(cheers);
+    expect(again, "plays on").toBeGreaterThan(down);
+    expect(again, "plays on").toBeLessThan(OPENING);
+    // And again and again, 20 to 30 s apart (varied), every one a whole toast.
+    const starts: number[] = [];
+    let was = -1;
+    for (let t = 0; t < 1800; t += 0.05) {
+      const k = toastAt(t);
+      if (k >= 0 && was < 0) starts.push(t);
+      was = k;
+    }
+    expect(starts[0], "the first toast").toBeGreaterThan(FIRST_TOAST - 0.01);
+    expect(starts[0], "the first toast").toBeLessThan(FIRST_TOAST + 0.06);
+    expect(starts.length, "toasts in half an hour").toBeGreaterThan(60);
+    const gaps = starts.slice(1).map((t, i) => t - starts[i]!);
+    for (const g of gaps) {
+      expect(g, "a toast too soon after the last").toBeGreaterThanOrEqual(20 - 0.1);
+      expect(g, "a long wait for the next toast").toBeLessThanOrEqual(30 + 0.1);
+    }
+    expect(Math.max(...gaps) - Math.min(...gaps), "the waits vary").toBeGreaterThan(4);
+    for (const t0 of starts.slice(1, 8)) {
+      let raised = false;
+      for (let t = t0; t < t0 + TOAST; t += FRAME) if (pose(t).raise > 0.99) raised = true;
+      expect(raised, `the toast at ${t0.toFixed(1)} s raises the pint`).toBe(true);
+      expect(pose(t0 + TOAST + 0.05).playing, `playing on after the toast at ${t0.toFixed(1)} s`).toBe(1);
     }
   });
 });
