@@ -80,6 +80,13 @@ export const INSTRUMENTS = {
   // Its files are named an octave above the pitch they sound (the set's own SFZ maps B3.flac
   // to B2) and run 7-38 cents sharp; autotune takes out the cents.
   accordion: { dir: `${FP}/Button Accordion HN SFZ+FLAC-20240329`, attack: 0.02, release: 0.15, gain: 0.8, transpose: -12, autotune: "heard", harmonic: true },
+  // MLK Day's reed organ (a church harmonium): the same free-reed recordings swelling in slowly,
+  // low-passed by the song. The takes hold 1.3-2.5 s and stop dead, so chords are re-struck each
+  // pulse and never held longer than a second; the 0.45 s release (-6 dB at 50 ms) carries each
+  // chord down through the next one's attack, so the re-strikes crossfade instead of dipping.
+  // Without the E5 take (E4): at its own pitch it is heard 9 cents sharp (a scoop its measured
+  // tuning misses), so E4 plays on the D5 take, F4 on F#5.
+  reedOrgan: { dir: `${FP}/Button Accordion HN SFZ+FLAC-20240329`, exclude: /E5\.flac/, attack: 0.09, release: 0.45, gain: 0.8, transpose: -12, autotune: "heard", harmonic: true },
   whistle: { dir: `${VCSL}/Aerophones/Edge-blown Aerophones/Baroque Soprano Recorder/Sustain`, attack: 0.02, release: 0.12, gain: 0.8, transpose: OCT, autotune: "heard", harmonic: true },
   whistleShort: { dir: `${VCSL}/Aerophones/Edge-blown Aerophones/Baroque Soprano Recorder/Staccato`, oneShot: true, transpose: OCT, autotune: "heard", harmonic: true },
 
@@ -118,6 +125,9 @@ export const INSTRUMENTS = {
   claps: { dir: `${VCSL}/Idiophones/Struck Idiophones/Claps`, fixedNote: "C4", oneShot: true, gain: 0.7 },
   shaker: { dir: `${VCSL}/Idiophones/Struck Idiophones/Shaker, Small`, fixedNote: "C4", oneShot: true, gain: 0.5 },
   tambourine: { dir: `${VCSL}/Idiophones/Struck Idiophones/Tambourine 1`, fixedNote: "C4", oneShot: true, gain: 0.5 },
+  // The tambourine's two hits alone (two layers), for a backbeat: `tambourine` rotates its 10 s
+  // rolls and shakes in with them.
+  tambourineHit: { dir: `${VCSL}/Idiophones/Struck Idiophones/Tambourine 1`, match: /Tamb1_Hit_/, fixedNote: "C4", oneShot: true, gain: 0.5 },
   // Triangle: open strokes and fully muted "tk" strokes, all from one triangle so a part keeps
   // one pitch (no rolls: those are 23-39 s long).
   triangle: { dir: `${VCSL}/Idiophones/Struck Idiophones/Triangles`, match: /Triangle3_Hit_/, fixedNote: "C4", oneShot: true, gain: 0.5 },
