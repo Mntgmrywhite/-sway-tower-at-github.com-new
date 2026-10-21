@@ -1,15 +1,23 @@
 import { mix } from "../../base/draw";
 import type { Palette } from "../skin";
+import type { PlaitStyle, RoundelStyle } from "./knot";
 
-// St. Patrick's Day colors: an Irish spring in bright cartoon. Emerald and shamrock greens for
-// the grass, warm grey-tan limestone for the round tower and the dry-stone walls, whitewash and
-// golden thatch for the cottage with its red half-door, cream wool, a black iron pot heaped
-// with gold, and one deep indigo ink for every outline up close. Near things use these as they
-// are (flat, two-tone, inked); far things are mixed toward the sky of the moment (see tone.ts)
-// and never outlined.
+// St. Patrick's Day colors: the west of Ireland in spring, after the owner's photos (vivid
+// spring greens, a clear Atlantic blue), drawn like a page of the Book of Kells: its ornament in
+// the manuscript's own pigments (lapis blue, verdigris green, orpiment yellow, vermilion, a dark
+// folium purple ground) and one warm iron-gall ink for every outline up close and the
+// knotwork's contours. Near things use these as they are (flat fills, a shaded underside,
+// inked); far things take the light of the moment (see tone.ts), with at most a fine contour of
+// their own, never the ink.
 
-/** Outline color for everything up close, and the bars' ink. */
-export const INK = "#21263d";
+// ---------------------------------------------------------------- the pigments
+
+const LAPIS = "#2d57a6";
+const VERDIGRIS = "#2f9a72";
+export const ORPIMENT = "#f3bf34";
+export const VERMILION = "#d8472e";
+/** Outline color for everything up close, the knotwork's contours, and the bars' ink: iron-gall ink, a warm brown-black. */
+export const INK = "#2c1e1b";
 
 /** A color in three tones: lit top, body, shaded underside. */
 export interface Shades {
@@ -22,47 +30,73 @@ function shades(body: string, light = 0.42, shade = 0.26): Shades {
   return { light: mix(body, "#ffffff", light), body, shade: mix(body, "#1a1030", shade) };
 }
 
+// ---------------------------------------------------------------- the knotwork
+
+/** The dark folium-purple ground of the knotwork. */
+const FOLIUM = "#2b1a35";
+/**
+ * The plaited bands of the border and its corners: strands of orpiment, verdigris and vermilion
+ * on the folium ground, outlined in that same dark (so their contours show only where one strand
+ * passes over another), an orpiment rule along each edge.
+ */
+export const KNOTWORK: PlaitStyle = { ground: FOLIUM, frame: ORPIMENT, strands: [ORPIMENT, VERDIGRIS, VERMILION], ink: FOLIUM, width: 0.5, contour: 0.07 };
+/** The roundels with their triskeles: lapis ground, verdigris rim, orpiment arms, inked, ringed with vermilion dots. */
+export const ROUNDEL: RoundelStyle = { ground: LAPIS, rim: VERDIGRIS, arms: ORPIMENT, ink: INK, dots: VERMILION };
+
 // ---------------------------------------------------------------- the round tower and walls
 
 /** Weathered limestone: the round tower under the bars. */
-export const STONE = shades("#d6cdb9", 0.5, 0.2);
-/** The courses and joints in the tower's stonework. */
+export const STONE = shades("#d8cbae", 0.5, 0.2);
+/** The courses and joints in the tower's stonework, and the carved band's cut lines. */
 export const JOINT = mix(STONE.body, "#5a4a3a", 0.32);
 /** Dark openings: the tower's raised doorway and window, the cottage's panes. */
-export const OPENING = "#2c2a40";
+export const OPENING = "#2d2338";
 /** The dry-stone wall in front: three stone tones, and the shadow between the stones. */
-export const WALL_STONES: readonly Shades[] = [shades("#c9c2b2", 0.45, 0.2), shades("#b4b4ac", 0.45, 0.2), shades("#d4c7ad", 0.45, 0.2)];
-export const WALL_GAP = "#3a3644";
+export const WALL_STONES: readonly Shades[] = [shades("#cdbfa3", 0.45, 0.2), shades("#b7b1a3", 0.45, 0.2), shades("#d8c6a3", 0.45, 0.2)];
+export const WALL_GAP = "#3b3038";
 /** Ladder and gate wood. */
-export const WOOD = shades("#b97a45");
+export const WOOD = shades("#b67843");
 
 // ---------------------------------------------------------------- grass
 
-/** Grass up close: the mound round the tower's foot and the verge in the gateway. */
-export const GRASS = shades("#45be55", 0.4, 0.22);
+/** Grass up close: the mound round the tower's foot, the tufts and the verge in front. */
+export const GRASS = shades("#54b04c", 0.4, 0.22);
 /** The meadow round the tower: lighter far off, deeper near. */
-export const MEADOW_FAR = "#86d872";
-export const MEADOW = "#62c95e";
-/** Shamrock leaves. */
+export const MEADOW_FAR = "#9ccf6c";
+export const MEADOW = "#74c15a";
+/** The trefoils of dots strewn on the near meadow. */
+export const MEADOW_DOT = "#5ead4c";
+/** Shamrock leaves: a fresh, deep shamrock green. */
 export const SHAMROCK = "#2fa84a";
+/** Spring flowers in the meadow: white daisies with orpiment eyes, pale primroses with orange eyes. */
+export const DAISY = "#ffffff";
+export const PRIMROSE = "#fbe98a";
+export const PRIMROSE_EYE = "#ee9a2a";
 /** The worn path through the gateway. */
-export const PATH = "#a9d77a";
+export const PATH = "#c9d98a";
 
 // ---------------------------------------------------------------- the cottage
 
-export const WHITEWASH: Shades = { light: "#ffffff", body: "#f4f2ea", shade: "#cfd3de" };
-export const THATCH = shades("#e2b052", 0.4, 0.22);
-export const DOOR = shades("#df4437", 0.36, 0.22);
-export const SILL = "#3a7fd0";
+export const WHITEWASH: Shades = { light: "#fffcf2", body: "#f6efdc", shade: "#d8cfbb" };
+export const THATCH = shades("#e3ac4a", 0.4, 0.22);
+export const DOOR = shades(VERMILION, 0.36, 0.22);
+export const SILL = LAPIS;
+
+// ---------------------------------------------------------------- the moon
+
+/** The crescent moon: its lit face, its shaded rim, and the ring of gold dots round it. */
+export const MOON = "#fbf0cf";
+export const MOON_SHADE = "#e5cf95";
+export const MOON_DOTS = "#e9c86a";
 
 // ---------------------------------------------------------------- sheep, gold, rainbow
 
-export const WOOL: Shades = { light: "#ffffff", body: "#f6f1e3", shade: "#d7cfbd" };
-export const FACE = "#3a3542";
-export const IRON: Shades = { light: "#6a667e", body: "#3a3747", shade: "#26232f" };
-export const GOLD = shades("#ffc634", 0.48, 0.18);
-/** The bands of the rainbow, outside in. */
-export const RAINBOW = ["#ff5a50", "#ff9d3b", "#ffd93b", "#4cc85a", "#4a8ff0", "#9a6cf0"] as const;
+export const WOOL: Shades = { light: "#fffdf6", body: "#f7f0de", shade: "#d9cdb4" };
+export const FACE = "#3b3036";
+export const IRON: Shades = { light: "#6b6475", body: "#3a3442", shade: "#27222d" };
+export const GOLD = shades(ORPIMENT, 0.48, 0.18);
+/** The bands of the rainbow, outside in, in the manuscript's pigments: vermilion, red lead, orpiment, verdigris, lapis, folium. */
+export const RAINBOW = ["#e44b36", "#f28b36", "#f7cf3a", "#42b064", "#3d78d2", "#8251bb"] as const;
 /** The little green hat on the gatepost. */
 export const HAT = shades("#2e9e4e", 0.4, 0.24);
 
@@ -76,7 +110,7 @@ export const SKIN = shades("#ffd3b0", 0.4, 0.16);
 export const CHEEK = "#ff9c8c";
 export const BEARD = shades("#e8682e", 0.38, 0.2);
 export const STOCKING = "#fff6e4";
-export const SHOE = "#2b2838";
+export const SHOE = "#2b2532";
 export const BELT = "#5b3a26";
 
 // ---------------------------------------------------------------- the session outside
@@ -84,36 +118,32 @@ export const BELT = "#5b3a26";
 /** Pints of green brew: a bright lime green (it reads against the meadow behind it) under a creamy head. */
 export const BREW = shades("#a5e046", 0.4, 0.2);
 export const FOAM: Shades = { light: "#ffffff", body: "#fff4d8", shade: "#ead8ae" };
-/** The box player: a cream Aran jumper, slate-blue trousers, a tweed flat cap, a short white beard. */
+/** The box player: a cream Aran jumper, lapis trousers, a tweed flat cap, a short white beard. */
 export const ARAN: Shades = { light: "#fffaf0", body: "#f0e4c8", shade: "#d3c29c" };
-export const TROUSERS = shades("#4d5d92", 0.36, 0.24);
+export const TROUSERS = shades("#45599a", 0.36, 0.24);
 export const CAP = shades("#8c6c50", 0.36, 0.24);
 export const WHISKERS: Shades = { light: "#ffffff", body: "#e4e1db", shade: "#aaa49a" };
-/** His button accordion: a red box with a gold trim, black bellows with pale pleats. */
-export const BOX = shades("#e0473d", 0.36, 0.24);
+/** His button accordion: a vermilion box with a gold trim, black bellows with pale pleats. */
+export const BOX = shades("#dc4a37", 0.36, 0.24);
 export const BELLOWS: Shades = { light: "#d9d6e4", body: "#33303f", shade: "#22202b" };
-
-// ---------------------------------------------------------------- near clouds
-
-export const CLOUD: Shades = { light: "#ffffff", body: "#f4f8ff", shade: "#d3e1f4" };
 
 /**
  * The base palette. St. Patrick's paints its own backdrop over the base sky, field and band
  * (see stpatricks.ts), so these are the day values the base would show.
  */
 export const PALETTE: Palette = {
-  skyTop: "#4596ea",
-  skyMid: "#72baf3",
-  skyBottom: "#d3f1fb",
-  star: "#fff8e0",
-  moon: "#fff4cf",
-  cloudShadow: "#c6daf1",
-  cloudBase: "#f5faff",
+  skyTop: "#2558bb",
+  skyMid: "#4584d8",
+  skyBottom: "#cce6f6",
+  star: "#fff3d6",
+  moon: "#fbefcf",
+  cloudShadow: "#c4d6ee",
+  cloudBase: "#fbfdff",
   cloudLight: "#ffffff",
-  far: "#9ccab8",
+  far: "#7896cf",
   fieldFar: MEADOW_FAR,
   fieldNear: MEADOW,
-  // The base band in front is covered by the dry-stone wall; these match it.
+  // The base band in front is covered by the dry-stone wall and the knotwork border; these match the wall.
   grass: GRASS.body,
   grassDark: GRASS.shade,
   stone: WALL_STONES[0]!.body,

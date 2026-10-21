@@ -1,10 +1,12 @@
 import { alpha, mix } from "../../base/draw";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
-import { RAINBOW as BANDS } from "./colors";
+import { RAINBOW as BANDS, VERMILION } from "./colors";
 
 // Height tells the story: the weather and the light change with the camera's altitude, in
-// tower levels. A bright spring morning over the green fields; up into the clouds, where a
+// tower levels. The sky is one smooth wash, a clear Atlantic blue deep at the top and paling to
+// the horizon (never stepped bands), and it changes with the hour. A bright spring morning over
+// the green fields and the sea; up into the clouds, where a
 // soft spring shower greys the sky and the side clouds let fall a few drops; above it the sun
 // breaks through and a rainbow hangs in the lane opposite the sun; then a golden evening as
 // the sun sinks into the cloud floor, a rosy dusk, and a calm starry night with a crescent
@@ -68,8 +70,8 @@ interface Key {
   at: number;
   /** Sky gradient: top, middle, the glow band low in the sky, and the bottom. */
   sky: [string, string, string, string];
-  /** Clouds: shaded underside, body, lit caps. */
-  cloud: [string, string, string];
+  /** Clouds: shaded underside, body, lit caps, and their fine contour and curls. */
+  cloud: [string, string, string, string];
   /** What distance fades toward. */
   haze: string;
   /** How far mid-distance things sink toward the night shadow (0 by day). */
@@ -79,16 +81,16 @@ interface Key {
 const NIGHT_SHADOW = "#141c4c";
 
 const SPRING: Omit<Key, "at"> = {
-  sky: ["#4596ea", "#72baf3", "#ade0f9", "#d3f1fb"],
-  cloud: ["#c6daf1", "#f5faff", "#ffffff"],
-  haze: "#b6e0f6",
+  sky: ["#2558bb", "#4584d8", "#8cbfeb", "#cce6f6"],
+  cloud: ["#c4d6ee", "#fbfdff", "#ffffff", "#6f8fc0"],
+  haze: "#b4d2ee",
   dark: 0,
 };
 
 const NIGHT_KEY: Omit<Key, "at"> = {
-  sky: ["#111848", "#17225e", "#203074", "#2b4088"],
-  cloud: ["#36428a", "#56649f", "#7886c4"],
-  haze: "#2a3878",
+  sky: ["#0e1640", "#152059", "#1d2a6d", "#27367c"],
+  cloud: ["#333f86", "#525f9c", "#7480bf", "#1c2458"],
+  haze: "#273573",
   dark: 0.55,
 };
 
@@ -97,30 +99,30 @@ const KEYS: Key[] = [
   { at: MORNING, ...SPRING },
   {
     at: SHOWER,
-    sky: ["#7a93bb", "#9cb2cf", "#c0d2e4", "#d8e4ee"],
-    cloud: ["#a9b5c8", "#e0e6ee", "#f5f7fa"],
-    haze: "#bccada",
+    sky: ["#5a6c98", "#8292b4", "#adbbd0", "#cfd8e3"],
+    cloud: ["#adb8cb", "#e8ecf2", "#f7f8fb", "#66748f"],
+    haze: "#bcc7d6",
     dark: 0.03,
   },
   {
     at: CLEAR,
-    sky: ["#3d8fe6", "#68b4f1", "#a8dcf8", "#d0eefa"],
-    cloud: ["#c2d6f0", "#f6faff", "#ffffff"],
-    haze: "#acd8f4",
+    sky: ["#2254b8", "#4080d6", "#88bbea", "#c8e3f5"],
+    cloud: ["#c1d4ee", "#fbfdff", "#ffffff", "#6c8cbe"],
+    haze: "#b0cfec",
     dark: 0,
   },
   {
     at: GOLDEN,
-    sky: ["#4c74c6", "#b29ec2", "#ffbf6c", "#ffe0a0"],
-    cloud: ["#e6ae8e", "#ffe5c4", "#fff6e2"],
-    haze: "#f0c69c",
+    sky: ["#3d58a8", "#9488bf", "#f2b45c", "#fadb9a"],
+    cloud: ["#e5aa86", "#ffe2bf", "#fff4e0", "#a8684a"],
+    haze: "#efc596",
     dark: 0.08,
   },
   {
     at: DUSK,
-    sky: ["#272d76", "#4a3f9a", "#9c64a4", "#e6898a"],
-    cloud: ["#7c68ae", "#b8a2d8", "#dccaf2"],
-    haze: "#8a6aae",
+    sky: ["#29296c", "#56397f", "#a8557a", "#e0816a"],
+    cloud: ["#7a62a6", "#b39fd2", "#d8c8ef", "#47367a"],
+    haze: "#8a68aa",
     dark: 0.38,
   },
   { at: NIGHT, ...NIGHT_KEY },
@@ -136,9 +138,9 @@ const DAWN_KEYS: Key[] = [
   { at: DAWN_FROM, ...NIGHT_KEY },
   {
     at: DAWN_PEAK,
-    sky: ["#3a4a9c", "#8a78c0", "#ff9f8e", "#ffd6a6"],
-    cloud: ["#b98bb0", "#ffcfc6", "#fff1e4"],
-    haze: "#e3a9b4",
+    sky: ["#36479a", "#8670b4", "#f19f80", "#f8d5a6"],
+    cloud: ["#b689ad", "#ffcdc2", "#fff0e2", "#865877"],
+    haze: "#e2a8b2",
     dark: 0.16,
   },
   { at: MORNING, ...SPRING },
@@ -150,20 +152,52 @@ export interface Tone {
   cloudShade: string;
   cloud: string;
   cloudLight: string;
-  /** The far mountains, faded blue, with the snow-pale lit flank and the holy mountain's path. */
+  /** The clouds' fine contour, and the curls drawn in them. */
+  cloudLine: string;
+  /** The far range, a lapis haze along the horizon. */
   mountainFar: string;
+  /** The holy mountain: its quartzite scree, the sunlit face, the fine contours, and the pilgrims' path. */
   mountain: string;
   mountainLit: string;
-  /** Back hills, faded blue-green. */
+  mountainLine: string;
+  /** The table mountain: its plateau, the limestone cliff and the shadows in its flutes, the grey talus under it, the green scree slopes and their gullies. */
+  tableTop: string;
+  tableCliff: string;
+  tableFlute: string;
+  tableTalus: string;
+  tableSlope: string;
+  tableGully: string;
+  /** Back hills, a faded verdigris. */
   hillBack: string;
-  /** The front hills' patchwork of fields (three greens), hedgerows and dry-stone walls. */
+  /** The front hills' patchwork of fields (three greens), hedgerows, dry-stone walls (rows of pale dots), fences, and the fine contour along the hills' tops. */
   fields: [string, string, string];
   hedge: string;
   wall: string;
-  /** Far stone: the hilltop round tower, the high cross and the bridge (body, lit side, shade). */
+  fence: string;
+  hillLine: string;
+  /** Far stone: the castle, the round tower, the high cross, the huts and the bridge (body, lit side, shade); slate roofs; dark windows. */
   stone: string;
   stoneLit: string;
   stoneShade: string;
+  slate: string;
+  window: string;
+  /** The Atlantic: deep blue, paler out toward the far shore, the lines of its waves, and the surf. */
+  sea: string;
+  seaFar: string;
+  seaLine: string;
+  surf: string;
+  /** The sea cliffs: dark layered rock, the lit edges of its strata, the deep shadow at its foot. */
+  cliff: string;
+  cliffLit: string;
+  cliffShade: string;
+  /** Yellow lichen on the cliff's ledges; the sand along the bay's shore. */
+  lichen: string;
+  sand: string;
+  /** The hooker at anchor on the bay: its rust-red sails (lit and shaded), its tarred hull, its mast. */
+  sail: string;
+  sailShade: string;
+  hull: string;
+  mast: string;
   /** Whitewash far off: the chapel on the holy mountain, the far cottages. */
   white: string;
   /** Sheep far off. */
@@ -171,8 +205,9 @@ export interface Tone {
   /** The stream. */
   water: string;
   waterLit: string;
-  /** The meadow's far band, as it fades with the light. */
+  /** The meadow's far band, as it fades with the light, and the trefoils of dots strewn on it. */
   meadowFar: string;
+  meadowDot: string;
   /** How hard it rains (0 dry, 1 the heart of the shower), and the color of the drops. */
   rain: number;
   drop: string;
@@ -187,11 +222,13 @@ export interface Tone {
   stars: number;
   moon: number;
   morningStar: number;
-  /** The sun: how far it has set (0 at its day spot, 1 gone into the clouds), body, shade, flat halo. */
+  /** The sun: how far it has set (0 at its day spot, 1 gone into the clouds), its disc, the triskele in it, its contour, its flat halo and its ring of dots. */
   sunSet: number;
   sunBody: string;
   sunShade: string;
+  sunLine: string;
   sunHalo: string;
+  sunDots: string;
 }
 
 /** Mid-distance color: faded toward the haze, then sunk toward the night. */
@@ -204,7 +241,7 @@ function blendKeys(a: Key, b: Key, t: number): Key {
   return {
     at: a.at + (b.at - a.at) * t,
     sky: [m(a.sky[0], b.sky[0]), m(a.sky[1], b.sky[1]), m(a.sky[2], b.sky[2]), m(a.sky[3], b.sky[3])],
-    cloud: [m(a.cloud[0], b.cloud[0]), m(a.cloud[1], b.cloud[1]), m(a.cloud[2], b.cloud[2])],
+    cloud: [m(a.cloud[0], b.cloud[0]), m(a.cloud[1], b.cloud[1]), m(a.cloud[2], b.cloud[2]), m(a.cloud[3], b.cloud[3])],
     haze: m(a.haze, b.haze),
     dark: a.dark + (b.dark - a.dark) * t,
   };
@@ -232,9 +269,13 @@ function rainbowAt(lvl: number): number {
   return smooth(35, 41, lvl) * (1 - smooth(54, 60, lvl));
 }
 
-const HILL = 0.24;
-const FAR = 0.4;
-const PEAKS = 0.55;
+/** How far each depth fades toward the haze: the fields, the far stone, the sea and its cliffs, the hooker (its rust-red sails kept bright), the table mountain, the holy mountain. */
+const HILL = 0.2;
+const FAR = 0.3;
+const SEA = 0.18;
+const BOAT = 0.08;
+const TABLE = 0.26;
+const PEAKS = 0.32;
 
 /** What the light does, apart from its colors. */
 interface Light {
@@ -255,35 +296,63 @@ function toneFrom(k: Key, l: Light): Tone {
     cloudShade: k.cloud[0],
     cloud: k.cloud[1],
     cloudLight: k.cloud[2],
-    mountainFar: fade("#8fb4d6", k, 0.62),
-    mountain: fade("#6f93be", k, PEAKS),
-    mountainLit: fade("#a9c4e2", k, PEAKS),
-    hillBack: fade("#6fb894", k, 0.5),
-    fields: [fade("#4cc35e", k, HILL), fade("#8ed762", k, HILL), fade("#2fa653", k, HILL)],
-    hedge: fade("#1d7a3e", k, HILL),
-    wall: fade("#eeece2", k, HILL),
-    stone: fade("#8e97a6", k, FAR),
-    stoneLit: fade("#c4cad2", k, FAR),
-    stoneShade: fade("#5f6878", k, FAR),
+    cloudLine: k.cloud[3],
+    mountainFar: fade("#7896cf", k, 0.55),
+    mountain: fade("#7179c0", k, PEAKS),
+    mountainLit: fade("#b3b9ea", k, PEAKS),
+    mountainLine: fade("#3d4389", k, PEAKS),
+    tableTop: fade("#4f8a52", k, TABLE),
+    tableCliff: fade("#e2dbe0", k, TABLE),
+    tableFlute: fade("#8c84a8", k, TABLE),
+    tableTalus: fade("#8fa889", k, TABLE),
+    tableSlope: fade("#5aa65a", k, TABLE),
+    tableGully: fade("#3f7c4f", k, TABLE),
+    hillBack: fade("#4fa77a", k, 0.36),
+    fields: [fade("#5fbf3a", k, HILL), fade("#94d64e", k, HILL), fade("#3aa23c", k, HILL)],
+    hedge: fade("#25703a", k, HILL),
+    wall: fade("#f6f0dc", k, HILL),
+    fence: fade("#6a5a48", k, HILL),
+    hillLine: fade("#1d5631", k, HILL),
+    stone: fade("#a69e92", k, FAR),
+    stoneLit: fade("#e2dccd", k, FAR),
+    stoneShade: fade("#6a6470", k, FAR),
+    slate: fade("#45506e", k, FAR),
+    window: fade("#262535", k, FAR),
+    sea: fade("#1a50aa", k, SEA),
+    seaFar: fade("#3f84d4", k, SEA),
+    seaLine: fade("#9fcdf3", k, SEA),
+    surf: fade("#ffffff", k, SEA),
+    cliff: fade("#4b3d3b", k, SEA),
+    cliffLit: fade("#8a7666", k, SEA),
+    cliffShade: fade("#2b2329", k, SEA),
+    lichen: fade("#e8c440", k, SEA),
+    sand: fade("#d9d6a2", k, SEA),
+    sail: fade("#c4562a", k, BOAT),
+    sailShade: fade("#983c1f", k, BOAT),
+    hull: fade("#2b2630", k, BOAT),
+    mast: fade("#5a4434", k, BOAT),
     white: fade("#fbfbf6", k, 0.3),
     sheep: fade("#ffffff", k, 0.12),
-    water: fade("#3f9be8", k, 0.3),
-    waterLit: fade("#b0e0fb", k, 0.3),
-    meadowFar: fade("#86d872", k, 0.1),
+    water: fade("#2f7fd8", k, 0.24),
+    waterLit: fade("#b6daf6", k, 0.24),
+    meadowFar: fade("#86cc56", k, 0.08),
+    meadowDot: fade("#6cb84a", k, 0.08),
     rain: wet,
     drop: mix(k.cloud[2], "#9fc4ea", 0.35),
     rainbow: l.bow,
     bands: [fade(BANDS[0], k, 0.22), fade(BANDS[1], k, 0.22), fade(BANDS[2], k, 0.22), fade(BANDS[3], k, 0.22), fade(BANDS[4], k, 0.22), fade(BANDS[5], k, 0.22)],
-    bird: mix(k.sky[1], "#1a2050", 0.5),
+    bird: mix(k.sky[1], "#2a1c2a", 0.55),
     swan: mix(mix("#ffffff", "#ffd9b0", warm * 0.6), NIGHT_SHADOW, k.dark * 0.5),
     stars: l.stars,
     moon: l.moon,
     morningStar: l.morningStar,
     sunSet: l.sunSet,
     // In the shower the sun pales behind thin cloud; in the evening (and at dawn) it warms to amber.
-    sunBody: mix(mix("#ffd94a", "#ff9a52", warm), "#fff4d6", wet * 0.5),
-    sunShade: mix(mix("#ffbd36", "#f4703f", warm), "#f2e2c0", wet * 0.5),
-    sunHalo: alpha(mix("#fff6c0", "#ffc49a", warm), 0.32 * (1 - wet * 0.6)),
+    sunBody: mix(mix("#f8cd3e", "#ff9a52", warm), "#fbf0d2", wet * 0.5),
+    sunShade: mix(mix("#e39a22", "#d9572e", warm), "#e6cf9e", wet * 0.5),
+    sunLine: mix(mix("#a8661c", "#9a3a22", warm), "#b8a888", wet * 0.5),
+    sunHalo: alpha(mix("#fff3c4", "#ffc49a", warm), 0.3 * (1 - wet * 0.6)),
+    sunDots: mix(mix(VERMILION, "#c2304a", warm), "#c9a89a", wet * 0.6),
   };
 }
 

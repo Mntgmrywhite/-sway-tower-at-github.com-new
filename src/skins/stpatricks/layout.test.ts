@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
-import { WALL_GAP, WALL_STONES } from "./colors";
+import { GRASS, WALL_GAP, WALL_STONES } from "./colors";
 import { drifters } from "./drift";
-import { bridge, farmhouses, farSheep, floorTop, monastery, mountains } from "./far";
-import { front, wallFoot, wallTop } from "./front";
+import { bridge, castle, farmhouses, farSheep, floorTop, hooker, monastery, mountains } from "./far";
+import { front, frontBorder, frontWall, wallFoot, wallTop } from "./front";
 import { plan, potAndLeprechaun } from "./gold";
 import { cottage, rainbowArc, smoke, toadstool } from "./meadow";
 import { flock } from "./pasture";
@@ -47,8 +47,12 @@ const PROPS: { name: string; draw: Draw; above: boolean; beside?: boolean; away?
   { name: "mountains", draw: (ctx, s) => mountains(ctx, s, toneOf(s)), above: false },
   { name: "round tower and high cross", draw: (ctx, s) => monastery(ctx, s, toneOf(s)), above: true },
   { name: "far sheep", draw: (ctx, s) => farSheep(ctx, s, toneOf(s)), above: true },
+  { name: "castle", draw: (ctx, s) => castle(ctx, s, toneOf(s)), above: true },
+  // The farmhouse below the castle and the beehive huts in their ring wall.
   { name: "farmhouses", draw: (ctx, s) => farmhouses(ctx, s, toneOf(s)), above: true },
   { name: "bridge", draw: (ctx, s) => bridge(ctx, s, toneOf(s)), above: true },
+  // The hooker at anchor on the bay.
+  { name: "hooker", draw: (ctx, s) => hooker(ctx, s, toneOf(s)), above: true },
   { name: "flock", draw: flock, above: true },
   { name: "smoke", draw: smoke, above: true },
   { name: "cottage", draw: cottage, above: true, beside: true },
@@ -73,6 +77,7 @@ const ALLOWED = [
   ["mountains", "round tower and high cross"],
   ["mountains", "far sheep"],
   ["mountains", "farmhouses"],
+  ["mountains", "castle"],
   ["mountains", "bridge"],
   ["mountains", "sun"],
   ["mountains", "swallows"],
@@ -180,5 +185,45 @@ describe("st. patrick's wall", () => {
     const side = Math.round(W / 2 - s.u * 0.22);
     expect(wallPixels(ctx.getImageData(0, row, side, 1).data), "wall on the left").toBeGreaterThan(s.u * 0.15);
     expect(wallPixels(ctx.getImageData(W - side, row, side, 1).data), "wall on the right").toBeGreaterThan(s.u * 0.15);
+  });
+});
+
+describe("st. patrick's border", () => {
+  // The knotwork border along the bottom of the start view lies in the verge below the wall:
+  // never over the shamrocks growing at the wall's foot, the gateposts' feet or the stones,
+  // its row of red dots included, and its roundel whole on the screen. The verge is shortest on
+  // a short phone and on a tablet, so they are checked too.
+  const BORDER_SIZES = [...SIZES, [834, 1194]] as const;
+  const [r0, g0, b0] = [1, 3, 5].map((i) => parseInt(GRASS.body.slice(i, i + 2), 16)) as [number, number, number];
+  it.each(BORDER_SIZES)("%ix%i: the border keeps below everything at the wall and on the screen", (W, H) => {
+    const s = startScene(W, H, 0);
+    // The lowest pixel of the wall, its posts and shamrocks: below the wall's foot, out of the
+    // gateway's path, whatever is not the verge's grass.
+    const ctx = context(W, H);
+    frontWall(ctx, s);
+    const data = ctx.getImageData(0, 0, W, H).data;
+    const path = s.u * 0.15;
+    let lowest = 0;
+    for (let y = Math.floor(wallFoot(s)); y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (Math.abs(x + 0.5 - W / 2) < path) continue;
+        const i = (y * W + x) * 4;
+        if (Math.abs(data[i]! - r0) + Math.abs(data[i + 1]! - g0) + Math.abs(data[i + 2]! - b0) > 40) lowest = y;
+      }
+    }
+    expect(lowest, "something stands at the wall's foot").toBeGreaterThan(wallFoot(s));
+    const band = mask(W, H, (c) => frontBorder(c, s));
+    let first: number = H;
+    let bottom = 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!band[y * W + x]) continue;
+        first = Math.min(first, y);
+        if (y === H - 1) bottom++;
+      }
+    }
+    expect(first, "the border is drawn").toBeLessThan(H);
+    expect(first, "the border's top (its row of dots) against the lowest thing at the wall").toBeGreaterThan(lowest + 1);
+    expect(bottom, "border pixels on the screen's bottom row (its roundel cut off)").toBe(0);
   });
 });

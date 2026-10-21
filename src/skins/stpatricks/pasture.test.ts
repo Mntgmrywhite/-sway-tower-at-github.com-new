@@ -1,7 +1,7 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
-import { bridge, farSheep, monastery } from "./far";
+import { bridge, castle, farmhouses, farSheep, monastery } from "./far";
 import { cottage, smoke } from "./meadow";
 import { drawSheep, flockPoses } from "./pasture";
 import { sceneAt, SIZES } from "./test-scene";
@@ -10,8 +10,8 @@ import { toneOf } from "./tone";
 // The flock in the back pasture, over two minutes of frolicking (four, frame by frame, for
 // touching) on a tall and a short phone: the four of them never touch each other, never come
 // into the tower's column or reach the screen's edge, never walk into the far props (the
-// bridge, the hilltop round tower and cross, the sheep on the hill) or the cottage and its
-// smoke in front, and keep to the pasture beyond the brow. And they do frolic: the lambs race
+// bridge, the castle, the farmhouse and the beehive huts, the round tower and cross, the sheep
+// on the hill) or the cottage and its smoke in front, and keep to the pasture beyond the brow. And they do frolic: the lambs race
 // round (one chasing the other), bounce and skip, the ewes graze, look up, and now and then
 // bounce too.
 
@@ -50,6 +50,8 @@ describe("st. patrick's flock", () => {
     const props = regionMask(s0, (ctx) => {
       bridge(ctx, s0, tone);
       monastery(ctx, s0, tone);
+      castle(ctx, s0, tone);
+      farmhouses(ctx, s0, tone);
       farSheep(ctx, s0, tone);
       cottage(ctx, s0);
     });

@@ -1,38 +1,86 @@
-import { circle, hash, oval, type Ctx } from "../../base/draw";
+import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
+import { MOON, MOON_DOTS, MOON_SHADE } from "./colors";
+import { dot, triskelePath } from "./knot";
 import type { Tone } from "./tone";
 
-// The sky and what hangs in it: the gradient for the hour (from tone.ts), a spring sun up on
-// the left (pale behind the shower, amber in the golden evening) that sinks into the cloud
-// floor at sunset, then a crescent moon in the same place, lit on the side the sun set, and the
-// stars, now and then a shooting star out in a side lane; at the loop's dawn the moon and stars
-// fade, the morning star lingers low on the right, and the sun comes back up where it set.
-// Celestial things are far away: flat fills, no outline, a flat halo instead of a glow.
+// The sky and what hangs in it: the clear wash for the hour (from tone.ts), a spring sun up on the
+// left (pale behind the shower, amber in the golden evening) that sinks into the cloud floor at
+// sunset, then a crescent moon in the same place, lit on the side the sun set, and the stars,
+// now and then a shooting star out in a side lane; at the loop's dawn the moon and stars fade,
+// the morning star lingers low on the right, and the sun comes back up where it set.
+// Drawn as an illuminator would: the sun a roundel of orpiment with a triskele in it, finely
+// outlined and ringed with red dots as the Book of Kells rings its initials; the moon a pale
+// crescent in a ring of gold dots; the brighter stars little rosettes of five dots (the page's
+// own filler), the rest single dots. Flat fills and a flat halo, never a glow.
 //
 // The left of the sky belongs to the sun and the moon: nothing drifts there (drift.ts), and a
 // shooting star on that side streaks high above the moon, so nothing ever passes over either.
 
-/** Gradient stops for the four sky colors (top, middle, glow band, bottom). */
-const STOPS = [0, 0.4, 0.7, 0.92] as const;
+/** Where the four sky colors (top, middle, glow band, bottom) stand down the screen, as fractions of its height. */
+const STOPS = [0, 0.34, 0.62, 0.88] as const;
 
-/** The sky gradient is rebuilt only when the light, the screen height or the context changes. */
-const cache = { ctx: null as Ctx | null, step: -1, h: -1, fill: null as CanvasGradient | null };
+/**
+ * The sky is a smooth gradient through its four colors, laid as bands one 8-bit step of color
+ * apart (a band starts wherever the gradient's color, rounded to whole channel values, changes):
+ * the same picture as the canvas's own gradient, which can only show whole steps either, at a
+ * small part of its cost (a gradient fill was the costliest thing in the scene). The bands are
+ * worked out only when the light (its tone step) or the screen's height changes.
+ */
+const MAX_BANDS = 512;
+const BAND_Y = new Float64Array(MAX_BANDS + 1);
+const BAND_COLOR: string[] = Array.from({ length: MAX_BANDS }, () => "");
+const bands = { step: -1, h: -1, n: 0 };
+
+function rgb(c: string): [number, number, number] {
+  const n = parseInt(c.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function buildBands(tone: Tone, h: number): void {
+  const stops = tone.sky.map(rgb);
+  let n = 0;
+  let last = -1;
+  for (let y = 0; y < h && n < MAX_BANDS; y++) {
+    const f = (y + 0.5) / h;
+    let i = 0;
+    while (i < STOPS.length - 2 && f > STOPS[i + 1]!) i++;
+    const k = Math.max(0, Math.min(1, (f - STOPS[i]!) / (STOPS[i + 1]! - STOPS[i]!)));
+    const a = stops[i]!;
+    const b = stops[i + 1]!;
+    const r = Math.round(a[0] + (b[0] - a[0]) * k);
+    const g = Math.round(a[1] + (b[1] - a[1]) * k);
+    const bl = Math.round(a[2] + (b[2] - a[2]) * k);
+    const key = (r << 16) | (g << 8) | bl;
+    if (key === last) continue;
+    last = key;
+    BAND_Y[n] = y;
+    BAND_COLOR[n] = `rgb(${r},${g},${bl})`;
+    n++;
+  }
+  BAND_Y[n] = h;
+  bands.n = n;
+}
 
 /**
  * Paint the sky down to `bottom` (everything below it is covered by the hills and the meadow,
- * or the cloud floor). Gradient fills are the costliest thing in the scene, so it stops there.
+ * or the cloud floor). Each band overlaps the next by a pixel, so no seam shows between them at
+ * any scale.
  */
 export function skyFill(ctx: Ctx, s: Scene, tone: Tone, step: number, bottom: number): void {
-  if (cache.ctx !== ctx || cache.step !== step || cache.h !== s.cssH || !cache.fill) {
-    const g = ctx.createLinearGradient(0, 0, 0, s.cssH);
-    for (let i = 0; i < STOPS.length; i++) g.addColorStop(STOPS[i]!, tone.sky[i]!);
-    cache.ctx = ctx;
-    cache.step = step;
-    cache.h = s.cssH;
-    cache.fill = g;
+  const h = Math.ceil(s.cssH);
+  if (bands.step !== step || bands.h !== h) {
+    buildBands(tone, h);
+    bands.step = step;
+    bands.h = h;
   }
-  ctx.fillStyle = cache.fill;
-  ctx.fillRect(0, 0, s.cssW, Math.min(s.cssH, Math.ceil(bottom)));
+  const end = Math.min(s.cssH, Math.ceil(bottom));
+  for (let i = 0; i < bands.n; i++) {
+    const y0 = BAND_Y[i]!;
+    if (y0 >= end) break;
+    ctx.fillStyle = BAND_COLOR[i]!;
+    ctx.fillRect(0, y0, s.cssW, Math.min(BAND_Y[i + 1]! + 1, end) - y0);
+  }
 }
 
 // ---------------------------------------------------------------- sun
@@ -60,6 +108,22 @@ export function sunAt(s: Scene, tone: Tone, floor: number): typeof SUN {
   return SUN;
 }
 
+/** A ring of dots round the sun and the moon: their directions, and how far out they stand and how big they are (radii). */
+const RING_DOTS = 16;
+const RING = Array.from({ length: RING_DOTS }, (_, i) => [Math.cos((i / RING_DOTS) * Math.PI * 2), Math.sin((i / RING_DOTS) * Math.PI * 2)] as const);
+const SUN_RING = 1.22;
+const SUN_DOT = 0.07;
+const MOON_RING = 1.3;
+const MOON_DOT = 0.06;
+/** How far the moon reaches, its ring of dots and all (radii): nothing may pass over any of it. */
+export const MOON_REACH = MOON_RING + MOON_DOT;
+
+/** A ring of dots round (x, y), `out` radii from it, each `dot` radii across, as subpaths. */
+function ring(ctx: Ctx, x: number, y: number, r: number, out: number, size: number): void {
+  for (const [c, sn] of RING) dot(ctx, x + c * r * out, y + sn * r * out, r * size);
+}
+
+/** The sun: its flat halo, its ring of red dots, the disc with its fine contour, and a triskele drawn in it. */
 export function sun(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
   if (tone.sunSet >= 1) return;
   const { x, y, r } = sunAt(s, tone, floor);
@@ -67,18 +131,25 @@ export function sun(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
   ctx.beginPath();
   circle(ctx, x, y, r * SUN_REACH);
   ctx.fill();
-  ctx.fillStyle = tone.sunShade;
+  ctx.fillStyle = tone.sunDots;
+  ctx.beginPath();
+  ring(ctx, x, y, r, SUN_RING, SUN_DOT);
+  ctx.fill();
+  ctx.fillStyle = tone.sunLine;
   ctx.beginPath();
   circle(ctx, x, y, r);
   ctx.fill();
   ctx.fillStyle = tone.sunBody;
   ctx.beginPath();
-  circle(ctx, x - r * 0.07, y - r * 0.09, r * 0.9);
+  circle(ctx, x, y, r * 0.92);
   ctx.fill();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
   ctx.beginPath();
-  oval(ctx, x - r * 0.38, y - r * 0.42, r * 0.24, r * 0.15, -0.6);
-  ctx.fill();
+  triskelePath(ctx, x, y, r * 0.62);
+  ctx.strokeStyle = tone.sunShade;
+  ctx.lineWidth = r * 0.12;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke();
 }
 
 // ---------------------------------------------------------------- moon and stars
@@ -91,27 +162,42 @@ export function moonAt(s: Scene): typeof MOON_AT {
   return MOON_AT;
 }
 
-const MOON = "#fff3c8";
-const MOON_SHADE = "#efd99c";
+/**
+ * A crescent: the disc at (x, y) of radius r less the bite of radius br at (bx, by), as its own
+ * subpath: round the outside of the disc away from the bite, then back along the bite's edge.
+ */
+function crescentPath(ctx: Ctx, x: number, y: number, r: number, bx: number, by: number, br: number): void {
+  const d = Math.hypot(bx - x, by - y);
+  const toward = Math.atan2(by - y, bx - x);
+  const a = Math.acos((r * r - br * br + d * d) / (2 * d * r));
+  const b = Math.acos((br * br - r * r + d * d) / (2 * d * br));
+  ctx.moveTo(x + Math.cos(toward + a) * r, y + Math.sin(toward + a) * r);
+  ctx.arc(x, y, r, toward + a, toward - a + Math.PI * 2);
+  ctx.arc(bx, by, br, toward + Math.PI + b, toward + Math.PI - b, true);
+  ctx.closePath();
+}
 
-/** A crescent moon up on the left, fading in at dusk, lit low on the side the sun set. The bite is painted with the sky itself. */
+/** A crescent moon up on the left, fading in at dusk, lit low on the side the sun set, in a ring of gold dots. */
 export function moon(ctx: Ctx, s: Scene, tone: Tone): void {
-  if (tone.moon <= 0 || !cache.fill) return;
+  if (tone.moon <= 0) return;
   const { x, y, r } = moonAt(s);
+  const bx = x + r * 0.5;
+  const by = y - r * 0.28;
   ctx.globalAlpha = tone.moon;
   ctx.fillStyle = MOON_SHADE;
   ctx.beginPath();
-  circle(ctx, x, y, r);
+  crescentPath(ctx, x, y, r, bx, by, r * 0.86);
   ctx.fill();
   ctx.fillStyle = MOON;
   ctx.beginPath();
-  circle(ctx, x - r * 0.06, y - r * 0.06, r * 0.9);
+  crescentPath(ctx, x - r * 0.05, y - r * 0.05, r * 0.88, bx, by, r * 0.86);
+  ctx.fill();
+  ctx.globalAlpha = tone.moon * 0.85;
+  ctx.fillStyle = MOON_DOTS;
+  ctx.beginPath();
+  ring(ctx, x, y, r, MOON_RING, MOON_DOT);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.fillStyle = cache.fill;
-  ctx.beginPath();
-  circle(ctx, x + r * 0.5, y - r * 0.28, r * 0.86);
-  ctx.fill();
 }
 
 /** Stars: position (fractions of the screen), size (u), twinkle group, and whether it sparkles. */
@@ -128,7 +214,15 @@ const COLUMN = 0.27;
 /** Stars keep this far (u) in from the screen's sides, so no sparkle is cut in half by an edge. */
 const STAR_MARGIN = 0.022;
 
-/** Stars over the night sky in three twinkle groups (one fill each). */
+/** The dots of a rosette star round its center: four petals of dots, in units of its size. */
+const ROSETTE = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+] as const;
+
+/** Stars over the night sky in three twinkle groups (one fill each): the bright ones rosettes of five dots, the rest single dots. */
 export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
   if (tone.stars <= 0) return;
   const u = s.u;
@@ -146,8 +240,10 @@ export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
       if (x > c0 && x < c1) continue;
       const y = st.y * s.cssH;
       const r = st.r * u;
-      if (st.big) sparkle(ctx, x, y, r * 2.6);
-      else circle(ctx, x, y, r);
+      if (st.big) {
+        dot(ctx, x, y, r * 1.1);
+        for (const [dx, dy] of ROSETTE) dot(ctx, x + dx * r * 2.6, y + dy * r * 2.6, r * 0.75);
+      } else dot(ctx, x, y, r);
     }
     ctx.fill();
   }

@@ -1,8 +1,10 @@
 import { circle, type Ctx } from "../../base/draw";
+import { curlPath } from "./knot";
+import type { Tone } from "./tone";
 
-// Shapes shared by the scenery: rounded blocks, flat-bottomed puffy clouds, shamrocks,
-// round-headed arches, far-off birds. Paths only (each starts its own subpath, so several can
-// share one fill), or a fill with the caller's colors. Nothing here allocates.
+// Shapes shared by the scenery: rounded blocks, flat-bottomed clouds curled with spirals,
+// shamrocks, round-headed arches, far-off birds. Paths only (each starts its own subpath, so
+// several can share one fill), or a fill with the caller's colors. Nothing here allocates.
 
 const TAU = Math.PI * 2;
 
@@ -126,36 +128,59 @@ export function pill(ctx: Ctx, x: number, y: number, w: number, h: number): void
   ctx.closePath();
 }
 
-/** The puffs of a cloud (scaled by k, shifted by dy radii) and its flat base, as subpaths. */
-export function cloudPath(ctx: Ctx, shape: CloudShape, x: number, y: number, r: number, k: number, dy: number): void {
-  for (const [px, py, pr] of shape) circle(ctx, x + px * r, y + (py + dy) * r, pr * r * k);
+/** The puffs of a cloud (scaled by k, shifted by dy radii, grown by `grow` all round) and its flat base, as subpaths. */
+function cloudPath(ctx: Ctx, shape: CloudShape, x: number, y: number, r: number, k: number, dy: number, grow = 0): void {
+  for (const [px, py, pr] of shape) circle(ctx, x + px * r, y + (py + dy) * r, pr * r * k + grow);
   const base = BASES.get(shape);
   if (base) {
     const h = r * 0.34 * k;
-    pill(ctx, x + base[0] * r, y + (0.3 + dy) * r - h, (base[1] - base[0]) * r, h);
+    pill(ctx, x + base[0] * r - grow, y + (0.3 + dy) * r - h - grow, (base[1] - base[0]) * r + grow * 2, h + grow * 2);
+  }
+}
+
+/** The fine contour round far clouds (u). */
+export function cloudLineWidth(u: number): number {
+  return Math.max(1, u * 0.0028);
+}
+
+/**
+ * The spiral curls drawn in a cloud's bigger puffs, as an illuminator draws clouds: each winds
+ * in from the puff's left (or, by turns, its right), as open subpaths (stroke them).
+ */
+function cloudCurls(ctx: Ctx, shape: CloudShape, x: number, y: number, r: number): void {
+  let n = 0;
+  for (const [px, py, pr] of shape) {
+    if (pr < 0.6) continue;
+    const side = n++ % 2 ? -1 : 1;
+    curlPath(ctx, x + (px + side * pr * 0.08) * r, y + (py + 0.02) * r, pr * r * 0.52, side > 0 ? Math.PI : 0, -side);
   }
 }
 
 /**
- * A flat-bottomed, cel-shaded cloud at (x, y) of size r: the shaded body, the lit body shifted
- * up so a shaded band shows along the bottom, and light caps. No outline (it is far away).
+ * A flat-bottomed cloud at (x, y) of size r, drawn as on an illuminated page: a fine contour all
+ * round (the puffs a line wider, filled first), the shaded body, the lit body shifted up so a
+ * shaded band shows along the bottom, and spiral curls in its bigger puffs.
  */
-export function cloud(ctx: Ctx, shape: CloudShape, x: number, y: number, r: number, shade: string, body: string, light: string): void {
+export function cloud(ctx: Ctx, shape: CloudShape, x: number, y: number, r: number, tone: Tone, lw: number): void {
+  ctx.beginPath();
+  cloudPath(ctx, shape, x, y, r, 1, 0, lw);
+  ctx.fillStyle = tone.cloudLine;
+  ctx.fill();
   ctx.beginPath();
   cloudPath(ctx, shape, x, y, r, 1, 0);
-  ctx.fillStyle = shade;
+  ctx.fillStyle = tone.cloudShade;
   ctx.fill();
   ctx.beginPath();
   cloudPath(ctx, shape, x, y, r, 0.94, -0.12);
-  ctx.fillStyle = body;
+  ctx.fillStyle = tone.cloud;
   ctx.fill();
   ctx.beginPath();
-  for (const [px, py, pr] of shape) {
-    if (pr < 0.6) continue;
-    circle(ctx, x + (px - pr * 0.22) * r, y + (py - pr * 0.42) * r, pr * r * 0.42);
-  }
-  ctx.fillStyle = light;
-  ctx.fill();
+  cloudCurls(ctx, shape, x, y, r);
+  ctx.strokeStyle = tone.cloudLine;
+  ctx.lineWidth = lw * 0.85;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke();
 }
 
 // ---------------------------------------------------------------- birds

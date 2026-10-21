@@ -1,64 +1,41 @@
-import { circle, hash, oval, type Ctx } from "../../base/draw";
+import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { MEADOW } from "./colors";
+import { DAISY, KNOTWORK, MEADOW, MEADOW_DOT, ORPIMENT, PRIMROSE, PRIMROSE_EYE, ROUNDEL } from "./colors";
+import { BAY_X, coast } from "./coast";
+import { BACK_BASE, farSheep, FRONT_BASE, hills } from "./fields";
+import { landShows, mountainHorizon } from "./floor";
 import { wallTop } from "./front";
+import { bandHeight, curlPath, dot, plait, plaitBand, roundels } from "./knot";
+import { castle, farmhouses, monastery } from "./landmarks";
+import { cloudBank, MOUNTAIN_TOP, mountains } from "./mountains";
 import { flock } from "./pasture";
-import { archPath } from "./shapes";
-import { DAY_HIGH, level, smooth, type Tone } from "./tone";
+import { cloudLineWidth } from "./shapes";
+import type { Tone } from "./tone";
 
-// The far layer, standing on the horizon, in three depths. Furthest, the mountains: a hazy
-// blue range all along the horizon, on the left a flat-topped mountain with fluted flanks, and
-// on the right the holy mountain, a tall cone with the pilgrims' path zigzagging up its sunlit
-// face to the little white chapel on its summit (St. Patrick's own mountain, in our own simple
-// design). In front of them a back row of soft blue-green hills, then the emerald hills,
-// quilted with a patchwork of fields (three greens) parted by dark hedgerows and pale
-// dry-stone walls, a few round trees along the hedges, sheep grazing on the left slopes and
-// two whitewashed farmhouses on the right. On the left hilltop an old monastic site: a slim
-// round tower under its conical cap and a high cross with its ring. Below it a stream comes
-// out under a little humpbacked stone bridge and winds away toward the middle, over the brow of
-// the meadow the round tower stands on; the back pasture beyond the brow (hedged along its far
-// edge) is where the flock frolics (pasture.ts).
-// Above the start a floor of cloud gathers below you and covers the land: from then on its
-// puffy top is the horizon, and only the mountain tops stand out of it. Then it sinks with them
-// to rest low on the screen, and there it stays for good, a calm sea of cloud with the mountain
-// tops standing out of it, for the sun to set into and rise out of on every turn of the story's
-// loop (tone.ts). All of it is faded and flat, with no outline, and nothing here moves.
+export { floorTop, FLOOR_SETTLED, landShows, mountainHorizon, seaLine } from "./floor";
+export { farSheep, frontTop } from "./fields";
+export { hooker } from "./coast";
+export { castle, farmhouses, monastery } from "./landmarks";
+export { chapelAt, HOLY_X, mountains } from "./mountains";
+
+// The far layer, standing on the horizon, back to front: the mountains with the clouds piled
+// behind them (mountains.ts); the hills, quilted with fields, the castle on the left hill, the
+// farmhouse and the beehive huts below it, sheep on the slopes (fields.ts, landmarks.ts); the
+// back pasture, where the flock frolics (pasture.ts), the stream coming out under a humpbacked
+// stone bridge on the left; out on the right the bay of the Atlantic with its headland and the
+// monastic site on it (coast.ts); then the near meadow round the round tower, its brow running
+// down to the rocks of the bay on the right.
+// Above the start a floor of cloud gathers below you and swells up over the land, which is
+// dropped only once it is all under it (floor.ts); from then on its puffy top is the horizon,
+// and only the mountain tops stand out of it, for good. In its
+// lower corners, either side of the tower, a plaited knotwork band ends in a triskele roundel,
+// the corners of the page's border. Nothing here moves but the flock, and out on the bay the
+// surf, the glints and the hooker rocking at anchor.
 //
 // Positions are in u from the screen center, heights in u from the horizon (negative is up).
 
-/** Once it has covered the land, the cloud floor sinks to rest this far above the screen's bottom (u)... */
-const FLOOR_REST = 0.3;
-/** ...by this level, and stays there: before the story's loop begins (tone.ts LOOP_START), so every turn of it looks the same. */
-export const FLOOR_SETTLED = 88;
-
-/**
- * The line the cloud floor lies along once it has gathered, and the mountains stand on: the
- * horizon while the land shows; above the clouds it eases down to its rest low on the screen.
- */
-export function seaLine(s: Scene, lvl: number): number {
-  const horizon = s.horizonY + s.u * 0.01;
-  return horizon + (s.cssH - s.u * FLOOR_REST - horizon) * smooth(DAY_HIGH, FLOOR_SETTLED, lvl);
-}
-
-/** Where the cloud floor's top edge is: below the screen at the start, at the horizon once you are above the clouds, then at rest. */
-export function floorTop(s: Scene, lvl: number): number {
-  const k = smooth(16, DAY_HIGH, lvl);
-  const below = s.cssH + s.u * 0.16;
-  return below + (seaLine(s, lvl) - below) * k;
-}
-
-/**
- * The land below shows only until the cloud floor covers it (`top` is the floor's top edge);
- * once it has, it stays covered as the floor sinks to its rest.
- */
-export function landShows(s: Scene, top: number): boolean {
-  return level(s) < DAY_HIGH && top > s.horizonY + s.u * 0.02;
-}
-
-/** The horizon the mountains stand on: the real one while the land shows, then the cloud floor's line as it sinks to rest. */
-export function mountainHorizon(s: Scene): number {
-  return seaLine(s, level(s)) - s.u * 0.01;
-}
+/** Half the tower's column (u from the center): curls and ripples keep out of it. */
+const COLUMN = 0.21;
 
 /** Below this (u under the floor's top) the cloud floor is solid. */
 const FLOOR_SOLID = 0.06;
@@ -66,548 +43,6 @@ const FLOOR_SOLID = 0.06;
 /** Where the sky stops: below this the hills and meadow, or the cloud floor, cover everything. */
 export function skyBottom(s: Scene, top: number): number {
   return landShows(s, top) ? s.horizonY + s.u * BACK_BASE : top + s.u * FLOOR_SOLID;
-}
-
-// ---------------------------------------------------------------- the cloud bank
-
-/** Puffs of the cloud bank piled behind the mountains at either side: [X (u from center), height above the horizon (u), radius (u)]. */
-const BANK = [
-  [-0.66, 0.15, 0.13],
-  [-0.53, 0.2, 0.1],
-  [-0.43, 0.14, 0.085],
-  [-0.33, 0.11, 0.07],
-  [-0.24, 0.07, 0.055],
-  [0.2, 0.06, 0.05],
-  [0.28, 0.1, 0.065],
-  [0.44, 0.2, 0.09],
-  [0.55, 0.17, 0.11],
-  [0.68, 0.13, 0.13],
-] as const;
-
-/**
- * Soft white clouds piled along the horizon at either side, behind the mountains: the fair-
- * weather sky of an Irish spring, in the hour's cloud colors, a shaded body and lit caps.
- */
-export function cloudBank(ctx: Ctx, s: Scene, tone: Tone, hz: number): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  for (let pass = 0; pass < 3; pass++) {
-    ctx.fillStyle = pass === 0 ? tone.cloudShade : pass === 1 ? tone.cloud : tone.cloudLight;
-    ctx.beginPath();
-    for (const [X, h, r] of BANK) {
-      // On a wider screen the banks keep to its sides.
-      const x = X < 0 ? Math.min(cx + X * u, (X + 0.5) * u) : Math.max(cx + X * u, s.cssW - (0.5 - X) * u);
-      const y = hz - h * u;
-      if (pass === 0) circle(ctx, x, y, r * u);
-      else if (pass === 1) circle(ctx, x - r * u * 0.08, y - r * u * 0.1, r * u * 0.9);
-      else circle(ctx, x - r * u * 0.3, y - r * u * 0.42, r * u * 0.4);
-    }
-    if (pass === 0) {
-      ctx.rect(-1, hz - u * 0.06, Math.max(0, Math.min(cx - u * 0.24, u * 0.26)) + 1, u * 0.12);
-      ctx.rect(Math.max(cx + u * 0.2, s.cssW - u * 0.3), hz - u * 0.06, s.cssW, u * 0.12);
-    }
-    ctx.fill();
-  }
-}
-
-// ---------------------------------------------------------------- mountains
-
-/** The mountains' base line, u below the horizon (the back hills cover it). */
-const MOUNT_BASE = 0.03;
-
-/** The far range: a low hazy ridge all along the horizon (height above its base, u). */
-function rangeHeight(X: number): number {
-  return 0.085 + 0.03 * Math.sin(X * 6.3 + 0.7) + 0.018 * Math.sin(X * 13.1 + 2.1) + 0.01 * Math.sin(X * 29 + 0.3);
-}
-
-/** The flat-topped mountain on the left: its plateau, the gentle slope to its left, the steep prow on its right (X in u). */
-const TABLE_L = -0.36;
-const TABLE_R = -0.15;
-const TABLE_H = 0.175;
-const TABLE_FOOT_L = -0.62;
-const TABLE_FOOT_R = -0.07;
-
-function tableHeight(X: number): number {
-  if (X <= TABLE_FOOT_L || X >= TABLE_FOOT_R) return 0;
-  if (X < TABLE_L) {
-    const k = (X - TABLE_FOOT_L) / (TABLE_L - TABLE_FOOT_L);
-    return TABLE_H * (1 - (1 - k) * (1 - k)) * (0.98 + 0.02 * Math.sin(X * 40));
-  }
-  if (X <= TABLE_R) return TABLE_H + 0.003 * Math.sin(X * 60);
-  const k = (X - TABLE_R) / (TABLE_FOOT_R - TABLE_R);
-  return TABLE_H * (1 - k * k * (3 - 2 * k)) * (1 - 0.15 * k);
-}
-
-/** The holy mountain on the right: its peak (X in u) and height above the base; its flanks fall in a gentle concave curve. */
-export const HOLY_X = 0.33;
-const HOLY_H = 0.3;
-const HOLY_HW = 0.32;
-
-function holyHeight(X: number): number {
-  const d = Math.abs(X - HOLY_X) / HOLY_HW;
-  if (d >= 1) return 0;
-  const k = 1 - d;
-  return HOLY_H * k * k * (1.6 - 0.6 * k) * (X < HOLY_X ? 1 : 0.94);
-}
-
-/** A row of mountains along `height`, filled down to the base. */
-function ridge(ctx: Ctx, s: Scene, base: number, height: (X: number) => number, x0: number, x1: number): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  ctx.beginPath();
-  ctx.moveTo(x0, base + 1);
-  for (let x = x0; ; x += u * 0.012) {
-    const X = (Math.min(x, x1) - cx) / u;
-    ctx.lineTo(Math.min(x, x1), base - u * height(X));
-    if (x >= x1) break;
-  }
-  ctx.lineTo(x1, base + 1);
-  ctx.closePath();
-}
-
-/** Scratch for the chapel's place, so placing it allocates nothing. */
-const CHAPEL = { x: 0, y: 0 };
-
-/** Where the chapel stands on the holy mountain's summit (its foot). */
-export function chapelAt(s: Scene): typeof CHAPEL {
-  CHAPEL.x = s.cssW / 2 + HOLY_X * s.u;
-  CHAPEL.y = mountainHorizon(s) + (MOUNT_BASE - HOLY_H) * s.u + s.u * 0.006;
-  return CHAPEL;
-}
-
-/** The zigzag path up the holy mountain's lit face: [X, height] pairs from the foot to the summit. */
-const PATH = [
-  [0.236, 0.075],
-  [0.266, 0.098],
-  [0.25, 0.122],
-  [0.284, 0.15],
-  [0.27, 0.177],
-  [0.302, 0.205],
-  [0.29, 0.232],
-  [0.314, 0.262],
-  [0.326, 0.29],
-] as const;
-
-/**
- * The mountains: the hazy range, the flat-topped mountain with fluted flanks, and the holy
- * mountain, its sunlit left face, the pilgrims' path and the chapel at the top.
- */
-export function mountains(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const base = mountainHorizon(s) + MOUNT_BASE * u;
-  ctx.fillStyle = tone.mountainFar;
-  ridge(ctx, s, base, rangeHeight, -1, s.cssW + 1);
-  ctx.fill();
-  // The flat-topped mountain, lit along its left slope, its fluted cliffs as darker gullies.
-  const tl = Math.max(-1, cx + TABLE_FOOT_L * u);
-  const tr = cx + TABLE_FOOT_R * u;
-  ctx.fillStyle = tone.mountain;
-  ridge(ctx, s, base, tableHeight, tl, tr);
-  ctx.fill();
-  ctx.fillStyle = tone.mountainLit;
-  ctx.beginPath();
-  ctx.moveTo(tl, base + 1);
-  for (let x = tl; x <= cx + TABLE_L * u; x += u * 0.012) ctx.lineTo(x, base - u * tableHeight((x - cx) / u));
-  ctx.lineTo(cx + TABLE_L * u, base - u * TABLE_H);
-  ctx.lineTo(cx + (TABLE_L + 0.02) * u, base - u * TABLE_H * 0.55);
-  ctx.quadraticCurveTo(cx + (TABLE_L - 0.08) * u, base - u * TABLE_H * 0.3, tl + u * 0.12, base + 1);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = tone.mountainFar;
-  ctx.lineWidth = Math.max(1, u * 0.004);
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  for (let i = 0; i < 9; i++) {
-    const X = TABLE_L + 0.01 + i * 0.024;
-    const top = TABLE_H - 0.018 - (i % 2) * 0.008;
-    ctx.moveTo(cx + X * u, base - u * top);
-    ctx.lineTo(cx + (X + 0.004) * u, base - u * (top - 0.05 - hash(i + 6400) * 0.03));
-  }
-  ctx.stroke();
-  // The holy mountain: the cone, its sunlit left face, the path, the chapel.
-  const hx = cx + HOLY_X * u;
-  const hl = cx + (HOLY_X - HOLY_HW) * u;
-  const hr = Math.min(s.cssW + 1, cx + (HOLY_X + HOLY_HW) * u);
-  ctx.fillStyle = tone.mountain;
-  ridge(ctx, s, base, holyHeight, hl, hr);
-  ctx.fill();
-  const peak = base - HOLY_H * u;
-  ctx.fillStyle = tone.mountainLit;
-  ctx.beginPath();
-  ctx.moveTo(hx - u * 0.004, peak + u * 0.004);
-  for (let X = HOLY_X - 0.01; X > HOLY_X - HOLY_HW; X -= 0.012) ctx.lineTo(cx + X * u, base - u * holyHeight(X));
-  ctx.lineTo(hl, base + 1);
-  ctx.lineTo(hx - u * 0.12, base + 1);
-  ctx.quadraticCurveTo(hx - u * 0.03, base - u * 0.12, hx - u * 0.004, peak + u * 0.004);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = tone.white;
-  ctx.globalAlpha = 0.38;
-  ctx.lineWidth = Math.max(1, u * 0.0022);
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  for (let i = 0; i < PATH.length; i++) {
-    const [X, h] = PATH[i]!;
-    if (i === 0) ctx.moveTo(cx + X * u, base - h * u);
-    else ctx.lineTo(cx + X * u, base - h * u);
-  }
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-  chapel(ctx, s, tone);
-}
-
-/** The little white chapel on the summit: a gable end with a dark door, a pitched roof, a cross. */
-function chapel(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const { x, y } = chapelAt(s);
-  const w = u * 0.024;
-  const h = u * 0.013;
-  ctx.fillStyle = tone.white;
-  ctx.beginPath();
-  ctx.rect(x - w / 2, y - h, w, h);
-  ctx.moveTo(x - w * 0.56, y - h);
-  ctx.lineTo(x - w * 0.3, y - h - u * 0.011);
-  ctx.lineTo(x + w * 0.3, y - h - u * 0.011);
-  ctx.lineTo(x + w * 0.56, y - h);
-  ctx.closePath();
-  ctx.rect(x - u * 0.0012, y - h - u * 0.022, u * 0.0024, u * 0.012);
-  ctx.rect(x - u * 0.0045, y - h - u * 0.018, u * 0.009, u * 0.0022);
-  ctx.fill();
-  ctx.fillStyle = tone.stoneShade;
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.56, y - h);
-  ctx.lineTo(x - w * 0.3, y - h - u * 0.011);
-  ctx.lineTo(x + w * 0.3, y - h - u * 0.011);
-  ctx.lineTo(x + w * 0.56, y - h);
-  ctx.closePath();
-  archPath(ctx, x - w * 0.12, y, w * 0.24, h * 0.7);
-  ctx.fill();
-}
-
-// ---------------------------------------------------------------- hills
-
-/** Polyline step along the hills (u). */
-const HILL_STEP = 0.045;
-
-/** The back hills' base line, u below the horizon. */
-const BACK_BASE = 0.03;
-
-function backHeight(X: number): number {
-  return 0.09 * (0.6 + 0.3 * Math.sin(X * 4.1 + 1.3) + 0.16 * Math.sin(X * 9.7 + 0.4));
-}
-
-/** The front hills' base line (the meadow's far edge), u below the horizon. */
-const FRONT_BASE = 0.085;
-
-function bump(X: number, c: number, w: number): number {
-  const d = (X - c) / w;
-  return Math.exp(-d * d);
-}
-
-/** Height of the front hills at X (u from center): a big hill on the left, a smaller one on the right. */
-function frontHeight(X: number): number {
-  return 0.05 + 0.09 * bump(X, -0.4, 0.17) + 0.06 * bump(X, 0.42, 0.17) + 0.012 * Math.sin(X * 7.5 + 1.2);
-}
-
-/** Screen y of the front hills' top at X (u from center). */
-export function frontTop(s: Scene, X: number): number {
-  return s.horizonY + (FRONT_BASE - frontHeight(X)) * s.u;
-}
-
-/** A row of hills: the path along their tops, filled down to `bottom`. */
-function hillPath(ctx: Ctx, s: Scene, base: number, height: (X: number) => number, bottom: number): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  ctx.beginPath();
-  ctx.moveTo(-1, bottom);
-  for (let x = -1; ; x += u * HILL_STEP) {
-    ctx.lineTo(x, base - u * height((x - cx) / u));
-    if (x > s.cssW + 1) break;
-  }
-  ctx.lineTo(s.cssW + 1, bottom);
-  ctx.closePath();
-}
-
-// ---------------------------------------------------------------- patchwork fields
-
-/** Fields are this wide (u) at the hills' foot; their hedges lean out, narrowing toward the tops. */
-const FIELD_W = 0.14;
-const FIELD_TOP = -0.2;
-const FIELD_BOT = FRONT_BASE + 0.012;
-const SLANT = 0.78;
-/** The two dry-stone walls that run along the slopes, as fractions of the hill height. */
-const UPPER_WALL = 0.64;
-const LOWER_WALL = 0.3;
-/** Scratch corners of every hedge line: x at the top, where it crosses each wall (x, y), x at the foot. */
-const MAX_HEDGES = 96;
-const TOP_X = new Float64Array(MAX_HEDGES);
-const HI_X = new Float64Array(MAX_HEDGES);
-const HI_Y = new Float64Array(MAX_HEDGES);
-const LO_X = new Float64Array(MAX_HEDGES);
-const LO_Y = new Float64Array(MAX_HEDGES);
-const BOT_X = new Float64Array(MAX_HEDGES);
-/** Where each hedge line meets the hills' skyline. */
-const SKY_X = new Float64Array(MAX_HEDGES);
-const SKY_Y = new Float64Array(MAX_HEDGES);
-
-function mod3(i: number): number {
-  return ((i % 3) + 3) % 3;
-}
-
-/** One field: a quad between two hedges and two walls (or the foot), as its own subpath. */
-function field(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): void {
-  ctx.moveTo(x0, y0);
-  ctx.lineTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.lineTo(x3, y3);
-  ctx.closePath();
-}
-
-/**
- * A top field: up its left hedge from the upper wall to the skyline, along the skyline (on the
- * same points the hills' outline uses) to its right hedge, and down to the wall again.
- */
-function topField(ctx: Ctx, s: Scene, k: number): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const base = s.horizonY + u * FRONT_BASE;
-  const step = u * HILL_STEP;
-  ctx.moveTo(HI_X[k]!, HI_Y[k]!);
-  ctx.lineTo(SKY_X[k]!, SKY_Y[k]!);
-  for (let x = -1 + step * Math.ceil((SKY_X[k]! + 1) / step); x < SKY_X[k + 1]!; x += step) {
-    ctx.lineTo(x, base - u * frontHeight((x - cx) / u));
-  }
-  ctx.lineTo(SKY_X[k + 1]!, SKY_Y[k + 1]!);
-  ctx.lineTo(HI_X[k + 1]!, HI_Y[k + 1]!);
-  ctx.closePath();
-}
-
-/**
- * The front hills, made of their fields: three rows between the hedges, split by the walls
- * along the slopes, the top row cut to the skyline. Then the walls, the hedgerows and a few
- * round trees. No clip: every field is drawn to its exact shape.
- */
-function patchwork(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const hz = s.horizonY;
-  const n = Math.min(MAX_HEDGES / 2 - 1, Math.ceil(s.cssW / 2 / u / FIELD_W) + 1);
-  const count = n * 2 + 1;
-  const span = FIELD_BOT - FIELD_TOP;
-  for (let k = 0; k < count; k++) {
-    const X = (k - n + 0.5) * FIELD_W;
-    const h = frontHeight(X * 0.92);
-    const hi = FRONT_BASE - h * UPPER_WALL;
-    const lo = FRONT_BASE - h * LOWER_WALL;
-    TOP_X[k] = cx + X * SLANT * u;
-    BOT_X[k] = cx + X * u;
-    const dx = BOT_X[k]! - TOP_X[k]!;
-    HI_X[k] = TOP_X[k]! + (dx * (hi - FIELD_TOP)) / span;
-    HI_Y[k] = hz + hi * u;
-    LO_X[k] = TOP_X[k]! + (dx * (lo - FIELD_TOP)) / span;
-    LO_Y[k] = hz + lo * u;
-    // Where the hedge meets the skyline: a few steps of "the hedge's x at the skyline's height".
-    let sx = HI_X[k]!;
-    let sy = 0;
-    for (let it = 0; it < 3; it++) {
-      sy = FRONT_BASE - frontHeight((sx - cx) / u);
-      sx = TOP_X[k]! + (dx * (sy - FIELD_TOP)) / span;
-    }
-    SKY_X[k] = sx;
-    SKY_Y[k] = hz + sy * u;
-  }
-  const bot = hz + FIELD_BOT * u;
-  for (let c = 0; c < 3; c++) {
-    ctx.fillStyle = tone.fields[c]!;
-    ctx.beginPath();
-    for (let k = 0; k < count - 1; k++) {
-      if (mod3(k) === c) topField(ctx, s, k);
-      if (mod3(k + 2) === c) field(ctx, HI_X[k]!, HI_Y[k]!, HI_X[k + 1]!, HI_Y[k + 1]!, LO_X[k + 1]!, LO_Y[k + 1]!, LO_X[k]!, LO_Y[k]!);
-      if (mod3(k + 1) === c) field(ctx, LO_X[k]!, LO_Y[k]!, LO_X[k + 1]!, LO_Y[k + 1]!, BOT_X[k + 1]!, bot, BOT_X[k]!, bot);
-    }
-    ctx.fill();
-  }
-  // Dry-stone walls along the slopes, pale.
-  ctx.beginPath();
-  for (let k = 0; k < count; k++) {
-    if (k === 0) ctx.moveTo(HI_X[k]!, HI_Y[k]!);
-    else ctx.lineTo(HI_X[k]!, HI_Y[k]!);
-  }
-  for (let k = 0; k < count; k++) {
-    if (k === 0) ctx.moveTo(LO_X[k]!, LO_Y[k]!);
-    else ctx.lineTo(LO_X[k]!, LO_Y[k]!);
-  }
-  ctx.strokeStyle = tone.wall;
-  ctx.lineWidth = Math.max(1, u * 0.0035);
-  ctx.lineCap = "butt";
-  ctx.stroke();
-  // Hedgerows between the fields, dark, from the skyline down.
-  ctx.beginPath();
-  for (let k = 0; k < count; k++) {
-    ctx.moveTo(SKY_X[k]!, SKY_Y[k]! + u * 0.002);
-    ctx.lineTo(BOT_X[k]!, bot);
-  }
-  ctx.strokeStyle = tone.hedge;
-  ctx.lineWidth = Math.max(1, u * 0.0045);
-  ctx.stroke();
-  // Round trees where hedge meets wall, out at the sides (none behind the tower).
-  ctx.fillStyle = tone.hedge;
-  ctx.beginPath();
-  for (let k = 0; k < count; k++) {
-    const X = (k - n + 0.5) * FIELD_W;
-    if (Math.abs(X) < 0.3) continue;
-    const r = u * 0.0095;
-    if (k % 2) circle(ctx, LO_X[k]!, LO_Y[k]! - r * 0.7, r);
-    else circle(ctx, HI_X[k]!, HI_Y[k]! - r * 0.7, r * 0.85);
-  }
-  ctx.fill();
-}
-
-function hills(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void {
-  const u = s.u;
-  const hz = s.horizonY;
-  // The back hills only need to reach the front hills' foot: everything below is covered.
-  ctx.fillStyle = tone.hillBack;
-  hillPath(ctx, s, hz + u * BACK_BASE, backHeight, Math.min(bottom, hz + u * (FRONT_BASE + 0.012)));
-  ctx.fill();
-  patchwork(ctx, s, tone);
-}
-
-// ---------------------------------------------------------------- sheep and the monastic site
-
-/** Sheep grazing on the left hill: x (u from center), depth below the horizon (u). */
-const FAR_SHEEP = [
-  [-0.468, 0.04],
-  [-0.447, 0.048],
-  [-0.3, 0.036],
-  [-0.276, 0.044],
-] as const;
-
-export function farSheep(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  ctx.fillStyle = tone.sheep;
-  ctx.beginPath();
-  for (const [X, d] of FAR_SHEEP) oval(ctx, cx + X * u, s.horizonY + d * u, u * 0.0085, u * 0.0055);
-  ctx.fill();
-}
-
-/** The round tower on the left hilltop and the high cross on its slope (u from center). */
-export const FAR_TOWER_X = -0.41;
-export const CROSS_X = -0.34;
-
-/**
- * An old monastic site on the left hilltop: a slim round tower, tapering a little, its lit side
- * and dark doorway, under a conical cap; and a high cross with its ring, on a stepped base.
- */
-export function monastery(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  // The round tower: a tapering drum, lit on the left, a dark doorway halfway up and a window
-  // under the cap; the cap a cone over a little eave, a shade darker.
-  const x = cx + FAR_TOWER_X * u;
-  const foot = frontTop(s, FAR_TOWER_X) + u * 0.008;
-  const top = foot - u * 0.104;
-  const hb = u * 0.0175;
-  const ht = u * 0.014;
-  const eave = ht * 1.22;
-  const capH = u * 0.036;
-  ctx.fillStyle = tone.stone;
-  ctx.beginPath();
-  ctx.moveTo(x - hb, foot);
-  ctx.lineTo(x - ht, top);
-  ctx.lineTo(x + ht, top);
-  ctx.lineTo(x + hb, foot);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = tone.stoneLit;
-  ctx.beginPath();
-  ctx.moveTo(x - hb * 0.66, foot);
-  ctx.lineTo(x - ht * 0.66, top);
-  ctx.lineTo(x - ht * 0.12, top);
-  ctx.lineTo(x - hb * 0.12, foot);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = tone.stoneShade;
-  ctx.beginPath();
-  ctx.moveTo(x - eave, top + u * 0.003);
-  ctx.lineTo(x - ht * 0.2, top - capH);
-  ctx.quadraticCurveTo(x, top - capH - u * 0.003, x + ht * 0.2, top - capH);
-  ctx.lineTo(x + eave, top + u * 0.003);
-  ctx.closePath();
-  archPath(ctx, x - u * 0.0042, top + u * 0.062, u * 0.0084, u * 0.016);
-  archPath(ctx, x - u * 0.003, top + u * 0.016, u * 0.006, u * 0.011);
-  ctx.fill();
-  ctx.fillStyle = tone.stone;
-  ctx.beginPath();
-  ctx.moveTo(x - eave * 0.86, top + u * 0.001);
-  ctx.lineTo(x - ht * 0.16, top - capH + u * 0.004);
-  ctx.lineTo(x - ht * 0.02, top - capH + u * 0.004);
-  ctx.lineTo(x - eave * 0.3, top + u * 0.001);
-  ctx.closePath();
-  ctx.fill();
-
-  // The high cross: a stepped base, the shaft, the arms and the ring round their crossing.
-  const kx = cx + CROSS_X * u;
-  const kfoot = frontTop(s, CROSS_X) + u * 0.005;
-  const shaft = u * 0.0085;
-  const kTop = kfoot - u * 0.062;
-  const armY = kTop + u * 0.016;
-  ctx.fillStyle = tone.stone;
-  ctx.beginPath();
-  ctx.rect(kx - u * 0.011, kfoot - u * 0.009, u * 0.022, u * 0.009);
-  ctx.rect(kx - shaft / 2, kTop, shaft, kfoot - kTop - u * 0.008);
-  ctx.rect(kx - u * 0.019, armY - u * 0.004, u * 0.038, u * 0.0085);
-  ctx.fill();
-  ctx.fillStyle = tone.stoneLit;
-  ctx.fillRect(kx - shaft / 2, kTop + u * 0.001, shaft * 0.4, kfoot - kTop - u * 0.01);
-  // The ring round the crossing.
-  ctx.strokeStyle = tone.stone;
-  ctx.lineWidth = Math.max(1, u * 0.0034);
-  ctx.beginPath();
-  circle(ctx, kx, armY, u * 0.0105);
-  ctx.stroke();
-}
-
-/** Whitewashed farmhouses on the right hill's fields: X (u from center), depth below the horizon (u), facing. */
-const FARMS = [
-  [0.305, 0.052, 1],
-  [0.362, 0.03, -1],
-] as const;
-
-/** Two little whitewashed farmhouses on the right hill, dark slate roofs, a round tree by each. */
-export function farmhouses(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const w = u * 0.026;
-  const h = u * 0.011;
-  ctx.fillStyle = tone.hedge;
-  ctx.beginPath();
-  for (const [X, d, m] of FARMS) {
-    circle(ctx, cx + (X + m * 0.024) * u, s.horizonY + (d - 0.01) * u, u * 0.0095);
-  }
-  ctx.fill();
-  ctx.fillStyle = tone.white;
-  ctx.beginPath();
-  for (const [X, d] of FARMS) ctx.rect(cx + X * u - w / 2, s.horizonY + d * u - h, w, h);
-  ctx.fill();
-  ctx.fillStyle = tone.stoneShade;
-  ctx.beginPath();
-  for (const [X, d, m] of FARMS) {
-    const x = cx + X * u;
-    const y = s.horizonY + d * u - h;
-    ctx.moveTo(x - w * 0.56, y + u * 0.001);
-    ctx.lineTo(x - w * 0.4, y - u * 0.008);
-    ctx.lineTo(x + w * 0.4, y - u * 0.008);
-    ctx.lineTo(x + w * 0.56, y + u * 0.001);
-    ctx.closePath();
-    // A chimney at one gable, a door and a window in the front.
-    ctx.rect(x + m * w * 0.3 - u * 0.002, y - u * 0.012, u * 0.004, u * 0.005);
-    ctx.rect(x - m * w * 0.18 - u * 0.0025, y + h * 0.35, u * 0.005, h * 0.65);
-    ctx.rect(x + m * w * 0.15 - u * 0.002, y + h * 0.3, u * 0.004, u * 0.0035);
-  }
-  ctx.fill();
 }
 
 // ---------------------------------------------------------------- the stream and its bridge
@@ -700,6 +135,41 @@ export function bridge(ctx: Ctx, s: Scene, tone: Tone): void {
 /** Where the deeper green of the near meadow begins (u below the horizon); the back pasture lies beyond it. */
 export const NEAR_MEADOW = 0.27;
 
+/**
+ * Trefoils of dots strewn on the meadows out at the sides, the Kells filler that is also a
+ * shamrock: on the back pasture (depth below the horizon; on its left only, as the bay lies on
+ * its right) and on the near meadow (depth below the tower's floor line): x (u from the
+ * center), depth (u).
+ */
+function strew(n: number, seed: number, d0: number, d1: number, leftOnly: boolean): Float64Array {
+  const out = new Float64Array(n * 2);
+  for (let i = 0, k = 0; i < n; k++) {
+    const X = (hash(seed + k * 2) - 0.5) * 1.3;
+    if (Math.abs(X) < 0.27 || (leftOnly && X > 0)) continue;
+    out[i * 2] = X;
+    out[i * 2 + 1] = d0 + hash(seed + k * 2 + 1) * (d1 - d0);
+    i++;
+  }
+  return out;
+}
+const PASTURE_DOTS = strew(14, 6700, FRONT_BASE + 0.03, NEAR_MEADOW - 0.012, true);
+const MEADOW_DOTS = strew(30, 6800, 0.01, 0.31, false);
+/** The three dots of a trefoil round its center (in units of its size). */
+const TREFOIL = [0, 1, 2].map((i) => [Math.cos(-Math.PI / 2 + (i * Math.PI * 2) / 3), Math.sin(-Math.PI / 2 + (i * Math.PI * 2) / 3)] as const);
+
+/** Trefoils at `dots` (x, depth pairs) below the line `y0`, each of size k (u). */
+function trefoils(ctx: Ctx, s: Scene, dots: Float64Array, y0: number, k: number): void {
+  const u = s.u;
+  const cx = s.cssW / 2;
+  ctx.beginPath();
+  for (let i = 0; i < dots.length; i += 2) {
+    const x = cx + dots[i]! * u;
+    const y = y0 + dots[i + 1]! * u;
+    for (const [c, sn] of TREFOIL) dot(ctx, x + c * k * u, y + sn * k * u, k * u * 0.62);
+  }
+  ctx.fill();
+}
+
 /** A wavy edge across the screen at `y` (continues the path, left to right). */
 function rolling(ctx: Ctx, s: Scene, y: number, amp: number, f: number, ph: number): void {
   const u = s.u;
@@ -717,6 +187,8 @@ function meadowFar(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void {
   const y0 = hz + FRONT_BASE * u;
   ctx.fillStyle = tone.meadowFar;
   ctx.fillRect(0, y0, s.cssW, Math.max(0, Math.min(bottom, hz + u * (NEAR_MEADOW + 0.03)) - y0));
+  ctx.fillStyle = tone.meadowDot;
+  trefoils(ctx, s, PASTURE_DOTS, hz, 0.0042);
   // The hedge along the meadow's far edge: a band with a row of round bushes along its top.
   ctx.fillStyle = tone.hedge;
   ctx.beginPath();
@@ -732,17 +204,108 @@ function meadowFar(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void {
   ctx.fill();
 }
 
-/** The near band of the meadow, deeper green, its brow rolling; it stops under the wall in front, which covers the rest. */
-function meadowNear(ctx: Ctx, s: Scene, bottom: number): void {
+/** Rocks along the near meadow's brow where it comes down to the bay: [X past the bay's edge (u), size (u)]. */
+const ROCKS = [
+  [0.012, 0.016],
+  [0.04, 0.011],
+  [0.075, 0.019],
+  [0.11, 0.012],
+  [0.15, 0.017],
+  [0.19, 0.013],
+  [0.23, 0.018],
+  [0.27, 0.014],
+  [0.31, 0.017],
+] as const;
+
+/** Spring flowers in the near meadow, out at the sides clear of everything standing on it: x (u from the center), depth under the tower's floor line (u), daisy (1) or primrose (0). */
+const FLOWERS = [
+  [-0.395, 0.03, 1],
+  [-0.36, 0.062, 0],
+  [-0.322, 0.024, 1],
+  [-0.338, 0.092, 1],
+  [-0.465, 0.285, 0],
+  [-0.41, 0.3, 1],
+  [-0.345, 0.288, 0],
+  [-0.292, 0.305, 1],
+  [0.272, 0.165, 1],
+  [0.33, 0.178, 0],
+  [0.385, 0.162, 1],
+  [0.44, 0.176, 0],
+] as const;
+/** A flower's five petals round its middle, in units of its size. */
+const PETALS = [0, 1, 2, 3, 4].map((i) => [Math.cos(-Math.PI / 2 + (i * Math.PI * 2) / 5), Math.sin(-Math.PI / 2 + (i * Math.PI * 2) / 5)] as const);
+
+/** The flowers: a rosette of five round petals and an eye, as the illuminators drew them. */
+function flowers(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  const cx = s.cssW / 2;
+  const k = u * 0.0058;
+  for (let kind = 0; kind < 2; kind++) {
+    ctx.fillStyle = kind ? DAISY : PRIMROSE;
+    ctx.beginPath();
+    for (const [X, d, daisy] of FLOWERS) {
+      if (daisy !== kind) continue;
+      for (const [c, sn] of PETALS) dot(ctx, cx + X * u + c * k, s.groundY + d * u + sn * k, k * 0.62);
+    }
+    ctx.fill();
+    ctx.fillStyle = kind ? ORPIMENT : PRIMROSE_EYE;
+    ctx.beginPath();
+    for (const [X, d, daisy] of FLOWERS) if (daisy === kind) dot(ctx, cx + X * u, s.groundY + d * u, k * 0.5);
+    ctx.fill();
+  }
+}
+
+/**
+ * The near band of the meadow, deeper green, its brow rolling, strewn with trefoils and spring
+ * flowers; it stops under the wall in front, which covers the rest. On the right, past the bay's
+ * edge, its brow is the shore: a row of dark rocks with the surf at their feet.
+ */
+function meadowNear(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void {
   const u = s.u;
   const near = Math.min(bottom, wallTop(s) + u * 0.01);
+  const brow = s.horizonY + u * NEAR_MEADOW;
   ctx.fillStyle = MEADOW;
   ctx.beginPath();
   ctx.moveTo(0, near);
-  rolling(ctx, s, s.horizonY + u * NEAR_MEADOW, 0.012, 5, 2.1);
+  rolling(ctx, s, brow, 0.012, 5, 2.1);
   ctx.lineTo(s.cssW, near);
   ctx.closePath();
   ctx.fill();
+  ctx.fillStyle = MEADOW_DOT;
+  trefoils(ctx, s, MEADOW_DOTS, s.groundY, 0.0055);
+  flowers(ctx, s);
+  // The rocks of the shore: dark, lit on top, the surf breaking white against them.
+  const x0 = s.cssW / 2 + BAY_X * u;
+  const swell = 0.5 + 0.5 * Math.sin(s.t * 1.3 + 1.7);
+  ctx.fillStyle = tone.surf;
+  ctx.beginPath();
+  for (const [dx, r] of ROCKS) {
+    const x = x0 + dx * u;
+    if (x - r * u > s.cssW) break;
+    circle(ctx, x - r * u * 0.6, brow - u * 0.004, (0.006 + 0.003 * swell) * u);
+  }
+  ctx.fill();
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.fillStyle = pass ? tone.cliffLit : tone.cliff;
+    ctx.beginPath();
+    for (const [dx, r] of ROCKS) {
+      const x = x0 + dx * u;
+      if (x - r * u > s.cssW) break;
+      const y = brow + u * 0.006;
+      if (pass === 0) {
+        ctx.moveTo(x - r * u, y);
+        ctx.quadraticCurveTo(x - r * u * 0.9, y - r * u * 0.9, x, y - r * u * 0.85);
+        ctx.quadraticCurveTo(x + r * u * 0.95, y - r * u * 0.8, x + r * u, y);
+        ctx.closePath();
+      } else {
+        ctx.moveTo(x - r * u * 0.7, y - r * u * 0.45);
+        ctx.quadraticCurveTo(x - r * u * 0.6, y - r * u * 0.8, x - r * u * 0.05, y - r * u * 0.78);
+        ctx.quadraticCurveTo(x - r * u * 0.3, y - r * u * 0.55, x - r * u * 0.7, y - r * u * 0.45);
+        ctx.closePath();
+      }
+    }
+    ctx.fill();
+  }
 }
 
 // ---------------------------------------------------------------- the cloud floor
@@ -751,68 +314,135 @@ function meadowNear(ctx: Ctx, s: Scene, bottom: number): void {
 const FLOOR_SPAN = 9;
 const FLOOR = Array.from({ length: FLOOR_SPAN }, (_, i) => ({ r: 0.05 + hash(i + 6200) * 0.035, dy: hash(i + 6300) * 0.025 }));
 const FLOOR_STEP = 0.085;
-/** Soft swells further down the floor, in rows repeating every SWELL_SPAN (u, nearer rows wider): x (fraction of a span), depth under the top (u), size (u). */
-const SWELL_SPAN = 0.7;
-const SWELL_ROWS = 3;
-const SWELLS = Array.from({ length: 6 }, (_, i) => ({ x: hash(i + 6500), d: 0.1 + hash(i + 6510) * 0.12, r: 0.026 + hash(i + 6520) * 0.022 }));
+/** The lit second row of puffs under the top one: how far under the top and how big (u). */
+const UNDER_D = 0.052;
+const UNDER_R = 0.036;
+/** Billows further down the floor, as an illuminator draws a sea of cloud: rows of arches, bigger toward you: each row's depth under the top and its arches' radius (u). */
+const BILLOWS = [
+  [0.14, 0.026],
+  [0.21, 0.032],
+  [0.3, 0.04],
+  [0.41, 0.05],
+  [0.55, 0.062],
+] as const;
 
 /**
- * The cloud floor: a row of cel-shaded puffs along its top, solid below, with soft lit swells
- * further down. It stands still: it runs right behind the tower, where nothing moves. It is
- * drawn after everything on the land, the meadow round the round tower included, so as it
- * gathers it covers all of it (only the mountain tops stand out of it); the wall in front
- * stays in front.
+ * The cloud floor: a row of puffs along its top in a fine contour, solid below, with spiral
+ * curls in the puffs and fine scalloped ripples further down, all out at the sides (behind the
+ * tower it is a plain wash). It stands still: it runs right behind the tower, where nothing
+ * moves. It is drawn after everything on the land, the meadow round the round tower included,
+ * so as it gathers it covers all of it (only the mountain tops stand out of it); the wall in
+ * front stays in front. In its lower corners, the knotwork (`corners`).
  */
 export function cloudFloor(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   const u = s.u;
+  const cx = s.cssW / 2;
+  const lw = cloudLineWidth(u);
   const step = u * FLOOR_STEP;
   const half = Math.ceil(s.cssW / 2 / step) + 1;
   for (let pass = 0; pass < 3; pass++) {
-    ctx.fillStyle = pass === 0 ? tone.cloudShade : pass === 1 ? tone.cloud : tone.cloudLight;
+    ctx.fillStyle = pass === 0 ? tone.cloudLine : pass === 1 ? tone.cloudShade : tone.cloud;
     ctx.beginPath();
     for (let j = -half; j <= half; j++) {
-      const x = s.cssW / 2 + j * step;
+      const x = cx + j * step;
       const p = FLOOR[((j % FLOOR_SPAN) + FLOOR_SPAN) % FLOOR_SPAN]!;
       const r = p.r * u;
       const y = top + p.dy * u + r * 0.35;
-      if (pass === 0) circle(ctx, x, y, r);
-      else if (pass === 1) circle(ctx, x - r * 0.06, y - r * 0.12, r * 0.9);
-      else circle(ctx, x - r * 0.25, y - r * 0.42, r * 0.42);
+      if (pass === 0) circle(ctx, x, y, r + lw);
+      else if (pass === 1) circle(ctx, x, y, r);
+      else circle(ctx, x - r * 0.06, y - r * 0.12, r * 0.9);
     }
-    if (pass === 0) ctx.rect(0, top + u * 0.05, s.cssW, s.cssH - top);
-    if (pass === 1) ctx.rect(0, top + u * 0.035, s.cssW, u * 0.035);
-    ctx.fill();
-  }
-  // Swells: low mounds lit on top, in rows growing toward you down the floor (the lower rows
-  // only show while it is still sinking to rest), soft against its shade. Centered, so both
-  // edges match at any width.
-  for (let pass = 0; pass < 2; pass++) {
-    ctx.fillStyle = pass ? tone.cloudLight : tone.cloud;
-    ctx.globalAlpha = pass ? 0.75 : 0.7;
-    ctx.beginPath();
-    for (let row = 0; row < SWELL_ROWS; row++) {
-      const grow = 1 + row * 0.4;
-      const span = u * SWELL_SPAN * grow;
-      const reps = Math.ceil(s.cssW / 2 / span) + 1;
-      for (let k = -reps; k < reps; k++) {
-        for (const w of SWELLS) {
-          const r = w.r * u * grow;
-          const y = top + (w.d + row * 0.2 * grow) * u + u * 0.05;
-          if (y - r > s.cssH) continue;
-          const x = s.cssW / 2 + (k + w.x + row * 0.37) * span;
-          const rx = r * (pass ? 1.2 : 2.2);
-          const ry = r * (pass ? 0.22 : 0.5);
-          const ex = x - (pass ? r * 0.35 : 0);
-          const ey = y - (pass ? r * 0.2 : 0);
-          ctx.moveTo(ex + rx, ey);
-          ctx.ellipse(ex, ey, rx, ry, 0, 0, Math.PI, true);
-          ctx.closePath();
-        }
-      }
+    if (pass < 2) ctx.rect(0, top + u * 0.05, s.cssW, s.cssH - top);
+    else {
+      // A second, smaller row of lit puffs under the top one, so the lit band ends in scallops.
+      for (let j = -half; j <= half; j++) circle(ctx, cx + (j + 0.5) * step, top + UNDER_D * u, UNDER_R * u);
     }
     ctx.fill();
   }
+  // Curls in the puffs, and billows further down (the lower rows only show while it is still
+  // sinking to rest): rows of arches growing toward you. Out at the sides only; centered, so
+  // both edges match at any width.
+  const clear = (COLUMN + 0.05) * u;
+  ctx.beginPath();
+  for (let j = -half; j <= half; j++) {
+    const x = cx + j * step;
+    if (Math.abs(x - cx) < clear) continue;
+    const p = FLOOR[((j % FLOOR_SPAN) + FLOOR_SPAN) % FLOOR_SPAN]!;
+    const r = p.r * u;
+    const side = x < cx ? 1 : -1;
+    curlPath(ctx, x + side * r * 0.06, top + p.dy * u + r * 0.25, r * 0.5, side > 0 ? Math.PI : 0, -side);
+  }
+  ctx.strokeStyle = tone.cloudLine;
+  ctx.lineWidth = lw * 0.85;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.beginPath();
+  for (let row = 0; row < BILLOWS.length; row++) {
+    const [d, rr] = BILLOWS[row]!;
+    const y = top + d * u;
+    const r = rr * u;
+    if (y - r > s.cssH) break;
+    // Every row is offset half an arch from the one above.
+    const off = row % 2 ? r : 0;
+    const n = Math.ceil(s.cssW / 2 / (r * 2)) + 1;
+    for (let k = -n; k <= n; k++) {
+      const x = cx + off + k * r * 2;
+      if (Math.abs(x - cx) < clear + r) continue;
+      ctx.moveTo(x - r, y);
+      ctx.arc(x, y, r, Math.PI, Math.PI * 2);
+    }
+  }
+  ctx.globalAlpha = 0.5;
+  ctx.stroke();
   ctx.globalAlpha = 1;
+  corners(ctx, s, top);
+}
+
+// ---------------------------------------------------------------- the knotwork in the corners
+
+/** The plait in the corner bands: three strands; its spacing (u). */
+const CORNER_PLAIT = plait(3);
+const CORNER_D = 0.026;
+/** The bands rest this far above the screen's bottom (u); while the floor is still coming up they ride this far under its top (u). */
+const CORNER_BOTTOM = 0.05;
+const CORNER_RIDE = 0.17;
+/** The gap they keep from the tower's column at most (u), how far in from the screen's edge their roundels stand (u), and the roundels' radius (u). */
+const CORNER_GAP = 0.016;
+const CORNER_IN = 0.15;
+const CORNER_R = 0.058;
+
+/** Scratch: the two bands' spans (from the left edge in, from the right one out) and the roundels' places and turns. */
+const CORNER_SPANS = [-2, 0, 0, 0];
+const CORNER_BOSSES = [0, 0, 0, 0, 0, Math.PI / 3];
+
+/**
+ * The page's corners: in each side lane, low on the cloud floor, a plaited band runs in from the
+ * screen's edge and ends, short of the tower's column, in a roundel with a triskele, ringed with
+ * red dots. They rest near the screen's bottom once the floor has come up (and ride on it as it
+ * does), and stand still.
+ */
+function corners(ctx: Ctx, s: Scene, top: number): void {
+  const u = s.u;
+  const d = CORNER_D * u;
+  const h = bandHeight(CORNER_PLAIT, d);
+  const R = CORNER_R * u;
+  const y = Math.max(s.cssH - CORNER_BOTTOM * u - h, top + CORNER_RIDE * u);
+  const cy = y + h / 2;
+  if (cy - R * 1.3 > s.cssH) return;
+  const lw = Math.max(1, u * 0.0035);
+  const rule = Math.max(0.8, u * 0.0024);
+  const left = Math.min(s.baseX - CORNER_GAP * u - R, CORNER_IN * u);
+  const right = Math.max(s.baseX + s.baseW + CORNER_GAP * u + R, s.cssW - CORNER_IN * u);
+  CORNER_SPANS[1] = left;
+  CORNER_SPANS[2] = right;
+  CORNER_SPANS[3] = s.cssW + 2;
+  plaitBand(ctx, CORNER_PLAIT, KNOTWORK, s.cssW / 2, CORNER_SPANS, y, d, rule);
+  CORNER_BOSSES[0] = left;
+  CORNER_BOSSES[1] = cy;
+  CORNER_BOSSES[3] = right;
+  CORNER_BOSSES[4] = cy;
+  roundels(ctx, CORNER_BOSSES, R, ROUNDEL, lw);
 }
 
 /** Everything on the horizon, back to front (the cloud floor over it is drawn later: `cloudFloor`). */
@@ -820,20 +450,48 @@ export function farLayer(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   const hz = s.horizonY;
   // The mountains (and the clouds piled behind them) stand out of the cloud floor once it has covered the land.
   const mh = mountainHorizon(s);
-  if (mh - s.u * 0.36 < s.cssH && top - s.u * 0.06 > mh + (MOUNT_BASE - HOLY_H) * s.u) {
+  if (mh - s.u * 0.36 < s.cssH && top - s.u * 0.06 > mh - MOUNTAIN_TOP * s.u) {
     cloudBank(ctx, s, tone, mh);
     mountains(ctx, s, tone);
   }
-  if (hz - s.u * 0.2 < s.cssH && landShows(s, top)) {
-    const bottom = Math.min(s.cssH, top + s.u * 0.12);
-    hills(ctx, s, tone, bottom);
+  if (hz - s.u * 0.2 < s.cssH && landShows(s, top)) land(ctx, s, tone, top);
+}
+
+/**
+ * How high each part of the land reaches (u below the horizon; negative is above it): the hills,
+ * the castle, the farmhouse and the huts, the bay with its headland and hooker, the round tower
+ * and cross on it, and everything lower down (the sheep on the slopes, the meadows, the stream
+ * and its bridge, the flock).
+ */
+const HILLS_UP = -0.07;
+const CASTLE_UP = -0.19;
+const FARM_UP = -0.03;
+const COAST_UP = -0.055;
+const MONASTERY_UP = -0.17;
+const LOW_UP = 0.025;
+
+/**
+ * The land on the horizon, back to front, with the cloud floor's top at `top` (it is drawn over
+ * the land): what is already under its solid body is left out.
+ */
+export function land(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
+  const bottom = Math.min(s.cssH, top + s.u * 0.12);
+  // How far below the horizon (u) the floor is solid: a part reaching no higher is hidden.
+  const covered = (top + s.u * FLOOR_SOLID - s.horizonY) / s.u;
+  if (covered > HILLS_UP) hills(ctx, s, tone, bottom);
+  if (covered > CASTLE_UP) castle(ctx, s, tone);
+  if (covered > FARM_UP) farmhouses(ctx, s, tone);
+  // The sheep graze lower down the slopes than all of them, so nearer.
+  if (covered > LOW_UP) {
     farSheep(ctx, s, tone);
-    monastery(ctx, s, tone);
-    farmhouses(ctx, s, tone);
     meadowFar(ctx, s, tone, bottom);
+  }
+  if (covered > COAST_UP) coast(ctx, s, tone, bottom);
+  if (covered > MONASTERY_UP) monastery(ctx, s, tone);
+  if (covered > LOW_UP) {
     stream(ctx, s, tone);
     bridge(ctx, s, tone);
-    meadowNear(ctx, s, bottom);
+    meadowNear(ctx, s, tone, bottom);
     flock(ctx, s);
   }
 }

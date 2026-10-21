@@ -2,7 +2,7 @@ import { circle, hash, oval, type Ctx } from "../../base/draw";
 import { layerGround } from "../../base/world";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
-import { birdStroke, cloud, LONG_CLOUD, SMALL_CLOUD, TALL_CLOUD, type CloudShape } from "./shapes";
+import { birdStroke, cloud, cloudLineWidth, LONG_CLOUD, SMALL_CLOUD, TALL_CLOUD, type CloudShape } from "./shapes";
 import { LOOP, LOOP_START, type Tone } from "./tone";
 
 // What drifts past as you climb, in the lane down the right of the screen: a pair of swallows
@@ -15,7 +15,8 @@ import { LOOP, LOOP_START, type Tone } from "./tone";
 // hovering and singing, and from the morning on the lane runs the first day's story again.
 // Each thing is anchored at a height in the lane, so it comes down past you as the camera
 // climbs, and it only ever moves gently in place: nothing crosses the tower's column. Things
-// are spaced so they never overlap. Far away, so faded and flat, with no outline.
+// are spaced so they never overlap. Far away, so faded and flat: the clouds curled with spirals
+// in a fine contour of their own (shapes.ts), the birds a few strokes of a pen.
 //
 // The left of the sky is the sun's and the moon's (sky.ts): the sun hangs there by day and
 // sets into the cloud floor, the crescent moon comes out in the same place at night, and the
@@ -147,9 +148,9 @@ export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, d: Drifter): void {
   const k = d.size * u;
   if (d.kind === "cloud") {
     if (d.rain && tone.rain > 0.02) rain(ctx, s, tone, x, y + bob, k);
-    cloud(ctx, d.shape, x, y + bob, k, tone.cloudShade, tone.cloud, tone.cloudLight);
+    cloud(ctx, d.shape, x, y + bob, k, tone, cloudLineWidth(u));
   } else if (d.kind === "swallows") swallows(ctx, s, tone, x, y, d.phase);
-  else if (d.kind === "rainbow") rainbow(ctx, tone, x, y + bob, k);
+  else if (d.kind === "rainbow") rainbow(ctx, tone, x, y + bob, k, cloudLineWidth(u));
   else if (d.kind === "geese") geese(ctx, s, tone, x, y, 1, d.phase);
   else if (d.kind === "swans") swans(ctx, s, tone, x, y, 1, d.phase);
   else larks(ctx, s, tone, x, y, d.phase);
@@ -206,7 +207,7 @@ function rain(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number, r: number): 
  * A little rainbow standing on two small clouds, k its size unit. It shows only in the rainbow
  * band (tone.rainbow); below and above it the two clouds drift by on their own.
  */
-function rainbow(ctx: Ctx, tone: Tone, x: number, y: number, k: number): void {
+function rainbow(ctx: Ctx, tone: Tone, x: number, y: number, k: number, lw: number): void {
   const rx = k * 2;
   const ry = k * 2.2;
   const bw = k * 0.17;
@@ -224,8 +225,8 @@ function rainbow(ctx: Ctx, tone: Tone, x: number, y: number, k: number): void {
     ctx.globalAlpha = 1;
   }
   const foot = rx - (n / 2) * bw;
-  cloud(ctx, SMALL_CLOUD, x - foot, y + k * 0.22, k * 0.75, tone.cloudShade, tone.cloud, tone.cloudLight);
-  cloud(ctx, SMALL_CLOUD, x + foot, y + k * 0.22, k * 0.75, tone.cloudShade, tone.cloud, tone.cloudLight);
+  cloud(ctx, SMALL_CLOUD, x - foot, y + k * 0.22, k * 0.75, tone, lw);
+  cloud(ctx, SMALL_CLOUD, x + foot, y + k * 0.22, k * 0.75, tone, lw);
   if (tone.rainbow > 0.01) skyPot(ctx, tone, x + foot + k * 0.12, y - k * 0.08, k * 0.3);
 }
 

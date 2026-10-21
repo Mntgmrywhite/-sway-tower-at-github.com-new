@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
 import { drawDrifter, drifters, eachVisible, type Drifter } from "./drift";
-import { bridge, chapelAt, cloudFloor, farLayer, farmhouses, farSheep, floorTop, landShows, monastery } from "./far";
+import { bridge, castle, chapelAt, cloudFloor, farLayer, farmhouses, farSheep, floorTop, hooker, landShows, monastery } from "./far";
 import { front } from "./front";
 import { meadowBack, rainbowArc } from "./meadow";
-import { moonAt, morningStarAt, shootingStar, stars, sunAt, SUN_REACH } from "./sky";
+import { MOON_REACH, moonAt, morningStarAt, shootingStar, stars, sunAt, SUN_REACH } from "./sky";
 import { context, mask, overlap, sceneAt, SIZES, zoomedScene } from "./test-scene";
 import { level, LOOP, LOOP_START, toneOf } from "./tone";
 import { roundTower } from "./tower";
@@ -121,7 +121,7 @@ describe("st. patrick's sun and moon", () => {
       if (tone.moon > 0) {
         moonChecked++;
         const moon = moonAt(s);
-        expect(inCircle(ctx, moon.x, moon.y, moon.r + 1), `level ${lvl}: something drifts over the moon`).toBe(0);
+        expect(inCircle(ctx, moon.x, moon.y, moon.r * MOON_REACH + 1), `level ${lvl}: something drifts over the moon`).toBe(0);
       }
     }
     expect(drawn, "the lane is busy").toBeGreaterThan(500);
@@ -145,7 +145,7 @@ describe("st. patrick's sun and moon", () => {
           const s = { ...s0, t: n * 6.3 + k * 0.75 };
           ctx.clearRect(0, 0, s.cssW, s.cssH);
           shootingStar(ctx, s, tone);
-          expect(inCircle(ctx, moon.x, moon.y, moon.r + 2), `level ${lvl}, t=${s.t.toFixed(2)}: a shooting star over the moon`).toBe(0);
+          expect(inCircle(ctx, moon.x, moon.y, moon.r * MOON_REACH + 2), `level ${lvl}, t=${s.t.toFixed(2)}: a shooting star over the moon`).toBe(0);
           if (!shown && ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height).data.some((v, i) => i % 4 === 3 && v > 40)) shown = true;
         }
         if (shown) streaks++;
@@ -182,7 +182,7 @@ describe("st. patrick's sun and moon", () => {
       if (tone.moon > 0) {
         moonChecked++;
         const moon = moonAt(s);
-        expect(inCircle(ctx, moon.x, moon.y, moon.r + 1), `level ${lvl}: something passes over the moon`).toBe(0);
+        expect(inCircle(ctx, moon.x, moon.y, moon.r * MOON_REACH + 1), `level ${lvl}: something passes over the moon`).toBe(0);
       }
     }
     expect(sunChecked, "the sun is up").toBeGreaterThan(150);
@@ -198,7 +198,7 @@ describe("st. patrick's sun and moon", () => {
         const sun = sunAt(s, tone, floorTop(s, level(s)));
         const { x, y, r } = sun;
         const moon = moonAt(s);
-        expect(Math.hypot(x - moon.x, y - moon.y), `${W0}x${H0} at zoom ${z}, level ${lvl}: the sun meets the moon`).toBeGreaterThan(r * SUN_REACH + moon.r);
+        expect(Math.hypot(x - moon.x, y - moon.y), `${W0}x${H0} at zoom ${z}, level ${lvl}: the sun meets the moon`).toBeGreaterThan(r * SUN_REACH + moon.r * MOON_REACH);
       }
     }
   });
@@ -206,8 +206,10 @@ describe("st. patrick's sun and moon", () => {
 
 describe("st. patrick's drifters over the land", () => {
   // While the land still shows (until the cloud floor covers it), what comes down the lanes may
-  // pass in front of the plain hills but never over the far props (the hilltop round tower and
-  // cross, the sheep, the bridge) or the rainbow coming down into the pot of gold.
+  // pass in front of the plain hills, the sea and its cliffs, but never over the far props (the
+  // castle, the farmhouse and the beehive huts, the round tower and cross on the headland, the
+  // sheep, the bridge, the hooker on the bay, the chapel) or the rainbow coming down into the
+  // pot of gold.
   const PROPS_LEVELS = Array.from({ length: 46 }, (_, i) => i);
   it.each(SIZES.flatMap(([W, H]) => [0, 5.3, 11].map((t) => [W, H, t] as const)))("%ix%i at t=%s: nothing drifts over the far props", (W, H, t) => {
     let checked = 0;
@@ -219,6 +221,8 @@ describe("st. patrick's drifters over the land", () => {
         monastery(ctx, s, tone);
         farSheep(ctx, s, tone);
         farmhouses(ctx, s, tone);
+        castle(ctx, s, tone);
+        hooker(ctx, s, tone);
         bridge(ctx, s, tone);
         rainbowArc(ctx, s);
         const c = chapelAt(s);

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { stPatricks } from "../stpatricks";
 import type { Scene } from "../skin";
-import { chapelAt, floorTop, FLOOR_SETTLED } from "./far";
+import { chapelAt, cloudFloor, floorTop, FLOOR_SETTLED, land, landShows } from "./far";
 import { context, sceneAt, SIZES, zoomedScene } from "./test-scene";
-import { DAY_HIGH, level, LOOP, LOOP_START, storyLevel, toneAtLevel, type Tone } from "./tone";
+import { DAY_HIGH, level, LOOP, LOOP_START, storyLevel, toneAtLevel, toneOf, type Tone } from "./tone";
 
 // The height story loops forever (tone.ts): from LOOP_START on, everything keyed by height comes
 // round every LOOP levels, the end of the loop flows into its start with no jump, the first
@@ -160,6 +160,70 @@ describe("st. patrick's loop on screen", () => {
       expect(gathering, `${W}x${H}: the floor's biggest step as it gathers`).toBeLessThan(s0.u * 0.03);
       // Once it has covered the land it sinks slower than the tower comes down past it (a quarter level is 2 world units).
       expect(sinking, `${W}x${H}: the floor's biggest step as it sinks to rest`).toBeLessThan(s0.scale * 2);
+    }
+  });
+});
+
+/** A canvas for the scene on an opaque magenta ground (anything left showing stands out against it). */
+function backed(s: Scene): CanvasRenderingContext2D {
+  const ctx = context(s.cssW, s.cssH);
+  ctx.fillStyle = "#ff00ff";
+  ctx.fillRect(0, 0, s.cssW, s.cssH);
+  return ctx;
+}
+
+/** Pixels that differ clearly between two pictures of the scene. */
+function differ(a: CanvasRenderingContext2D, b: CanvasRenderingContext2D, s: Scene): number {
+  const p = a.getImageData(0, 0, s.cssW, s.cssH).data;
+  const q = b.getImageData(0, 0, s.cssW, s.cssH).data;
+  let n = 0;
+  for (let i = 0; i < p.length; i += 4) {
+    if (Math.abs(p[i]! - q[i]!) + Math.abs(p[i + 1]! - q[i + 1]!) + Math.abs(p[i + 2]! - q[i + 2]!) > 24) n++;
+  }
+  return n;
+}
+
+describe("st. patrick's land under the cloud floor", () => {
+  // The land (the hills, the castle, the headland with its round tower and cross, the bay, the
+  // meadows) is dropped from the scene once the cloud floor has swelled up over it: at the last
+  // moment it is drawn, none of it shows over the floor, so nothing blinks out as you climb. On
+  // both phones, a tablet, and zoomed out.
+  const SCREENS = [[390, 844, 1], [375, 667, 1], [834, 1194, 1], [390, 844, 0.6], [375, 667, 0.6]] as const;
+  it.each(SCREENS)("%ix%i at zoom %s: the land is all under the floor when it is dropped", (W, H, z) => {
+    const at = (lvl: number) => (z === 1 ? sceneAt(W, H, lvl, 0) : zoomedScene(W, H, z, lvl, 0));
+    let last = -1;
+    for (let lvl = 0; lvl < DAY_HIGH + 2; lvl += 0.05) {
+      const s = at(lvl);
+      if (landShows(s, floorTop(s, level(s)))) last = lvl;
+    }
+    expect(last, "the land shows at the start").toBeGreaterThan(10);
+    const s = at(last);
+    const tone = toneOf(s);
+    const top = floorTop(s, level(s));
+    const withLand = backed(s);
+    land(withLand, s, tone, top);
+    cloudFloor(withLand, s, tone, top);
+    const floorOnly = backed(s);
+    cloudFloor(floorOnly, s, tone, top);
+    const shows = differ(withLand, floorOnly, s);
+    expect(shows, `level ${last.toFixed(2)}: pixels of the land showing over the floor as it is dropped`).toBe(0);
+  });
+
+  it.each(SCREENS)("%ix%i at zoom %s: what is left out under the floor would not have shown", (W, H, z) => {
+    // As the floor comes up, the parts of the land already under its solid body are left out:
+    // with the floor over it, the picture is the same as with the whole land drawn.
+    for (let lvl = 16; lvl < DAY_HIGH + 4; lvl += 0.5) {
+      const s = z === 1 ? sceneAt(W, H, lvl, 0) : zoomedScene(W, H, z, lvl, 0);
+      const top = floorTop(s, level(s));
+      if (!landShows(s, top)) continue;
+      const tone = toneOf(s);
+      const culled = backed(s);
+      land(culled, s, tone, top);
+      cloudFloor(culled, s, tone, top);
+      const whole = backed(s);
+      land(whole, s, tone, s.cssH * 4);
+      cloudFloor(whole, s, tone, top);
+      expect(differ(culled, whole, s), `level ${lvl}: pixels that differ`).toBe(0);
     }
   });
 });

@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { circle } from "../../base/draw";
 import type { Scene } from "../skin";
 import { drifters } from "./drift";
-import { bridge, farmhouses, farSheep, floorTop, monastery } from "./far";
+import { bridge, castle, farmhouses, farSheep, floorTop, hooker, monastery } from "./far";
 import { front } from "./front";
 import { potAndLeprechaun } from "./gold";
 import { cottage, rainbowArc, smoke, toadstool } from "./meadow";
 import { flock } from "./pasture";
 import { BARREL_X, FIRST_TOAST, GRAB, pose, RELEASE, session, SESSION_FOOT, TOAST, toastAt, toastStart } from "./session";
-import { moonAt, sun } from "./sky";
+import { MOON_REACH, moonAt, sun } from "./sky";
 import { context, mask, overlap, sceneAt, startScene, zoomedScene } from "./test-scene";
 import { level, toneOf } from "./tone";
 import { inkW, roundTower } from "./tower";
@@ -47,13 +47,13 @@ for (let t = toastStart(1) - 0.5; t < toastStart(1) + TOAST + 0.5; t += 0.1) TIM
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 const OTHERS: [string, Draw][] = [
   ["sun", (ctx, s) => sun(ctx, s, toneOf(s), floorTop(s, level(s)))],
-  // The moon's disc, where it hangs at night.
+  // The moon with its ring of dots, where it hangs at night.
   [
     "moon",
     (ctx, s) => {
       const m = moonAt(s);
       ctx.beginPath();
-      circle(ctx, m.x, m.y, m.r);
+      circle(ctx, m.x, m.y, m.r * MOON_REACH);
       ctx.fill();
     },
   ],
@@ -61,6 +61,8 @@ const OTHERS: [string, Draw][] = [
   ["round tower and high cross", (ctx, s) => monastery(ctx, s, toneOf(s))],
   ["far sheep", (ctx, s) => farSheep(ctx, s, toneOf(s))],
   ["farmhouses", (ctx, s) => farmhouses(ctx, s, toneOf(s))],
+  ["castle", (ctx, s) => castle(ctx, s, toneOf(s))],
+  ["hooker", (ctx, s) => hooker(ctx, s, toneOf(s))],
   ["bridge", (ctx, s) => bridge(ctx, s, toneOf(s))],
   ["flock", flock],
   ["smoke", smoke],

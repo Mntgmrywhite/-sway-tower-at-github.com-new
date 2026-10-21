@@ -1,16 +1,18 @@
 import { ink, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { GRASS, INK, JOINT, OPENING, SHAMROCK, STONE, WOOD } from "./colors";
+import { bandHeight, plait, plaitBand, type PlaitStyle } from "./knot";
 import { archPath, block, shamrockPath, stemPath } from "./shapes";
 
 // The old round tower the bars are stacked on: the top of a stone round tower (its conical cap
-// long gone, so you can build it higher; there's a whole one on the far hill to compare). A
+// long gone, so you can build it higher; there's a whole one out on the headland to compare). A
 // drum of coursed limestone, tapering out a little to its foot, lit on the left and shaded on
 // the right, the joints closer together toward its sides so it reads round; a projecting top
 // course is the tower's floor. Halfway up, the raised round-headed doorway these towers are
-// known for, a wooden ladder leaning up to it, and a narrow window; a grassy mound with
-// shamrocks round its foot. Everything here is near: flat two-tone fills and one ink weight,
-// and nothing rises above the floor line.
+// known for, a wooden ladder leaning up to it, and a narrow window; below them a band of
+// interlace carved round the drum, a twist of two strands cut into the stone like the knotwork
+// on a high cross; a grassy mound with shamrocks round its foot. Everything here is near: flat
+// two-tone fills and one ink weight, and nothing rises above the floor line.
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
@@ -45,6 +47,14 @@ const WINDOW_X = 0.115;
 /** The mound round the foot: half width and how far it rises above the foot. */
 const MOUND_HW = 0.27;
 const MOUND_UP = 0.024;
+/** The carved band: a twist of two strands, its spacing (u) and its top edge (u below the floor line). */
+const FRIEZE = plait(2);
+const FRIEZE_D = 0.0155;
+const FRIEZE_TOP = 0.168;
+/** Carved in the stone: sunk ground, raised strands, cut lines. */
+const CARVED: PlaitStyle = { ground: STONE.shade, frame: STONE.light, strands: [STONE.light], ink: JOINT, width: 0.52, contour: 0.08 };
+/** Scratch: the carved band's span across the drum. */
+const FRIEZE_SPAN = [0, 0];
 
 /** A vertical band of the drum between two fractions of its half width, following its taper. */
 function band(ctx: Ctx, cx: number, top: number, foot: number, u: number, a: number, b: number, color: string): void {
@@ -107,6 +117,7 @@ export function roundTower(ctx: Ctx, s: Scene): void {
   ctx.lineWidth = Math.max(1, u * 0.0032);
   ctx.lineCap = "butt";
   ctx.stroke();
+  frieze(ctx, s, cx, g, top, foot);
   drumPath(ctx, s, cx, top, foot);
   ink(ctx, lw, INK);
 
@@ -126,6 +137,27 @@ export function roundTower(ctx: Ctx, s: Scene): void {
   ctx.beginPath();
   block(ctx, cx - CORNICE_HW * u, g, CORNICE_HW * 2 * u, CORNICE_H * u, u * 0.006);
   ink(ctx, lw, INK);
+}
+
+/**
+ * The band of interlace carved round the drum, across its whole width there, then the drum's
+ * light and shade laid back over it so it still reads round.
+ */
+function frieze(ctx: Ctx, s: Scene, cx: number, g: number, top: number, foot: number): void {
+  const u = s.u;
+  const d = FRIEZE_D * u;
+  const y = g + FRIEZE_TOP * u;
+  const h = bandHeight(FRIEZE, d);
+  const hw = halfWidth(s, top, foot, y + h / 2);
+  FRIEZE_SPAN[0] = cx - hw;
+  FRIEZE_SPAN[1] = cx + hw;
+  plaitBand(ctx, FRIEZE, CARVED, cx, FRIEZE_SPAN, y, d, Math.max(0.7, u * 0.002));
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = STONE.light;
+  ctx.fillRect(cx - 0.72 * hw, y - u * 0.002, 0.36 * hw, h + u * 0.004);
+  ctx.fillStyle = STONE.shade;
+  ctx.fillRect(cx + 0.55 * hw, y - u * 0.002, 0.45 * hw, h + u * 0.004);
+  ctx.globalAlpha = 1;
 }
 
 /** The raised round-headed doorway: a stone surround, the dark opening. */
