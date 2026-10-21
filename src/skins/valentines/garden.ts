@@ -1,28 +1,30 @@
 import { circle, hash, ink, inkedLine, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { BOX, CARVING, CHOCOLATE, CREAM, FOAM, INK, JOINT, LAWN, LAWN_FAR, LEAF, MARBLE, PAVING, PETAL, PETAL_PALE, RIBBON, ROSE, ROSE_PINK, WATER, WATER_LIT } from "./colors";
+import { BOX, CARVING, CHOCOLATE, CREAM, FOAM, CONTOUR, JOINT, LAWN, LAWN_FAR, LEAF, MARBLE, PAVING, PETAL, PETAL_PALE, RIBBON, ROSE, ROSE_PINK, WATER, WATER_LIT } from "./colors";
 import { cherub, type CherubPart } from "./cupid";
 import { landLine } from "./far";
-import { block, heartPath, petalPath } from "./shapes";
+import { block, heartPath, petalPath, roseHeart, rosette } from "./shapes";
 
-// The rose garden round the fountain, all of it near: flat two-tone fills and one ink weight.
-// A lawn runs from the boulevard's pavement down to the plaza, where the fountain stands: a
-// wide heart-shaped pool of blue water rimmed in cream-pink marble, its point toward you, a
-// round marble pedestal in its middle for the tower to rise from, petals afloat on it. Behind
-// its left lobe, on the lawn and clear of the rim, a column with the cherub, and his heart
-// balloon tied to the rim, floating up over his shoulder (cupid.ts). Beside the pool's point two beds of red and pink
-// roses, between them and the pool the gifts someone left (a box of chocolates, a bouquet),
-// and the plaza's pink pavers run on down under the railing in front (front.ts), petals strewn
-// over them. Every prop keeps a little plaza or lawn between itself and the next (layout.test.ts).
-// Nothing here moves above the tower's floor line but the cherub and his balloon, out in the
-// left lane; the water's glints below it are the only life in the middle.
+// The rose garden round the fountain, all of it near, in Art Nouveau: flat two-tone fills and a
+// fine warm-plum contour (colors.ts CONTOUR), bolder round a silhouette than inside it. A sage
+// lawn runs from the boulevard's pavement down to the plaza, where the fountain stands: a wide
+// heart-shaped pool of turquoise water rimmed in cream-pink marble, its point toward you, little
+// whiplash ripples winking on it and petals afloat, and a round marble pedestal in its middle for
+// the tower to rise from, carved with an arcade. Behind its left lobe, on the lawn and clear of
+// the rim, a slender column with a flared lily capital for the cherub, and his heart balloon tied
+// to the rim, floating up over his shoulder (cupid.ts). Beside the pool's point two beds of
+// stylized roses, between them and the pool the gifts someone left (a box of chocolates, a
+// bouquet), and the plaza's fish-scale paving runs on down under the railing in front (front.ts),
+// petals strewn over it. Every prop keeps a little plaza or lawn between itself and the next
+// (layout.test.ts). Nothing here moves above the tower's floor line but the cherub and his
+// balloon, out in the left lane; the ripples below it are the only life in the middle.
 //
 // Positions are in u from the screen center; the lawn's heights in u below the horizon, the
 // fountain's in u below the floor line (negative is up).
 
 /** Ink width up close. */
 export function inkW(s: Scene): number {
-  return Math.max(1.5, s.u * 0.0058);
+  return Math.max(1.3, s.u * 0.005);
 }
 
 /** The lawn: its far band from the pavement's edge, its near, deeper band from here (u below the horizon), its brow rolling. */
@@ -44,6 +46,8 @@ const DRUM_DEPTH = 0.1;
 const SLAB_HW = 0.24;
 const SLAB_UP = 0;
 const SLAB_H = 0.02;
+/** The niches of the arcade carved round the drum. */
+const NICHES = 7;
 /** The rim's width (u). */
 const RIM = 0.02;
 /** The rose beds either side of the pool's point: center (u from center), depth below the floor line. */
@@ -81,6 +85,13 @@ export function lawnNear(ctx: Ctx, s: Scene, bottom: number): void {
   ctx.lineTo(s.cssW, near);
   ctx.closePath();
   ctx.fill();
+  // A fine lit line along its brow.
+  ctx.beginPath();
+  ctx.moveTo(0, hz + u * LAWN_NEAR);
+  rolling(ctx, s, hz + u * (LAWN_NEAR + 0.004), 0.01, 5, 2.1);
+  ctx.strokeStyle = LAWN.light;
+  ctx.lineWidth = Math.max(1, u * 0.003);
+  ctx.stroke();
 }
 
 /** The heart-shaped pool's outline, its point toward you, as its own subpath (wound from the point, left side first). */
@@ -112,7 +123,7 @@ const AFLOAT = [
   [-0.14, 0.125, -1.4],
 ] as const;
 
-/** The pool's glints: X (u from center), depth, length, phase. */
+/** The pool's ripples: X (u from center), depth, length, phase. */
 const GLINTS = Array.from({ length: 9 }, (_, i) => ({
   x: -0.38 + (i / 8) * 0.76 + (hash(i + 9700) - 0.5) * 0.04,
   d: 0.045 + hash(i + 9710) * 0.085,
@@ -134,6 +145,8 @@ export const PLINTH_X = -0.335;
 export const PLINTH_TOP = 0.18;
 const SHAFT_HW = 0.02;
 const CAP_HW = 0.034;
+/** The capital's depth (u): the slab and its flare, all above the slider's lanes. */
+const CAP_H = 0.016;
 const PLINTH_FOOT = 0.022;
 const STEP = 0.012;
 
@@ -167,7 +180,7 @@ export function cherubColumn(ctx: Ctx, s: Scene): void {
   column(ctx, s, s.cssW / 2 + PLINTH_X * u, inkW(s));
 }
 
-/** The pool with its water, petals and glints, the marble rim, and the pedestal under the tower. */
+/** The pool with its water, petals and ripples, the marble rim, and the pedestal under the tower. */
 export function pool(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = s.cssW / 2;
@@ -181,16 +194,18 @@ export function pool(ctx: Ctx, s: Scene): void {
   ctx.fill();
   ctx.save();
   ctx.clip();
-  // Glints wink across the water (below the floor line, so in the tower's column too).
+  // Little whiplash ripples wink across the water (below the floor line, so in the tower's column too).
   ctx.strokeStyle = WATER_LIT;
-  ctx.lineWidth = Math.max(1, u * 0.004);
+  ctx.lineWidth = Math.max(1, u * 0.0035);
   ctx.lineCap = "round";
   ctx.beginPath();
   for (const g of GLINTS) {
     const k = 0.5 + 0.5 * Math.sin(s.t * 1.4 + g.ph);
     const w = g.w * u * (0.5 + k);
-    ctx.moveTo(cx + g.x * u - w / 2, gy + g.d * u);
-    ctx.lineTo(cx + g.x * u + w / 2, gy + g.d * u);
+    const x = cx + g.x * u - w / 2;
+    const y = gy + g.d * u;
+    ctx.moveTo(x, y);
+    ctx.bezierCurveTo(x + w * 0.3, y - u * 0.005, x + w * 0.6, y + u * 0.004, x + w, y - u * 0.002);
   }
   ctx.stroke();
   ctx.fillStyle = FOAM;
@@ -211,7 +226,7 @@ export function pool(ctx: Ctx, s: Scene): void {
     ctx.fill();
   }
   ctx.restore();
-  // The pedestal: a drum of marble in the pool, its joints carved, a lit top slab for the tower's floor.
+  // The pedestal: a drum of marble in the pool, an arcade carved round it, a lit top slab for the tower's floor.
   ctx.beginPath();
   ctx.rect(cx - DRUM_HW * u, gy + SLAB_H * u - SLAB_UP * u - u * 0.002, DRUM_HW * 2 * u, (DRUM_DEPTH - SLAB_H + SLAB_UP) * u + u * 0.002);
   ctx.fillStyle = MARBLE.body;
@@ -220,29 +235,38 @@ export function pool(ctx: Ctx, s: Scene): void {
   ctx.fillRect(cx + DRUM_HW * u * 0.6, gy + SLAB_H * u - SLAB_UP * u, DRUM_HW * u * 0.4, (DRUM_DEPTH - SLAB_H + SLAB_UP) * u);
   ctx.fillStyle = MARBLE.light;
   ctx.fillRect(cx - DRUM_HW * u, gy + SLAB_H * u - SLAB_UP * u, DRUM_HW * u * 0.3, (DRUM_DEPTH - SLAB_H + SLAB_UP) * u);
+  // The arcade carved round the drum: round-headed niches standing on a carved line.
   ctx.strokeStyle = CARVING;
   ctx.lineWidth = Math.max(1, u * 0.0025);
   ctx.beginPath();
-  for (let i = 1; i < 3; i++) {
-    const y = gy + (SLAB_H - SLAB_UP + ((DRUM_DEPTH - SLAB_H + SLAB_UP) * i) / 3) * u;
-    ctx.moveTo(cx - DRUM_HW * u, y);
-    ctx.lineTo(cx + DRUM_HW * u, y);
+  const nicheTop = gy + (SLAB_H + 0.022) * u;
+  const nicheFoot = gy + (DRUM_DEPTH - 0.014) * u;
+  const nw = (DRUM_HW * 2 * u) / NICHES;
+  for (let i = 0; i < NICHES; i++) {
+    const x0 = cx - DRUM_HW * u + nw * (i + 0.22);
+    const w = nw * 0.56;
+    ctx.moveTo(x0, nicheFoot);
+    ctx.lineTo(x0, nicheTop + w / 2);
+    ctx.bezierCurveTo(x0, nicheTop - w * 0.17, x0 + w, nicheTop - w * 0.17, x0 + w, nicheTop + w / 2);
+    ctx.lineTo(x0 + w, nicheFoot);
   }
+  ctx.moveTo(cx - DRUM_HW * u, nicheFoot + u * 0.004);
+  ctx.lineTo(cx + DRUM_HW * u, nicheFoot + u * 0.004);
   ctx.stroke();
   ctx.beginPath();
   ctx.rect(cx - DRUM_HW * u, gy + SLAB_H * u - SLAB_UP * u - u * 0.002, DRUM_HW * 2 * u, (DRUM_DEPTH - SLAB_H + SLAB_UP) * u + u * 0.002);
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   ctx.beginPath();
   block(ctx, cx - SLAB_HW * u, gy - SLAB_UP * u, SLAB_HW * 2 * u, SLAB_H * u, u * 0.006);
   ctx.fillStyle = MARBLE.body;
   ctx.fill();
   ctx.fillStyle = MARBLE.light;
   ctx.fillRect(cx - SLAB_HW * u + u * 0.006, gy - SLAB_UP * u + u * 0.003, SLAB_HW * 2 * u - u * 0.012, u * 0.005);
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   // The rim: an inked band of marble round the pool, lit along its top.
   ctx.beginPath();
   poolPath(ctx, cx, gy, u);
-  inkedLine(ctx, MARBLE.body, RIM * u, lw, INK);
+  inkedLine(ctx, MARBLE.body, RIM * u, lw, CONTOUR);
   ctx.save();
   ctx.clip();
   ctx.beginPath();
@@ -253,50 +277,76 @@ export function pool(ctx: Ctx, s: Scene): void {
   ctx.restore();
 }
 
-/** The cherub's column: two steps on the lawn, a fluted shaft lit on the left, a capital with a lit top. */
+/**
+ * The cherub's column: a flared foot on the lawn, a slender fluted shaft lit on the left, and a
+ * lily capital, its petals flaring out under the slab he stands on and curling at its ends.
+ */
 function column(ctx: Ctx, s: Scene, px: number, lw: number): void {
   const u = s.u;
   const gy = s.groundY;
   const top = gy - PLINTH_TOP * u;
   const foot = gy - PLINTH_FOOT * u;
   const step = STEP * u;
-  // The base: two steps.
-  ctx.beginPath();
-  block(ctx, px - CAP_HW * u, foot - step, CAP_HW * 2 * u, step, u * 0.003);
-  block(ctx, px - CAP_HW * u * 0.8, foot - step * 2 + u * 0.001, CAP_HW * 1.6 * u, step, u * 0.003);
-  ctx.fillStyle = MARBLE.body;
-  ctx.fill();
-  ink(ctx, lw, INK);
-  // The shaft, with three flutes.
-  const shaftTop = top + u * 0.012;
+  const cap = CAP_HW * u;
+  const shaft = SHAFT_HW * u;
+  // The foot: a low slab, and over it a flare curving in to the shaft.
   const shaftFoot = foot - step * 2 + u * 0.001;
   ctx.beginPath();
-  ctx.rect(px - SHAFT_HW * u, shaftTop, SHAFT_HW * 2 * u, shaftFoot - shaftTop);
+  block(ctx, px - cap, foot - step, cap * 2, step, u * 0.003);
+  ctx.moveTo(px - cap * 0.82, foot - step + u * 0.001);
+  ctx.quadraticCurveTo(px - shaft * 1.05, foot - step, px - shaft, shaftFoot);
+  ctx.lineTo(px + shaft, shaftFoot);
+  ctx.quadraticCurveTo(px + shaft * 1.05, foot - step, px + cap * 0.82, foot - step + u * 0.001);
+  ctx.closePath();
+  ctx.fillStyle = MARBLE.body;
+  ctx.fill();
+  ink(ctx, lw, CONTOUR);
+  // The shaft, with three flutes.
+  const shaftTop = top + CAP_H * u;
+  ctx.beginPath();
+  ctx.rect(px - shaft, shaftTop, shaft * 2, shaftFoot - shaftTop);
   ctx.fillStyle = MARBLE.body;
   ctx.fill();
   ctx.fillStyle = MARBLE.light;
-  ctx.fillRect(px - SHAFT_HW * u, shaftTop, SHAFT_HW * u * 0.5, shaftFoot - shaftTop);
+  ctx.fillRect(px - shaft, shaftTop, shaft * 0.5, shaftFoot - shaftTop);
   ctx.fillStyle = MARBLE.shade;
-  ctx.fillRect(px + SHAFT_HW * u * 0.45, shaftTop, SHAFT_HW * u * 0.55, shaftFoot - shaftTop);
+  ctx.fillRect(px + shaft * 0.45, shaftTop, shaft * 0.55, shaftFoot - shaftTop);
   ctx.strokeStyle = CARVING;
   ctx.lineWidth = Math.max(1, u * 0.0025);
   ctx.beginPath();
   for (let i = -1; i <= 1; i++) {
-    ctx.moveTo(px + i * SHAFT_HW * u * 0.5, top + u * 0.02);
-    ctx.lineTo(px + i * SHAFT_HW * u * 0.5, shaftFoot - u * 0.008);
+    ctx.moveTo(px + i * shaft * 0.5, shaftTop + u * 0.006);
+    ctx.lineTo(px + i * shaft * 0.5, shaftFoot - u * 0.008);
   }
   ctx.stroke();
   ctx.beginPath();
-  ctx.rect(px - SHAFT_HW * u, shaftTop, SHAFT_HW * 2 * u, shaftFoot - shaftTop);
-  ink(ctx, lw, INK);
-  // The capital he stands on.
+  ctx.rect(px - shaft, shaftTop, shaft * 2, shaftFoot - shaftTop);
+  ink(ctx, lw, CONTOUR);
+  // The lily capital: the slab, and the bell of petals flaring out under it, curled at the ends.
+  const slab = top + u * 0.006;
   ctx.beginPath();
-  block(ctx, px - CAP_HW * u, top, CAP_HW * 2 * u, u * 0.016, u * 0.003);
+  ctx.moveTo(px - shaft, shaftTop + u * 0.001);
+  ctx.bezierCurveTo(px - shaft, slab + u * 0.004, px - cap * 0.7, slab + u * 0.002, px - cap * 0.95, slab);
+  ctx.lineTo(px + cap * 0.95, slab);
+  ctx.bezierCurveTo(px + cap * 0.7, slab + u * 0.002, px + shaft, slab + u * 0.004, px + shaft, shaftTop + u * 0.001);
+  ctx.closePath();
   ctx.fillStyle = MARBLE.body;
   ctx.fill();
+  ink(ctx, lw * 0.8, CONTOUR);
+  ctx.strokeStyle = CARVING;
+  ctx.lineWidth = Math.max(0.8, u * 0.002);
+  ctx.beginPath();
+  ctx.moveTo(px, shaftTop);
+  ctx.quadraticCurveTo(px - u * 0.004, slab + u * 0.003, px - cap * 0.45, slab + u * 0.001);
+  ctx.moveTo(px, shaftTop);
+  ctx.quadraticCurveTo(px + u * 0.004, slab + u * 0.003, px + cap * 0.45, slab + u * 0.001);
+  ctx.stroke();
+  ctx.beginPath();
+  block(ctx, px - cap, top, cap * 2, u * 0.006, u * 0.002);
+  for (let m = -1; m <= 1; m += 2) circle(ctx, px + m * cap * 0.93, slab + u * 0.002, u * 0.003);
   ctx.fillStyle = MARBLE.light;
-  ctx.fillRect(px - CAP_HW * u + u * 0.004, top + u * 0.003, CAP_HW * 2 * u - u * 0.008, u * 0.004);
-  ink(ctx, lw, INK);
+  ctx.fill();
+  ink(ctx, lw * 0.8, CONTOUR);
 }
 
 /** Rose bushes in a bed: [dx (u), dy (u), size (u), pink?] about the bed's center. */
@@ -320,7 +370,7 @@ export function roseBeds(ctx: Ctx, s: Scene): void {
   for (const cx of beds) oval(ctx, cx, cy + u * 0.038, u * 0.062, u * 0.02);
   ctx.fillStyle = MARBLE.body;
   ctx.fill();
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   ctx.beginPath();
   for (const cx of beds) oval(ctx, cx, cy + u * 0.034, u * 0.052, u * 0.014);
   ctx.fillStyle = LEAF.shade;
@@ -338,40 +388,37 @@ export function roseBeds(ctx: Ctx, s: Scene): void {
   }
   ctx.fillStyle = LEAF.body;
   ctx.fill();
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   ctx.beginPath();
   for (const cx of beds) for (const [dx, dy, r] of BUSH) circle(ctx, cx + dx * u - r * u * 0.3, cy + dy * u - r * u * 0.35, r * u * 0.4);
   ctx.fillStyle = LEAF.light;
   ctx.fill();
-  // The blooms, red then pink, each color inked as one, then their highlights.
-  for (let pass = 0; pass < 3; pass++) {
+  // The blooms: stylized roses, red then pink, each color as one fill with its contour (the
+  // petals' inner arcs are their lines), then the spiral at each heart.
+  for (let pass = 0; pass < 2; pass++) {
     ctx.beginPath();
     for (const cx of beds) {
       for (const [dx, dy, r, pink] of BUSH) {
-        if (pass < 2 && pink !== (pass === 1)) continue;
-        const x = cx + dx * u;
-        const y = cy + dy * u;
-        if (pass < 2) {
-          circle(ctx, x - r * u * 0.45, y - r * u * 0.1, r * u * 0.3);
-          circle(ctx, x + r * u * 0.4, y - r * u * 0.3, r * u * 0.3);
-          circle(ctx, x + r * u * 0.1, y + r * u * 0.45, r * u * 0.28);
-        } else {
-          circle(ctx, x - r * u * 0.52, y - r * u * 0.18, r * u * 0.12);
-          circle(ctx, x + r * u * 0.33, y - r * u * 0.38, r * u * 0.12);
-          circle(ctx, x + r * u * 0.03, y + r * u * 0.37, r * u * 0.11);
-        }
+        if (pink !== (pass === 1)) continue;
+        for (const [bx, by] of BLOOMS) rosette(ctx, cx + (dx + bx * r) * u, cy + (dy + by * r) * u, r * u * BLOOM);
       }
     }
-    if (pass < 2) {
-      ctx.fillStyle = pass ? ROSE_PINK.body : ROSE.body;
-      ctx.fill();
-      ink(ctx, lw * 0.8, INK);
-    } else {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-      ctx.fill();
-    }
+    ctx.fillStyle = pass ? ROSE_PINK.body : ROSE.body;
+    ctx.fill();
+    ink(ctx, lw * 0.55, CONTOUR);
   }
+  ctx.beginPath();
+  for (const cx of beds) {
+    for (const [dx, dy, r] of BUSH) for (const [bx, by] of BLOOMS) roseHeart(ctx, cx + (dx + bx * r) * u, cy + (dy + by * r) * u, r * u * BLOOM);
+  }
+  ctx.strokeStyle = ROSE.shade;
+  ctx.lineWidth = Math.max(0.8, lw * 0.45);
+  ctx.stroke();
 }
+
+/** Where a bush's rose sits, in its own radii from its center, and its size (bush radii). */
+const BLOOMS = [[0.06, -0.08]] as const;
+const BLOOM = 0.66;
 
 /** Petals strewn on the plaza: X (u from center), depth below the floor line, lean, pale? */
 const STREWN = Array.from({ length: 14 }, (_, i) => ({
@@ -381,35 +428,41 @@ const STREWN = Array.from({ length: 14 }, (_, i) => ({
   pale: hash(i + 9830) > 0.5,
 }));
 
+/** The paving's scales: their radius (u) on the plaza (nearer, in front of the railing, the caller's); rows are SCALE_ROW radii apart, each half a scale out of line with the last. */
+const SCALE = 0.048;
+const SCALE_ROW = 0.75;
+
 /**
- * Rows of pink-cream pavers from `top` down to `bottom`, with petals strewn over them. Batched:
- * one path per paver tone, one for the lit strips, so a plaza of pavers is four fills.
+ * Fish-scale paving from `top` down to `bottom`, the Nouveau way, with petals strewn over it: on
+ * parchment, rows of round scales, each row laid over the one below so only the foot of each
+ * scale shows, a joint round every scale's foot (from `from` down). The feet along a row all but
+ * meet, so each row's joints are one scalloped line, and the whole paving one stroke.
  */
-export function paving(ctx: Ctx, s: Scene, top: number, bottom: number, petals: boolean): void {
+export function paving(ctx: Ctx, s: Scene, top: number, bottom: number, petals: boolean, scale = SCALE, from = top): void {
   const u = s.u;
   if (top >= bottom) return;
-  ctx.fillStyle = JOINT;
+  const R = u * scale;
+  const row = R * SCALE_ROW;
+  ctx.fillStyle = PAVING.body;
   ctx.fillRect(0, top, s.cssW, bottom - top);
-  const row = u * 0.032;
-  const gap = Math.max(1, u * 0.0025);
-  const strip = u * 0.004;
-  for (let pass = 0; pass <= PAVING.length; pass++) {
-    const lit = pass === PAVING.length;
-    ctx.beginPath();
-    for (let r = 0, y = top; y < bottom; r++, y += row) {
-      const w = u * (0.09 + (r % 2) * 0.02);
-      const off = r % 2 ? w * 0.5 : 0;
-      const y0 = Math.max(top, y + gap / 2);
-      const y1 = Math.min(bottom, y + row - gap / 2);
-      if (y1 <= y0) continue;
-      for (let i = 0, x = -w + off; x < s.cssW; i++, x += w) {
-        if (!lit && (i + r * 2) % PAVING.length !== pass) continue;
-        ctx.rect(x + gap / 2, y0, w - gap, lit ? Math.min(y1 - y0, strip) : y1 - y0);
-      }
-    }
-    ctx.fillStyle = lit ? PAVING[0]!.light : PAVING[pass]!.body;
-    ctx.fill();
+  // Row r's feet hang from y = top + r * row: from the first row whose feet start on the paving
+  // and under `from` (above it something covers the paving), down to the last whose joint starts
+  // above its bottom (its feet run on under what covers the paving there: the railing's curb,
+  // or the screen's bottom).
+  const lw = Math.max(1, u * 0.003);
+  ctx.beginPath();
+  const rows = Math.ceil((bottom - top) / row) + 1;
+  for (let r = Math.max(1, Math.ceil((from - top) / row)); r <= rows; r++) {
+    const y = top + r * row - R * 0.25;
+    if (y - lw >= bottom) break;
+    const x0 = (r % 2) * R - R * 2;
+    ctx.moveTo(x0, y);
+    for (let x = x0; x < s.cssW + R; x += R * 2) ctx.quadraticCurveTo(x + R, y + R * 1.5, x + R * 2, y);
   }
+  ctx.strokeStyle = JOINT;
+  ctx.lineWidth = lw;
+  ctx.lineCap = "butt";
+  ctx.stroke();
   if (!petals) return;
   const gy = s.groundY;
   for (let pass = 0; pass < 2; pass++) {
@@ -468,7 +521,7 @@ function chocolateBox(ctx: Ctx, s: Scene, x: number, y: number, lw: number): voi
   ctx.fill();
   ctx.beginPath();
   flatHeart(ctx, x, ly, size, 0.72);
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   ctx.strokeStyle = RIBBON.body;
   ctx.lineWidth = u * 0.007;
   ctx.beginPath();
@@ -483,18 +536,18 @@ function chocolateBox(ctx: Ctx, s: Scene, x: number, y: number, lw: number): voi
   circle(ctx, x, ly - size * 0.02, u * 0.0045);
   ctx.fillStyle = RIBBON.body;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
+  ink(ctx, lw * 0.7, CONTOUR);
   // The box: red, a cream doily inside, six bonbons by turns.
   ctx.beginPath();
   flatHeart(ctx, x, y, size, 0.62);
   ctx.fillStyle = BOX.body;
   ctx.fill();
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   ctx.beginPath();
   flatHeart(ctx, x, y + size * 0.01, size * 0.82, 0.62);
   ctx.fillStyle = CREAM.body;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
+  ink(ctx, lw * 0.6, CONTOUR);
   const spots = [
     [-0.2, -0.12],
     [0.2, -0.12],
@@ -517,7 +570,7 @@ function chocolateBox(ctx: Ctx, s: Scene, x: number, y: number, lw: number): voi
     if (pass < 2) {
       ctx.fillStyle = pass ? ROSE_PINK.body : CHOCOLATE.body;
       ctx.fill();
-      ink(ctx, lw * 0.6, INK);
+      ink(ctx, lw * 0.6, CONTOUR);
     } else {
       ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
       ctx.fill();
@@ -553,19 +606,19 @@ function bouquet(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
   ctx.quadraticCurveTo(u * 0.024, -u * 0.01, u * 0.024, 0);
   ctx.quadraticCurveTo(u * 0.024, u * 0.01, u * 0.01, u * 0.024);
   ctx.closePath();
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   // The ribbon round its waist.
   ctx.beginPath();
   ctx.moveTo(-u * 0.014, -u * 0.013);
   ctx.lineTo(-u * 0.008, u * 0.014);
-  inkedLine(ctx, RIBBON.body, u * 0.006, lw * 0.6, INK);
+  inkedLine(ctx, RIBBON.body, u * 0.006, lw * 0.6, CONTOUR);
   // Leaves, then the blooms at the cone's mouth.
   ctx.beginPath();
   oval(ctx, u * 0.018, -u * 0.023, u * 0.01, u * 0.0045, -0.7);
   oval(ctx, u * 0.03, u * 0.018, u * 0.01, u * 0.0045, 0.6);
   ctx.fillStyle = LEAF.body;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
+  ink(ctx, lw * 0.7, CONTOUR);
   const blooms = [
     [0.026, -0.011, false],
     [0.037, 0.003, true],
@@ -583,7 +636,7 @@ function bouquet(ctx: Ctx, s: Scene, x: number, y: number, lw: number): void {
     if (pass < 2) {
       ctx.fillStyle = pass ? ROSE_PINK.body : ROSE.body;
       ctx.fill();
-      ink(ctx, lw * 0.7, INK);
+      ink(ctx, lw * 0.7, CONTOUR);
     } else {
       ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
       ctx.fill();

@@ -1,17 +1,20 @@
-import { circle, hash, type Ctx } from "../../base/draw";
+import { circle, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
+import { scallopArc } from "./shapes";
 import { DAY_HIGH, level, smooth, type Tone } from "./tone";
 
 // The far layer, standing on the horizon: soft rolling hills in faded lavender (a hazy back
 // row and a nearer row with lit slopes, low on the left, where the sun sets), and on the right
 // the fair hill, a round mound with the Ferris wheel on its top: its spokes and rim strung with
 // bulbs that come on at dusk, its gondolas swinging slowly round in the night. Behind the hills
-// a bank of cotton-candy cloud is piled at either side. Above the start a floor of cloud
-// gathers below you and covers the lawn and the canal: from then on its puffy top is the land's
-// line, which the boulevard and the fair hill stand on (`landLine`), and it sinks with them to
-// rest low on the screen, and there it stays for good, a calm sea of cloud with the lit
-// boulevard and the wheel turning out of it, for the sun to set into and rise out of on every
-// turn of the story's loop (tone.ts). All of it is faded and flat, with no outline, and nothing
+// a bank of stylized cloud is piled at either side. Above the start a sea of cloud gathers below
+// you and covers the lawn and the canal, drawn the Art Nouveau way: rows of scallops, far rows
+// small and near rows big, in the hour's pastels, a fine contour along each row and a shell line
+// in each big scallop. From then on its top is the land's line, which the boulevard and the fair
+// hill stand on (`landLine`), and it sinks with them to rest low on the screen, and there it
+// stays for good, a calm sea of cloud with the lit fronts and the wheel standing out of it, for
+// the sun to set into and rise out of on every turn of the story's loop (tone.ts). The hills and
+// the wheel are faded and flat, with no outline; the clouds have only their fine line. Nothing
 // here moves but the wheel, out in the right lane.
 //
 // Positions are in u from the screen center, heights in u from the horizon (negative is up).
@@ -92,27 +95,37 @@ export function floorShows(s: Scene, top: number): boolean {
   return top < s.cssH + s.u * 0.15;
 }
 
-/** Soft clouds piled along the horizon at either side, behind the hills, in the hour's cloud colors. */
+/**
+ * Stylized clouds piled along the horizon at either side, behind the hills, in the hour's cloud
+ * colors: one flat body with a fine contour round the pile (stroked under it), a shell line in
+ * each big puff.
+ */
 export function cloudBank(ctx: Ctx, s: Scene, tone: Tone, hz: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
-  for (let pass = 0; pass < 3; pass++) {
-    ctx.fillStyle = pass === 0 ? tone.cloudShade : pass === 1 ? tone.cloud : tone.cloudLight;
-    ctx.beginPath();
-    for (const [X, h, r] of BANK) {
-      // On a wider screen the banks keep to its sides.
-      const x = X < 0 ? Math.min(cx + X * u, (X + 0.5) * u) : Math.max(cx + X * u, s.cssW - (0.5 - X) * u);
-      const y = hz - h * u;
-      if (pass === 0) circle(ctx, x, y, r * u);
-      else if (pass === 1) circle(ctx, x - r * u * 0.08, y - r * u * 0.1, r * u * 0.9);
-      else circle(ctx, x - r * u * 0.3, y - r * u * 0.42, r * u * 0.4);
-    }
-    if (pass === 0) {
-      ctx.rect(-1, hz - u * 0.05, Math.max(0, Math.min(cx - u * 0.27, u * 0.23)) + 1, u * 0.1);
-      ctx.rect(Math.max(cx + u * 0.24, s.cssW - u * 0.26), hz - u * 0.05, s.cssW, u * 0.1);
-    }
-    ctx.fill();
-  }
+  ctx.beginPath();
+  for (const [X, h, r] of BANK) circle(ctx, bankX(s, X), hz - h * u, r * u);
+  ctx.rect(-u * 0.05, hz - u * 0.05, Math.max(0, Math.min(cx - u * 0.27, u * 0.23)) + u * 0.05, u * 0.1);
+  ctx.rect(Math.max(cx + u * 0.24, s.cssW - u * 0.26), hz - u * 0.05, s.cssW, u * 0.1);
+  ctx.strokeStyle = tone.cloudLine;
+  ctx.lineWidth = Math.max(1.4, u * 0.006);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.lineJoin = "miter";
+  ctx.fillStyle = tone.cloud;
+  ctx.fill();
+  ctx.beginPath();
+  for (const [X, h, r] of BANK) if (r > 0.08) scallopArc(ctx, bankX(s, X), hz - h * u, r * u);
+  ctx.lineWidth = Math.max(0.8, u * 0.003);
+  ctx.stroke();
+}
+
+/** A bank puff's x: on a wider screen the banks keep to its sides. */
+function bankX(s: Scene, X: number): number {
+  const u = s.u;
+  const cx = s.cssW / 2;
+  return X < 0 ? Math.min(cx + X * u, (X + 0.5) * u) : Math.max(cx + X * u, s.cssW - (0.5 - X) * u);
 }
 
 // ---------------------------------------------------------------- hills
@@ -318,68 +331,125 @@ export function fairHill(ctx: Ctx, s: Scene, tone: Tone): void {
 
 // ---------------------------------------------------------------- the cloud floor
 
-/** Puffs along the floor's top edge, repeating every FLOOR_SPAN of them. */
-const FLOOR_SPAN = 9;
-const FLOOR = Array.from({ length: FLOOR_SPAN }, (_, i) => ({ r: 0.05 + hash(i + 9200) * 0.035, dy: hash(i + 9300) * 0.025 }));
-const FLOOR_STEP = 0.085;
-/** Soft swells further down the floor, in rows repeating every SWELL_SPAN (u, nearer rows wider): x (fraction of a span), depth under the top (u), size (u). */
-const SWELL_SPAN = 0.7;
-const SWELL_ROWS = 3;
-const SWELLS = Array.from({ length: 6 }, (_, i) => ({ x: hash(i + 9500), d: 0.1 + hash(i + 9510) * 0.12, r: 0.026 + hash(i + 9520) * 0.022 }));
+/**
+ * The cloud sea's rows, far to near: how far under its top edge each row's scallops are centered
+ * (u), their radius (u), and which of the hour's cloud colors fills it (0 lit, 1 body, 2 shaded).
+ * Nearer rows are bigger; each covers the screen from its scallops down to the next row's. The
+ * first row's scallops meet well above the top edge, so nothing on the land's line (the
+ * boulevard's pavement) shows between them.
+ */
+const ROWS = [
+  [-0.005, 0.04, 0],
+  [0.065, 0.048, 1],
+  [0.15, 0.062, 0],
+  [0.25, 0.084, 1],
+  [0.39, 0.11, 2],
+  [0.58, 0.14, 1],
+  [0.84, 0.18, 0],
+] as const;
+/** Half the band behind the tower (u) where the cloud sea's scallops go without their shell lines. */
+const QUIET = 0.2;
+/** Scallops along a row: their spacing in radii, and every other one a little smaller. */
+const SCALLOP_STEP = 1.62;
+const SMALL = 0.82;
+
+/** Row k's first scallop: left of the screen, each row half a step out of line with the last. */
+function rowStart(s: Scene, k: number, step: number): number {
+  const off = (k % 2) * step * 0.5;
+  return s.cssW / 2 - Math.ceil(s.cssW / 2 / step + 1) * step + off;
+}
+
+/** Row k's scallops: where its cusps lie, its radius and its step (px), for the cloud floor whose top is `top`. */
+function rowAt(s: Scene, top: number, k: number): { cusp: number; r: number; step: number } {
+  const [d, R] = ROWS[k]!;
+  const r = R * s.u;
+  // The cusps lie half a radius over the row's line, the big scallops' crowns a whole radius over it.
+  ROW.cusp = top + (d - R * 0.5) * s.u;
+  ROW.r = r;
+  ROW.step = r * SCALLOP_STEP;
+  return ROW;
+}
+const ROW = { cusp: 0, r: 0, step: 0 };
 
 /**
- * The cloud floor: a row of cel-shaded puffs along its top, solid below, with soft lit swells
- * further down. It stands still: it runs right behind the tower, where nothing moves. It is
- * drawn after everything on the land, so as it gathers it covers all of it (only the fair hill
- * and its wheel stand out of it); the railing in front stays in front.
+ * Row k's scalloped edge across the screen, as Béziers from cusp to cusp (continues the path):
+ * left to right, or (`back`) right to left. Every other scallop is a little smaller.
+ */
+function scallops(ctx: Ctx, s: Scene, k: number, cusp: number, r: number, step: number, back: boolean): void {
+  const x0 = rowStart(s, k, step);
+  const n = Math.ceil((s.cssW + step - x0) / step);
+  for (let j = 0; j < n; j++) {
+    const i = back ? n - 1 - j : j;
+    const x = x0 + i * step;
+    const h = (i % 2 ? SMALL : 1) * r * 0.5 * (4 / 3);
+    const e = back ? -step / 2 : step / 2;
+    ctx.bezierCurveTo(x - e, cusp - h, x + e, cusp - h, x + e, cusp);
+  }
+}
+
+/**
+ * The cloud floor, the Art Nouveau way: rows of scalloped cloud, far rows small and near rows
+ * big, in the hour's pastel cloud colors by turns, a fine contour along every row's scallops and
+ * a shell line inside each big one (but behind the tower, which stays quieter). Each row is a
+ * band from its scallops down to the next row's, so the bands never overlap and every band of a
+ * color is one fill. It is solid from a little under its top edge down to the screen's bottom.
+ * It stands still: it runs right behind the tower, where nothing moves. It is drawn after
+ * everything on the land, so as it gathers it covers all of it (only the fair hill and its wheel
+ * stand out of it); the railing in front stays in front.
  */
 export function cloudFloor(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   const u = s.u;
-  const step = u * FLOOR_STEP;
-  const half = Math.ceil(s.cssW / 2 / step) + 1;
-  for (let pass = 0; pass < 3; pass++) {
-    ctx.fillStyle = pass === 0 ? tone.cloudShade : pass === 1 ? tone.cloud : tone.cloudLight;
+  // How many rows show: down to the first whose cusps are below the screen.
+  let rows = 0;
+  while (rows < ROWS.length && rowAt(s, top, rows).cusp - ROW.r * 0.5 <= s.cssH) rows++;
+  if (rows === 0) return;
+  // Under the bands, one flat fill from just under the first row's cusps: where two bands meet,
+  // their soft edges would otherwise let a trace of what lies behind show through.
+  const under = rowAt(s, top, 0).cusp + 1;
+  ctx.fillStyle = tone.cloud;
+  ctx.fillRect(0, under, s.cssW, s.cssH - under);
+  const fills = [tone.cloudLight, tone.cloud, tone.cloudShade];
+  for (let c = 0; c < fills.length; c++) {
     ctx.beginPath();
-    for (let j = -half; j <= half; j++) {
-      const x = s.cssW / 2 + j * step;
-      const p = FLOOR[((j % FLOOR_SPAN) + FLOOR_SPAN) % FLOOR_SPAN]!;
-      const r = p.r * u;
-      const y = top + p.dy * u + r * 0.35;
-      if (pass === 0) circle(ctx, x, y, r);
-      else if (pass === 1) circle(ctx, x - r * 0.06, y - r * 0.12, r * 0.9);
-      else circle(ctx, x - r * 0.25, y - r * 0.42, r * 0.42);
-    }
-    if (pass === 0) ctx.rect(0, top + u * 0.05, s.cssW, s.cssH - top);
-    if (pass === 1) ctx.rect(0, top + u * 0.035, s.cssW, u * 0.035);
-    ctx.fill();
-  }
-  for (let pass = 0; pass < 2; pass++) {
-    ctx.fillStyle = pass ? tone.cloudLight : tone.cloud;
-    ctx.globalAlpha = pass ? 0.75 : 0.7;
-    ctx.beginPath();
-    for (let row = 0; row < SWELL_ROWS; row++) {
-      const grow = 1 + row * 0.4;
-      const span = u * SWELL_SPAN * grow;
-      const reps = Math.ceil(s.cssW / 2 / span) + 1;
-      for (let k = -reps; k < reps; k++) {
-        for (const w of SWELLS) {
-          const r = w.r * u * grow;
-          const y = top + (w.d + row * 0.2 * grow) * u + u * 0.05;
-          if (y - r > s.cssH) continue;
-          const x = s.cssW / 2 + (k + w.x + row * 0.37) * span;
-          const rx = r * (pass ? 1.2 : 2.2);
-          const ry = r * (pass ? 0.22 : 0.5);
-          const ex = x - (pass ? r * 0.35 : 0);
-          const ey = y - (pass ? r * 0.2 : 0);
-          ctx.moveTo(ex + rx, ey);
-          ctx.ellipse(ex, ey, rx, ry, 0, 0, Math.PI, true);
-          ctx.closePath();
-        }
+    for (let k = 0; k < rows; k++) {
+      if (ROWS[k]![2] !== c) continue;
+      const { cusp, r, step } = rowAt(s, top, k);
+      const left = rowStart(s, k, step) - step / 2;
+      ctx.moveTo(left, cusp);
+      scallops(ctx, s, k, cusp, r, step, false);
+      if (k + 1 < rows) {
+        const next = rowAt(s, top, k + 1);
+        const nl = rowStart(s, k + 1, next.step) - next.step / 2;
+        const nr = nl + Math.ceil((s.cssW + next.step - nl - next.step / 2) / next.step) * next.step;
+        ctx.lineTo(nr, next.cusp);
+        scallops(ctx, s, k + 1, next.cusp, next.r, next.step, true);
+        ctx.lineTo(Math.min(left, nl), next.cusp);
+      } else {
+        ctx.lineTo(s.cssW + step * 2, s.cssH + 1);
+        ctx.lineTo(left, s.cssH + 1);
       }
+      ctx.closePath();
     }
+    ctx.fillStyle = fills[c]!;
     ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  // The contour along every row's scallops, and the shell lines.
+  ctx.beginPath();
+  for (let k = 0; k < rows; k++) {
+    const { cusp, r, step } = rowAt(s, top, k);
+    const x0 = rowStart(s, k, step);
+    ctx.moveTo(x0 - step / 2, cusp);
+    scallops(ctx, s, k, cusp, r, step, false);
+    let i = 0;
+    for (let x = x0; x < s.cssW + step; x += step, i++) {
+      if (i % 2 || Math.abs(x - s.cssW / 2) < QUIET * u + r) continue;
+      scallopArc(ctx, x, cusp + r * 0.3, r * 0.75);
+    }
+  }
+  ctx.lineWidth = Math.max(0.9, u * 0.0032);
+  ctx.lineCap = "round";
+  ctx.strokeStyle = tone.cloudLine;
+  ctx.stroke();
 }
 
 /**

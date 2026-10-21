@@ -7,13 +7,15 @@ import { DAY_FROM, LOOP, LOOP_DAWN, LOOP_START, type Tone } from "./tone";
 
 // What drifts past as you climb, in the lane down the right of the screen: a flurry of rose
 // petals as the cloud sea gathers below you, a bunch of heart balloons let go, rising on their
-// strings, soft cotton-candy clouds, a paper plane folded from a love letter gliding in lazy
-// loops, a pair of doves wheeling together, more petals and balloons into the night. When the
-// story loops (tone.ts), its dawn brings pink-lit clouds and the doves again, and from the
-// afternoon on the lane runs the first day's story once more. Each thing is anchored at a
-// height in the lane, so it comes down past you as the camera climbs, and only ever moves
-// gently in place: nothing crosses the tower's column. Things are spaced so they never overlap.
-// Far away, so faded and flat, with no outline.
+// strings, little stylized clouds (shell lines and a curl, shapes.ts), a paper plane folded
+// from a love letter gliding in lazy loops, a pair of doves wheeling together, more petals and
+// balloons into the night. When the story loops (tone.ts), its dawn brings pink-lit clouds and
+// the doves again, and from the afternoon on the lane runs the first day's story once more.
+// Each thing is anchored at a height in the lane, so it comes down past you as the camera
+// climbs, and only ever moves gently in place: nothing crosses the tower's column. Things are
+// spaced so they never overlap. Far away, so faded and flat, with no outline (but the clouds'
+// fine line). They pass in front of the frame down the sky's side (border.ts), which belongs to
+// the sky.
 //
 // The left of the sky is the sun's and the moon's (sky.ts): the sun hangs there by day and sets
 // into the cloud sea, the crescent moon comes out in the same place at night, and the sun rises
@@ -143,7 +145,7 @@ export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, d: Drifter): void {
   const bob = Math.sin(s.t * 0.4 + d.phase) * u * 0.005;
   const x = s.cssW / 2 + d.x * u + sway;
   const k = d.size * u;
-  if (d.kind === "cloud") cloud(ctx, d.shape, x, y + bob, k, tone.cloudShade, tone.cloud, tone.cloudLight);
+  if (d.kind === "cloud") cloud(ctx, d.shape, x, y + bob, k, tone.cloud, tone.cloudLine);
   else if (d.kind === "petals") petals(ctx, s, tone, x, y, k, d.phase);
   else if (d.kind === "balloons") balloons(ctx, s, tone, x, y, d.phase);
   else if (d.kind === "plane") plane(ctx, s, tone, x, y, d.phase);

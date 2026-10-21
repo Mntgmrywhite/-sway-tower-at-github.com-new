@@ -1,6 +1,6 @@
 import { circle, ink, inkedLine, mix, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { BALLOON, BRASS, CHEEK, CREAM, CURLS, FOAM, INK, PETAL, PETAL_PALE, ROSE, SASH, SKIN, STONE, STRING, TUNIC, WING } from "./colors";
+import { BALLOON, BRASS, CHEEK, CREAM, CURLS, FOAM, CONTOUR, PETAL, PETAL_PALE, ROSE, SASH, SKIN, STONE, STRING, TUNIC, WING } from "./colors";
 import { heartPath, petalPath, sparkle } from "./shapes";
 
 // The cherub by the fountain, a public-domain Cupid of our own: a chubby little archer with
@@ -15,7 +15,7 @@ import { heartPath, petalPath, sparkle } from "./shapes";
 // while, then settles back into his statue's pose and turns to marble again. And every CYCLE
 // seconds it all comes round: a fresh balloon floats in from the left of the screen, trailing its
 // string, he wakes, tracks it with the bow and shoots it the same way. Near: flat two-tone fills,
-// one ink weight. Everything is a function of the scene's time; nothing here is allocated per
+// the fine warm-plum contour of everything up close (colors.ts CONTOUR). Everything is a function of the scene's time; nothing here is allocated per
 // frame.
 //
 // He stays in the left lane, clear of the boulevard behind him: nothing of this ever enters the
@@ -259,7 +259,7 @@ function wing(ctx: Ctx, sx: number, sy: number, tx: number, ty: number, u: numbe
   ctx.closePath();
   ctx.fillStyle = body;
   ctx.fill();
-  ink(ctx, lw * 0.85, INK);
+  ink(ctx, lw * 0.85, CONTOUR);
   ctx.strokeStyle = shade;
   ctx.lineWidth = Math.max(1, u * 0.003);
   ctx.beginPath();
@@ -287,7 +287,7 @@ function bow(ctx: Ctx, u: number, b: typeof BOW, lw: number, brass: string, ligh
   ctx.moveTo(t1x, t1y);
   ctx.quadraticCurveTo(b.gx + b.dx * L * 0.3 + b.px * L * 0.45, b.gy + b.dy * L * 0.3 + b.py * L * 0.45, b.gx, b.gy);
   ctx.quadraticCurveTo(b.gx + b.dx * L * 0.3 - b.px * L * 0.45, b.gy + b.dy * L * 0.3 - b.py * L * 0.45, t2x, t2y);
-  inkedLine(ctx, brass, u * 0.008, lw * 0.8, INK);
+  inkedLine(ctx, brass, u * 0.008, lw * 0.8, CONTOUR);
   ctx.strokeStyle = light;
   ctx.lineWidth = u * 0.003;
   ctx.beginPath();
@@ -309,7 +309,7 @@ function arrow(ctx: Ctx, u: number, x: number, y: number, dx: number, dy: number
   ctx.beginPath();
   ctx.moveTo(x, y);
   ctx.lineTo(tx - dx * u * 0.012, ty - dy * u * 0.012);
-  inkedLine(ctx, CREAM.body, u * 0.005, lw * 0.7, INK);
+  inkedLine(ctx, CREAM.body, u * 0.005, lw * 0.7, CONTOUR);
   // Fletching: two little vanes.
   ctx.beginPath();
   for (let m = -1; m <= 1; m += 2) {
@@ -321,7 +321,7 @@ function arrow(ctx: Ctx, u: number, x: number, y: number, dx: number, dy: number
   }
   ctx.fillStyle = PETAL;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
+  ink(ctx, lw * 0.6, CONTOUR);
   // The head: a heart, its point forward.
   ctx.save();
   ctx.translate(tx, ty);
@@ -330,7 +330,7 @@ function arrow(ctx: Ctx, u: number, x: number, y: number, dx: number, dy: number
   heartPath(ctx, 0, u * 0.006, u * 0.02);
   ctx.fillStyle = ROSE.body;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
+  ink(ctx, lw * 0.6, CONTOUR);
   ctx.restore();
 }
 
@@ -361,7 +361,7 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
   }
   ctx.fillStyle = skin;
   ctx.fill();
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   // The draw arm, behind the body: hanging, or back at the string's nock.
   const ax = x + u * 0.012;
   const ay = fy - u * 0.064;
@@ -373,7 +373,7 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
   ctx.beginPath();
   ctx.moveTo(ax, ay);
   ctx.lineTo(hx, hy);
-  inkedLine(ctx, skin, u * 0.011, lw * 0.8, INK);
+  inkedLine(ctx, skin, u * 0.011, lw * 0.8, CONTOUR);
   // His tunic: a little flared skirt to the knees, then the round body over it, lit on the left, with the sash across it.
   ctx.beginPath();
   ctx.moveTo(x - u * 0.022, fy - u * 0.046);
@@ -383,7 +383,7 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
   ctx.closePath();
   ctx.fillStyle = C.tunicShade[c]!;
   ctx.fill();
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   ctx.beginPath();
   oval(ctx, x, fy - u * 0.05, u * 0.024, u * 0.027);
   ctx.fillStyle = C.tunic[c]!;
@@ -406,7 +406,7 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
   ctx.restore();
   ctx.beginPath();
   oval(ctx, x, fy - u * 0.05, u * 0.024, u * 0.027);
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   // The sash's knot and tails at his hip.
   ctx.beginPath();
   circle(ctx, x - u * 0.02, fy - u * 0.04, u * 0.006);
@@ -416,7 +416,7 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
   ctx.closePath();
   ctx.fillStyle = C.sash[c]!;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
+  ink(ctx, lw * 0.7, CONTOUR);
   // The head: round, with cheeks, two eyes, a smile, and a cap of golden curls.
   const headX = x - u * 0.003;
   const headY = fy - u * 0.098;
@@ -425,19 +425,19 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
   circle(ctx, headX, headY, r);
   ctx.fillStyle = skin;
   ctx.fill();
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   ctx.fillStyle = C.cheek[c]!;
   ctx.beginPath();
   circle(ctx, headX - r * 0.55, headY + r * 0.3, r * 0.22);
   circle(ctx, headX + r * 0.45, headY + r * 0.3, r * 0.22);
   ctx.fill();
   const look = p.look * r * 0.12;
-  ctx.fillStyle = INK;
+  ctx.fillStyle = CONTOUR;
   ctx.beginPath();
   circle(ctx, headX - r * 0.42 + look, headY - r * 0.02, r * 0.11);
   circle(ctx, headX + r * 0.2 + look, headY - r * 0.02, r * 0.11);
   ctx.fill();
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = CONTOUR;
   ctx.lineWidth = Math.max(1, u * 0.0025);
   ctx.beginPath();
   ctx.arc(headX - r * 0.12, headY + r * 0.32, r * 0.3, 0.3, Math.PI - 0.3);
@@ -450,7 +450,7 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
   circle(ctx, headX, headY - r * 1.05, r * 0.32);
   ctx.fillStyle = C.curls[c]!;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
+  ink(ctx, lw * 0.8, CONTOUR);
   ctx.fillStyle = C.curlsLight[c]!;
   ctx.beginPath();
   circle(ctx, headX - r * 0.55, headY - r * 0.78, r * 0.14);
@@ -462,20 +462,20 @@ function figure(ctx: Ctx, x: number, foot: number, u: number, p: Plan, lw: numbe
   ctx.beginPath();
   ctx.moveTo(sx, sy);
   ctx.lineTo(b.gx, b.gy);
-  inkedLine(ctx, skin, u * 0.011, lw * 0.8, INK);
+  inkedLine(ctx, skin, u * 0.011, lw * 0.8, CONTOUR);
   bow(ctx, u, b, lw, C.bow[c]!, C.bowLight[c]!);
   if (p.nocked) arrow(ctx, u, b.nx, b.ny, b.dx, b.dy, lw);
   ctx.beginPath();
   circle(ctx, b.gx, b.gy, u * 0.0075);
   ctx.fillStyle = skin;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
+  ink(ctx, lw * 0.8, CONTOUR);
   if (drawing > 0.01) {
     ctx.beginPath();
     circle(ctx, hx, hy, u * 0.0075);
     ctx.fillStyle = skin;
     ctx.fill();
-    ink(ctx, lw * 0.8, INK);
+    ink(ctx, lw * 0.8, CONTOUR);
   }
 }
 
@@ -501,12 +501,12 @@ function balloon(ctx: Ctx, x: number, y: number, size: number, lw: number): void
   ctx.restore();
   ctx.beginPath();
   heartPath(ctx, x, y, size);
-  ink(ctx, lw, INK);
+  ink(ctx, lw, CONTOUR);
   ctx.beginPath();
   oval(ctx, x, y + size * 0.48, size * 0.06, size * 0.04);
   ctx.fillStyle = BALLOON.shade;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
+  ink(ctx, lw * 0.6, CONTOUR);
 }
 
 /**
@@ -599,7 +599,7 @@ export function cherub(ctx: Ctx, s: Scene, px: number, top: number, lw: number, 
   const tieX = cx + TIE_X * u;
   const tieY = gy - TIE_Y * u;
   const all = part === "all";
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = CONTOUR;
   ctx.lineWidth = Math.max(0.8, lw * 0.4);
   ctx.lineCap = "round";
   if (!all && part !== "balloon") {
@@ -667,7 +667,7 @@ export function cherub(ctx: Ctx, s: Scene, px: number, top: number, lw: number, 
     ctx.beginPath();
     heartPath(ctx, px + Math.sin(h * 8) * u * 0.008, top - u * (HEIGHT + 0.015) - h * u * 0.035, u * (0.012 + h * 0.008));
     ctx.fill();
-    ink(ctx, lw * 0.6, INK);
+    ink(ctx, lw * 0.6, CONTOUR);
     ctx.globalAlpha = 1;
   }
 }

@@ -2,20 +2,20 @@ import { circle, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { PAVE_DEPTH } from "./boulevard";
 import { landLine } from "./far";
-import { heartPath } from "./shapes";
+import { archPath, heartPath } from "./shapes";
 import type { Tone } from "./tone";
 
 // The canal, in the right lane: a basin of water that comes out from under the boulevard's
 // pavement between two stone quays, widening toward you, and ends at a quay wall on the lawn.
-// Over it the kissing bridge, a little covered footbridge: a plum gabled roof with a heart cut
-// in its gable, cream board walls with three windows, on a stone arch. In front of it two swans
+// Over it the kissing bridge, a little covered footbridge: a slate bell roof with a heart of rose
+// glass in its face, cream board walls with three little arched windows, on a stone arch. In front of it two swans
 // glide together (swansPose): they set out from either bank, meet in the middle and curve their
 // necks into a heart, and hold it, bobbing on the water; then they straighten up, turn away from
 // each other a moment (close together: out by the banks, where the canal narrows toward its far
 // end, a head turned out would poke over the quay onto the lawn), turn back, drift apart to the
 // banks still facing each other, and do it all again, every SWAN_CYCLE seconds.
-// Mid-distance: flat fills in the hour's light, no outline; the swans in the light of the hour
-// on white. It stands on the land's line (far.ts), so once the cloud sea has gathered it lies
+// Mid-distance: flat fills in the hour's light, no outline, little whiplash ripples on the
+// water; the swans in the light of the hour on white. It stands on the land's line (far.ts), so once the cloud sea has gathered it lies
 // under it with the lawn.
 //
 // Positions are in u from the screen center, depths in u below the land's line. The bridge and
@@ -97,9 +97,9 @@ export function canal(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.lineTo(cx + NEAR_L * u, y1);
   ctx.closePath();
   ctx.fill();
-  // Ripples: short lit strokes, wider toward you, none where the swans glide.
+  // Ripples: little lit whiplash curves, wider toward you, none where the swans glide.
   ctx.strokeStyle = tone.canalLit;
-  ctx.lineWidth = Math.max(1, u * 0.003);
+  ctx.lineWidth = Math.max(1, u * 0.0028);
   ctx.lineCap = "round";
   ctx.beginPath();
   for (let i = 0; i < 5; i++) {
@@ -107,10 +107,10 @@ export function canal(ctx: Ctx, s: Scene, tone: Tone): void {
     if (y > NEAR - 0.008 || (y > SWAN_Y - 0.03 && y < SWAN_Y + 0.03)) continue;
     const l = bankL(y);
     const r = bankR(y);
-    const w = (r - l) * (0.12 + 0.08 * (i % 3));
+    const w = (r - l) * (0.14 + 0.08 * (i % 3));
     const x = l + (r - l) * (0.12 + 0.55 * ((i * 0.37) % 1));
     ctx.moveTo(cx + x * u, hz + y * u);
-    ctx.lineTo(cx + (x + w) * u, hz + y * u);
+    ctx.bezierCurveTo(cx + (x + w * 0.3) * u, hz + (y - 0.006) * u, cx + (x + w * 0.6) * u, hz + (y + 0.005) * u, cx + (x + w) * u, hz + (y - 0.002) * u);
   }
   ctx.stroke();
 }
@@ -145,39 +145,39 @@ export function bridge(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.fill();
   ctx.fillStyle = tone.stoneLit;
   ctx.fillRect(x0, deck - u * 0.004, x1 - x0, u * 0.005);
-  // The covered walk: board walls with three windows, a cream trim, the gabled roof.
+  // The covered walk: board walls with three little arched windows, a slate sill.
   const hx0 = x - HOUSE_HW * u;
   const hx1 = x + HOUSE_HW * u;
   const top = hz + HOUSE_TOP * u;
   ctx.fillStyle = tone.wallCream;
   ctx.fillRect(hx0, top, hx1 - hx0, deck - top);
-  ctx.fillStyle = tone.wire;
+  ctx.fillStyle = tone.wallPaleLine;
   for (let i = 1; i < 6; i++) ctx.fillRect(hx0 + ((hx1 - hx0) * i) / 6 - u * 0.0008, top + u * 0.002, u * 0.0016, deck - top - u * 0.004);
   ctx.fillStyle = tone.windowLit;
   ctx.beginPath();
-  for (let i = 0; i < 3; i++) ctx.rect(x + (i - 1) * u * 0.034 - u * 0.009, top + u * 0.008, u * 0.018, u * 0.014);
-  ctx.fill();
-  ctx.fillStyle = tone.roofPlum;
-  ctx.fillRect(hx0, deck - u * 0.004, hx1 - hx0, u * 0.006);
-  // The roof: a gable with deep eaves, lit along the ridge, a heart cut in the gable's face.
-  const ridge = hz + RIDGE * u;
-  ctx.fillStyle = tone.roofPlum;
-  ctx.beginPath();
-  ctx.moveTo(x - EAVES_HW * u, top + u * 0.004);
-  ctx.lineTo(x, ridge);
-  ctx.lineTo(x + EAVES_HW * u, top + u * 0.004);
-  ctx.closePath();
+  for (let i = 0; i < 3; i++) archPath(ctx, x + (i - 1) * u * 0.034 - u * 0.008, top + u * 0.022, u * 0.016, u * 0.016);
   ctx.fill();
   ctx.fillStyle = tone.roof;
+  ctx.fillRect(hx0, deck - u * 0.004, hx1 - hx0, u * 0.006);
+  // The roof: a bell curve with deep eaves rising to a finial, a fine lit edge, a rose glass heart in its face.
+  const ridge = hz + RIDGE * u;
+  const ew = EAVES_HW * u;
+  ctx.fillStyle = tone.roof;
   ctx.beginPath();
-  ctx.moveTo(x - EAVES_HW * u * 0.8, top);
-  ctx.lineTo(x, ridge + u * 0.006);
-  ctx.lineTo(x + EAVES_HW * u * 0.8, top);
+  ctx.moveTo(x - ew, top + u * 0.004);
+  ctx.bezierCurveTo(x - ew * 0.55, top + u * 0.002, x - ew * 0.3, ridge, x, ridge);
+  ctx.bezierCurveTo(x + ew * 0.3, ridge, x + ew * 0.55, top + u * 0.002, x + ew, top + u * 0.004);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = tone.awningRed;
+  ctx.strokeStyle = tone.roofLit;
+  ctx.lineWidth = Math.max(0.8, u * 0.0025);
   ctx.beginPath();
-  heartPath(ctx, x, ridge + (top - ridge) * 0.62, u * 0.014);
+  ctx.moveTo(x - ew * 0.92, top + u * 0.002);
+  ctx.bezierCurveTo(x - ew * 0.5, top, x - ew * 0.28, ridge + u * 0.002, x, ridge + u * 0.002);
+  ctx.stroke();
+  ctx.fillStyle = tone.glassRose;
+  ctx.beginPath();
+  heartPath(ctx, x, ridge + (top - ridge) * 0.6, u * 0.014);
   ctx.fill();
 }
 
