@@ -1,18 +1,22 @@
-import { circle, ink, inkedLine, oval, type Ctx } from "../../base/draw";
+import { circle, oval, type Ctx } from "../../base/draw";
 import { fieldY, layerGround } from "../../base/world";
 import type { Scene } from "../skin";
 import {
   BUN,
   CHARCOAL_GLOW,
+  CHROME,
+  CREAM,
   CLOTH_RED,
   CLOTH_WHITE,
   COOLER,
   DECK,
+  GOLD,
   GRILL,
   HAIR_BROWN,
   HAIR_DARK,
   HAIR_BLONDE,
   INK,
+  JEANS,
   KID_SHIRTS,
   LATTICE_BACK,
   LAWN,
@@ -36,9 +40,10 @@ import {
   STRIPE_WHITE,
   TABLE,
   TROUSERS,
+  UNIFORM,
   type Shades,
 } from "./colors";
-import { block, smooth, sparkle, starPath, swagBand } from "./shapes";
+import { block, line, smooth, sparkle, swagBand } from "./shapes";
 import type { Tone } from "./tone";
 
 // The town square the tower stands in: the lawn from the far side of the square (where Main
@@ -50,12 +55,13 @@ import type { Tone } from "./tone";
 // cooler, and the cook at his kettle grill, flipping burgers (first at 3 s, then every 7: the
 // owner's first-ten-seconds rule), a wisp of smoke rising. On the right, two kids with sparklers
 // and a little flag planted in the grass. The parade passes in front of all of it (parade.ts).
-// Everything here is near: flat two-tone fills and one ink weight, and nothing beside the base
-// block rises above its top (the slider's first pass sweeps over the lawn).
+// Everything here is near, printed flat like the rest of the poster: a lit plane, a body and a
+// shaded plane per color and no outlines, and nothing beside the base block rises above its top
+// (the slider's first pass sweeps over the lawn).
 //
 // Positions are in u from the base block's center line, heights in u down from the floor line.
 
-/** Ink width up close. */
+/** The line weight up close: the deck's lip (the tower's floor line), and the thin strokes of the props. */
 export function inkW(s: Scene): number {
   return Math.max(1.5, s.u * 0.0058);
 }
@@ -216,7 +222,7 @@ export function lampPosts(ctx: Ctx, s: Scene, tone: Tone): void {
   }
 }
 
-/** The concrete path from the steps to the sidewalk, edged and inked. */
+/** The concrete path from the steps to the sidewalk, its joints closer together further away. */
 export function path(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = centerX(s);
@@ -232,7 +238,6 @@ export function path(ctx: Ctx, s: Scene): void {
   ctx.closePath();
   ctx.fillStyle = PATH;
   ctx.fill();
-  ink(ctx, lw, INK);
   // Joints across it, closer together further away.
   ctx.strokeStyle = PATH_EDGE;
   ctx.lineWidth = Math.max(1, u * 0.003);
@@ -246,7 +251,7 @@ export function path(ctx: Ctx, s: Scene): void {
   ctx.stroke();
 }
 
-/** The bandstand's deck: the fascia with its bunting, the lattice skirt, the corner posts, the steps, its shadow on the lawn. */
+/** The bandstand's deck, printed flat: the fascia with its bunting, the lattice skirt, the steps, its shadow on the lawn. */
 export function bandstand(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const g = s.groundY;
@@ -259,12 +264,12 @@ export function bandstand(ctx: Ctx, s: Scene): void {
   const foot = g + DECK_FOOT * u;
 
   // The shadow the deck throws on the lawn.
-  ctx.fillStyle = "rgba(20, 30, 70, 0.16)";
+  ctx.fillStyle = "rgba(20, 30, 70, 0.2)";
   ctx.beginPath();
   oval(ctx, cx, foot + u * 0.012, hw * 1.12, u * 0.028);
   ctx.fill();
 
-  // The lattice skirt: a shaded backing between the end faces, white strips both ways, clipped to it.
+  // The lattice skirt: the navy shadow under the deck between the end faces, cream strips both ways, clipped to it.
   const lx0 = cx - hw + ef;
   const lx1 = cx + hw - ef;
   ctx.fillStyle = LATTICE_BACK;
@@ -291,15 +296,11 @@ export function bandstand(ctx: Ctx, s: Scene): void {
   ctx.rect(cx - hw, fasciaBottom, ef, foot - fasciaBottom);
   ctx.rect(lx1, fasciaBottom, ef, foot - fasciaBottom);
   ctx.fill();
-  ctx.beginPath();
-  ctx.rect(cx - hw, fasciaBottom, hw * 2, foot - fasciaBottom);
-  ink(ctx, lw, INK);
   // The sill board along the skirt's foot.
   ctx.beginPath();
   block(ctx, cx - hw - u * 0.006, foot - u * 0.012, hw * 2 + u * 0.012, u * 0.016, u * 0.003);
   ctx.fillStyle = PAINT.shade;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
 
   // The steps down the front: treads lit, risers shaded, widening a little toward you.
   for (let i = 0; i < STEPS; i++) {
@@ -311,9 +312,6 @@ export function bandstand(ctx: Ctx, s: Scene): void {
     ctx.fill();
     ctx.fillStyle = STEP.light;
     ctx.fillRect(cx - shw, y, shw * 2, STEP_H * u * 0.4);
-    ctx.beginPath();
-    ctx.rect(cx - shw, y, shw * 2, STEP_H * u);
-    ink(ctx, lw * 0.8, INK);
   }
 
   // The fascia: the deck's edge, three faces (the ends angled away, so shaded), under a lip of decking.
@@ -326,15 +324,6 @@ export function bandstand(ctx: Ctx, s: Scene): void {
   ctx.fillRect(lx1, g, ef, FASCIA_H * u);
   ctx.fillStyle = PAINT.light;
   ctx.fillRect(lx0, g, lx1 - lx0, u * 0.008);
-  ctx.beginPath();
-  ctx.rect(cx - hw, g, hw * 2, FASCIA_H * u);
-  ink(ctx, lw, INK);
-  ctx.beginPath();
-  ctx.moveTo(lx0, g);
-  ctx.lineTo(lx0, fasciaBottom);
-  ctx.moveTo(lx1, g);
-  ctx.lineTo(lx1, fasciaBottom);
-  ink(ctx, lw * 0.8, INK);
   // Bunting swagged along the fascia: red, white and blue pleats hung from its top edge.
   const swags = 5;
   const y = g + u * 0.006;
@@ -344,9 +333,6 @@ export function bandstand(ctx: Ctx, s: Scene): void {
     for (let i = 0; i < swags; i++) swagBand(ctx, lx0 + ((lx1 - lx0) * i) / swags, lx0 + ((lx1 - lx0) * (i + 1)) / swags, y, u * 0.022, band, 3);
     ctx.fill();
   }
-  ctx.beginPath();
-  for (let i = 0; i < swags; i++) swagBand(ctx, lx0 + ((lx1 - lx0) * i) / swags, lx0 + ((lx1 - lx0) * (i + 1)) / swags, y, u * 0.022, 0, 1);
-  ink(ctx, lw * 0.7, INK);
   ctx.fillStyle = STRIPE_BLUE;
   ctx.beginPath();
   for (let i = 0; i <= swags; i++) circle(ctx, lx0 + ((lx1 - lx0) * i) / swags, y, u * 0.006);
@@ -381,13 +367,12 @@ export function flipAt(t: number): number {
   return k >= 1 ? 0 : Math.sin(k * Math.PI);
 }
 
-/** A round head with hair and a cap or hat drawn by the caller, outlined. */
-export function head(ctx: Ctx, x: number, y: number, r: number, skin: Shades, hair: string, lw: number): void {
+/** A round head with a cap of hair and two dot eyes (a hat is drawn by the caller). */
+export function head(ctx: Ctx, x: number, y: number, r: number, skin: Shades, hair: string): void {
   ctx.beginPath();
   circle(ctx, x, y, r);
   ctx.fillStyle = skin.body;
   ctx.fill();
-  ink(ctx, lw, INK);
   ctx.fillStyle = hair;
   ctx.beginPath();
   ctx.moveTo(x - r, y - r * 0.1);
@@ -401,7 +386,7 @@ export function head(ctx: Ctx, x: number, y: number, r: number, skin: Shades, ha
   ctx.fill();
 }
 
-/** A small standing figure: legs, a shirt, arms as inked lines, a head. `armL`/`armR` are the arms' angles (0 hanging, negative raised forward). */
+/** A small standing figure: legs, a shirt lit on its left, arms as flat bands, a head. `armL`/`armR` are the arms' angles (0 hanging, negative raised forward). */
 export function person(ctx: Ctx, s: Scene, x: number, foot: number, h: number, shirt: Shades, trousers: Shades, skin: Shades, hair: string, armL: number, armR: number): void {
   const u = s.u;
   const lw = inkW(s) * 0.85;
@@ -415,7 +400,6 @@ export function person(ctx: Ctx, s: Scene, x: number, foot: number, h: number, s
   ctx.rect(x + torsoW * 0.05, foot - legH, torsoW * 0.4, legH);
   ctx.fillStyle = trousers.body;
   ctx.fill();
-  ink(ctx, lw, INK);
   // Torso
   ctx.beginPath();
   block(ctx, x - torsoW / 2, foot - legH - torsoH, torsoW, torsoH + u * 0.004, u * 0.008);
@@ -423,9 +407,6 @@ export function person(ctx: Ctx, s: Scene, x: number, foot: number, h: number, s
   ctx.fill();
   ctx.fillStyle = shirt.light;
   ctx.fillRect(x - torsoW / 2 + lw, foot - legH - torsoH + lw, torsoW * 0.3, torsoH * 0.5);
-  ctx.beginPath();
-  block(ctx, x - torsoW / 2, foot - legH - torsoH, torsoW, torsoH + u * 0.004, u * 0.008);
-  ink(ctx, lw, INK);
   // Arms
   const sy = foot - legH - torsoH + h * 0.06;
   const armLen = h * 0.3;
@@ -436,9 +417,9 @@ export function person(ctx: Ctx, s: Scene, x: number, foot: number, h: number, s
     ctx.beginPath();
     ctx.moveTo(x + side * torsoW * 0.45, sy);
     ctx.lineTo(x + side * torsoW * 0.45 + Math.sin(a) * armLen * side, sy + Math.cos(a) * armLen);
-    inkedLine(ctx, skin.body, h * 0.075, lw * 0.7, INK);
+    line(ctx, skin.body, h * 0.075);
   }
-  head(ctx, x, foot - legH - torsoH - headR * 0.9, headR, skin, hair, lw);
+  head(ctx, x, foot - legH - torsoH - headR * 0.9, headR, skin, hair);
 }
 
 /** The barbecue corner: the picnic table and what is on it, the cooler, the cook at his grill and its smoke. */
@@ -447,7 +428,6 @@ export function barbecue(ctx: Ctx, s: Scene): void {
   const g = s.groundY;
   if (g > s.cssH) return;
   const cx = centerX(s);
-  const lw = inkW(s);
 
   // The picnic table: a red-and-white checked cloth over the top, bench and legs under it.
   const tx = cx + TABLE_X * u;
@@ -460,7 +440,6 @@ export function barbecue(ctx: Ctx, s: Scene): void {
   ctx.rect(tx - thw * 1.05, ty + th + u * 0.03, thw * 2.1, u * 0.014);
   ctx.fillStyle = TABLE.body;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
   ctx.rect(tx - thw, ty, thw * 2, th);
   ctx.fillStyle = CLOTH_WHITE;
@@ -475,9 +454,6 @@ export function barbecue(ctx: Ctx, s: Scene): void {
   }
   ctx.fill();
   ctx.restore();
-  ctx.beginPath();
-  ctx.rect(tx - thw, ty, thw * 2, th);
-  ink(ctx, lw, INK);
   // On the table: a watermelon half on the left, a pie in the middle, two cups and a hot dog on the right.
   ctx.beginPath();
   ctx.moveTo(tx - thw * 0.78, ty);
@@ -485,7 +461,6 @@ export function barbecue(ctx: Ctx, s: Scene): void {
   ctx.closePath();
   ctx.fillStyle = MELON_RIND;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
   ctx.moveTo(tx - thw * 0.73, ty - u * 0.002);
   ctx.arc(tx - thw * 0.55, ty - u * 0.002, thw * 0.18, Math.PI, 0);
@@ -502,7 +477,6 @@ export function barbecue(ctx: Ctx, s: Scene): void {
   oval(ctx, tx - thw * 0.05, ty - u * 0.008, thw * 0.24, u * 0.012);
   ctx.fillStyle = PIE_CRUST.body;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
   oval(ctx, tx - thw * 0.05, ty - u * 0.01, thw * 0.15, u * 0.006);
   ctx.fillStyle = PIE_FILLING;
@@ -511,7 +485,6 @@ export function barbecue(ctx: Ctx, s: Scene): void {
   for (let i = 0; i < 2; i++) ctx.rect(tx + thw * (0.45 + i * 0.3) - u * 0.008, ty - u * 0.02, u * 0.016, u * 0.022);
   ctx.fillStyle = STRIPE_BLUE;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
   ctx.fillStyle = STRIPE_WHITE;
   ctx.fillRect(tx + thw * 0.45 - u * 0.006, ty - u * 0.017, u * 0.012, u * 0.006);
   ctx.fillRect(tx + thw * 0.75 - u * 0.006, ty - u * 0.017, u * 0.012, u * 0.006);
@@ -526,19 +499,15 @@ export function barbecue(ctx: Ctx, s: Scene): void {
   ctx.fillStyle = COOLER.shade;
   ctx.fillRect(kx - u * 0.03, ky - u * 0.012, u * 0.06, u * 0.012);
   ctx.beginPath();
-  block(ctx, kx - u * 0.03, ky - u * 0.04, u * 0.06, u * 0.04, u * 0.004);
-  ink(ctx, lw * 0.8, INK);
-  ctx.beginPath();
   block(ctx, kx - u * 0.033, ky - u * 0.05, u * 0.066, u * 0.012, u * 0.003);
   ctx.fillStyle = STRIPE_WHITE;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
 
-  cookAndGrill(ctx, s, cx, g, lw);
+  cookAndGrill(ctx, s, cx, g);
 }
 
 /** The cook behind his kettle grill, flipping a patty now and then, smoke rising. */
-function cookAndGrill(ctx: Ctx, s: Scene, cx: number, g: number, lw: number): void {
+function cookAndGrill(ctx: Ctx, s: Scene, cx: number, g: number): void {
   const u = s.u;
   const flip = flipAt(s.t);
   const x = cx + COOK_X * u;
@@ -546,35 +515,31 @@ function cookAndGrill(ctx: Ctx, s: Scene, cx: number, g: number, lw: number): vo
   const h = u * 0.125;
   // The cook: an apron over a red shirt, a white cap, the spatula in his raised left hand (over the grill).
   const a = 2.0 + flip * 0.8;
-  person(ctx, s, x, foot, h, { light: "#ff8a8e", body: "#e63a40", shade: "#b32a33" }, TROUSERS, SKIN_TAN, HAIR_BROWN, a, 0.15);
+  person(ctx, s, x, foot, h, UNIFORM, TROUSERS, SKIN_TAN, HAIR_BROWN, a, 0.15);
   ctx.beginPath();
   ctx.rect(x - h * 0.11, foot - h * 0.6, h * 0.22, h * 0.34);
   ctx.fillStyle = STRIPE_WHITE;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
   ctx.beginPath();
   block(ctx, x - h * 0.17, foot - h * 1.02 - h * 0.06, h * 0.34, h * 0.1, h * 0.03);
   ctx.fillStyle = STRIPE_WHITE;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
   // The spatula from the raised hand, and the patty it tosses.
   const ax = x - h * 0.135 - Math.sin(a) * h * 0.3;
   const ay = foot - h * 0.62 + Math.cos(a) * h * 0.3;
   ctx.beginPath();
   ctx.moveTo(ax, ay);
   ctx.lineTo(ax - h * 0.12, ay - h * 0.16);
-  inkedLine(ctx, "#8a8ea0", h * 0.05, lw * 0.5, INK);
+  line(ctx, CHROME.shade, h * 0.05);
   ctx.beginPath();
   block(ctx, ax - h * 0.26, ay - h * 0.26, h * 0.16, h * 0.1, h * 0.02);
-  ctx.fillStyle = "#c8ccda";
+  ctx.fillStyle = CHROME.body;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
   if (flip > 0) {
     ctx.beginPath();
     oval(ctx, ax - h * 0.18, ay - h * 0.3 - flip * h * 0.35, h * 0.09, h * 0.045);
     ctx.fillStyle = SAUSAGE;
     ctx.fill();
-    ink(ctx, lw * 0.6, INK);
   }
   // The grill in front of him: a kettle on three legs, coals glowing in the bowl, the lid leaning beside.
   const gx = cx + GRILL_X * u;
@@ -587,19 +552,17 @@ function cookAndGrill(ctx: Ctx, s: Scene, cx: number, g: number, lw: number): vo
   ctx.lineTo(gx + r * 0.8, gy);
   ctx.moveTo(gx, gy - r * 0.8);
   ctx.lineTo(gx, gy + u * 0.004);
-  inkedLine(ctx, GRILL.light, u * 0.006, lw * 0.6, INK);
+  line(ctx, GRILL.light, u * 0.006);
   ctx.beginPath();
   ctx.moveTo(gx - r, gy - r * 1.6);
   ctx.arc(gx, gy - r * 1.6, r, 0, Math.PI);
   ctx.closePath();
   ctx.fillStyle = GRILL.body;
   ctx.fill();
-  ink(ctx, lw, INK);
   ctx.beginPath();
   oval(ctx, gx, gy - r * 1.6, r, r * 0.28);
   ctx.fillStyle = GRILL.light;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
   oval(ctx, gx, gy - r * 1.6, r * 0.8, r * 0.18);
   ctx.fillStyle = CHARCOAL_GLOW;
@@ -609,7 +572,6 @@ function cookAndGrill(ctx: Ctx, s: Scene, cx: number, g: number, lw: number): vo
   oval(ctx, gx + r * 0.35, gy - r * 1.62, r * 0.22, r * 0.09);
   ctx.fillStyle = BUN.body;
   ctx.fill();
-  ink(ctx, lw * 0.5, INK);
   // Smoke: puffs rising and fading from the grill, drifting a little left.
   ctx.fillStyle = SMOKE;
   for (let i = 0; i < 4; i++) {
@@ -628,13 +590,14 @@ const KID_X = [0.31, 0.43] as const;
 const KID_FOOT = 0.14;
 const FLAG_X = 0.37;
 
-/** The sparkle's rays: angle and length jitter, re-picked every few frames with the clock. */
+/** The sparkle's rays: angle and length jitter, re-picked every few frames with the clock; their ink. */
 const SPARKS = 10;
+const SPARK = "#fff1c4";
 
 /** A sparkler's crackle at its tip (x, y): a bright core, a star, rays of changing length. */
 export function sparklerTip(ctx: Ctx, s: Scene, x: number, y: number, r: number, seed: number): void {
   const frame = Math.floor(s.t * 24);
-  ctx.strokeStyle = "#fff4c0";
+  ctx.strokeStyle = SPARK;
   ctx.lineWidth = Math.max(1, s.u * 0.0025);
   ctx.lineCap = "round";
   ctx.beginPath();
@@ -645,11 +608,11 @@ export function sparklerTip(ctx: Ctx, s: Scene, x: number, y: number, r: number,
     ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
   }
   ctx.stroke();
-  ctx.fillStyle = "#ffd24a";
+  ctx.fillStyle = GOLD;
   ctx.beginPath();
   sparkle(ctx, x, y, r * 0.55);
   ctx.fill();
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = CREAM;
   ctx.beginPath();
   circle(ctx, x, y, r * 0.16);
   ctx.fill();
@@ -661,7 +624,6 @@ export function sparklerKids(ctx: Ctx, s: Scene): void {
   const g = s.groundY;
   if (g > s.cssH) return;
   const cx = centerX(s);
-  const lw = inkW(s);
   const foot = g + KID_FOOT * u;
   const h = u * 0.09;
   // The little flag on its stick in the grass between them.
@@ -669,7 +631,7 @@ export function sparklerKids(ctx: Ctx, s: Scene): void {
   ctx.beginPath();
   ctx.moveTo(fx, foot + u * 0.01);
   ctx.lineTo(fx, foot - u * 0.065);
-  inkedLine(ctx, STRIPE_WHITE, u * 0.004, lw * 0.5, INK);
+  line(ctx, STRIPE_WHITE, u * 0.004);
   ctx.beginPath();
   ctx.rect(fx, foot - u * 0.065, u * 0.03, u * 0.02);
   ctx.fillStyle = STRIPE_RED;
@@ -679,9 +641,6 @@ export function sparklerKids(ctx: Ctx, s: Scene): void {
   ctx.fillRect(fx, foot - u * 0.05, u * 0.03, u * 0.004);
   ctx.fillStyle = STRIPE_BLUE;
   ctx.fillRect(fx, foot - u * 0.065, u * 0.013, u * 0.011);
-  ctx.beginPath();
-  ctx.rect(fx, foot - u * 0.065, u * 0.03, u * 0.02);
-  ink(ctx, lw * 0.6, INK);
   // The boy holds his sparkler straight up; the girl swings hers side to side.
   const swing = Math.sin(s.t * 2.2) * 0.8;
   const arms = [
@@ -696,7 +655,7 @@ export function sparklerKids(ctx: Ctx, s: Scene): void {
     const x = cx + KID_X[i]! * u;
     const [shirt, skin, hair] = looks[i]!;
     const [al, ar] = arms[i]!;
-    person(ctx, s, x, foot, h, shirt, { light: "#8aa4ff", body: "#4a68d8", shade: "#2f47a8" }, skin, hair, al, ar);
+    person(ctx, s, x, foot, h, shirt, JEANS, skin, hair, al, ar);
     // The sparkler from the raised hand: a wire, the crackle at its tip.
     const sx = x + h * 0.15 + Math.sin(ar) * h * 0.3;
     const sy = foot - h * 0.62 + Math.cos(ar) * h * 0.3;
@@ -705,14 +664,7 @@ export function sparklerKids(ctx: Ctx, s: Scene): void {
     ctx.beginPath();
     ctx.moveTo(sx, sy);
     ctx.lineTo(sx + dx, sy + dy);
-    inkedLine(ctx, "#b8bcc8", u * 0.003, lw * 0.4, INK);
+    line(ctx, CHROME.shade, u * 0.003);
     sparklerTip(ctx, s, sx + dx, sy + dy, u * 0.022, i * 7);
   }
-}
-
-/** A gold star of the kind the whole scene uses, for the curb's paint and the like. */
-export function goldStar(ctx: Ctx, x: number, y: number, r: number): void {
-  ctx.beginPath();
-  starPath(ctx, x, y, r);
-  ctx.fill();
 }

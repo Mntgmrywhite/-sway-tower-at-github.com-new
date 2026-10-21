@@ -2,37 +2,43 @@ import type { Ctx } from "../base/draw";
 import type { CartoonSkin, Scene } from "./skin";
 import { PALETTE } from "./july4/colors";
 import { drifters } from "./july4/drift";
-import { cloudFloor, farLayer, floorTop, landShows, skyBottom } from "./july4/far";
+import { cloudFloor, farLayer, floorTop, landmarkLine, landShows, skyBottom } from "./july4/far";
 import { fireworks } from "./july4/fireworks";
 import { front } from "./july4/front";
 import * as icon from "./july4/icons";
 import { parade } from "./july4/parade";
-import { moon, skyFill, stars, sun } from "./july4/sky";
+import { halftone, moon, skyFill, stars, sun } from "./july4/sky";
 import { bandstand, barbecue, hedge, lampPosts, lawn, path, sparklerKids } from "./july4/square";
 import { level, toneOf } from "./july4/tone";
 
-// Independence Day: a small-town Fourth of July in our bright cartoon style. The tower is
+// Independence Day: a small-town Fourth of July, printed like a 1930s WPA poster: flat inks on
+// cream paper (navy, flag red, cream, sky blue and ochre gold, with the summer greens), two to
+// four flat steps per color, no outlines, every building lit from the left with a flat shadow
+// plane on its right, a sunburst fanning up from behind the town into both lanes. The tower is
 // stacked on the white bandstand in the town square (its roof long gone, so you can build it
 // higher), bunting swagged round its deck, three steps down to a path across the lawn. Behind
-// it, Main Street: brick storefronts hung with bunting and flags, a white church with a tall
-// steeple, a stone courthouse with a clock tower and a dome flying the flag, big summer trees,
-// and a bald eagle circling over the park. As a tower starts, the parade comes through the
-// square in front of the bandstand: the drum major, the color guard, snares, the glockenspiel
-// lyre, sousaphones, the vintage fire truck full of waving kids, Uncle Sam on stilts tipping
-// his hat at the tower, a girl on a bike with streamers and a dog (every bit of it past the
-// tower within ten seconds: actions.test.ts). The barbecue corner is on the left (the cook
-// flips burgers), two kids wave sparklers on the right, and the street in front is painted up
-// for the Fourth. Climb, and balloons, a kite and a banner plane drift down the right lane,
-// the clouds gather into a floor that swallows the town (only the steeple and the dome stand
-// out of it) and sinks to rest low on the screen for good, the afternoon turns to a golden
-// barbecue evening and a rose dusk with the first stars and a crescent moon where the sun set,
-// and then the night brings the big fireworks show in both lanes, red, white, blue and gold,
-// building to its finale that lights the cloud floor; the smoke drifts off and the stars have
-// the sky. Then the story loops: the night gives way to a peach dawn with the sun coming back
-// up out of the clouds, and the day comes round again (tone.ts). The left of the sky is the
-// sun's and the moon's: nothing drifts across them, and the fireworks there burst below the
-// moon. Calm by design: flat fills, one ink weight up close, faded silhouettes far away, and
-// nothing moves behind the tower above its floor line (the parade passes below it).
+// it, Main Street: brick storefronts with striped awnings, bunting and flags, a white church
+// with a tall steeple, a stone courthouse with a clock tower and a dome flying the flag, big
+// summer trees, and a bald eagle circling over the park; the block behind the tower is printed
+// faint, so the column stays calm. As a tower starts, the parade comes through the square in
+// front of the bandstand: the drum major, the color guard, snares, the glockenspiel lyre,
+// sousaphones, the vintage fire truck full of waving kids, Uncle Sam on stilts tipping his hat
+// at the tower, a girl on a bike with streamers and a dog (every bit of it past the tower
+// within ten seconds: actions.test.ts). The barbecue corner is on the left (the cook flips
+// burgers), two kids wave sparklers on the right, and the street in front is painted up for
+// the Fourth. Climb, and balloons, a kite and a banner plane drift down the right lane, the
+// clouds gather into a scalloped floor that swallows the town (only the steeple and the dome
+// stand out of it, skyline silhouettes after dusk) and sinks to rest low on the screen for
+// good, the afternoon turns to a golden barbecue evening and a rose dusk with the first stars
+// and a crescent moon where the sun set, and then the night brings the big fireworks show in
+// both lanes, red, cream, blue and gold, printed Pop Art (Ben-Day dots in the lanes, bold
+// off-register stars), building to its finale that lights the cloud floor; the smoke drifts off
+// and the stars have the sky. Then the story loops: the night gives way to a peach dawn with
+// the sun coming back up out of the clouds, and the day comes round again (tone.ts). The left
+// of the sky is the sun's and the moon's: nothing drifts across them, and the fireworks there
+// burst below the moon. Calm by design: the detail lives at the sides and up close, the sky
+// behind the tower is plain bands, and nothing moves behind the tower above its floor line
+// (the parade passes below it).
 //
 // The altitude story needs every layer of the backdrop, so Independence Day paints all of it
 // in one pass (`backdrop`, in the ground hook). The celestial and far hooks are empty on
@@ -41,7 +47,9 @@ import { level, toneOf } from "./july4/tone";
 function backdrop(ctx: Ctx, s: Scene): void {
   const tone = toneOf(s);
   const floor = floorTop(s, level(s));
-  skyFill(ctx, s, tone, skyBottom(s, floor));
+  const line = landmarkLine(s);
+  skyFill(ctx, s, tone, line, skyBottom(s, floor));
+  halftone(ctx, s, tone, line);
   stars(ctx, s, tone);
   moon(ctx, s, tone);
   sun(ctx, s, tone, floor);
@@ -70,8 +78,8 @@ export const july4: CartoonSkin = {
   fonts: ["Rye"],
   palette: PALETTE,
   // Our own Fourth of July symbols. Red, blue, gold and white go round (warm and cool by
-  // turns, so every seam reads), and every color holds up against the day sky, the sunset and
-  // the night of the show.
+  // turns, so every seam reads), a step brighter than the poster's inks, so the tower stands
+  // out of the print against the day sky, the sunset and the night of the show.
   bars: [
     { color: "#e8393f", icon: icon.star },
     { color: "#2f58d6", icon: icon.firework },

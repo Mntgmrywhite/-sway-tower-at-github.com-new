@@ -1,153 +1,180 @@
 import { mix } from "../../base/draw";
 import type { Palette } from "../skin";
 
-// Independence Day colors: a small-town Fourth in bright cartoon. Red, white and royal blue
-// are the heroes (bunting, flags, balloons, the fireworks), gold for the brass and the
-// fireworks' willows, summer green for the lawn and the trees, a clear sky blue, and one deep
-// navy ink for every outline up close. Near things use these as they are (flat, two-tone,
-// inked); far things are mixed toward the sky of the moment (see tone.ts) and never outlined.
+// Independence Day colors: a WPA screen-print poster of a small-town Fourth. A tight set of
+// inks on cream paper: a deep navy (the key: night, shadows, eyes), flag red, the cream of the
+// paper itself (the flag's white), a clear poster sky blue and one warm ochre gold, with a
+// summer green for the lawn and the trees. Every color comes in two to four flat steps (lit,
+// body, shade); nothing in the scene is outlined (only the bars keep theirs), shapes are told
+// apart by their tones. Far things are mixed toward the sky of the moment (tone.ts).
 
-/** Outline color for everything up close, and the bars' ink. */
-export const INK = "#1f2342";
+/** The key ink: the darkest step of everything (the night, shadows, eyes). */
+export const NAVY = "#1b2550";
+export const INK = NAVY;
 
-/** A color in three tones: lit top, body, shaded underside. */
+/** A color in three flat steps: lit plane, body, shaded plane. */
 export interface Shades {
   light: string;
   body: string;
   shade: string;
 }
 
-function shades(body: string, light = 0.42, shade = 0.26): Shades {
-  return { light: mix(body, "#ffffff", light), body, shade: mix(body, "#1a1a38", shade) };
+function shades(body: string, light = 0.4, shade = 0.3): Shades {
+  return { light: mix(body, CREAM, light), body, shade: mix(body, NAVY, shade) };
 }
 
-// ---------------------------------------------------------------- the three colors
+// ---------------------------------------------------------------- the inks
 
-/** The bunting's and the flags' stripes, flat. */
-export const STRIPE_RED = "#e23a3f";
-export const STRIPE_WHITE = "#f8f6ef";
-export const STRIPE_BLUE = "#2b52cc";
-export const STAR_WHITE = "#ffffff";
+/** The paper: the flag's white, the stripes' cream. */
+export const CREAM = "#f6ead0";
+const RED = "#d5383d";
+const BLUE = "#2b4796";
+const SKY = "#86c2e2";
+export const GOLD = "#efa935";
+const GREEN = "#5c9f49";
+
+/** The flag's stripes and field, as printed. */
+export const STRIPE_RED = RED;
+export const STRIPE_WHITE = CREAM;
+export const STRIPE_BLUE = BLUE;
+export const STAR_WHITE = CREAM;
 
 // ---------------------------------------------------------------- the lawn and the street
 
-/** The town square's lawn (its hazy far edge is in tone.ts), deeper near the street. */
-export const LAWN = "#5fc55a";
-export const LAWN_NEAR = "#4db24c";
-/** The concrete path from the bandstand's steps to the street. */
-export const PATH = "#e8e1cf";
-export const PATH_EDGE = "#cfc7b3";
-/** The street in front: asphalt, its painted center line, and the curb painted for the Fourth. */
-export const ASPHALT = shades("#6a6e86", 0.2, 0.3);
-export const LANE_LINE = "#ffd23f";
-export const CURB = shades("#dcd8cc", 0.4, 0.26);
-export const CONFETTI = ["#e63a40", "#ffffff", "#2f58d6", "#ffc93a"] as const;
+/** The town square's lawn (its hazy far edge is in tone.ts), mown in two greens. */
+export const LAWN = "#6cae4f";
+export const LAWN_NEAR = "#57983f";
+/** The concrete path from the bandstand's steps to the street, and its joints. */
+export const PATH = "#e4cc98";
+export const PATH_EDGE = "#c9ac74";
+/** The street in front: navy asphalt, its gold center line, the curb painted for the Fourth. */
+export const ASPHALT = shades("#34406e", 0.16, 0.3);
+export const LANE_LINE = GOLD;
+export const CURB = shades("#e9dcbb", 0.5, 0.22);
+export const CONFETTI = [RED, CREAM, SKY, GOLD] as const;
 
 // ---------------------------------------------------------------- the bandstand
 
-export const PAINT: Shades = { light: "#ffffff", body: "#f6f3ea", shade: "#d2d6e3" };
-export const DECK = "#eee8d8";
-export const LATTICE_BACK = "#9aa0b8";
-export const STEP = shades("#e6e0cf", 0.4, 0.24);
+export const PAINT: Shades = { light: "#fffaee", body: CREAM, shade: "#cbbd9f" };
+export const DECK = "#e8d9b6";
+/** The lattice skirt's dark backing: the shadow under the deck. */
+export const LATTICE_BACK = "#3a4a80";
+export const STEP = shades("#eadcb8", 0.45, 0.22);
 
 // ---------------------------------------------------------------- the barbecue corner
 
-export const GRILL = shades("#2b2e45", 0.5, 0.3);
-export const CHARCOAL_GLOW = "#ff7a2e";
-export const TABLE = shades("#c98b4e", 0.4, 0.26);
-export const CLOTH_RED = "#ef5a55";
-export const CLOTH_WHITE = "#fff7ee";
-export const MELON_RIND = "#3f9e45";
-export const MELON_FLESH = "#ff5d6c";
-export const MELON_SEED = "#2a2238";
-export const PIE_CRUST = shades("#e2a85c", 0.4, 0.24);
-export const PIE_FILLING = "#b8363f";
-export const COOLER = shades("#3d8de0", 0.44, 0.28);
-export const BUN = shades("#f0b870", 0.4, 0.22);
-export const SAUSAGE = "#c9453e";
-export const SMOKE = "#e9ecf3";
+export const GRILL = shades("#283258", 0.35, 0.3);
+export const CHARCOAL_GLOW = "#ff7b2e";
+export const TABLE = shades("#b9793f", 0.35, 0.3);
+export const CLOTH_RED = RED;
+export const CLOTH_WHITE = CREAM;
+export const MELON_RIND = "#3f8f45";
+export const MELON_FLESH = "#f2565f";
+export const MELON_SEED = NAVY;
+export const PIE_CRUST = shades("#dca055", 0.4, 0.26);
+export const PIE_FILLING = "#a92f3a";
+export const COOLER = shades("#3d84cf", 0.4, 0.3);
+export const BUN = shades("#e9b06a", 0.4, 0.22);
+export const SAUSAGE = "#b9403a";
+export const SMOKE = "#efe6d4";
 
 // ---------------------------------------------------------------- people
 
-export const SKIN_FAIR = shades("#ffd3b0", 0.4, 0.16);
-export const SKIN_TAN = shades("#d9a071", 0.38, 0.18);
-export const SKIN_BROWN = shades("#8c5a3c", 0.38, 0.22);
-export const HAIR_DARK = "#2e2436";
-export const HAIR_BROWN = "#7a4b2a";
-export const HAIR_BLONDE = "#f2c96a";
-export const HAIR_WHITE = "#f6f3ec";
-/** The band's uniforms: red jackets with white trim and gold braid, white trousers, red shakos. */
-export const UNIFORM = shades("#d7343c", 0.4, 0.26);
-export const UNIFORM_TRIM = "#fbf8f0";
-export const BRAID = "#f0c24a";
-export const TROUSERS = shades("#f4f1e8", 0.3, 0.22);
-export const BRASS = shades("#f2c54c", 0.46, 0.24);
-export const DRUM_SHELL = shades("#3f6ae0", 0.44, 0.28);
-export const DRUM_HEAD = "#f6f1e2";
-/** Uncle Sam: a blue tailcoat, striped trousers, a white vest and a starred top hat. */
-export const SAM_COAT = shades("#2b4fd0", 0.44, 0.28);
-export const SAM_HAT = shades("#f6f3ea", 0.3, 0.22);
-export const SAM_BOW = "#e63a40";
+export const SKIN_FAIR = shades("#f6c9a2", 0.4, 0.2);
+export const SKIN_TAN = shades("#d39a6a", 0.38, 0.22);
+export const SKIN_BROWN = shades("#8a573a", 0.38, 0.26);
+export const HAIR_DARK = "#2a2440";
+export const HAIR_BROWN = "#774726";
+export const HAIR_BLONDE = "#eec266";
+export const HAIR_WHITE = "#f4ecdc";
+/** The band's uniforms: red jackets with cream trim and gold braid, cream trousers, red shakos. */
+export const UNIFORM = shades(RED, 0.4, 0.3);
+export const UNIFORM_TRIM = CREAM;
+export const BRAID = GOLD;
+export const TROUSERS = shades("#efe3c6", 0.45, 0.26);
+/** The drum major's coat: flag blue with the band's gold braid and cream trim. */
+export const MAJOR_COAT = shades(BLUE, 0.4, 0.3);
+export const BRASS = shades("#eeb33f", 0.45, 0.28);
+export const DRUM_SHELL = shades(BLUE, 0.4, 0.3);
+export const DRUM_HEAD = CREAM;
+/** Drumsticks and mallets: pale wood. */
+export const STICK = "#ead7b0";
+/** Uncle Sam: a blue tailcoat, striped trousers, a cream vest and a starred top hat. */
+export const SAM_COAT = shades(BLUE, 0.4, 0.32);
+export const SAM_HAT = shades(CREAM, 0.5, 0.2);
+export const SAM_BOW = RED;
 /** The fire truck: red, with chrome and a wooden ladder. */
-export const TRUCK = shades("#d9303a", 0.4, 0.26);
-export const CHROME = shades("#dfe6f2", 0.4, 0.3);
-export const LADDER = shades("#d8a860", 0.4, 0.24);
-export const TIRE = "#2a2a3c";
-export const HUBCAP = "#e4e6ee";
+export const TRUCK = shades(RED, 0.4, 0.3);
+export const CHROME = shades("#d7dde6", 0.5, 0.3);
+export const LADDER = shades("#d6a35a", 0.4, 0.26);
+export const TIRE = NAVY;
+export const HUBCAP = "#e2dccb";
 /** The girl's bike and dress. */
-export const BIKE = shades("#ff7ab3", 0.4, 0.26);
-export const DRESS = shades("#ffffff", 0.2, 0.2);
-export const KID_SHIRTS = [shades("#ff8b3d"), shades("#3fb7e8"), shades("#9b6cf0")] as const;
-export const DOG = shades("#f5f1e8", 0.3, 0.2);
-export const DOG_SPOT = "#2c2a3c";
-export const BANDANA = "#2b52cc";
+export const BIKE = shades("#ee6aa5", 0.4, 0.28);
+export const DRESS = shades(CREAM, 0.5, 0.2);
+/** The kids' jeans. */
+export const JEANS = shades("#3f62b8", 0.4, 0.3);
+export const KID_SHIRTS = [shades("#f08a3a"), shades("#3fa9dc"), shades("#8e68d8")] as const;
+export const DOG = shades("#f3ead6", 0.5, 0.22);
+export const DOG_SPOT = NAVY;
+export const BANDANA = BLUE;
 
 // ---------------------------------------------------------------- the sky's things
 
-/** The lane's balloons, kite and biplane take the tone's faded red, white, blue and yellow (tone.ts); the eagle's beak keeps its own. */
-export const EAGLE_BEAK = "#ffb028";
+/** The crescent moon: its lit face and the rim of shade along its inner curve. */
+export const MOON = "#fbeec4";
+export const MOON_SHADE = "#e9d496";
+/** The show night's big stars: cream, printed over an off-register red plate (Pop Art). */
+export const STAR_CREAM = "#fff4d6";
+export const STAR_RED = "#e0484d";
 
-/** Firework colors: red, white, blue and gold, in a fixed order so hash() can pick from them. */
-export const FIREWORK = ["#ff4d55", "#ffffff", "#5a82ff", "#ffd24a"] as const;
-export const FIREWORK_LIGHT = ["#ffb0b4", "#ffffff", "#b8caff", "#fff0a8"] as const;
+/** The lane's balloons, kite and biplane take the tone's faded red, cream, blue and gold (tone.ts); the eagle's beak keeps its own. */
+export const EAGLE_BEAK = GOLD;
+
+/** Firework inks: red, cream, sky blue and gold, in a fixed order so hash() can pick from them. */
+export const FIREWORK = ["#ff4e55", "#fff3d6", "#7fb6ff", "#ffc843"] as const;
+export const FIREWORK_LIGHT = ["#ffa9ad", "#fffaf0", "#c4dcff", "#ffe6a0"] as const;
 
 // ---------------------------------------------------------------- the town behind
 
-export const BRICK = "#c85a40";
-export const BRICK_TAN = "#e4c893";
-export const BRICK_CREAM = "#f2eadb";
-export const BRICK_SAGE = "#9ec49a";
-export const STONE = "#ece6d6";
-export const SLATE = "#5b6482";
-export const WINDOW = "#3b4474";
-export const WINDOW_LIT = "#ffd978";
-export const AWNING = ["#2f9e5a", "#e23a3f", "#2b52cc"] as const;
-export const TREE = "#3fa74b";
-export const TREE_LIT = "#7ed466";
-export const TRUNK = "#7a4b2a";
-export const HILL_FAR = "#8cc98a";
-export const HILL = "#6bbb6a";
+export const BRICK = "#b94a3a";
+export const BRICK_TAN = "#d9a35a";
+export const BRICK_CREAM = "#eedcb8";
+export const BRICK_SAGE = "#7fae9a";
+export const STONE = "#eadbb8";
+export const SLATE = "#3d4b7c";
+export const WINDOW = "#2c3a6c";
+export const WINDOW_LIT = "#ffd36e";
+/** The courthouse clock's face, lit after dark. */
+export const CLOCK_LIT = "#fff0c2";
+export const AWNING = [GREEN, RED, BLUE] as const;
+export const TREE = "#4b9447";
+export const TREE_LIT = "#7cbd5a";
+export const TRUNK = "#6b4426";
+export const HILL_FAR = "#9cc48a";
+export const HILL = "#78ad66";
 
 /**
  * The base palette. Independence Day paints its own backdrop over the base sky, field and
  * band (see july4.ts), so these are the afternoon values the base would show.
  */
 export const PALETTE: Palette = {
-  skyTop: "#2f7fe0",
-  skyMid: "#5cb0f2",
-  skyBottom: "#cdeefc",
-  star: "#fff8e0",
-  moon: "#fff4cf",
-  cloudShadow: "#bcd4ee",
-  cloudBase: "#f4f9ff",
-  cloudLight: "#ffffff",
+  skyTop: "#3f7dbf",
+  skyMid: "#6aa6d6",
+  skyBottom: "#f3e3bd",
+  star: CREAM,
+  moon: MOON,
+  cloudShadow: "#b9cde0",
+  cloudBase: "#f6efdd",
+  cloudLight: "#fffaf0",
   far: HILL_FAR,
-  fieldFar: "#96dc6e",
+  fieldFar: "#8fc46a",
   fieldNear: LAWN,
   // The base band in front is covered by the street; these match the curb and the asphalt.
   grass: CURB.body,
   grassDark: CURB.shade,
   stone: ASPHALT.body,
   stoneLight: ASPHALT.light,
-  ink: INK,
+  // The bars' outline (the scene itself has none).
+  ink: "#1f2342",
 };

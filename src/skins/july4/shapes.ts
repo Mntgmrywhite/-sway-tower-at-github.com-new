@@ -93,3 +93,31 @@ export function sparkle(ctx: Ctx, x: number, y: number, r: number): void {
   ctx.quadraticCurveTo(x - w, y - w, x, y - r);
   ctx.closePath();
 }
+
+/**
+ * A crescent as its own subpath: the disc (x, y, r) less the bite (bx, by, br), traced along the
+ * disc's rim away from the bite and back along the bite's rim. One plain outline, so it fills
+ * clean (a disc cut by a clip and an even-odd bite leaves a faint anti-aliased ring along the
+ * bite). The two circles must cross.
+ */
+export function crescent(ctx: Ctx, x: number, y: number, r: number, bx: number, by: number, br: number): void {
+  const d = Math.hypot(bx - x, by - y);
+  const toward = Math.atan2(by - y, bx - x);
+  // Where the rims cross: half the angle they span, seen from each center.
+  const a = Math.acos((r * r + d * d - br * br) / (2 * r * d));
+  const b = Math.acos((br * br + d * d - r * r) / (2 * br * d));
+  const back = toward + Math.PI;
+  ctx.moveTo(x + Math.cos(toward + a) * r, y + Math.sin(toward + a) * r);
+  ctx.arc(x, y, r, toward + a, toward - a + Math.PI * 2);
+  ctx.arc(bx, by, br, back + b, back - b, true);
+  ctx.closePath();
+}
+
+/** Stroke the current path as a flat band of `color`, `width` wide, round at its ends and joints (limbs, poles, wires). */
+export function line(ctx: Ctx, color: string, width: number): void {
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}

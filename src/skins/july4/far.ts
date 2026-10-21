@@ -1,24 +1,29 @@
-import { circle, hash, type Ctx } from "../../base/draw";
+import { circle, hash, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { starPath, swagBand } from "./shapes";
-import { smooth } from "./shapes";
+import { smooth, starPath, swagBand } from "./shapes";
 import { DAY_HIGH, level, type Tone } from "./tone";
 
-// The far layer, standing on the horizon, in three depths. Furthest, rolling summer hills in
-// two rows (the far one hazy), with the town park's tree line on the right. On them, Main
-// Street: the far side of the town square, a row of two-story brick, tan and cream storefronts
-// with awnings and cornices, every front hung with red-white-and-blue bunting and little
+// The far layer, standing on the horizon, printed like a WPA poster: flat inks, no outlines, and
+// every building lit from the left, a flat shadow plane on its right. Furthest, rolling summer
+// hills in two rows (the far one hazy), with the town park's tree line on the right. On them,
+// Main Street: the far side of the town square, a row of two-story brick, ochre and cream
+// storefronts with striped awnings, every front hung with red, cream and blue bunting and little
 // flags; a white clapboard church on the left with a tall steeple, a stone courthouse on the
 // right with a pillared portico, a clock tower and a dome flying the flag; and big round summer
-// trees between them. Above the start a floor of cloud gathers below you and swallows the
-// town; from then on its puffy top is the horizon, and only the steeple and the courthouse's
-// dome and flag stand out of it. Then it sinks with them to rest low on the screen, and there
-// it stays for good, a calm sea of cloud with the two landmarks standing out of it, for the sun
-// to set into and rise out of on every turn of the story's loop (tone.ts), and for the
-// fireworks to light at the show's finale. All of it is faded and flat, with no outline, and
-// nothing here moves but the courthouse flag.
+// trees. Behind the tower the block is printed faint (a quiet silhouette with no bunting or
+// flags), so the column stays calm; the detail is at the sides. Above the start a floor of
+// cloud gathers below you and swallows the town; from then on its scalloped top is the horizon,
+// and only the steeple and the courthouse's dome and flag stand out of it (from dusk printed as
+// the poster's skyline silhouettes, one dark ink with the windows and the clock lit: tone.ts). Then it sinks with
+// them to rest low on the screen, and there it stays for good, a calm sea of cloud with the two
+// landmarks standing out of it, for the sun to set into and rise out of on every turn of the
+// story's loop (tone.ts), and for the fireworks to light at the show's finale. Nothing here
+// moves but the courthouse flag.
 //
 // Positions are in u from the screen center, heights in u from the horizon (negative is up).
+
+/** The flat shadow plane on every far building's right: navy printed thin over its own color. */
+const SHADOW = "rgba(20, 28, 66, 0.24)";
 
 /** Once it has covered the land, the cloud floor sinks to rest this far above the screen's bottom (u)... */
 const FLOOR_REST = 0.3;
@@ -71,7 +76,7 @@ export function skyBottom(s: Scene, top: number): number {
 
 // ---------------------------------------------------------------- the cloud bank
 
-/** Puffs of fair-weather cloud piled low behind the town at either side: [X (u from center), height above the line (u), radius (u)]. */
+/** Lobes of fair-weather cloud piled low behind the town at either side: [X (u from center), height above the line (u), radius (u)]. */
 const BANK = [
   [-0.7, 0.12, 0.12],
   [-0.56, 0.17, 0.1],
@@ -82,7 +87,7 @@ const BANK = [
   [0.62, 0.11, 0.12],
 ] as const;
 
-/** Soft white cumulus piled along the line at either side, behind the hills and the landmarks. */
+/** Poster cumulus piled along the line at either side, behind the hills and the landmarks: flattened lobes, a flat shaded underside, lit caps. */
 export function cloudBank(ctx: Ctx, s: Scene, tone: Tone, line: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
@@ -93,9 +98,10 @@ export function cloudBank(ctx: Ctx, s: Scene, tone: Tone, line: number): void {
       // On a wider screen the banks keep to its sides.
       const x = X < 0 ? Math.min(cx + X * u, (X + 0.5) * u) : Math.max(cx + X * u, s.cssW - (0.5 - X) * u);
       const y = line - h * u;
-      if (pass === 0) circle(ctx, x, y, r * u);
-      else if (pass === 1) circle(ctx, x - r * u * 0.08, y - r * u * 0.1, r * u * 0.9);
-      else circle(ctx, x - r * u * 0.3, y - r * u * 0.42, r * u * 0.4);
+      const R = r * u;
+      if (pass === 0) oval(ctx, x, y, R * 1.15, R);
+      else if (pass === 1) oval(ctx, x - R * 0.06, y - R * 0.2, R * 1.08, R * 0.82);
+      else oval(ctx, x - R * 0.3, y - R * 0.55, R * 0.5, R * 0.26);
     }
     if (pass === 0) {
       ctx.rect(-1, line - u * 0.05, Math.max(0, Math.min(cx - u * 0.3, u * 0.2)) + 1, u * 0.1);
@@ -171,7 +177,7 @@ interface Shop {
   cornice: boolean;
 }
 
-/** The center block, behind the tower: a general store, a hardware store and a diner. */
+/** The center block, behind the tower: a general store, a hardware store and a diner, printed faint. */
 const CENTER: readonly Shop[] = [
   { x: -0.07, hw: 0.065, h: 0.14, wall: 2, awning: 0, cornice: true },
   { x: 0.03, hw: 0.04, h: 0.16, wall: 0, awning: -1, cornice: true },
@@ -226,61 +232,68 @@ function wallTone(tone: Tone, wall: number): string {
   return wall === 0 ? tone.brick : wall === 1 ? tone.tan : wall === 2 ? tone.cream : tone.sage;
 }
 
-/** One storefront: the wall, its windows, the cornice or awning, the shopfront, bunting and flags. */
-function shop(ctx: Ctx, s: Scene, tone: Tone, shp: Shop, hz: number): void {
+/** Red, white and blue swags along a line from x0, `swags` of them over `w`, sagging `sag`. */
+function bunting(ctx: Ctx, tone: Tone, x0: number, w: number, y: number, swags: number, sag: number): void {
+  for (let band = 0; band < 3; band++) {
+    ctx.fillStyle = band === 0 ? tone.red : band === 1 ? tone.white : tone.blue;
+    ctx.beginPath();
+    for (let i = 0; i < swags; i++) swagBand(ctx, x0 + (i * w) / swags, x0 + ((i + 1) * w) / swags, y, sag, band, 3);
+    ctx.fill();
+  }
+}
+
+/**
+ * One storefront: the wall with its shadow plane, the cornice, a row of sashes, the shopfront
+ * under a striped awning, bunting and a flag. `quiet` prints it faint, behind the tower: one
+ * pale ink for the wall, its windows a step darker, and nothing else.
+ */
+function shop(ctx: Ctx, s: Scene, tone: Tone, shp: Shop, hz: number, quiet: boolean): void {
   const u = s.u;
   const cx = s.cssW / 2;
   const x0 = cx + (shp.x - shp.hw) * u;
   const w = shp.hw * 2 * u;
   const h = shp.h * u;
   if (x0 + w < -1 || x0 > s.cssW + 1) return;
-  ctx.fillStyle = wallTone(tone, shp.wall);
+  ctx.fillStyle = quiet ? tone.quiet : wallTone(tone, shp.wall);
   ctx.fillRect(x0, hz - h, w, h + 1);
-  // The cornice (a lighter cap) or a parapet step.
-  ctx.fillStyle = tone.trim;
   if (shp.cornice) ctx.fillRect(x0 - u * 0.004, hz - h, w + u * 0.008, u * 0.012);
   else ctx.fillRect(x0 + w * 0.3, hz - h - u * 0.012, w * 0.4, u * 0.012);
-  // Upper windows: a row of tall sashes.
+  const window = quiet ? tone.quietWindow : tone.window;
+  // Upper windows: a row of tall sashes; the shopfront: a wide window and the door.
   const n = Math.max(1, Math.round(w / (u * 0.03)));
-  const ww = u * 0.013;
-  const wh = u * 0.03;
-  ctx.fillStyle = tone.window;
-  ctx.beginPath();
-  for (let i = 0; i < n; i++) ctx.rect(x0 + ((i + 0.5) * w) / n - ww / 2, hz - h + u * 0.03, ww, wh);
-  ctx.fill();
-  // The shopfront: a wide window under a transom and the door, on a dark sill line.
   const sf = hz - u * 0.055;
-  ctx.fillStyle = tone.window;
-  ctx.fillRect(x0 + w * 0.12, sf, w * 0.76, u * 0.04);
+  ctx.fillStyle = window;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) ctx.rect(x0 + ((i + 0.5) * w) / n - u * 0.0065, hz - h + u * 0.03, u * 0.013, u * 0.03);
+  ctx.rect(x0 + w * 0.12, sf, w * 0.76, u * 0.04);
+  ctx.fill();
+  if (quiet) return;
+  // The shadow plane down the wall's right side, and the cornice's lit top.
+  ctx.fillStyle = SHADOW;
+  ctx.fillRect(x0 + w * 0.84, hz - h, w * 0.16, h + 1);
   ctx.fillStyle = tone.trim;
-  ctx.fillRect(x0 + w * 0.12, sf, w * 0.76, u * 0.004);
+  if (shp.cornice) ctx.fillRect(x0 - u * 0.004, hz - h, w + u * 0.008, u * 0.005);
   ctx.fillRect(x0 + w * 0.5 - u * 0.004, sf, u * 0.008, u * 0.04);
-  // An awning: a striped scallop over the shopfront, or bunting swags along the string course.
+  // An awning in broad stripes over the shopfront, or bunting swags along the string course.
   if (shp.awning >= 0) {
     const ay = sf - u * 0.004;
-    ctx.fillStyle = tone.awnings[shp.awning as 0 | 1 | 2];
-    ctx.beginPath();
-    ctx.moveTo(x0 + w * 0.06, ay - u * 0.016);
-    ctx.lineTo(x0 + w * 0.94, ay - u * 0.016);
-    ctx.lineTo(x0 + w * 0.97, ay + u * 0.004);
-    ctx.lineTo(x0 + w * 0.03, ay + u * 0.004);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = tone.trim;
-    ctx.beginPath();
-    const k = Math.max(2, Math.round(w / (u * 0.014)));
-    for (let i = 0; i < k; i += 2) ctx.rect(x0 + w * 0.03 + ((i + 0.5) * w * 0.94) / k - u * 0.003, ay + u * 0.002, u * 0.006, u * 0.006);
-    ctx.fill();
+    const k = Math.max(3, Math.round(w / (u * 0.016)) | 1);
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.fillStyle = pass ? tone.trim : tone.awnings[shp.awning as 0 | 1 | 2];
+      ctx.beginPath();
+      for (let i = pass; i < k; i += 2) {
+        const a = x0 + w * 0.03 + (i * w * 0.94) / k;
+        const b = x0 + w * 0.03 + ((i + 1) * w * 0.94) / k;
+        ctx.moveTo(a + w * 0.03 * (1 - (2 * i) / k), ay - u * 0.016);
+        ctx.lineTo(b + w * 0.03 * (1 - (2 * (i + 1)) / k), ay - u * 0.016);
+        ctx.lineTo(b, ay + u * 0.006);
+        ctx.lineTo(a, ay + u * 0.006);
+        ctx.closePath();
+      }
+      ctx.fill();
+    }
   }
-  // Bunting along the string course between the stories: three swags of red, white and blue.
-  const by = hz - u * 0.068;
-  const swags = Math.max(1, Math.round(w / (u * 0.04)));
-  for (let band = 0; band < 3; band++) {
-    ctx.fillStyle = band === 0 ? tone.red : band === 1 ? tone.white : tone.blue;
-    ctx.beginPath();
-    for (let i = 0; i < swags; i++) swagBand(ctx, x0 + (i * w) / swags, x0 + ((i + 1) * w) / swags, by, u * 0.012, band, 3);
-    ctx.fill();
-  }
+  bunting(ctx, tone, x0, w, hz - u * 0.068, Math.max(1, Math.round(w / (u * 0.04))), u * 0.012);
   // A little flag angled out from the facade.
   const fx = x0 + w * 0.5;
   const fy = hz - h + u * 0.018;
@@ -292,11 +305,19 @@ function shop(ctx: Ctx, s: Scene, tone: Tone, shp: Shop, hz: number): void {
   ctx.fillRect(fx + u * 0.0015, fy - u * 0.012, u * 0.005, u * 0.004);
 }
 
-/** Main Street: the left run, the center block. */
+/** Main Street: the left run, the quiet center block. */
 export function townRow(ctx: Ctx, s: Scene, tone: Tone): void {
   const hz = s.horizonY;
-  for (const shp of LEFT_RUN) shop(ctx, s, tone, shp, hz);
-  for (const shp of CENTER) shop(ctx, s, tone, shp, hz);
+  for (const shp of LEFT_RUN) shop(ctx, s, tone, shp, hz, false);
+  for (const shp of CENTER) shop(ctx, s, tone, shp, hz, true);
+}
+
+/** A gable from x - hw to x + hw at y, peaking `rise` above it, as its own subpath. */
+function gable(ctx: Ctx, x: number, hw: number, y: number, rise: number): void {
+  ctx.moveTo(x - hw, y);
+  ctx.lineTo(x, y - rise);
+  ctx.lineTo(x + hw, y);
+  ctx.closePath();
 }
 
 /** The church: a white clapboard gable with red doors and a round window, the steeple tower, belfry and spire (standing on `line`). */
@@ -308,25 +329,24 @@ export function church(ctx: Ctx, s: Scene, tone: Tone, line: number, whole: bool
   const tx = cx + STEEPLE_X * u;
   const thw = STEEPLE_HW * u;
   if (whole) {
+    const eaves = line - CHURCH_H * u;
     ctx.fillStyle = tone.stone;
     ctx.beginPath();
-    ctx.rect(x - hw, line - CHURCH_H * u, hw * 2, CHURCH_H * u + 1);
+    ctx.rect(x - hw, eaves, hw * 2, CHURCH_H * u + 1);
+    gable(ctx, x, hw + u * 0.006, eaves, u * 0.05);
     ctx.fill();
-    ctx.fillStyle = tone.stoneLit;
-    ctx.beginPath();
-    ctx.moveTo(x - hw - u * 0.006, line - CHURCH_H * u);
-    ctx.lineTo(x, line - (CHURCH_H + 0.05) * u);
-    ctx.lineTo(x + hw + u * 0.006, line - CHURCH_H * u);
-    ctx.closePath();
-    ctx.fill();
+    // The roof's slate edge, the right half of the front in shadow.
     ctx.fillStyle = tone.slate;
     ctx.beginPath();
-    ctx.moveTo(x - hw - u * 0.006, line - CHURCH_H * u);
-    ctx.lineTo(x, line - (CHURCH_H + 0.05) * u);
-    ctx.lineTo(x + hw + u * 0.006, line - CHURCH_H * u);
-    ctx.lineTo(x + hw + u * 0.006, line - (CHURCH_H - 0.008) * u);
-    ctx.lineTo(x, line - (CHURCH_H + 0.042) * u);
-    ctx.lineTo(x - hw - u * 0.006, line - (CHURCH_H - 0.008) * u);
+    gable(ctx, x, hw + u * 0.006, eaves, u * 0.05);
+    gable(ctx, x, hw - u * 0.004, eaves + u * 0.008, u * 0.042);
+    ctx.fill("evenodd");
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.moveTo(x, eaves - u * 0.042);
+    ctx.lineTo(x + hw, eaves + u * 0.008);
+    ctx.lineTo(x + hw, line + 1);
+    ctx.lineTo(x, line + 1);
     ctx.closePath();
     ctx.fill();
     ctx.fillStyle = tone.red;
@@ -337,23 +357,25 @@ export function church(ctx: Ctx, s: Scene, tone: Tone, line: number, whole: bool
     ctx.rect(x - u * 0.045, line - u * 0.075, u * 0.012, u * 0.035);
     ctx.fill();
   }
-  // The tower, a belfry with a louvred opening, and the spire with a tiny cross.
-  ctx.fillStyle = tone.stone;
-  ctx.beginPath();
-  ctx.rect(tx - thw, line - STEEPLE_TOWER * u, thw * 2, STEEPLE_TOWER * u + 1);
-  ctx.fill();
+  // The tower lit on the left and shaded on the right, a belfry, the spire with a tiny cross.
   ctx.fillStyle = tone.stoneLit;
-  ctx.fillRect(tx - thw, line - STEEPLE_TOWER * u, thw * 0.5, STEEPLE_TOWER * u);
+  ctx.fillRect(tx - thw, line - STEEPLE_TOWER * u, thw * 2, STEEPLE_TOWER * u + 1);
+  ctx.fillStyle = tone.stoneShade;
+  ctx.fillRect(tx + thw * 0.1, line - STEEPLE_TOWER * u, thw * 0.9, STEEPLE_TOWER * u + 1);
   ctx.fillStyle = tone.window;
   ctx.fillRect(tx - thw * 0.4, line - (STEEPLE_TOWER - 0.02) * u, thw * 0.8, u * 0.032);
   ctx.fillStyle = tone.slate;
   ctx.beginPath();
-  ctx.moveTo(tx - thw - u * 0.006, line - STEEPLE_TOWER * u);
-  ctx.lineTo(tx, line - STEEPLE_TOP * u);
-  ctx.lineTo(tx + thw + u * 0.006, line - STEEPLE_TOWER * u);
-  ctx.closePath();
+  gable(ctx, tx, thw + u * 0.006, line - STEEPLE_TOWER * u, (STEEPLE_TOP - STEEPLE_TOWER) * u);
   ctx.rect(tx - u * 0.0015, line - STEEPLE_REACH * u, u * 0.003, u * 0.022);
   ctx.rect(tx - u * 0.006, line - (STEEPLE_TOP + 0.014) * u, u * 0.012, u * 0.003);
+  ctx.fill();
+  ctx.fillStyle = SHADOW;
+  ctx.beginPath();
+  ctx.moveTo(tx, line - STEEPLE_TOP * u);
+  ctx.lineTo(tx + thw + u * 0.006, line - STEEPLE_TOWER * u);
+  ctx.lineTo(tx, line - STEEPLE_TOWER * u);
+  ctx.closePath();
   ctx.fill();
 }
 
@@ -374,11 +396,11 @@ export function courthouse(ctx: Ctx, s: Scene, tone: Tone, line: number, whole: 
   const hw = COURT_HW * u;
   const thw = TOWER_HW * u;
   if (whole) {
+    const roof = line - COURT_H * u;
     ctx.fillStyle = tone.stone;
-    ctx.fillRect(x - hw, line - COURT_H * u, hw * 2, COURT_H * u + 1);
-    ctx.fillStyle = tone.stoneLit;
-    ctx.fillRect(x - hw, line - COURT_H * u, hw * 2, u * 0.01);
-    // The windows either wing.
+    ctx.fillRect(x - hw, roof, hw * 2, COURT_H * u + 1);
+    // The windows either wing, the doors in the portico.
+    const pw = hw * 0.62;
     ctx.fillStyle = tone.window;
     ctx.beginPath();
     for (let i = 0; i < 2; i++) {
@@ -388,80 +410,65 @@ export function courthouse(ctx: Ctx, s: Scene, tone: Tone, line: number, whole: 
         ctx.rect(wx, line - u * 0.055, u * 0.012, u * 0.028);
       }
     }
+    ctx.rect(x - u * 0.014, line - u * 0.05, u * 0.028, u * 0.05);
     ctx.fill();
-    // The portico: four columns under a pediment, the doors between them.
-    const pw = hw * 0.62;
-    ctx.fillStyle = tone.window;
-    ctx.fillRect(x - u * 0.014, line - u * 0.05, u * 0.028, u * 0.05);
+    // The portico: four lit columns under a pediment edged in slate.
     ctx.fillStyle = tone.stoneLit;
     ctx.beginPath();
     for (let i = 0; i < 4; i++) ctx.rect(x - pw + ((i + 0.5) * pw * 2) / 4 - u * 0.005, line - (COURT_H - 0.016) * u, u * 0.01, (COURT_H - 0.016) * u);
-    ctx.moveTo(x - pw - u * 0.008, line - (COURT_H - 0.014) * u);
-    ctx.lineTo(x, line - (COURT_H + 0.03) * u);
-    ctx.lineTo(x + pw + u * 0.008, line - (COURT_H - 0.014) * u);
-    ctx.closePath();
+    gable(ctx, x, pw + u * 0.008, line - (COURT_H - 0.014) * u, u * 0.044);
     ctx.fill();
     ctx.fillStyle = tone.slate;
     ctx.beginPath();
-    ctx.moveTo(x - pw - u * 0.008, line - (COURT_H - 0.014) * u);
-    ctx.lineTo(x, line - (COURT_H + 0.03) * u);
-    ctx.lineTo(x + pw + u * 0.008, line - (COURT_H - 0.014) * u);
-    ctx.lineTo(x + pw + u * 0.008, line - (COURT_H - 0.02) * u);
-    ctx.lineTo(x, line - (COURT_H + 0.022) * u);
-    ctx.lineTo(x - pw - u * 0.008, line - (COURT_H - 0.02) * u);
-    ctx.closePath();
-    ctx.fill();
-    // Bunting along the portico's architrave.
-    for (let band = 0; band < 3; band++) {
-      ctx.fillStyle = band === 0 ? tone.red : band === 1 ? tone.white : tone.blue;
-      ctx.beginPath();
-      for (let i = 0; i < 3; i++) swagBand(ctx, x - pw + (i * pw * 2) / 3, x - pw + ((i + 1) * pw * 2) / 3, line - (COURT_H - 0.02) * u, u * 0.012, band, 3);
-      ctx.fill();
-    }
+    gable(ctx, x, pw + u * 0.008, line - (COURT_H - 0.014) * u, u * 0.044);
+    gable(ctx, x, pw - u * 0.004, line - (COURT_H - 0.02) * u, u * 0.042);
+    ctx.fill("evenodd");
+    bunting(ctx, tone, x - pw, pw * 2, line - (COURT_H - 0.02) * u, 3, u * 0.012);
+    ctx.fillStyle = SHADOW;
+    ctx.fillRect(x + hw * 0.72, roof, hw * 0.28, COURT_H * u + 1);
   }
-  // The clock tower: a square stage with the clock, a lit cornice, the drum under the dome.
+  // The clock tower: lit left, shaded right, a cornice, the clock, the drum under the dome.
   const top = line - TOWER_H * u;
-  ctx.fillStyle = tone.stone;
-  ctx.fillRect(x - thw, top, thw * 2, TOWER_H * u + 1);
   ctx.fillStyle = tone.stoneLit;
-  ctx.fillRect(x - thw, top, thw * 0.45, TOWER_H * u);
-  ctx.fillRect(x - thw - u * 0.005, top, thw * 2 + u * 0.01, u * 0.01);
+  ctx.fillRect(x - thw, top, thw * 2, TOWER_H * u + 1);
+  ctx.fillStyle = tone.stoneShade;
+  ctx.fillRect(x + thw * 0.2, top, thw * 0.8, TOWER_H * u + 1);
   ctx.fillStyle = tone.slate;
-  ctx.fillRect(x - thw - u * 0.005, top + u * 0.01, thw * 2 + u * 0.01, u * 0.004);
-  // The clock: a pale face with a dark rim and hands at ten past four, a summer afternoon.
+  ctx.fillRect(x - thw - u * 0.005, top, thw * 2 + u * 0.01, u * 0.012);
+  // The clock: a cream face on a slate rim, hands at ten past four, a summer afternoon.
   const cy = top + u * 0.05;
-  ctx.fillStyle = tone.slate;
   ctx.beginPath();
   circle(ctx, x, cy, u * 0.024);
   ctx.fill();
   ctx.fillStyle = tone.trim;
   ctx.beginPath();
-  circle(ctx, x, cy, u * 0.02);
+  circle(ctx, x, cy, u * 0.019);
   ctx.fill();
   ctx.strokeStyle = tone.slate;
-  ctx.lineWidth = Math.max(1, u * 0.003);
-  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1, u * 0.0035);
+  ctx.lineCap = "butt";
   ctx.beginPath();
   ctx.moveTo(x, cy);
   ctx.lineTo(x + u * 0.011, cy + u * 0.006);
   ctx.moveTo(x, cy);
   ctx.lineTo(x + u * 0.005, cy - u * 0.015);
   ctx.stroke();
-  // The dome on its drum, with a lit left side, and the flagpole on top.
+  // The dome on its drum, lit on the left and shaded on the right, and the flagpole on top.
   const dy = line - (DOME_TOP - DOME_R) * u;
-  ctx.fillStyle = tone.stone;
+  ctx.fillStyle = tone.stoneLit;
   ctx.fillRect(x - thw * 0.8, dy, thw * 1.6, top - dy + 1);
+  ctx.fillStyle = tone.stoneShade;
+  ctx.fillRect(x + thw * 0.2, dy, thw * 0.6, top - dy + 1);
   ctx.fillStyle = tone.slate;
   ctx.beginPath();
   ctx.moveTo(x - DOME_R * u, dy);
   ctx.arc(x, dy, DOME_R * u, Math.PI, 0);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = tone.stoneLit;
+  ctx.fillStyle = SHADOW;
   ctx.beginPath();
-  ctx.moveTo(x - DOME_R * u * 0.9, dy);
-  ctx.arc(x - DOME_R * u * 0.25, dy, DOME_R * u * 0.65, Math.PI, Math.PI * 1.5);
-  ctx.lineTo(x - DOME_R * u * 0.25, dy);
+  ctx.moveTo(x, dy);
+  ctx.arc(x, dy, DOME_R * u, -Math.PI / 2, 0);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = tone.trim;
@@ -500,7 +507,7 @@ function flag(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number): void {
   ctx.fill();
 }
 
-/** The big summer trees in front of the row: a trunk, a shaded canopy with a lit crown. */
+/** The big summer trees in front of the row: a trunk, a flat canopy with a lit crown. Printed soft, as they stand by the tower's column. */
 export function trees(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
   const cx = s.cssW / 2;
@@ -525,70 +532,70 @@ export function trees(ctx: Ctx, s: Scene, tone: Tone): void {
 
 // ---------------------------------------------------------------- the cloud floor
 
-/** Puffs along the floor's top edge, repeating every FLOOR_SPAN of them. */
+/** Lobes along the floor's top edge, repeating every FLOOR_SPAN of them. */
 const FLOOR_SPAN = 9;
 const FLOOR = Array.from({ length: FLOOR_SPAN }, (_, i) => ({ r: 0.05 + hash(i + 6200) * 0.035, dy: hash(i + 6300) * 0.025 }));
 const FLOOR_STEP = 0.085;
-/** Swells down the floor's face: x (fraction of a span), depth under the top (u), radius (u). */
-const SWELLS = [
-  { x: 0.1, d: 0.1, r: 0.05 },
-  { x: 0.45, d: 0.16, r: 0.06 },
-  { x: 0.8, d: 0.09, r: 0.045 },
+/** Below this (u under the floor's top) the floor's face is solid. */
+const FACE = 0.035;
+/**
+ * Lower tiers of the cloud sea piled forward at the sides, each nearer and bigger than the one
+ * above it, down the whole face however tall the floor stands on screen (the column stays plain):
+ * depth of each tier's base under the top (u), its lobes' radius (u), their spacing (u), and how
+ * far out from the center the tier begins (u).
+ */
+const TIERS = [
+  { d: 0.13, r: 0.045, step: 0.1, from: 0.3 },
+  { d: 0.27, r: 0.065, step: 0.135, from: 0.33 },
+  { d: 0.45, r: 0.085, step: 0.17, from: 0.36 },
+  { d: 0.66, r: 0.105, step: 0.21, from: 0.38 },
+  { d: 0.9, r: 0.125, step: 0.25, from: 0.4 },
+  { d: 1.17, r: 0.145, step: 0.29, from: 0.42 },
 ] as const;
-const SWELL_SPAN = 0.5;
-const SWELL_ROWS = 4;
 
 /**
- * The floor of cloud: a line of puffs along its top (lit on top, shaded beneath), solid below,
- * and swells down its face. At the show's finale its tops are warmed by the bursts (tone.ts).
+ * The floor of cloud, printed flat: a scalloped edge of flattened lobes along its top (lit caps
+ * over a lit body, the shade beneath), solid below, and lower tiers of lobes piled up the face at
+ * the sides. At the show's finale its tops are warmed by the bursts (tone.ts).
  */
 export function cloudFloor(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   const u = s.u;
   const step = u * FLOOR_STEP;
   const half = Math.ceil(s.cssW / 2 / step) + 1;
+  const cx = s.cssW / 2;
   for (let pass = 0; pass < 3; pass++) {
     ctx.fillStyle = pass === 0 ? tone.cloudShade : pass === 1 ? tone.floorCloud : tone.floorCap;
     ctx.beginPath();
     for (let j = -half; j <= half; j++) {
-      const x = s.cssW / 2 + j * step;
+      const x = cx + j * step;
       const p = FLOOR[((j % FLOOR_SPAN) + FLOOR_SPAN) % FLOOR_SPAN]!;
       const r = p.r * u;
       const y = top + p.dy * u + r * 0.35;
-      if (pass === 0) circle(ctx, x, y, r);
-      else if (pass === 1) circle(ctx, x - r * 0.06, y - r * 0.12, r * 0.9);
-      else circle(ctx, x - r * 0.25, y - r * 0.42, r * 0.42);
+      if (pass === 0) oval(ctx, x, y, r * 1.2, r);
+      else if (pass === 1) oval(ctx, x - r * 0.05, y - r * 0.16, r * 1.12, r * 0.84);
+      else oval(ctx, x - r * 0.28, y - r * 0.6, r * 0.52, r * 0.24);
     }
-    if (pass === 0) ctx.rect(0, top + u * 0.05, s.cssW, s.cssH - top);
-    if (pass === 1) ctx.rect(0, top + u * 0.035, s.cssW, u * 0.035);
-    ctx.fill();
-  }
-  for (let pass = 0; pass < 2; pass++) {
-    ctx.fillStyle = pass ? tone.floorCap : tone.floorCloud;
-    ctx.globalAlpha = pass ? 0.75 : 0.7;
-    ctx.beginPath();
-    for (let row = 0; row < SWELL_ROWS; row++) {
-      const grow = 1 + row * 0.4;
-      const span = u * SWELL_SPAN * grow;
-      const reps = Math.ceil(s.cssW / 2 / span) + 1;
-      for (let k = -reps; k < reps; k++) {
-        for (const w of SWELLS) {
-          const r = w.r * u * grow;
-          const y = top + (w.d + row * 0.2 * grow) * u + u * 0.05;
-          if (y - r > s.cssH) continue;
-          const x = s.cssW / 2 + (k + w.x + row * 0.37) * span;
-          const rx = r * (pass ? 1.2 : 2.2);
-          const ry = r * (pass ? 0.22 : 0.5);
-          const ex = x - (pass ? r * 0.35 : 0);
-          const ey = y - (pass ? r * 0.2 : 0);
-          ctx.moveTo(ex + rx, ey);
-          ctx.ellipse(ex, ey, rx, ry, 0, 0, Math.PI, true);
-          ctx.closePath();
+    if (pass === 0) ctx.rect(0, top + u * FACE, s.cssW, s.cssH - top);
+    if (pass === 1) ctx.rect(0, top + u * FACE, s.cssW, u * 0.035);
+    // The tiers at the sides: flat-bottomed domes, body then caps.
+    for (const tier of TIERS) {
+      const y = top + tier.d * u;
+      if (pass === 0 || y - tier.r * u > s.cssH) continue;
+      const r = tier.r * u;
+      for (const side of [-1, 1]) {
+        for (let k = 0; ; k++) {
+          const x = cx + side * (tier.from + (k + 0.5) * tier.step) * u;
+          if (x < -r * 1.3 || x > s.cssW + r * 1.3) break;
+          if (pass === 1) {
+            ctx.moveTo(x + r * 1.25, y);
+            ctx.ellipse(x, y, r * 1.25, r, 0, 0, Math.PI, true);
+            ctx.closePath();
+          } else oval(ctx, x - r * 0.35, y - r * 0.62, r * 0.5, r * 0.22);
         }
       }
     }
     ctx.fill();
   }
-  ctx.globalAlpha = 1;
 }
 
 /** The far layer: the cloud bank and the landmarks (always, once they would show), and the town while the land shows. */

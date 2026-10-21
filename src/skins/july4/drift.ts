@@ -7,14 +7,14 @@ import { birdStroke, starPath } from "./shapes";
 import { LOOP, type Tone } from "./tone";
 
 // What drifts past as you climb, in the lane down the right of the screen: a few swifts over
-// the park and a bunch of red, white and blue balloons let go at the start, a bald eagle
+// the park and a bunch of red, cream and blue balloons let go at the start, a bald eagle
 // circling high over the town, a little yellow biplane towing a HAPPY 4TH banner through the
 // afternoon, a stars-and-stripes kite with a ribbon tail in the golden evening, more balloons
 // at dusk, and the show's smoke drifting off through the night. Each thing is anchored at a
 // height in the lane, so it comes down past you as the camera climbs, and it only ever moves
 // gently in place: nothing crosses the tower's column. Things are spaced so they never overlap.
-// Mid-distance, so flat fills and no outline. When the story loops (tone.ts), the lane comes
-// round with it: the same things, a loop higher.
+// Mid-distance, so flat poster inks and no outline. When the story loops (tone.ts), the lane
+// comes round with it: the same things, a loop higher.
 //
 // The left of the sky is the sun's and the moon's (sky.ts): the sun hangs there by day and
 // sets into the cloud floor, the crescent moon comes out in the same place at night, and the
@@ -123,7 +123,7 @@ export function drifters(ctx: Ctx, s: Scene, tone: Tone): void {
 
 // ---------------------------------------------------------------- balloons
 
-/** A bunch of three balloons, red, white and blue, on strings tied to a knot below them. */
+/** A bunch of three flat balloons, red, cream and blue, on strings tied to a knot below them. */
 function balloons(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number): void {
   const u = s.u;
   const r = u * 0.017;
@@ -151,10 +151,6 @@ function balloons(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number): void {
     ctx.lineTo(x + dx + r * 0.12, y + dy + r * 1.08);
     ctx.lineTo(x + dx, y + dy + r * 0.92);
     ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
-    ctx.beginPath();
-    oval(ctx, x + dx - r * 0.3, y + dy - r * 0.42, r * 0.16, r * 0.22, -0.5);
     ctx.fill();
   }
 }

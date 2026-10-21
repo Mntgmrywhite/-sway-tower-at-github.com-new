@@ -1,15 +1,17 @@
 import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { FIREWORK, FIREWORK_LIGHT } from "./colors";
+import { starPath } from "./shapes";
 import { DOME_TOP, landmarkLine, STEEPLE_REACH } from "./far";
 import { moonAt } from "./sky";
 import type { Tone } from "./tone";
 
 // The fireworks show, once night has fallen on the climb (tone.ts): shells go up from behind
-// the cloud floor in the two side lanes and burst in red, white, blue and gold, in four of our
-// own designs: chrysanthemums (a ring of comet petals round a second color's heart),
-// willows (gold trails that droop and twinkle out), tricolor rings (a red ring round a white
-// one round a blue) and glitter shells (a cloud of twinkling sparks). Launchers join in one by
+// the cloud floor in the two side lanes and burst in red, cream, blue and gold, printed flat like
+// poster bursts, in four of our own designs: chrysanthemums (tapered rays radiating out to a ring
+// of heads, little five-point stars of a second ink round the heart), willows (gold rays that
+// droop and twinkle out), tricolor rings (red dots round cream stars round blue dots) and
+// glitter shells (a cloud of twinkling sparks). Launchers join in one by
 // one as the show builds; at the finale a second rank of launchers fires fast and the shells
 // grow to fill both lanes, their light warming the sky and the cloud floor. Deterministic from the scene's
 // clock and hash(): shell n of a launcher goes up at its phase plus n periods. A launcher's
@@ -142,7 +144,6 @@ const FLASH = Array.from({ length: 16 }, (_, i) => {
   const r = i % 2 ? 0.4 : 1;
   return [Math.cos(a) * r, Math.sin(a) * r] as const;
 });
-const HIGHLIGHT = "rgba(255, 255, 255, 0.7)";
 
 function cubicOut(x: number): number {
   const k = 1 - x;
@@ -168,7 +169,7 @@ function shell(ctx: Ctx, s: Scene, l: Launcher, seed: number, local: number, on:
     }
     ctx.fill();
     const e = cubicOut(k);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = FIREWORK[1];
     ctx.beginPath();
     circle(ctx, sx + (bx - sx) * e, launchY + (by - launchY) * e, u * 0.007);
     ctx.fill();
@@ -180,7 +181,7 @@ function shell(ctx: Ctx, s: Scene, l: Launcher, seed: number, local: number, on:
   // The pop: a flat white star at the heart.
   if (k < 0.12) {
     const fr = R * 0.4 * (1 - k / 0.12);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = FIREWORK[1];
     ctx.beginPath();
     ctx.moveTo(bx + FLASH[0]![0] * fr, by + FLASH[0]![1] * fr);
     for (let j = 1; j < FLASH.length; j++) ctx.lineTo(bx + FLASH[j]![0] * fr, by + FLASH[j]![1] * fr);
@@ -193,7 +194,11 @@ function shell(ctx: Ctx, s: Scene, l: Launcher, seed: number, local: number, on:
   ctx.globalAlpha = 1;
 }
 
-/** A chrysanthemum (or, `willow`, a gold willow): comet petals with tapered trails, a heart of the second color, cel highlights. */
+/**
+ * A chrysanthemum (or, `willow`, a gold willow), printed like a poster: flat tapered rays
+ * radiating from the heart out to the heads, the heads in the main ink, and a ring of little
+ * five-point stars of the second ink round the heart.
+ */
 function petals(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number, willow: boolean, color: number, c2: string): void {
   const u = s.u;
   const e = cubicOut(Math.min(1, k * 1.25));
@@ -203,30 +208,32 @@ function petals(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number
   const shrink = k < 0.5 ? 1 : 1 - ((k - 0.5) / 0.5) * 0.8;
   const pr = Math.max(u * 0.003, R * (willow ? 0.055 : 0.07) * shrink);
   const head = willow ? FIREWORK[3] : FIREWORK[color]!;
-  const trail = willow ? FIREWORK_LIGHT[3] : FIREWORK_LIGHT[color]!;
+  const ray = willow ? FIREWORK_LIGHT[3] : FIREWORK_LIGHT[color]!;
   for (let j = 0; j < PETALS; j++) {
     const [dx, dy, sp] = DIRS[j]!;
     HEADS[j * 2] = bx + dx * sp * R * e;
     HEADS[j * 2 + 1] = by + dy * sp * R * e + droop;
   }
+  // Each ray a wedge from its tail (chasing the head out from the heart) to the head's full width.
+  ctx.fillStyle = ray;
   ctx.beginPath();
   for (let j = 0; j < PETALS; j++) {
     const [dx, dy, sp] = DIRS[j]!;
+    const hx = HEADS[j * 2]!;
+    const hy = HEADS[j * 2 + 1]!;
     ctx.moveTo(bx + dx * sp * R * et, by + dy * sp * R * et + droopT);
-    ctx.lineTo(HEADS[j * 2]!, HEADS[j * 2 + 1]!);
+    ctx.lineTo(hx - dy * pr, hy + dx * pr);
+    ctx.lineTo(hx + dy * pr, hy - dx * pr);
+    ctx.closePath();
   }
-  ctx.lineCap = "round";
-  ctx.strokeStyle = trail;
-  ctx.lineWidth = pr * (willow ? 1.4 : 1.1);
-  ctx.stroke();
-  ctx.lineCap = "butt";
+  ctx.fill();
   ctx.fillStyle = head;
   ctx.beginPath();
   for (let j = 0; j < PETALS; j++) circle(ctx, HEADS[j * 2]!, HEADS[j * 2 + 1]!, pr);
   ctx.fill();
   if (willow) {
     // The willow's tips twinkle out.
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = FIREWORK[1];
     ctx.beginPath();
     for (let j = 0; j < PETALS; j += 2) {
       if (Math.sin(s.t * 23 + j * 2.1) < 0.2) continue;
@@ -237,15 +244,11 @@ function petals(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number
   }
   ctx.fillStyle = c2;
   ctx.beginPath();
-  for (const [dx, dy] of HEART_DIRS) circle(ctx, bx + dx * R * e * 0.48, by + dy * R * e * 0.48 + droop * 0.7, pr * 0.85);
-  ctx.fill();
-  ctx.fillStyle = HIGHLIGHT;
-  ctx.beginPath();
-  for (let j = 0; j < PETALS; j++) circle(ctx, HEADS[j * 2]! - pr * 0.3, HEADS[j * 2 + 1]! - pr * 0.3, pr * 0.36);
+  for (const [dx, dy] of HEART_DIRS) starPath(ctx, bx + dx * R * e * 0.48, by + dy * R * e * 0.48 + droop * 0.7, pr * 1.3);
   ctx.fill();
 }
 
-/** A tricolor ring shell: three concentric rings of heads, red outside, white, then blue, drifting down together. */
+/** A tricolor ring shell: three concentric rings drifting down together, red dots outside, cream stars, then blue dots. */
 function rings(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number): void {
   const u = s.u;
   const e = cubicOut(Math.min(1, k * 1.3));
@@ -259,17 +262,13 @@ function rings(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number)
     ctx.beginPath();
     for (let j = 0; j < PETALS; j++) {
       const [dx, dy] = DIRS[j]!;
-      circle(ctx, bx + dx * rr, by + dy * rr * squash + droop, pr * (1 - ring * 0.15));
+      const x = bx + dx * rr;
+      const y = by + dy * rr * squash + droop;
+      if (ring === 1) starPath(ctx, x, y, pr * 1.35);
+      else circle(ctx, x, y, pr * (1 - ring * 0.15));
     }
     ctx.fill();
   }
-  ctx.fillStyle = HIGHLIGHT;
-  ctx.beginPath();
-  for (let j = 0; j < PETALS; j++) {
-    const [dx, dy] = DIRS[j]!;
-    circle(ctx, bx + dx * R * e - pr * 0.3, by + dy * R * e * squash + droop - pr * 0.3, pr * 0.34);
-  }
-  ctx.fill();
 }
 
 /** A glitter shell: a cloud of sparks that spread, twinkle and sink. */
@@ -280,7 +279,7 @@ function glitter(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: numbe
   const pr = Math.max(u * 0.0025, R * 0.045);
   const frame = Math.floor(s.t * 20);
   for (let pass = 0; pass < 2; pass++) {
-    ctx.fillStyle = pass ? "#ffffff" : c1;
+    ctx.fillStyle = pass ? FIREWORK[1] : c1;
     ctx.beginPath();
     for (let j = 0; j < SPARKS; j++) {
       const [dx, dy, ph] = SPARK[j]!;
