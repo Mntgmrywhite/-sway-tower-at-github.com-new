@@ -3,9 +3,19 @@ import { circle, type Ctx } from "../../base/draw";
 // Shapes shared by the scenery: rounded blocks, hearts, petals, round-headed arches, stylized
 // roses, diamonds, heart-shaped leaves, sparkles, and the stylized Art Nouveau cloud. Paths only
 // (each starts its own subpath, so several can share one fill), or a fill with the caller's
-// colors. Nothing here allocates.
+// colors; and a dash pattern for the rows of windows, balusters and bulbs drawn as dashed
+// strokes. Nothing here allocates.
 
 const TAU = Math.PI * 2;
+
+/** A scratch dash pattern, [on, off], for `setLineDash` (the canvas copies it), so a frame allocates none; and none. */
+const DASH = [0, 0];
+export function dashes(on: number, off: number): number[] {
+  DASH[0] = on;
+  DASH[1] = off;
+  return DASH;
+}
+export const NO_DASH: number[] = [];
 
 /** A rounded rectangle as its own subpath (no beginPath, so several can share one fill). */
 export function block(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {

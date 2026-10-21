@@ -3,7 +3,7 @@ import type { Scene } from "../skin";
 import { shops } from "./boulevard";
 import { couple } from "./couple";
 import { drawDrifter, eachVisible } from "./drift";
-import { fairHill, floorTop } from "./far";
+import { floorTop, latticeTower, wheel } from "./far";
 import { floatingIn } from "./cupid";
 import { cherubColumn, cherubShow, plazaProps, pool, roseBeds } from "./garden";
 import { moon, sun } from "./sky";
@@ -16,8 +16,8 @@ import { waterway } from "./water";
 // virtual screen is painted at every height (loop.test.ts), the lanes keep clear of its sides
 // (drift.test.ts), and here: nothing on the land, the plaza or in the sky is cut off by its
 // sides, at the start (with the cherub's whole story, his balloon floating in included) and all
-// the way up through a turn of the loop. (The far scenery, the hills and the cloud bank, runs
-// off the sides on purpose, and the cloud floor spans the screen.)
+// the way up through a turn of the loop. (The far city's rows run off the sides on purpose, and
+// the cloud floor spans the screen.)
 
 const ZOOMS = [0.6, 0.8] as const;
 const LEVELS = [0, 6, 14, 22, 30, 50, 80, LOOP_START, LOOP_START + 30, LOOP_START + LOOP - 10] as const;
@@ -34,7 +34,8 @@ describe("valentine's zoomed out", () => {
         const draws: [string, (ctx: CanvasRenderingContext2D) => void][] = [
           ["sun", (ctx) => sun(ctx, s, tone, floorTop(s, level(s)))],
           ["moon", (ctx) => moon(ctx, s, tone)],
-          ["fair hill", (ctx) => fairHill(ctx, s, tone)],
+          ["lattice tower", (ctx) => latticeTower(ctx, s, tone)],
+          ["wheel", (ctx) => wheel(ctx, s, tone)],
           ["boulevard", (ctx) => shops(ctx, s, tone)],
           ["couple", (ctx) => couple(ctx, s, tone)],
           ["waterway", (ctx) => waterway(ctx, s, tone)],

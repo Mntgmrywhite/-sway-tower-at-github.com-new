@@ -8,7 +8,7 @@ import { LOOP, LOOP_START, toneAtLevel, toneOf } from "./tone";
 // whole backdrop is rendered at several moments, from the start to high in the night and on
 // round the story's loop, and every pixel that changes over time must lie outside the tower's
 // column above its floor line (the cherub and his balloon, the burst, the couple, the swans, the
-// Ferris wheel, the lane's petals, balloons, plane and doves, the stars' twinkle all stay clear;
+// Ferris wheel, the lattice tower's lamps, the lane's petals, balloons, plane and doves, the stars' twinkle all stay clear;
 // the water's glints keep below the floor line). The scenery around the tower is the only thing
 // these frames differ in.
 
@@ -61,8 +61,9 @@ describe("valentine's calm", () => {
     expect(tone(0).lights).toBe(0);
     expect(tone(0).stars).toBe(0);
     expect(tone(30).lights).toBeGreaterThan(0.5);
-    expect(tone(30).sunSet).toBeGreaterThan(0.5);
-    expect(tone(40).sunSet).toBe(1);
+    // The sun is setting once the far city has gone into the mist and the cloud sea has risen (far.ts), and is gone by nightfall.
+    expect(tone(30).sunSet).toBeGreaterThan(0.1);
+    expect(tone(46).sunSet).toBe(1);
     expect(tone(62).stars).toBeGreaterThan(0.9);
     expect(tone(62).moon).toBeGreaterThan(0.9);
     expect(tone(62).lights).toBe(1);

@@ -32,9 +32,15 @@ function step(a: Tone, b: Tone): number {
       d = Math.max(d, Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]));
     } else if (Array.isArray(x) && Array.isArray(y)) {
       for (let i = 0; i < x.length; i++) {
-        const p = rgb(x[i]!);
-        const q = rgb(y[i]!);
-        d = Math.max(d, Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]));
+        const xi = x[i]!;
+        const yi = y[i]!;
+        // (A list of colors, or of the far city's rows, each a set of colors.)
+        const pairs: [string, string][] = typeof xi === "string" && typeof yi === "string" ? [[xi, yi]] : Object.keys(xi).map((k) => [(xi as unknown as Record<string, string>)[k]!, (yi as unknown as Record<string, string>)[k]!]);
+        for (const [a, b] of pairs) {
+          const p = rgb(a);
+          const q = rgb(b);
+          d = Math.max(d, Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]));
+        }
       }
     }
   }
@@ -132,7 +138,7 @@ describe("valentine's loop on screen", () => {
     }
   }, 60_000);
 
-  it("the cloud floor settles before the loop starts, with the boulevard and the wheel standing out of it", () => {
+  it("the cloud floor settles before the loop starts, with the boulevard, the lattice tower and the wheel standing out of it", () => {
     expect(FLOOR_SETTLED).toBeLessThanOrEqual(LOOP_START);
     for (const [W, H] of SIZES) {
       for (let lvl = LOOP_START; lvl < LOOP_START + LOOP * 2; lvl += 9) {

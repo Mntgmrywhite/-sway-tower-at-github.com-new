@@ -7,8 +7,8 @@ import type { Tone } from "./tone";
 
 // The canal, in the right lane: a basin of water that comes out from under the boulevard's
 // pavement between two stone quays, widening toward you, and ends at a quay wall on the lawn.
-// Over it the kissing bridge, a little covered footbridge: a slate bell roof with a heart of rose
-// glass in its face, cream board walls with three little arched windows, on a stone arch. In front of it two swans
+// Over it the kissing bridge, a little covered footbridge: a zinc bell roof with a heart of rose
+// glass in its face, limestone walls with three little arched windows, on a stone arch. In front of it two swans
 // glide together (swansPose): they set out from either bank, meet in the middle and curve their
 // necks into a heart, and hold it, bobbing on the water; then they straighten up, turn away from
 // each other a moment (close together: out by the banks, where the canal narrows toward its far
@@ -149,27 +149,27 @@ export function bridge(ctx: Ctx, s: Scene, tone: Tone): void {
   const hx0 = x - HOUSE_HW * u;
   const hx1 = x + HOUSE_HW * u;
   const top = hz + HOUSE_TOP * u;
-  ctx.fillStyle = tone.wallCream;
+  ctx.fillStyle = tone.house;
   ctx.fillRect(hx0, top, hx1 - hx0, deck - top);
-  ctx.fillStyle = tone.wallPaleLine;
+  ctx.fillStyle = tone.houseShade;
   for (let i = 1; i < 6; i++) ctx.fillRect(hx0 + ((hx1 - hx0) * i) / 6 - u * 0.0008, top + u * 0.002, u * 0.0016, deck - top - u * 0.004);
   ctx.fillStyle = tone.windowLit;
   ctx.beginPath();
   for (let i = 0; i < 3; i++) archPath(ctx, x + (i - 1) * u * 0.034 - u * 0.008, top + u * 0.022, u * 0.016, u * 0.016);
   ctx.fill();
-  ctx.fillStyle = tone.roof;
+  ctx.fillStyle = tone.zinc;
   ctx.fillRect(hx0, deck - u * 0.004, hx1 - hx0, u * 0.006);
   // The roof: a bell curve with deep eaves rising to a finial, a fine lit edge, a rose glass heart in its face.
   const ridge = hz + RIDGE * u;
   const ew = EAVES_HW * u;
-  ctx.fillStyle = tone.roof;
+  ctx.fillStyle = tone.zinc;
   ctx.beginPath();
   ctx.moveTo(x - ew, top + u * 0.004);
   ctx.bezierCurveTo(x - ew * 0.55, top + u * 0.002, x - ew * 0.3, ridge, x, ridge);
   ctx.bezierCurveTo(x + ew * 0.3, ridge, x + ew * 0.55, top + u * 0.002, x + ew, top + u * 0.004);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = tone.roofLit;
+  ctx.strokeStyle = tone.zincLit;
   ctx.lineWidth = Math.max(0.8, u * 0.0025);
   ctx.beginPath();
   ctx.moveTo(x - ew * 0.92, top + u * 0.002);

@@ -1,22 +1,24 @@
 import { alpha, mix } from "../../base/draw";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
+import { AWNING, AWNING_CREAM, BALCONY, BASILICA, BASILICA_SHADE, BRONZE, CANAL, CANAL_LIT, CONTOUR, FAR_HILL, GILT, GLASS, GLOW, GONDOLA, KERB, LIMESTONE, PAVEMENT, POT, QUAY, ROADWAY, ROSE_WOOD, ROSE_WOOD_LIT, SAGE_WOOD, SAGE_WOOD_LIT, TOWER_LAMP, TREE, TRUNK, WHEEL_HUB, WHEEL_IRON, ZINC } from "./colors";
 
 // Height tells the story: the light changes with the camera's altitude, in tower levels, the way
-// the hours change on a run of Art Nouveau panels. A golden afternoon over the boulevard in the
-// muted, elegant colors of an 1890s Paris poster (a mauve sky warming to gold at the horizon,
-// dusty rose, sage and parchment); up into the dreamier Rococo pastels of the climb: a rose-and-
-// lavender dusk as the sun sinks into the cloud sea gathering below you and the string lights and
+// the hours change on a run of Art Nouveau panels. A golden afternoon over Paris, warm and rich
+// (a cornflower sky warming through rose to a honey glow over the rooftops, honey limestone and
+// blue-grey zinc, the distance lilac); up into the dreamier Rococo pastels of the climb: a rose-
+// and-lavender dusk as the evening mist takes the far city, the cloud sea gathers below you and
+// the sun sinks into it, and the windows, the string lights, the lattice tower's lamps and the
 // stained glass come on; then a violet starry night with a crescent moon where the sun set and
-// the Ferris wheel lit far off. Past that the story loops for as long as you can climb: the
-// night holds a while, a blush-and-mint dawn brings the sun back up out of the clouds and puts the
-// lights out, and from the golden afternoon on the day runs exactly as the first one did (dusk,
-// the lights, night) into the night again. Every color that changes with the light is
-// precomputed here in half-level steps, so drawing never mixes colors per frame. What moves or
-// fades with the light (the sun setting and rising, the moon and the stars) is worked out for the
-// exact level instead (`skyLightAt`): a half-level step in the sun's path is a jump of a dozen
-// pixels and more (the owner saw it "shift jarringly" as the clouds came up), so the sun glides
-// down and up with the camera.
+// the block, the tower and the wheel lit far below. Past that the story loops for as long as you
+// can climb: the night holds a while, a blush-and-mint dawn brings the sun back up out of the
+// clouds and puts the lights out, and from the golden afternoon on the day runs exactly as the
+// first one did (dusk, the lights, night) into the night again. Every color that changes with
+// the light is precomputed here in half-level steps, so drawing never mixes colors per frame.
+// What moves or fades with the light (the sun setting and rising, the moon and the stars) is
+// worked out for the exact level instead (`skyLightAt`): a half-level step in the sun's path is a
+// jump of a dozen pixels and more (the owner saw it "shift jarringly" as the clouds came up), so
+// the sun glides down and up with the camera.
 
 /** Where each stage peaks, in levels (camera altitude / BLOCK_HEIGHT). */
 const AFTERNOON = 14;
@@ -83,11 +85,11 @@ interface Key {
 
 const NIGHT_SHADOW = "#1c1448";
 
-/** The afternoon: a soft mauve sky warming through apricot to a honey-gold glow at the horizon (golden, still pastel). */
+/** The afternoon: a clear cornflower sky warming through rose to a honey-gold glow over the rooftops, the distance lilac. */
 const GOLDEN: Omit<Key, "at"> = {
-  sky: ["#c7a5c3", "#efc6b2", "#f6d08f", "#fae3b6"],
-  cloud: ["#d9adbd", "#f6dcdc", "#fff4ea"],
-  haze: "#ecd2c8",
+  sky: ["#7896e6", "#eaa6c2", "#ffbe72", "#ffd98f"],
+  cloud: ["#dfa8bf", "#fbd8da", "#fff3e8"],
+  haze: "#b9a6d6",
   dark: 0,
 };
 
@@ -130,6 +132,22 @@ const DAWN_KEYS: Key[] = [
   { at: AFTERNOON, ...GOLDEN },
 ];
 
+/** One row of the far city's colors in the light of the hour. */
+export interface RowTone {
+  stoneLit: string;
+  stone: string;
+  shade: string;
+  zincLit: string;
+  zinc: string;
+  zincShade: string;
+  glass: string;
+  /** The glass behind the tower, a shade off the stone. */
+  quietGlass: string;
+  lit: string;
+  pot: string;
+  balcony: string;
+}
+
 /** Everything that changes with the light, at one altitude. */
 export interface Tone {
   sky: [string, string, string, string];
@@ -152,10 +170,33 @@ export interface Tone {
   bloomDeep: string;
   bud: string;
   vineLine: string;
-  /** The far hills, faded lavender, the nearer ones and their lit slopes. */
+  /**
+   * The far city, row by row from the farthest, each faded toward the haze by its depth (far.ts):
+   * its limestone (sunlit side, body, shade), its zinc roofs (lit slope, body, shade), the window
+   * glass (blue by day) and the windows lit at dusk, the chimney pots and the iron balconies.
+   */
+  rows: RowTone[];
+  /** The far hill on the horizon, and the white basilica on it (lit and shaded). */
   hillFar: string;
-  hill: string;
-  hillLit: string;
+  basilica: string;
+  basilicaShade: string;
+  /** The gilded dome (lit, body, shade) and the stone of its drum (body and shade). */
+  giltLit: string;
+  gilt: string;
+  giltShade: string;
+  drum: string;
+  drumShade: string;
+  /** The lattice tower's bronze (lit edges, body, shade) and its lamps, lit at dusk. */
+  bronzeLit: string;
+  bronze: string;
+  bronzeShade: string;
+  towerLamp: string;
+  /** The avenue: its roadway, and its round trees (lit, body, shade) on their trunks. */
+  road: string;
+  treeLit: string;
+  tree: string;
+  treeShade: string;
+  trunk: string;
   /** The Ferris wheel's frame, its gondolas, and the bulbs along its spokes once lit. */
   wheel: string;
   gondola: string;
@@ -170,14 +211,36 @@ export interface Tone {
   stoneLit: string;
   stoneShade: string;
   swan: string;
-  /** The facades: dusty rose, parchment, sage, and the quiet pale one behind the tower (and its windows and oculus); their slate roofs (and lit edge). */
-  wallRose: string;
-  wallCream: string;
-  wallSage: string;
-  wallPale: string;
-  wallPaleLine: string;
-  roof: string;
-  roofLit: string;
+  /**
+   * The boulevard's Haussmann fronts (boulevard.ts): their limestone (sunlit, body, shade), the
+   * zinc mansards (lit slope, body, shade), the window glass by day, the iron balconies, the
+   * chimney pots, and the fine contour round them; the quiet front behind the tower, a shade off
+   * its own stone (body, its ledges and window surrounds, its carved lines, its windows, its
+   * contour).
+   */
+  houseLit: string;
+  house: string;
+  houseShade: string;
+  zincLit: string;
+  zinc: string;
+  zincShade: string;
+  windowGlass: string;
+  balcony: string;
+  pot: string;
+  line: string;
+  quiet: string;
+  quietLit: string;
+  quietLine: string;
+  quietGlass: string;
+  quietEdge: string;
+  quietRoof: string;
+  /** The shopfronts' painted woodwork: the chocolatier's rose (lit, body), the café's sage (lit, body); the awning's two stripes. */
+  roseWoodLit: string;
+  roseWood: string;
+  sageWoodLit: string;
+  sageWood: string;
+  awning: string;
+  awning2: string;
   /** Guimard's green ironwork far off: the stall's arch, the café's brackets, the lamp. */
   iron: string;
   /** Stained glass: rose, amber and mint panes (glowing once the lights are on) and the leading between them. */
@@ -276,11 +339,18 @@ function keyIn(keys: Key[], lvl: number): Key {
   return keys[0]!;
 }
 
-/** How faded each depth is: the fronts either side, the quiet one behind the tower, the far fair, the hills. */
-const SHOP = 0.2;
-const QUIET = 0.5;
-const FAR = 0.42;
-const HILLS = 0.58;
+/**
+ * How faded each depth is: the boulevard's fronts, the Ferris wheel, the far city's rows (far to
+ * near), the far hill, the dome, the lattice tower, the avenue, the canal and its bridge.
+ */
+const SHOP = 0.12;
+const FAR = 0.3;
+const ROWS = [0.46, 0.28, 0.14] as const;
+const HILL = 0.78;
+const DOME = 0.36;
+const TOWER = 0.46;
+const AVENUE = 0.2;
+const WATERWAY = 0.2;
 
 /** What the light does, apart from its colors. */
 export interface Light {
@@ -302,8 +372,8 @@ function toneFrom(k: Key, l: Light): Tone {
     cloud: k.cloud[1],
     cloudLight: k.cloud[2],
     cloudLine: mix(k.cloud[0], "#7a4a78", 0.32),
-    paneRose: alpha(mix("#e0708e", NIGHT_SHADOW, k.dark * 0.4), 0.3),
-    paneMint: alpha(mix("#7cc4a4", NIGHT_SHADOW, k.dark * 0.4), 0.3),
+    paneRose: alpha(mix("#e2577e", NIGHT_SHADOW, k.dark * 0.4), 0.48),
+    paneMint: alpha(mix("#5fbf98", NIGHT_SHADOW, k.dark * 0.4), 0.46),
     rule: framed("#8c5a80", k, 0.25),
     vine: framed("#6f8f62", k, 0.3),
     vineLeaf: framed("#87a677", k, 0.32),
@@ -311,27 +381,69 @@ function toneFrom(k: Key, l: Light): Tone {
     bloomDeep: framed("#b9506f", k, 0.22),
     bud: framed("#fbead2", k, 0.2),
     vineLine: framed("#6a3558", k, 0.3),
-    hillFar: fade("#c6a4d8", k, 0.66),
-    hill: fade("#a983c4", k, HILLS),
-    hillLit: fade("#cdb0de", k, HILLS),
-    wheel: fade("#7d5c9c", k, FAR),
-    gondola: fade("#e8738f", k, FAR),
-    wheelLit: lit(fade("#8c6aa8", k, FAR), "#ffe08a"),
-    pave: fade("#e3cdbd", k, SHOP),
-    pave2: fade("#cfb3a4", k, SHOP),
-    canal: fade("#7fc3cf", k, 0.3),
-    canalLit: fade("#d4f0ee", k, 0.3),
-    stone: fade("#d8c4c8", k, 0.3),
-    stoneLit: fade("#f3e6e6", k, 0.3),
-    stoneShade: fade("#a88a98", k, 0.3),
+    rows: ROWS.map((d) => ({
+      stoneLit: fade(LIMESTONE.light, k, d),
+      stone: fade(LIMESTONE.body, k, d),
+      shade: fade(LIMESTONE.shade, k, d),
+      zincLit: fade(ZINC.light, k, d),
+      zinc: fade(ZINC.body, k, d),
+      zincShade: fade(ZINC.shade, k, d),
+      glass: fade(GLASS, k, d),
+      quietGlass: fade(mix(LIMESTONE.body, GLASS, 0.32), k, d),
+      lit: lit(fade(GLASS, k, d), mix(GLOW, k.haze, d * 0.4)),
+      pot: fade(POT, k, d),
+      balcony: fade(BALCONY, k, d),
+    })),
+    hillFar: fade(FAR_HILL, k, HILL),
+    basilica: fade(BASILICA, k, HILL - 0.1),
+    basilicaShade: fade(BASILICA_SHADE, k, HILL - 0.1),
+    giltLit: fade(GILT.light, k, DOME),
+    gilt: fade(GILT.body, k, DOME),
+    giltShade: fade(GILT.shade, k, DOME),
+    drum: fade(LIMESTONE.body, k, DOME),
+    drumShade: fade(LIMESTONE.shade, k, DOME),
+    bronzeLit: fade(BRONZE.light, k, TOWER),
+    bronze: fade(BRONZE.body, k, TOWER),
+    bronzeShade: fade(BRONZE.shade, k, TOWER),
+    towerLamp: lit(fade(BRONZE.light, k, TOWER), TOWER_LAMP),
+    road: fade(ROADWAY, k, AVENUE),
+    treeLit: fade(TREE.light, k, AVENUE),
+    tree: fade(TREE.body, k, AVENUE),
+    treeShade: fade(TREE.shade, k, AVENUE),
+    trunk: fade(TRUNK, k, AVENUE),
+    wheel: fade(WHEEL_IRON, k, FAR),
+    gondola: fade(GONDOLA, k, FAR),
+    wheelLit: lit(fade(WHEEL_HUB, k, FAR), TOWER_LAMP),
+    pave: fade(PAVEMENT, k, SHOP),
+    pave2: fade(KERB, k, SHOP),
+    canal: fade(CANAL, k, WATERWAY),
+    canalLit: fade(CANAL_LIT, k, WATERWAY),
+    stone: fade(QUAY.body, k, WATERWAY),
+    stoneLit: fade(QUAY.light, k, WATERWAY),
+    stoneShade: fade(QUAY.shade, k, WATERWAY),
     swan: mix(mix("#ffffff", "#ffd9b0", warm * 0.5), NIGHT_SHADOW, k.dark * 0.45),
-    wallRose: fade("#ecc0c4", k, SHOP),
-    wallCream: fade("#f7e6cc", k, SHOP),
-    wallSage: fade("#c9d8bc", k, SHOP),
-    wallPale: fade("#ead2cf", k, QUIET),
-    wallPaleLine: fade("#d6b4b6", k, QUIET),
-    roof: fade("#7a5a7c", k, SHOP),
-    roofLit: fade("#a888a6", k, SHOP),
+    houseLit: fade(LIMESTONE.light, k, SHOP),
+    house: fade(LIMESTONE.body, k, SHOP),
+    houseShade: fade(LIMESTONE.shade, k, SHOP),
+    zincLit: fade(ZINC.light, k, SHOP),
+    zinc: fade(ZINC.body, k, SHOP),
+    zincShade: fade(ZINC.shade, k, SHOP),
+    windowGlass: fade(GLASS, k, SHOP),
+    balcony: fade(BALCONY, k, SHOP),
+    pot: fade(POT, k, SHOP),
+    line: fade(CONTOUR, k, SHOP),
+    quiet: fade(LIMESTONE.body, k, SHOP),
+    quietLit: fade(mix(LIMESTONE.body, LIMESTONE.light, 0.25), k, SHOP),
+    quietLine: fade(mix(LIMESTONE.body, LIMESTONE.shade, 0.5), k, SHOP),
+    quietGlass: fade(mix(LIMESTONE.body, GLASS, 0.32), k, SHOP),
+    quietEdge: fade(mix(LIMESTONE.shade, CONTOUR, 0.3), k, SHOP),
+    quietRoof: fade(mix(ZINC.body, LIMESTONE.body, 0.3), k, SHOP),
+    roseWoodLit: fade(ROSE_WOOD_LIT, k, SHOP),
+    roseWood: fade(ROSE_WOOD, k, SHOP),
+    sageWoodLit: fade(SAGE_WOOD_LIT, k, SHOP),
+    sageWood: fade(SAGE_WOOD, k, SHOP),
+    awning: fade(AWNING, k, SHOP),
+    awning2: fade(AWNING_CREAM, k, SHOP),
     iron: fade("#4f7458", k, SHOP),
     glassRose: glass("#e58aa4", "#ffb0c6"),
     glassAmber: glass("#e9b86a", "#ffd890"),
@@ -340,7 +452,7 @@ function toneFrom(k: Key, l: Light): Tone {
     canopy: fade("#94c7ad", k, SHOP),
     canopy2: fade("#fbf0dc", k, SHOP),
     door: fade("#8a4a5e", k, SHOP),
-    windowLit: lit(fade("#8c7cb0", k, SHOP), "#ffd980"),
+    windowLit: lit(fade(GLASS, k, SHOP), GLOW),
     sign: fade("#fff3e4", k, SHOP),
     rose: fade("#e0405a", k, SHOP),
     tulipY: fade("#ffd23f", k, SHOP),
@@ -385,11 +497,19 @@ function newLight(): Light {
   return { stars: 0, moon: 0, sunSet: 0, warm: 0, lights: 0 };
 }
 
+/**
+ * The sun sets from here to there (levels): only once the far city has gone into the mist and
+ * the cloud sea has risen to the boulevard's foot (far.ts: by DAY_HIGH), so as it goes down only
+ * the cloud sea is ever in front of it.
+ */
+const SUN_FROM = DUSK - 6;
+const SUN_TO = DUSK + 14;
+
 /** What the light does on the first day at a level (its night holds past NIGHT), into `out`. */
 function dayLight(lvl: number, out: Light): Light {
   out.stars = smooth(DUSK + 4, NIGHT - 4, lvl);
-  out.moon = smooth(DUSK + 3, NIGHT - 8, lvl);
-  out.sunSet = smooth(DUSK - 15, DUSK + 6, lvl);
+  out.moon = smooth(DUSK + 6, NIGHT - 6, lvl);
+  out.sunSet = smooth(SUN_FROM, SUN_TO, lvl);
   out.warm = smooth(AFTERNOON, DUSK - 4, lvl);
   out.lights = smooth(DUSK - 10, DUSK + 6, lvl);
   return out;

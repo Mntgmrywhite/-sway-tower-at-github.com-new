@@ -15,7 +15,7 @@ import type { Tone } from "./tone";
 //
 // It belongs to the sky: painted after the sky and the stars and before everything else, so the
 // sun and the moon sit in front of it like medallions set in the frame, whatever drifts down the
-// lane passes in front of it, and the cloud bank, the land and the cloud sea stand in front of
+// lane passes in front of it, and the city, the land and the cloud sea stand in front of
 // its foot (frame.test.ts: never over the sun or the moon). It keeps to the side lanes, outside
 // the playfield the slider sweeps, so well clear of the tower's column (on a phone it fills most
 // of each lane), and it never moves but with the camera. Drawn by the dozen every frame, so it is

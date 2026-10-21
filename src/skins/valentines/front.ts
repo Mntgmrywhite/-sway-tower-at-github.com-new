@@ -1,8 +1,8 @@
 import { hash, ink, inkedLine, oval, type Ctx } from "../../base/draw";
 import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
-import { BRASS, CONTOUR, IRON, LOCKS, MARBLE } from "./colors";
-import { inkW, paving } from "./garden";
+import { BRASS, CONTOUR, IRON, LOCKS, MARBLE, TERRACOTTA, TERRACOTTA_JOINT, TERRACOTTA_ROSE } from "./colors";
+import { inkW, paving, type Mosaic } from "./garden";
 import { block, heartPath } from "./shapes";
 
 // The near edge we look over: the love-lock railing along the plaza's front, in Guimard's green
@@ -19,6 +19,8 @@ import { block, heartPath } from "./shapes";
 
 /** The paving's scales in front of the railing (u): nearer, so bigger than the plaza's. */
 const NEAR_SCALE = 0.066;
+/** Its mosaic, deeper than the plaza's: terracotta and rose, with darker joints. */
+const NEAR_MOSAIC: Mosaic = { body: TERRACOTTA, rose: TERRACOTTA_ROSE, joint: TERRACOTTA_JOINT };
 /** How far the top rail stands above the base band's top edge (u). */
 const RAIL_UP = 0.07;
 /** Half the gateway's width (u; "tap to drop" is about 0.29 u wide), and the posts. */
@@ -233,7 +235,7 @@ export function front(ctx: Ctx, s: Scene): void {
   const curbTop = band - u * 0.008;
   const foot = railFoot(s);
   // The pavers in front, from the curb down (over the base band's grass and tiles).
-  paving(ctx, s, foot - u * 0.002, s.cssH, false, NEAR_SCALE);
+  paving(ctx, s, foot - u * 0.002, s.cssH, { scale: NEAR_SCALE, look: NEAR_MOSAIC });
   // The marble curb the railing stands on, right across, lit along its top.
   ctx.beginPath();
   ctx.rect(-1, curbTop, s.cssW + 2, foot - curbTop);

@@ -1,6 +1,6 @@
 import { circle, hash, ink, inkedLine, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { BOX, CARVING, CHOCOLATE, CREAM, FOAM, CONTOUR, JOINT, LAWN, LAWN_FAR, LEAF, MARBLE, PAVING, PETAL, PETAL_PALE, RIBBON, ROSE, ROSE_PINK, WATER, WATER_LIT } from "./colors";
+import { BOX, CARVING, CHOCOLATE, CREAM, FOAM, CONTOUR, JOINT, LAWN, LAWN_FAR, LEAF, MARBLE, NICHE, PAVING, PAVING_ROSE, PETAL, PETAL_PALE, REFLECTION, RIBBON, ROSE, ROSE_PINK, WATER, WATER_LIT } from "./colors";
 import { cherub, type CherubPart } from "./cupid";
 import { landLine } from "./far";
 import { block, heartPath, petalPath, roseHeart, rosette } from "./shapes";
@@ -42,7 +42,9 @@ export const POINT = 0.165;
 const NOTCH = 0.036;
 /** The pedestal under the tower: its drum's half width and depth into the pool, and its top slab. */
 const DRUM_HW = 0.22;
-const DRUM_DEPTH = 0.1;
+/** The drum's foot in the water (u below the floor line): at its sides, and at its middle, where its round base comes nearest. */
+const FOOT_EDGE = 0.09;
+const FOOT_MID = 0.104;
 const SLAB_HW = 0.24;
 const SLAB_UP = 0;
 const SLAB_H = 0.02;
@@ -180,20 +182,42 @@ export function cherubColumn(ctx: Ctx, s: Scene): void {
   column(ctx, s, s.cssW / 2 + PLINTH_X * u, inkW(s));
 }
 
-/** The pool with its water, petals and ripples, the marble rim, and the pedestal under the tower. */
+/**
+ * The pool, back to front, so every part of it keeps one depth (the owner once saw the tower's
+ * base behind the back rim and in front of the water at once): the water with its petals and
+ * ripples and the pedestal's reflection, the marble rim all round it, then the pedestal standing
+ * in the water in front of the rim's back half, its foot ringed by a ripple. The rim's front half
+ * lies nearer than the pedestal but never meets it, water showing between (layout.test.ts), so it
+ * is drawn with the back half.
+ */
 export function pool(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  if (s.groundY - u * 0.05 > s.cssH) return;
+  water(ctx, s);
+  rim(ctx, s, false);
+  pedestal(ctx, s);
+}
+
+/** The water in the heart-shaped pool: its little whiplash ripples winking, a few bubbles, petals afloat. */
+function water(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const cx = s.cssW / 2;
   const gy = s.groundY;
-  if (gy - u * 0.05 > s.cssH) return;
-  const lw = inkW(s);
-  // The water.
   ctx.beginPath();
   poolPath(ctx, cx, gy, u);
   ctx.fillStyle = WATER;
   ctx.fill();
   ctx.save();
   ctx.clip();
+  // The pedestal's reflection, under its foot.
+  ctx.fillStyle = REFLECTION;
+  ctx.beginPath();
+  ctx.moveTo(cx - DRUM_HW * u, gy + FOOT_EDGE * u);
+  ctx.quadraticCurveTo(cx, gy + (FOOT_MID * 2 - FOOT_EDGE) * u, cx + DRUM_HW * u, gy + FOOT_EDGE * u);
+  ctx.lineTo(cx + DRUM_HW * u * 0.9, gy + (FOOT_EDGE + 0.022) * u);
+  ctx.quadraticCurveTo(cx, gy + (FOOT_MID * 2 - FOOT_EDGE + 0.024) * u, cx - DRUM_HW * u * 0.9, gy + (FOOT_EDGE + 0.022) * u);
+  ctx.closePath();
+  ctx.fill();
   // Little whiplash ripples wink across the water (below the floor line, so in the tower's column too).
   ctx.strokeStyle = WATER_LIT;
   ctx.lineWidth = Math.max(1, u * 0.0035);
@@ -226,47 +250,19 @@ export function pool(ctx: Ctx, s: Scene): void {
     ctx.fill();
   }
   ctx.restore();
-  // The pedestal: a drum of marble in the pool, an arcade carved round it, a lit top slab for the tower's floor.
+}
+
+/** The marble rim round the pool: an inked band, lit along its top (or, with `front`, only its front half, from lobe's widest to lobe's widest round the point: what layout.test.ts checks keeps clear of the pedestal). */
+export function rim(ctx: Ctx, s: Scene, front: boolean): void {
+  const u = s.u;
+  const cx = s.cssW / 2;
+  const gy = s.groundY;
+  const lw = inkW(s);
   ctx.beginPath();
-  ctx.rect(cx - DRUM_HW * u, gy + SLAB_H * u - SLAB_UP * u - u * 0.002, DRUM_HW * 2 * u, (DRUM_DEPTH - SLAB_H + SLAB_UP) * u + u * 0.002);
-  ctx.fillStyle = MARBLE.body;
-  ctx.fill();
-  ctx.fillStyle = MARBLE.shade;
-  ctx.fillRect(cx + DRUM_HW * u * 0.6, gy + SLAB_H * u - SLAB_UP * u, DRUM_HW * u * 0.4, (DRUM_DEPTH - SLAB_H + SLAB_UP) * u);
-  ctx.fillStyle = MARBLE.light;
-  ctx.fillRect(cx - DRUM_HW * u, gy + SLAB_H * u - SLAB_UP * u, DRUM_HW * u * 0.3, (DRUM_DEPTH - SLAB_H + SLAB_UP) * u);
-  // The arcade carved round the drum: round-headed niches standing on a carved line.
-  ctx.strokeStyle = CARVING;
-  ctx.lineWidth = Math.max(1, u * 0.0025);
-  ctx.beginPath();
-  const nicheTop = gy + (SLAB_H + 0.022) * u;
-  const nicheFoot = gy + (DRUM_DEPTH - 0.014) * u;
-  const nw = (DRUM_HW * 2 * u) / NICHES;
-  for (let i = 0; i < NICHES; i++) {
-    const x0 = cx - DRUM_HW * u + nw * (i + 0.22);
-    const w = nw * 0.56;
-    ctx.moveTo(x0, nicheFoot);
-    ctx.lineTo(x0, nicheTop + w / 2);
-    ctx.bezierCurveTo(x0, nicheTop - w * 0.17, x0 + w, nicheTop - w * 0.17, x0 + w, nicheTop + w / 2);
-    ctx.lineTo(x0 + w, nicheFoot);
-  }
-  ctx.moveTo(cx - DRUM_HW * u, nicheFoot + u * 0.004);
-  ctx.lineTo(cx + DRUM_HW * u, nicheFoot + u * 0.004);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.rect(cx - DRUM_HW * u, gy + SLAB_H * u - SLAB_UP * u - u * 0.002, DRUM_HW * 2 * u, (DRUM_DEPTH - SLAB_H + SLAB_UP) * u + u * 0.002);
-  ink(ctx, lw, CONTOUR);
-  ctx.beginPath();
-  block(ctx, cx - SLAB_HW * u, gy - SLAB_UP * u, SLAB_HW * 2 * u, SLAB_H * u, u * 0.006);
-  ctx.fillStyle = MARBLE.body;
-  ctx.fill();
-  ctx.fillStyle = MARBLE.light;
-  ctx.fillRect(cx - SLAB_HW * u + u * 0.006, gy - SLAB_UP * u + u * 0.003, SLAB_HW * 2 * u - u * 0.012, u * 0.005);
-  ink(ctx, lw, CONTOUR);
-  // The rim: an inked band of marble round the pool, lit along its top.
-  ctx.beginPath();
-  poolPath(ctx, cx, gy, u);
+  if (front) poolFront(ctx, cx, gy, u);
+  else poolPath(ctx, cx, gy, u);
   inkedLine(ctx, MARBLE.body, RIM * u, lw, CONTOUR);
+  if (front) return;
   ctx.save();
   ctx.clip();
   ctx.beginPath();
@@ -275,6 +271,100 @@ export function pool(ctx: Ctx, s: Scene): void {
   ctx.lineWidth = RIM * u * 0.45;
   ctx.stroke();
   ctx.restore();
+}
+
+/** The pool's front edge alone, from the left lobe's widest round the point to the right one's (an open path). */
+function poolFront(ctx: Ctx, cx: number, gy: number, u: number): void {
+  ctx.moveTo(cx - POOL_HW * u, gy + WIDEST * u);
+  ctx.bezierCurveTo(cx - (POOL_HW + 0.01) * u, gy + 0.1 * u, cx - 0.2 * u, gy + 0.135 * u, cx, gy + POINT * u);
+  ctx.bezierCurveTo(cx + 0.2 * u, gy + 0.135 * u, cx + (POOL_HW + 0.01) * u, gy + 0.1 * u, cx + POOL_HW * u, gy + WIDEST * u);
+}
+
+/** The pedestal's front face as a subpath: its drum from under the slab down to its foot, which curves round toward you like the drum's base. */
+function drumPath(ctx: Ctx, cx: number, gy: number, u: number): void {
+  ctx.moveTo(cx - DRUM_HW * u, gy + SLAB_H * u - u * 0.002);
+  ctx.lineTo(cx + DRUM_HW * u, gy + SLAB_H * u - u * 0.002);
+  ctx.lineTo(cx + DRUM_HW * u, gy + FOOT_EDGE * u);
+  ctx.quadraticCurveTo(cx, gy + (FOOT_MID * 2 - FOOT_EDGE) * u, cx - DRUM_HW * u, gy + FOOT_EDGE * u);
+  ctx.closePath();
+}
+
+/**
+ * The pedestal under the tower, standing in the water: a drum of marble with an arcade carved
+ * round it (lit on its left, shaded on its right), a lit top slab for the tower's floor (its upper
+ * edge is the floor line, nothing else of the pool rises above it), and round its foot a lit
+ * ripple on the water.
+ */
+export function pedestal(ctx: Ctx, s: Scene): void {
+  const u = s.u;
+  const cx = s.cssW / 2;
+  const gy = s.groundY;
+  if (gy - u * 0.05 > s.cssH) return;
+  const lw = inkW(s);
+  const top = gy + SLAB_H * u;
+  ctx.beginPath();
+  drumPath(ctx, cx, gy, u);
+  ctx.fillStyle = MARBLE.body;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = MARBLE.light;
+  ctx.fillRect(cx - DRUM_HW * u, top, DRUM_HW * u * 0.3, FOOT_MID * u);
+  ctx.fillStyle = MARBLE.shade;
+  ctx.fillRect(cx + DRUM_HW * u * 0.6, top, DRUM_HW * u * 0.4, FOOT_MID * u);
+  ctx.restore();
+  // The arcade carved round the drum: round-headed niches standing on a carved line that follows its curve.
+  ctx.strokeStyle = CARVING;
+  ctx.lineWidth = Math.max(1, u * 0.0025);
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+  ctx.beginPath();
+  const nicheTop = gy + (SLAB_H + 0.02) * u;
+  const nw = (DRUM_HW * 2 * u) / NICHES;
+  const line = (x: number) => {
+    const k = (x - cx) / (DRUM_HW * u);
+    return gy + (FOOT_EDGE + (FOOT_MID - FOOT_EDGE) * (1 - k * k) - 0.013) * u;
+  };
+  const niche = (i: number) => {
+    const x0 = cx - DRUM_HW * u + nw * (i + 0.22);
+    const w = nw * 0.56;
+    ctx.moveTo(x0, line(x0) - u * 0.003);
+    ctx.lineTo(x0, nicheTop + w / 2);
+    ctx.bezierCurveTo(x0, nicheTop - w * 0.17, x0 + w, nicheTop - w * 0.17, x0 + w, nicheTop + w / 2);
+    ctx.lineTo(x0 + w, line(x0 + w) - u * 0.003);
+  };
+  // The niches' shadowed hollows first, then their carved edges.
+  ctx.fillStyle = NICHE;
+  ctx.beginPath();
+  for (let i = 0; i < NICHES; i++) {
+    niche(i);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.beginPath();
+  for (let i = 0; i < NICHES; i++) niche(i);
+  ctx.moveTo(cx - DRUM_HW * u, line(cx - DRUM_HW * u));
+  ctx.quadraticCurveTo(cx, line(cx) * 2 - line(cx - DRUM_HW * u), cx + DRUM_HW * u, line(cx + DRUM_HW * u));
+  ctx.stroke();
+  ctx.beginPath();
+  drumPath(ctx, cx, gy, u);
+  ink(ctx, lw, CONTOUR);
+  // The ripple ringing its foot on the water.
+  ctx.beginPath();
+  ctx.moveTo(cx - DRUM_HW * u - u * 0.012, gy + (FOOT_EDGE - 0.004) * u);
+  ctx.quadraticCurveTo(cx, gy + (FOOT_MID * 2 - FOOT_EDGE + 0.012) * u, cx + DRUM_HW * u + u * 0.012, gy + (FOOT_EDGE - 0.004) * u);
+  ctx.strokeStyle = WATER_LIT;
+  ctx.lineWidth = Math.max(1, u * 0.004);
+  ctx.lineCap = "round";
+  ctx.stroke();
+  // The slab: the tower's floor.
+  ctx.beginPath();
+  block(ctx, cx - SLAB_HW * u, gy - SLAB_UP * u, SLAB_HW * 2 * u, SLAB_H * u, u * 0.006);
+  ctx.fillStyle = MARBLE.body;
+  ctx.fill();
+  ctx.fillStyle = MARBLE.light;
+  ctx.fillRect(cx - SLAB_HW * u + u * 0.006, gy - SLAB_UP * u + u * 0.003, SLAB_HW * 2 * u - u * 0.012, u * 0.005);
+  ink(ctx, lw, CONTOUR);
 }
 
 /**
@@ -433,33 +523,86 @@ const SCALE = 0.048;
 const SCALE_ROW = 0.75;
 
 /**
- * Fish-scale paving from `top` down to `bottom`, the Nouveau way, with petals strewn over it: on
- * parchment, rows of round scales, each row laid over the one below so only the foot of each
- * scale shows, a joint round every scale's foot (from `from` down). The feet along a row all but
- * meet, so each row's joints are one scalloped line, and the whole paving one stroke.
+ * How a stretch of paving is laid: petals strewn over it or not, the scales' radius (u), how far
+ * down its joints start (above that something covers it), its mosaic's colors, and whether the
+ * pool lies over it (its scales and joints under the pool are left out).
  */
-export function paving(ctx: Ctx, s: Scene, top: number, bottom: number, petals: boolean, scale = SCALE, from = top): void {
+interface Paving {
+  petals?: boolean;
+  scale?: number;
+  from?: number;
+  look?: Mosaic;
+  underPool?: boolean;
+}
+
+/** A fish-scale mosaic's colors: its ground, the rose scales by turns, the joints. */
+export interface Mosaic {
+  body: string;
+  rose: string;
+  joint: string;
+}
+/** The plaza's mosaic, sand and rose. */
+const PLAZA: Mosaic = { body: PAVING.body, rose: PAVING_ROSE, joint: JOINT };
+
+/**
+ * Fish-scale paving from `top` down to `bottom`, the Nouveau way: rows of round scales, each row
+ * laid over the one below so only the foot of each scale shows, a mosaic of two colors (every
+ * other scale rose), a joint round every scale's foot (from `from` down), and (`petals`) petals
+ * strewn over it. The feet along a row all but meet, so each row's joints are one scalloped line,
+ * and the whole paving one stroke.
+ */
+export function paving(ctx: Ctx, s: Scene, top: number, bottom: number, how: Paving = {}): void {
+  const { petals = false, scale = SCALE, from = top, look = PLAZA, underPool = false } = how;
   const u = s.u;
   if (top >= bottom) return;
   const R = u * scale;
   const row = R * SCALE_ROW;
-  ctx.fillStyle = PAVING.body;
+  ctx.fillStyle = look.body;
   ctx.fillRect(0, top, s.cssW, bottom - top);
   // Row r's feet hang from y = top + r * row: from the first row whose feet start on the paving
   // and under `from` (above it something covers the paving), down to the last whose joint starts
   // above its bottom (its feet run on under what covers the paving there: the railing's curb,
   // or the screen's bottom).
   const lw = Math.max(1, u * 0.003);
-  ctx.beginPath();
   const rows = Math.ceil((bottom - top) / row) + 1;
-  for (let r = Math.max(1, Math.ceil((from - top) / row)); r <= rows; r++) {
+  const first = Math.max(1, Math.ceil((from - top) / row));
+  // Every other scale in rose, a mosaic: each scale is the almond between its own foot and the
+  // feet of the two scales of the row over it (which hang exactly to its row's line).
+  ctx.fillStyle = look.rose;
+  ctx.beginPath();
+  for (let r = first + 1; r <= rows; r++) {
+    const y = top + r * row - R * 0.25;
+    if (y - row >= bottom) break;
+    const x0 = (r % 2) * R - R * 2;
+    const [h0, h1] = underPool ? poolCovers(s, y - row, y + R * 0.75) : NO_COVER;
+    let j = 0;
+    for (let x = x0; x < s.cssW + R; x += R * 2, j++) {
+      if ((j + (r >> 1)) % 2 || (x >= h0 && x + R * 2 <= h1)) continue;
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + R, y + R * 1.5, x + R * 2, y);
+      ctx.quadraticCurveTo(x + R * 1.5, y, x + R, y - row);
+      ctx.quadraticCurveTo(x + R * 0.5, y, x, y);
+      ctx.closePath();
+    }
+  }
+  ctx.fill();
+  ctx.beginPath();
+  for (let r = first; r <= rows; r++) {
     const y = top + r * row - R * 0.25;
     if (y - lw >= bottom) break;
     const x0 = (r % 2) * R - R * 2;
+    const [h0, h1] = underPool ? poolCovers(s, y - lw, y + R * 0.75 + lw) : NO_COVER;
     ctx.moveTo(x0, y);
-    for (let x = x0; x < s.cssW + R; x += R * 2) ctx.quadraticCurveTo(x + R, y + R * 1.5, x + R * 2, y);
+    for (let x = x0; x < s.cssW + R; x += R * 2) {
+      // (Where the pool covers the paving the joints are left out, and pick up again past it.)
+      if (x >= h0 && x + R * 2 <= h1) {
+        ctx.moveTo(x + R * 2, y);
+        continue;
+      }
+      ctx.quadraticCurveTo(x + R, y + R * 1.5, x + R * 2, y);
+    }
   }
-  ctx.strokeStyle = JOINT;
+  ctx.strokeStyle = look.joint;
   ctx.lineWidth = lw;
   ctx.lineCap = "butt";
   ctx.stroke();
@@ -476,6 +619,42 @@ export function paving(ctx: Ctx, s: Scene, top: number, bottom: number, petals: 
     }
     ctx.fill();
   }
+}
+
+/** The pool's front edge, from its point up to its widest: [depth under the floor line, half width] (u), sampled from `poolPath`'s front curve. */
+const FRONT = Array.from({ length: 17 }, (_, i) => {
+  const t = i / 16;
+  const k = 1 - t;
+  // The left front Bézier from the point (0, POINT) by (0.2, 0.135) and (POOL_HW + 0.01, 0.1) to the widest (POOL_HW, WIDEST).
+  const x = 3 * k * k * t * 0.2 + 3 * k * t * t * (POOL_HW + 0.01) + t * t * t * POOL_HW;
+  const d = k * k * k * POINT + 3 * k * k * t * 0.135 + 3 * k * t * t * 0.1 + t * t * t * WIDEST;
+  return [d, x] as const;
+});
+/** Scratch result of `poolCovers`, and the no-cover answer. */
+const COVER: [number, number] = [0, 0];
+const NO_COVER: readonly [number, number] = [Infinity, -Infinity];
+
+/**
+ * The span of x (px) the pool (its water, its rim, the pedestal in it) covers all the way across
+ * the band of screen rows from y0 to y1: [left, right], or nothing (an empty span) where it does
+ * not cover the whole band (above its widest, where the lobes and the notch are, or under its
+ * point).
+ */
+function poolCovers(s: Scene, y0: number, y1: number): readonly [number, number] {
+  const u = s.u;
+  const d0 = (y0 - s.groundY) / u;
+  const d1 = (y1 - s.groundY) / u;
+  if (d0 < WIDEST || d1 > POINT) return NO_COVER;
+  let hw = POOL_HW;
+  for (let i = 0; i + 1 < FRONT.length; i++) {
+    const [da, xa] = FRONT[i]!;
+    const [db] = FRONT[i + 1]!;
+    // The sample's stretch of the edge reaches into the band: the narrower end of it bounds the cover.
+    if (Math.min(da, db) <= d1 && Math.max(da, db) >= d0) hw = Math.min(hw, xa, FRONT[i + 1]![1]);
+  }
+  COVER[0] = s.cssW / 2 - hw * u;
+  COVER[1] = s.cssW / 2 + hw * u;
+  return COVER;
 }
 
 /** Where the plaza's paving begins: behind the pool's lobes, from the floor line down. */

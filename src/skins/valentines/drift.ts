@@ -22,8 +22,8 @@ import { DAY_FROM, LOOP, LOOP_DAWN, LOOP_START, type Tone } from "./tone";
 // there again at the loop's dawn. One of them is up at every height, so nothing drifts on the
 // left at all: nothing ever passes over the sun or the moon (the owner's rule, drift.test.ts).
 // And nothing here ever slides across a prop: the lane is painted before the far layer and the
-// land (valentines.ts), so what comes down it sinks behind the fair's wheel, the boulevard and
-// the cloud bank into the cloud sea (drift.test.ts).
+// land (valentines.ts), so what comes down it sinks behind the lattice tower, the wheel and the
+// boulevard into the cloud sea (drift.test.ts).
 
 type Kind = "cloud" | "petals" | "balloons" | "plane" | "doves";
 
@@ -48,9 +48,9 @@ type Spec = readonly [kind: Kind, at: number, x?: number];
 // The first day's story, by hand. A thing at height `at` comes in at the top of the screen
 // around level (at - 230) / 8, passes the sun's height around level (at - 95) / 8 and leaves
 // at the bottom around level (at + 235) / 8 (on a tall phone). The opening's sky holds the sun
-// and, in the right lane over the fair, a pair of doves wheeling (ambient, there from the
+// and, in the right lane over the wheel, a pair of doves wheeling (ambient, there from the
 // start; they drop behind the wheel in the first few levels); everything else starts above the
-// screen, high enough to reach the boulevard and the fair only once the cloud sea has covered
+// screen, high enough to reach the boulevard and the wheel only once the cloud sea has covered
 // the land.
 const DAY: Spec[] = [
   ["doves", 170, 0.4],

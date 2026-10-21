@@ -5,10 +5,10 @@ import { lamp, shops } from "./boulevard";
 import { IRON, MARBLE } from "./colors";
 import { couple } from "./couple";
 import { drifters } from "./drift";
-import { cloudBank, fairHill, floorTop, hills, landLine, wheelAt } from "./far";
+import { city, floorTop, latticeTower, wheel, wheelAt } from "./far";
 import { front, railFoot, railTop } from "./front";
 import { floatingIn } from "./cupid";
-import { cherubColumn, cherubShow, inkW, PLINTH_X, plazaProps, pool, roseBeds } from "./garden";
+import { cherubColumn, cherubShow, inkW, pedestal, PLINTH_X, plazaProps, pool, poolPath, rim, roseBeds } from "./garden";
 import { sun } from "./sky";
 import { context, mask, overlap, SIZES, startScene } from "./test-scene";
 import { level, toneOf } from "./tone";
@@ -22,8 +22,8 @@ import { bridge, canal, swans } from "./water";
 // balloon's string, and the flat water of the canal's near end, which lies on the lawn like the
 // lawn itself. And the owner's rule, that no prop cuts into another: every two props keep at
 // least GAP of plaza, lawn or sky between them (and from the railing), except where they meet by
-// design: the far scenery (the hills, the cloud bank and the fair hill) stands behind the
-// boulevard, the couple sit on the café's terrace, the bridge and the swans are on the canal,
+// design: the far scenery (the far city with its dome and avenue, the lattice tower and the
+// wheel) stands behind the boulevard, the couple sit on the café's terrace, the bridge and the swans are on the canal,
 // the swans glide in front of the bridge, the cherub stands on his column, his balloon's string
 // is tied to the pool's rim, his arrow leaves his bow, pops the balloon and drops into the pool,
 // and the pop's petals rain round him. The column itself stands on the lawn behind the pool,
@@ -72,9 +72,11 @@ interface Prop {
 
 const PROPS: Prop[] = [
   { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), floorTop(s, level(s))), above: true },
-  { name: "hills", draw: (ctx, s) => hills(ctx, s, toneOf(s), s.horizonY), above: false, scenery: true },
-  { name: "cloud bank", draw: (ctx, s) => cloudBank(ctx, s, toneOf(s), landLine(s)), above: false, scenery: true },
-  { name: "fair hill", draw: (ctx, s) => fairHill(ctx, s, toneOf(s)), above: false, scenery: true },
+  // The far city stands behind everything, behind the tower too (calm.test.ts: it never moves);
+  // the lattice tower and the wheel stand in it, out in the right lane.
+  { name: "city", draw: (ctx, s) => city(ctx, s, toneOf(s)), above: false, scenery: true },
+  { name: "lattice tower", draw: (ctx, s) => latticeTower(ctx, s, toneOf(s)), above: true, scenery: true },
+  { name: "wheel", draw: (ctx, s) => wheel(ctx, s, toneOf(s)), above: true, scenery: true },
   // The townhouse stands behind the tower on purpose (it never moves: calm.test.ts).
   { name: "boulevard", draw: (ctx, s) => shops(ctx, s, toneOf(s)), above: false },
   { name: "couple", draw: (ctx, s) => couple(ctx, s, toneOf(s)), above: true },
@@ -98,7 +100,7 @@ const PROPS: Prop[] = [
   { name: "bouquet", draw: plazaProps, above: false, half: 1 },
 ];
 
-/** The meetings that are the design (besides the far scenery, which stands behind everything but the sun). */
+/** The meetings that are the design (besides the far city, the lattice tower and the wheel, which stand behind everything but the sun). */
 const ALLOWED = [
   ["couple", "boulevard"],
   ["bridge", "canal"],
@@ -316,5 +318,78 @@ describe("valentine's railing", () => {
     // The curb runs right across under it, over the base band's top (its lowest band is clear of the locks and balusters).
     const curb = Math.round(railFoot(s) - s.u * 0.007);
     expect(railPixels(ctx.getImageData(0, curb, W, 1).data), "the curb across the screen").toBeGreaterThan(W * 0.9);
+  });
+});
+
+describe("valentine's fountain keeps one depth", () => {
+  // The owner caught the tower's base standing behind the fountain's back rim and in front of its
+  // water at once. The pool is drawn back to front: the water, the rim, then the pedestal standing
+  // in the water, so (1) nothing of the pool is ever drawn over the pedestal: wherever the
+  // pedestal paints, the whole pool shows the pedestal alone; (2) it stands in the water: just
+  // under its foot, all along it, is the pool's water and not the rim; (3) the rim's front half,
+  // which passes in front of its foot, never meets it: there is water between.
+  const K = 2;
+  function drawn(W: number, H: number, draw: (ctx: CanvasRenderingContext2D) => void): Uint8ClampedArray {
+    const ctx = context(W, H, K);
+    draw(ctx);
+    return ctx.getImageData(0, 0, Math.round(W * K), Math.round(H * K)).data;
+  }
+  /** Pixels of the pedestal (drawn alone: where it is wholly opaque, so nothing behind it shows through) that the whole pool shows otherwise. */
+  function covered(whole: Uint8ClampedArray, alone: Uint8ClampedArray): number {
+    let n = 0;
+    for (let i = 0; i < alone.length; i += 4) {
+      if (alone[i + 3]! < 255) continue;
+      if (Math.abs(whole[i]! - alone[i]!) + Math.abs(whole[i + 1]! - alone[i + 1]!) + Math.abs(whole[i + 2]! - alone[i + 2]!) > 6) n++;
+    }
+    return n;
+  }
+
+  it.each(SCREENS)("%ix%i: the pedestal stands in the water, in front of the back rim and behind the front one", (W, H) => {
+    const s = startScene(W, H, 0);
+    const w = Math.round(W * K);
+    const h = Math.round(H * K);
+    const whole = drawn(W, H, (ctx) => pool(ctx, s));
+    const alone = drawn(W, H, (ctx) => pedestal(ctx, s));
+    expect(covered(whole, alone), "pedestal pixels with something of the pool drawn over them").toBe(0);
+    // (2) Under its foot: for every column of pixels across the drum, the pedestal's lowest pixel,
+    // and a few pixels under it the water, inside the pool and clear of the rim.
+    const water = mask(W, H, (ctx) => {
+      ctx.beginPath();
+      poolPath(ctx, s.cssW / 2, s.groundY, s.u);
+      ctx.fill();
+    }, K);
+    const rimAll = mask(W, H, (ctx) => rim(ctx, s, false), K);
+    const ped = mask(W, H, (ctx) => pedestal(ctx, s), K);
+    const x0 = Math.ceil((s.cssW / 2 - s.u * 0.2) * K);
+    const x1 = Math.floor((s.cssW / 2 + s.u * 0.2) * K);
+    let checked = 0;
+    for (let x = x0; x <= x1; x++) {
+      let foot = -1;
+      for (let y = h - 1; y >= 0; y--) {
+        if (ped[y * w + x]) {
+          foot = y;
+          break;
+        }
+      }
+      expect(foot, `x ${x / K}: the pedestal is there`).toBeGreaterThan(0);
+      const y = foot + Math.ceil(s.u * 0.012 * K);
+      expect(water[y * w + x], `x ${x / K}: water under the pedestal's foot`).toBe(1);
+      expect(rimAll[y * w + x], `x ${x / K}: the rim under the pedestal's foot`).toBe(0);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(s.u * 0.3 * K);
+    // (3) The rim's front half keeps clear of the pedestal: water shows between them.
+    const front = mask(W, H, (ctx) => rim(ctx, s, true), K);
+    expect(overlap(grow(front, w, h, Math.max(2, Math.round(s.u * 0.006 * K))), ped), "the front rim meets the pedestal").toBe(0);
+  });
+
+  it("the check bites: the rim drawn over the pedestal (the owner's screenshot) fails it", () => {
+    const s = startScene(390, 844, 0);
+    const wrong = drawn(390, 844, (ctx) => {
+      pedestal(ctx, s);
+      rim(ctx, s, false);
+    });
+    const alone = drawn(390, 844, (ctx) => pedestal(ctx, s));
+    expect(covered(wrong, alone)).toBeGreaterThan(100);
   });
 });

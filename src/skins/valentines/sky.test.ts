@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { afterSky } from "../valentines";
 import type { Scene } from "../skin";
-import { bankShows, cloudBank, cloudFloor, floorShows, floorTop, landLine } from "./far";
+import { cloudFloor, floorShows, floorTop } from "./far";
 import { front } from "./front";
 import { moonAt, sunAt, SUN_REACH } from "./sky";
 import { context, sceneAt, zoomedScene } from "./test-scene";
@@ -15,8 +15,8 @@ import { DAY_HIGH, level, LOOP, LOOP_START, toneAtLevel, toneOf } from "./tone";
 // the sunset, the night, and a whole turn of the loop with its dawn: at every step the sun and
 // the moon move only a little, no step is much bigger than the one before (nothing jumps), and
 // they fade in and out without a step. And while the sun sets and rises, the only thing ever on
-// top of it is the cloud sea (the bank piled at its edge, the floor): never the boulevard, the
-// hills, the wheel, the lane or the railing; and nothing at all is ever over the moon.
+// top of it is the cloud sea: never the boulevard, the far city, the lattice tower, the wheel,
+// the lane or the railing; and nothing at all is ever over the moon.
 
 /** The screens: the phones, a tablet, a wide window, and a phone zoomed out. */
 const SCREENS = [
@@ -83,11 +83,11 @@ describe("valentine's sun and moon glide", () => {
 
   it("the light holds still between the colors' half-level steps no more: the sun's set changes inside a step", () => {
     // Two levels inside one half-level color step see the sun at different heights while it sets.
-    expect(toneAtLevel(DAY_HIGH - 4.1).sunSet).not.toBe(toneAtLevel(DAY_HIGH - 4.0).sunSet);
+    expect(toneAtLevel(DAY_HIGH + 3.9).sunSet).not.toBe(toneAtLevel(DAY_HIGH + 4.0).sunSet);
   });
 
   it.each(SCREENS)("%ix%i at zoom %s: once set, the sun is wholly under the solid cloud sea", (W, H, z) => {
-    for (let lvl = 30; lvl <= 40; lvl += 0.1) {
+    for (let lvl = 30; lvl <= 50; lvl += 0.1) {
       const s = screenAt(W, H, z, lvl, 0);
       const tone = toneOf(s);
       if (tone.sunSet < 0.999 || tone.sunSet >= 1) continue;
@@ -110,7 +110,7 @@ function inside(x: number, y: number, c: { x: number; y: number; r: number }): b
 describe("valentine's sun sets into the clouds", () => {
   // The first sunset (up through the cloud layer) and the loop's dawn, in half levels.
   const LEVELS = [
-    ...Array.from({ length: 50 }, (_, i) => 16 + i * 0.5),
+    ...Array.from({ length: 74 }, (_, i) => 16 + i * 0.5),
     ...Array.from({ length: 70 }, (_, i) => LOOP_START + i * 0.5),
   ];
   it.each(SCREENS)("%ix%i at zoom %s: only the cloud sea ever covers the sun, and nothing the moon", (W0, H0, z) => {
@@ -130,7 +130,6 @@ describe("valentine's sun sets into the clouds", () => {
       const a = all.getImageData(0, 0, w, h).data;
       // ...and the cloud sea alone: where it is on top, the whole frame shows just the cloud sea.
       const clouds = context(s.cssW, s.cssH, K);
-      if (bankShows(s, floor)) cloudBank(clouds, s, tone, landLine(s));
       if (floorShows(s, floor)) cloudFloor(clouds, s, tone, floor);
       const c = clouds.getImageData(0, 0, w, h).data;
       if (tone.sunSet < 1) {

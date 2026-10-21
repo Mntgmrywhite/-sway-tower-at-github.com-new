@@ -1,6 +1,6 @@
 import { circle, hash, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { sparkle } from "./shapes";
+import { diamond, sparkle } from "./shapes";
 import type { Tone } from "./tone";
 
 // The sky and what hangs in it: a soft continuous gradient for the hour (from tone.ts), never
@@ -16,7 +16,7 @@ import type { Tone } from "./tone";
 // them, so they sit in front of it.
 
 /** Gradient stops for the four sky colors (top, middle, glow band, bottom). */
-const STOPS = [0, 0.36, 0.58, 0.8] as const;
+const STOPS = [0, 0.3, 0.46, 0.62] as const;
 /** How far (px) each piece of the sky runs on under the next. */
 const SEAM = 4;
 
@@ -28,7 +28,7 @@ const SEAM = 4;
 const cache = { ctx: null as Ctx | null, step: -1, h: -1, pieces: [] as CanvasGradient[] };
 
 /**
- * Paint the sky down to `bottom` (everything below it is covered by the hills and the lawn, or
+ * Paint the sky down to `bottom` (everything below it is covered by the city and the lawn, or
  * the cloud sea). Gradient fills are the costliest thing in the scene, so it stops there.
  */
 export function skyFill(ctx: Ctx, s: Scene, tone: Tone, step: number, bottom: number): void {
@@ -115,7 +115,9 @@ export function sun(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
   ctx.beginPath();
   for (let i = 0; i < SUN_DOTS; i++) {
     const a = (i / SUN_DOTS) * Math.PI * 2;
-    circle(ctx, x + Math.cos(a) * r * 1.18, y + Math.sin(a) * r * 1.18, r * 0.035);
+    // (Pin-points: squares, as cheap to fill as they look round at this size.)
+    const d = r * 0.035;
+    ctx.rect(x + Math.cos(a) * r * 1.18 - d, y + Math.sin(a) * r * 1.18 - d, d * 2, d * 2);
   }
   ctx.fill();
   // The disc: shaded, its lit body up and to the left, a flat highlight.
@@ -209,7 +211,7 @@ export function moon(ctx: Ctx, s: Scene, tone: Tone): void {
 }
 
 /** Stars: position (fractions of the screen), size (u), twinkle group, and whether it sparkles. */
-const STARS = Array.from({ length: 48 }, (_, i) => ({
+const STARS = Array.from({ length: 84 }, (_, i) => ({
   x: hash(i * 3 + 4700),
   y: 0.03 + hash(i * 3 + 4701) * 0.72,
   r: 0.0028 + hash(i * 3 + 4702) * 0.0034,
@@ -240,8 +242,9 @@ export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
       if (x > c0 && x < c1) continue;
       const y = st.y * s.cssH;
       const r = st.r * u;
+      // (The small ones as tiny diamonds: a glint of a star, and far cheaper to fill than a disc.)
       if (st.big) sparkle(ctx, x, y, r * 2.6);
-      else circle(ctx, x, y, r);
+      else diamond(ctx, x, y, r * 1.3);
     }
     ctx.fill();
   }
