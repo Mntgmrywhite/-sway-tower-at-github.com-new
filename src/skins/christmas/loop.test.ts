@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { mix } from "../../base/draw";
 import { kitFor } from "../../base/style";
 import { christmas } from "../christmas";
-import { SKY_BOTTOM, SKY_MID, SKY_TOP } from "./colors";
-import { bodies } from "./sky";
+import { bodies, skyFill, stars } from "./sky";
 import { context, edgePixels, mask, MIN_ZOOM, sceneAt, SIZES } from "./test-scene";
-import { level, LOOP_PERIOD, LOOP_START, loopHorizon, moonUp, STEP, storyLevel, sunUp, toneAt, type Tone } from "./tone";
+import { level, LOOP_PERIOD, LOOP_START, moonUp, NIGHTFALL, STEP, storyLevel, STREET_SKY, sunUp, toneAt, toneOf, type Tone } from "./tone";
 
 // The height story loops: the first pass (the street at dusk, up into the night) is as designed,
 // and past LOOP_START the night turns through Christmas morning, the day and dusk back to night,
@@ -66,15 +64,22 @@ function step(a: number, b: number): number {
 }
 
 describe("christmas looping story", () => {
-  it("the first pass is as designed: the base paints the sky, the moon is up, no sun", () => {
+  it("the first pass is as designed: the street's dusk deepening into the night, snowing, the moon up, no sun", () => {
+    expect(toneAt(0).sky).toEqual(STREET_SKY);
+    const last = STREET_SKY.map(() => Infinity);
     for (let lvl = 0; lvl < A; lvl += 0.75) {
       expect(storyLevel(lvl)).toBe(lvl);
-      expect(toneAt(lvl).loop).toBe(false);
       expect(toneAt(lvl).snow).toBe(1);
       expect(moonUp(lvl)).toBe(1);
       expect(sunUp(lvl)).toBe(0);
+      // The sky only darkens as you climb, every band of it, to the loop's night by NIGHTFALL.
+      toneAt(lvl).sky.forEach((c, i) => {
+        const y = luminance(channels(c));
+        expect(y, `level ${lvl}, the sky's ink ${i}`).toBeLessThanOrEqual(last[i]! + 1e-9);
+        last[i] = y;
+      });
     }
-    expect(toneAt(A).loop).toBe(true);
+    expect(toneAt(NIGHTFALL)).toEqual(toneAt(A));
   });
 
   it("past LOOP_START everything keyed by height repeats every LOOP_PERIOD", () => {
@@ -105,7 +110,7 @@ describe("christmas looping story", () => {
     // The day: bright, the skyline in daylight colors.
     expect(at(68).tone.far).not.toBe(at(0).tone.far);
     // Dusk: the street's own sky again, the moon back up, the sun gone, snowing.
-    expect(at(98).tone.sky).toEqual([SKY_TOP, SKY_MID, SKY_BOTTOM]);
+    expect(at(98).tone.sky).toEqual(STREET_SKY);
     expect(at(98).moon).toBe(1);
     expect(at(98).sun).toBe(0);
     expect(at(98).tone.snow).toBe(1);
@@ -127,19 +132,36 @@ describe("christmas looping story", () => {
     expect(elsewhere).toBeLessThan(10);
   });
 
-  it("the loop's sky starts exactly as the base's night sky", () => {
-    // The base world's sky once night has fallen (src/base/world.ts).
-    const night = "#151640";
-    expect(toneAt(A).sky).toEqual([mix(SKY_TOP, night, 0.5), mix(SKY_MID, night, 0.4), mix(SKY_BOTTOM, night, 0.3)]);
-    for (const [W, H] of SIZES) {
-      for (const z of [1, MIN_ZOOM]) {
-        const s = sceneAt(W, H, BARS(A), 0, z);
-        expect(loopHorizon(s)).toBeCloseTo(s.horizonY, 6);
-        // Higher up it keeps hanging from that horizon, however far the real one has sunk.
-        expect(loopHorizon(sceneAt(W, H, BARS(A + 1.5 * P), 0, z))).toBeCloseTo(s.horizonY, 6);
-      }
+  it("the loop starts exactly as the first pass ends: in the night it climbed into", () => {
+    expect(toneAt(A - STEP)).toEqual(toneAt(A));
+    // The night is darker than the street's dusk, all the way down to the horizon.
+    for (let i = 0; i < STREET_SKY.length; i++) {
+      expect(luminance(channels(toneAt(A).sky[i]!))).toBeLessThan(luminance(channels(STREET_SKY[i]!)));
     }
   });
+
+  it.each(SIZES.flatMap(([W, H]) => [1, MIN_ZOOM].map((z) => [W, H, z] as const)))(
+    "%ix%i at zoom %s: once the land has sunk away every turn of the loop paints the same sky",
+    (W, H, z) => {
+      // The bands hang from the horizon while it shows and from the screen's bottom once it has
+      // sunk below (on a zoomed-out screen that takes until early in the loop's second turn).
+      const sky = (lvl: number) => {
+        const s = sceneAt(W, H, BARS(lvl), 3.3, z);
+        const ctx = context(s.cssW, s.cssH);
+        skyFill(ctx, s, toneOf(s));
+        stars(ctx, s);
+        bodies(ctx, s);
+        return ctx.getImageData(0, 0, Math.round(s.cssW), Math.round(s.cssH)).data;
+      };
+      for (let p = 0; p < P; p += 13) {
+        const a = sky(A + 2 * P + p);
+        const b = sky(A + 5 * P + p);
+        let diff = 0;
+        for (let i = 0; i < a.length; i++) diff = Math.max(diff, Math.abs(a[i]! - b[i]!));
+        expect(diff, `${p} levels into the turn`).toBeLessThanOrEqual(1);
+      }
+    },
+  );
 
   it.each(SIZES.flatMap(([W, H]) => [1, MIN_ZOOM].map((z) => [W, H, z] as const)))(
     "%ix%i at zoom %s: the frame just before the loop and at its start look the same",
@@ -253,7 +275,7 @@ describe("christmas looping story", () => {
       }
     }
     times.sort((a, b) => a - b);
-    // About 7–9 ms on a laptop (as Classic); generous, as tests share the machine.
+    // About 1–8 ms on a laptop (the street at the start is the dearest); generous, as tests share the machine.
     expect(times[times.length >> 1]).toBeLessThan(40);
   }, 30_000);
 });

@@ -1,33 +1,30 @@
-import { circle, ink, inkedLine, oval, roundRectPath, type Ctx } from "../../base/draw";
+import { circle, oval, roundRectPath, type Ctx } from "../../base/draw";
 import {
   BONNET,
   BOOK,
   BRASS,
   CHEEK,
-  COAT_BROWN,
-  COAT_GREEN,
+  COAT_MUSTARD,
   COAT_NAVY,
-  COAT_PLUM,
-  FRAME,
-  HAT,
-  HAT_LIGHT,
-  INK,
+  COAT_RED,
+  COAT_TEAL,
+  CREAM,
+  EVERGREEN,
   IRON,
   LAMP,
   LAMP_CORE,
-  RED,
-  SCARF_GOLD,
+  NAVY,
   SHAWL,
   SKIN,
   SNOW,
-  WHITE,
 } from "./colors";
 import { glow, snowCap } from "./shapes";
 
-// Victorian townsfolk, ink-outlined cartoons in the street: three carolers singing from a
-// carol book (a gentleman in a top hat, a lady in a bonnet and shawl, a child holding up a
-// lantern) with notes drifting up from them, and the lamplighter in his cap and greatcoat
-// reaching his long pole up to a gas lamp.
+// Victorian townsfolk in the street, simplified into the flat geometric figures of a 1950s
+// picture book: A-line coats, round heads with rosy cheeks, tall hats as plain rectangles, no
+// outlines. Three carolers sing from a carol book (a gentleman in a top hat, a lady in a bonnet
+// and shawl, a child holding up a lantern) with notes drifting up from them, and the lamplighter
+// in his cap and greatcoat reaches his long pole up to a gas lamp.
 //
 // Each figure is drawn in a frame with its origin at its feet, x right, y UP in depth units,
 // scaled by U px per unit. `Y(v)` flips a height to canvas y.
@@ -49,29 +46,27 @@ function begin(ctx: Ctx, f: Frame, x: number): number {
   return f.lw / f.U;
 }
 
-/** Boots: two dark ovals at the hem. */
-function boots(ctx: Ctx, w: number, lw: number): void {
+/** Boots: two navy ovals at the hem. */
+function boots(ctx: Ctx, w: number): void {
   ctx.beginPath();
   oval(ctx, -w * 0.45, Y(0.004), w * 0.42, 0.006);
   oval(ctx, w * 0.45, Y(0.004), w * 0.42, 0.006);
-  ctx.fillStyle = HAT;
+  ctx.fillStyle = NAVY;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
 }
 
-/** A coat or dress: a flared shape from the shoulders (y = top) to the hem (y = 0.006). */
-function coat(ctx: Ctx, top: number, shoulder: number, hem: number, color: string, lw: number): void {
+/** A coat or dress: an A-line trapezoid from the shoulders (y = top) to the hem (y = 0.006), the shoulders rounded. */
+function coat(ctx: Ctx, top: number, shoulder: number, hem: number, color: string): void {
   ctx.beginPath();
-  ctx.moveTo(-shoulder, Y(top - 0.008));
-  ctx.quadraticCurveTo(-shoulder, Y(top), -shoulder * 0.4, Y(top));
-  ctx.lineTo(shoulder * 0.4, Y(top));
-  ctx.quadraticCurveTo(shoulder, Y(top), shoulder, Y(top - 0.008));
-  ctx.lineTo(hem, Y(0.008));
-  ctx.quadraticCurveTo(0, Y(0.002), -hem, Y(0.008));
+  ctx.moveTo(-shoulder, Y(top - 0.01));
+  ctx.quadraticCurveTo(-shoulder, Y(top), -shoulder * 0.5, Y(top));
+  ctx.lineTo(shoulder * 0.5, Y(top));
+  ctx.quadraticCurveTo(shoulder, Y(top), shoulder, Y(top - 0.01));
+  ctx.lineTo(hem, Y(0.007));
+  ctx.lineTo(-hem, Y(0.007));
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
-  ink(ctx, lw, INK);
 }
 
 /** A round face with rosy cheeks and closed, singing eyes; `open` 0..1 for the mouth. */
@@ -80,10 +75,9 @@ function face(ctx: Ctx, x: number, y: number, r: number, open: number, lw: numbe
   circle(ctx, x, Y(y), r);
   ctx.fillStyle = SKIN;
   ctx.fill();
-  ink(ctx, lw, INK);
   ctx.beginPath();
-  circle(ctx, x - r * 0.55, Y(y - r * 0.2), r * 0.22);
-  circle(ctx, x + r * 0.55, Y(y - r * 0.2), r * 0.22);
+  circle(ctx, x - r * 0.55, Y(y - r * 0.22), r * 0.2);
+  circle(ctx, x + r * 0.55, Y(y - r * 0.22), r * 0.2);
   ctx.fillStyle = CHEEK;
   ctx.fill();
   // Closed eyes: little upward arcs (happy singing).
@@ -92,18 +86,18 @@ function face(ctx: Ctx, x: number, y: number, r: number, open: number, lw: numbe
   ctx.quadraticCurveTo(x - r * 0.35, Y(y + r * 0.32), x - r * 0.15, Y(y + r * 0.1));
   ctx.moveTo(x + r * 0.15, Y(y + r * 0.1));
   ctx.quadraticCurveTo(x + r * 0.35, Y(y + r * 0.32), x + r * 0.55, Y(y + r * 0.1));
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = NAVY;
   ctx.lineWidth = lw * 0.8;
   ctx.lineCap = "round";
   ctx.stroke();
   ctx.beginPath();
   oval(ctx, x, Y(y - r * 0.42), r * 0.2, r * (0.1 + 0.16 * open));
-  ctx.fillStyle = INK;
+  ctx.fillStyle = NAVY;
   ctx.fill();
 }
 
-/** An open carol book held at (x, y up), `w` wide: red covers, white pages, a few lines. */
-function carolBook(ctx: Ctx, x: number, y: number, w: number, lw: number): void {
+/** An open carol book held at (x, y up), `w` wide: cranberry covers round two cream pages. */
+function carolBook(ctx: Ctx, x: number, y: number, w: number): void {
   const h = w * 0.62;
   ctx.beginPath();
   ctx.moveTo(x, Y(y - h * 0.08));
@@ -115,7 +109,6 @@ function carolBook(ctx: Ctx, x: number, y: number, w: number, lw: number): void 
   ctx.closePath();
   ctx.fillStyle = BOOK;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
   ctx.moveTo(x, Y(y));
   ctx.lineTo(x - w * 0.45, Y(y + h * 0.1));
@@ -124,77 +117,61 @@ function carolBook(ctx: Ctx, x: number, y: number, w: number, lw: number): void 
   ctx.lineTo(x + w * 0.45, Y(y + h * 0.95));
   ctx.lineTo(x + w * 0.45, Y(y + h * 0.1));
   ctx.closePath();
-  ctx.fillStyle = WHITE;
+  ctx.fillStyle = CREAM;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
 }
 
 /** A mitten: a small round hand. */
-function mitten(ctx: Ctx, x: number, y: number, r: number, color: string, lw: number): void {
+function mitten(ctx: Ctx, x: number, y: number, r: number, color: string): void {
   ctx.beginPath();
   circle(ctx, x, Y(y), r);
   ctx.fillStyle = color;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
 }
 
-/** A hand-held lantern: ring, cap, glowing glass, base. Hangs from (x, y up). */
+/** A hand-held lantern: ring, pointed cap, glowing glass, base, in its pool of light. Hangs from (x, y up). */
 export function lantern(ctx: Ctx, x: number, y: number, s: number, lw: number, t: number): void {
   const flick = 0.85 + 0.15 * Math.sin(t * 9.1) * Math.sin(t * 4.3);
-  glow(ctx, x, Y(y - s * 0.9), s * 3.2, flick);
+  glow(ctx, x, Y(y - s * 0.9), s * 3, flick);
   ctx.beginPath();
   ctx.arc(x, Y(y - s * 0.12), s * 0.22, Math.PI, 0);
   ctx.strokeStyle = IRON;
   ctx.lineWidth = lw * 0.9;
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x - s * 0.45, Y(y - s * 0.42));
-  ctx.lineTo(x, Y(y - s * 0.12));
-  ctx.lineTo(x + s * 0.45, Y(y - s * 0.42));
-  ctx.closePath();
   roundRectPath(ctx, x - s * 0.38, -(y - s * 0.44), s * 0.76, s * 0.88, s * 0.06);
   ctx.fillStyle = LAMP;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
   oval(ctx, x, Y(y - s * 0.9), s * 0.16, s * 0.24 * flick);
   ctx.fillStyle = LAMP_CORE;
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(x - s * 0.45, Y(y - s * 0.42));
+  ctx.moveTo(x - s * 0.45, Y(y - s * 0.44));
   ctx.lineTo(x, Y(y - s * 0.12));
-  ctx.lineTo(x + s * 0.45, Y(y - s * 0.42));
+  ctx.lineTo(x + s * 0.45, Y(y - s * 0.44));
   ctx.closePath();
   ctx.rect(x - s * 0.45, Y(y - s * 1.32), s * 0.9, s * 0.12);
-  ctx.moveTo(x, Y(y - s * 0.44));
-  ctx.lineTo(x, Y(y - s * 1.32));
-  ctx.fillStyle = HAT;
+  ctx.fillStyle = IRON;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
 }
 
 // ---------------------------------------------------------------- carolers
 
-/** The gentleman: greatcoat, gold scarf, top hat, singing from the book. */
+/** The gentleman: navy greatcoat, mustard scarf, a tall top hat, singing from the book. */
 function gentleman(ctx: Ctx, lw: number, t: number, phase: number): void {
   const bob = Math.sin(t * 2.4 + phase) * 0.0025;
   const open = 0.5 + 0.5 * Math.sin(t * 3.1 + phase);
-  boots(ctx, 0.016, lw);
-  coat(ctx, 0.098 + bob, 0.026, 0.03, COAT_NAVY, lw);
-  // Coat buttons and the front opening
+  boots(ctx, 0.016);
+  coat(ctx, 0.098 + bob, 0.026, 0.03, COAT_NAVY);
+  // Brass buttons down the front
   ctx.beginPath();
-  ctx.moveTo(0.004, Y(0.094 + bob));
-  ctx.lineTo(0.006, Y(0.01));
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = lw * 0.6;
-  ctx.stroke();
-  ctx.beginPath();
-  for (let i = 0; i < 3; i++) circle(ctx, -0.004, Y(0.08 - i * 0.02 + bob), 0.0028);
+  for (let i = 0; i < 3; i++) circle(ctx, 0.004, Y(0.08 - i * 0.02 + bob), 0.0028);
   ctx.fillStyle = BRASS;
   ctx.fill();
   const hy = 0.118 + bob;
   face(ctx, 0, hy, 0.02, open, lw);
-  // Scarf
+  // Scarf: a band and a hanging end.
   ctx.beginPath();
   roundRectPath(ctx, -0.02, -(hy - 0.012), 0.04, 0.012, 0.005);
   ctx.moveTo(0.008, Y(hy - 0.022));
@@ -202,60 +179,51 @@ function gentleman(ctx: Ctx, lw: number, t: number, phase: number): void {
   ctx.lineTo(0.024, Y(hy - 0.055));
   ctx.lineTo(0.013, Y(hy - 0.055));
   ctx.closePath();
-  ctx.fillStyle = SCARF_GOLD;
+  ctx.fillStyle = BRASS;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
-  // Top hat: brim and tall crown, a band.
+  // Top hat: a tall crown and a brim, a cranberry band, snow on top.
   ctx.beginPath();
-  roundRectPath(ctx, -0.016, -(hy + 0.058), 0.032, 0.044, 0.003);
-  ctx.fillStyle = HAT;
-  ctx.fill();
-  ink(ctx, lw * 0.8, INK);
-  ctx.beginPath();
-  ctx.rect(-0.016, Y(hy + 0.026), 0.032, 0.007);
-  ctx.fillStyle = RED;
+  ctx.rect(-0.015, Y(hy + 0.058), 0.03, 0.044);
+  ctx.rect(-0.027, Y(hy + 0.019), 0.054, 0.007);
+  ctx.fillStyle = NAVY;
   ctx.fill();
   ctx.beginPath();
-  oval(ctx, 0, Y(hy + 0.016), 0.027, 0.0055);
-  ctx.fillStyle = HAT_LIGHT;
+  ctx.rect(-0.015, Y(hy + 0.028), 0.03, 0.007);
+  ctx.fillStyle = COAT_RED;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
-  snowCap(ctx, -0.017, 0.017, Y(hy + 0.058), 0.005);
+  snowCap(ctx, -0.016, 0.016, Y(hy + 0.058), 0.005);
   ctx.fillStyle = SNOW;
   ctx.fill();
   // The carol book, held in both mittens
-  carolBook(ctx, -0.004, 0.064 + bob, 0.04, lw);
-  mitten(ctx, -0.022, 0.066 + bob, 0.0065, SCARF_GOLD, lw);
-  mitten(ctx, 0.014, 0.066 + bob, 0.0065, SCARF_GOLD, lw);
+  carolBook(ctx, -0.004, 0.064 + bob, 0.04);
+  mitten(ctx, -0.022, 0.066 + bob, 0.0065, BRASS);
+  mitten(ctx, 0.014, 0.066 + bob, 0.0065, BRASS);
 }
 
-/** The lady: long plum coat, red shawl, a pink bonnet tied with a bow. */
+/** The lady: a long teal coat, a cranberry shawl, a pink bonnet tied with a bow, a white muff. */
 function lady(ctx: Ctx, lw: number, t: number, phase: number): void {
   const bob = Math.sin(t * 2.4 + phase) * 0.0025;
   const open = 0.5 + 0.5 * Math.sin(t * 3.1 + phase + 0.6);
-  boots(ctx, 0.012, lw);
-  coat(ctx, 0.078 + bob, 0.022, 0.036, COAT_PLUM, lw);
-  // Shawl over the shoulders
+  boots(ctx, 0.012);
+  coat(ctx, 0.078 + bob, 0.022, 0.036, COAT_TEAL);
+  // Shawl over the shoulders: a flat triangle.
   ctx.beginPath();
-  ctx.moveTo(-0.025, Y(0.07 + bob));
-  ctx.quadraticCurveTo(-0.024, Y(0.082 + bob), -0.012, Y(0.082 + bob));
-  ctx.lineTo(0.012, Y(0.082 + bob));
-  ctx.quadraticCurveTo(0.024, Y(0.082 + bob), 0.025, Y(0.07 + bob));
+  ctx.moveTo(-0.025, Y(0.072 + bob));
+  ctx.lineTo(-0.018, Y(0.082 + bob));
+  ctx.lineTo(0.018, Y(0.082 + bob));
+  ctx.lineTo(0.025, Y(0.072 + bob));
   ctx.lineTo(0, Y(0.046 + bob));
   ctx.closePath();
   ctx.fillStyle = SHAWL;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   const hy = 0.097 + bob;
-  // Bonnet: a big rounded brim framing the face, drawn behind it.
+  // Bonnet: a big round brim framing the face, behind it; its crown over the forehead.
   ctx.beginPath();
-  oval(ctx, 0, Y(hy + 0.004), 0.026, 0.027);
+  circle(ctx, 0, Y(hy + 0.004), 0.026);
   ctx.fillStyle = BONNET;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   face(ctx, 0, hy - 0.002, 0.017, open, lw);
-  // Bonnet crown edge over the forehead, and the ribbon bow at the chin
   ctx.beginPath();
   ctx.moveTo(-0.024, Y(hy + 0.006));
   ctx.quadraticCurveTo(0, Y(hy + 0.03), 0.024, Y(hy + 0.006));
@@ -263,7 +231,7 @@ function lady(ctx: Ctx, lw: number, t: number, phase: number): void {
   ctx.closePath();
   ctx.fillStyle = BONNET;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
+  // The ribbon bow at the chin
   ctx.beginPath();
   const by = hy - 0.021;
   ctx.moveTo(0, Y(by));
@@ -274,57 +242,51 @@ function lady(ctx: Ctx, lw: number, t: number, phase: number): void {
   ctx.lineTo(0.009, Y(by + 0.005));
   ctx.lineTo(0.009, Y(by - 0.005));
   ctx.closePath();
-  ctx.fillStyle = RED;
+  ctx.fillStyle = COAT_RED;
   ctx.fill();
-  ink(ctx, lw * 0.5, INK);
   ctx.beginPath();
-  snowCap(ctx, -0.016, 0.016, Y(hy + 0.029), 0.004);
+  snowCap(ctx, -0.014, 0.014, Y(hy + 0.029), 0.004);
+  oval(ctx, 0, Y(0.05 + bob), 0.014, 0.009);
   ctx.fillStyle = SNOW;
   ctx.fill();
-  // A white fur muff
-  ctx.beginPath();
-  oval(ctx, 0, Y(0.05 + bob), 0.014, 0.009);
-  ctx.fillStyle = WHITE;
-  ctx.fill();
-  ink(ctx, lw * 0.7, INK);
 }
 
-/** The child: green coat, red knitted cap with a pompom, holding the lantern up on a stick. */
+/** The child: an evergreen coat, a red knitted cap with a pompom, holding the lantern up on a stick. */
 function child(ctx: Ctx, lw: number, t: number, phase: number, lx: number, ly: number): void {
   const bob = Math.sin(t * 2.4 + phase) * 0.003;
   const open = 0.5 + 0.5 * Math.sin(t * 3.1 + phase + 1.2);
-  boots(ctx, 0.01, lw);
-  coat(ctx, 0.05 + bob, 0.017, 0.022, COAT_GREEN, lw);
+  boots(ctx, 0.01);
+  coat(ctx, 0.05 + bob, 0.017, 0.022, EVERGREEN);
   // The lantern stick, from the raised mitten to the lantern ring.
   const hx = -0.012;
   const hyy = 0.058 + bob;
   ctx.beginPath();
   ctx.moveTo(hx + 0.002, Y(hyy - 0.006));
   ctx.lineTo(lx, Y(ly));
-  inkedLine(ctx, COAT_BROWN, 0.0035, lw * 0.5, INK);
+  ctx.strokeStyle = NAVY;
+  ctx.lineWidth = 0.0035;
+  ctx.lineCap = "round";
+  ctx.stroke();
   lantern(ctx, lx, ly, 0.016, lw, t);
   const hy = 0.068 + bob;
   face(ctx, 0.002, hy, 0.016, open, lw);
-  // Knitted cap with a pompom
+  // Knitted cap: a red dome, a cream turned-up band, a white pompom.
   ctx.beginPath();
   ctx.moveTo(-0.016, Y(hy + 0.004));
   ctx.quadraticCurveTo(-0.014, Y(hy + 0.026), 0.003, Y(hy + 0.026));
   ctx.quadraticCurveTo(0.02, Y(hy + 0.024), 0.02, Y(hy + 0.004));
   ctx.closePath();
-  ctx.fillStyle = RED;
+  ctx.fillStyle = COAT_RED;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
   roundRectPath(ctx, -0.018, -(hy + 0.009), 0.04, 0.008, 0.003);
-  ctx.fillStyle = FRAME;
+  ctx.fillStyle = CREAM;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
   ctx.beginPath();
   circle(ctx, 0.004, Y(hy + 0.031), 0.0065);
-  ctx.fillStyle = WHITE;
+  ctx.fillStyle = SNOW;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
-  mitten(ctx, hx, hyy, 0.0055, RED, lw);
+  mitten(ctx, hx, hyy, 0.0055, COAT_RED);
 }
 
 /**
@@ -346,14 +308,17 @@ function notes(ctx: Ctx, f: Frame, lw: number): void {
     ctx.globalAlpha = a;
     ctx.beginPath();
     oval(ctx, x, Y(y), r * 1.2, r * 0.9, -0.4);
-    ctx.fillStyle = WHITE;
+    ctx.fillStyle = CREAM;
     ctx.fill();
-    ink(ctx, lw * 0.6, INK);
     ctx.beginPath();
     ctx.moveTo(x + r * 1.05, Y(y + r * 0.2));
     ctx.lineTo(x + r * 1.05, Y(y + r * 4));
-    ctx.quadraticCurveTo(x + r * 2.4, Y(y + r * 3.2), x + r * 2.2, Y(y + r * 2));
-    inkedLine(ctx, WHITE, lw * 0.8, lw * 0.5, INK);
+    ctx.lineTo(x + r * 2.3, Y(y + r * 2.8));
+    ctx.strokeStyle = CREAM;
+    ctx.lineWidth = lw * 0.9;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
 }
@@ -390,29 +355,28 @@ export function lighterReach(t: number): number {
 }
 
 /**
- * The lamplighter at (f.x, f.y), facing left toward his lamp. `tipX`, `tipY` (screen px) is the
- * lamp's burner, where his pole's tip reaches; between times the pole rests against the
- * lamp's ladder bar at `restX`, `restY`.
+ * The lamplighter at (f.x, f.y), facing left toward his lamp: a mustard greatcoat, a navy cap and
+ * a cranberry scarf. `tipX`, `tipY` (screen px) is the lamp's burner, where his pole's tip
+ * reaches; between times the pole rests against the lamp's ladder bar at `restX`, `restY`.
  */
 export function lamplighter(ctx: Ctx, f: Frame, tipX: number, tipY: number, restX: number, restY: number): void {
   const e = lighterReach(f.t);
   const lw = begin(ctx, f, 0);
   const t = f.t;
-  boots(ctx, 0.014, lw);
-  coat(ctx, 0.092, 0.024, 0.03, COAT_BROWN, lw);
+  boots(ctx, 0.014);
+  coat(ctx, 0.092, 0.024, 0.03, COAT_MUSTARD);
   // Belt and a little satchel
   ctx.beginPath();
   ctx.rect(-0.026, Y(0.052), 0.052, 0.008);
-  ctx.fillStyle = HAT;
+  ctx.fillStyle = NAVY;
   ctx.fill();
   ctx.beginPath();
   roundRectPath(ctx, 0.01, -0.05, 0.02, 0.018, 0.003);
-  ctx.fillStyle = BRASS;
+  ctx.fillStyle = COAT_RED;
   ctx.fill();
-  ink(ctx, lw * 0.6, INK);
   const hy = 0.112;
   face(ctx, -0.002, hy, 0.019, 0.25 + 0.15 * Math.sin(t * 1.3), lw);
-  // Flat cap with a peak pointing at the lamp, and a red scarf
+  // Flat cap with a peak pointing at the lamp, and the scarf
   ctx.beginPath();
   ctx.moveTo(-0.02, Y(hy + 0.008));
   ctx.quadraticCurveTo(-0.018, Y(hy + 0.03), 0.004, Y(hy + 0.03));
@@ -422,18 +386,16 @@ export function lamplighter(ctx: Ctx, f: Frame, tipX: number, tipY: number, rest
   ctx.lineTo(-0.034, Y(hy + 0.006));
   ctx.lineTo(-0.016, Y(hy + 0.002));
   ctx.closePath();
-  ctx.fillStyle = COAT_GREEN;
+  ctx.fillStyle = NAVY;
   ctx.fill();
-  ink(ctx, lw * 0.8, INK);
   ctx.beginPath();
   snowCap(ctx, -0.014, 0.018, Y(hy + 0.029), 0.004);
   ctx.fillStyle = SNOW;
   ctx.fill();
   ctx.beginPath();
   roundRectPath(ctx, -0.019, -(hy - 0.013), 0.038, 0.011, 0.005);
-  ctx.fillStyle = RED;
+  ctx.fillStyle = COAT_RED;
   ctx.fill();
-  ink(ctx, lw * 0.7, INK);
   ctx.restore();
 
   // The pole, in screen space: from his raised hands toward the lamp. At rest it leans on the
@@ -449,14 +411,18 @@ export function lamplighter(ctx: Ctx, f: Frame, tipX: number, tipY: number, rest
   ctx.beginPath();
   ctx.moveTo(hx - dx * 0.12, hyS - dy * 0.12);
   ctx.lineTo(px, py);
-  inkedLine(ctx, COAT_BROWN, Math.max(2, 0.0045 * U), f.lw * 0.5, INK);
+  ctx.strokeStyle = NAVY;
+  ctx.lineWidth = Math.max(2, 0.0055 * U);
+  ctx.lineCap = "round";
+  ctx.stroke();
   // A little flame on the tip
   const fl = 1 + 0.25 * Math.sin(t * 13);
-  glow(ctx, px, py, 0.03 * U, 0.8);
+  glow(ctx, px, py, 0.03 * U, 0.9);
   ctx.beginPath();
   ctx.moveTo(px, py - 0.012 * U * fl);
-  ctx.quadraticCurveTo(px + 0.005 * U, py, px, py + 0.003 * U);
-  ctx.quadraticCurveTo(px - 0.005 * U, py, px, py - 0.012 * U * fl);
+  ctx.lineTo(px + 0.005 * U, py - 0.002 * U);
+  ctx.lineTo(px, py + 0.003 * U);
+  ctx.lineTo(px - 0.005 * U, py - 0.002 * U);
   ctx.closePath();
   ctx.fillStyle = LAMP_CORE;
   ctx.fill();
@@ -464,7 +430,6 @@ export function lamplighter(ctx: Ctx, f: Frame, tipX: number, tipY: number, rest
   ctx.beginPath();
   circle(ctx, hx, hyS, 0.0065 * U);
   circle(ctx, hx + dx * 0.1, hyS + dy * 0.1, 0.0065 * U);
-  ctx.fillStyle = SHAWL;
+  ctx.fillStyle = COAT_RED;
   ctx.fill();
-  ink(ctx, f.lw * 0.7, INK);
 }

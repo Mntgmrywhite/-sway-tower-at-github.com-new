@@ -1,15 +1,43 @@
-import { alpha, circle, hash, oval, type Ctx } from "../../base/draw";
-import { altitude01 } from "../../base/world";
+import { alpha, circle, hash, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { STAR } from "./colors";
-import { sparklePath, TAU } from "./shapes";
-import { level, loopHorizon, moonUp, sunUp, toneAt, toneIndexAt, toneOf, type Tone } from "./tone";
+import { BLOCK_HEIGHT } from "../../config";
+import { CREAM, MOON, MOON_HALO, MOON_SHADE, MUSTARD, SNOW, SUN_HALO, WHITE } from "./colors";
+import { sparklePath, starburstPath, TAU } from "./shapes";
+import { BANDS, level, LOOP_START, moonUp, smooth, storyLevel, sunUp, toneAt, toneOf, type Tone } from "./tone";
 
-// The dusk sky over London: a pale winter moon up in the right corner (clear of the HUD and
-// of the rooftops at any phone size), snow falling, and now and then a flock of pigeons
-// wheeling across above the chimneys. Past the first pass the sky turns with the story's loop
-// (tone.ts): the skin paints it itself, the moon sets and a winter sun rises on the left for
-// Christmas morning, the snow stops for the bright day and comes back with the dusk.
+// The sky over London, printed like a 1950s Christmas card: flat bands of color from the top of
+// the screen down to the glow on the horizon (no soft gradients), a pale flat moon up in the
+// right corner (clear of the HUD and of the rooftops at any phone size), small dot stars and
+// atomic starbursts in the side lanes, snow falling as little geometric flakes (finer behind the
+// tower, so its column stays calm), and now and then a flock of pigeons crossing above the
+// chimneys. Up the story's loop (tone.ts) the bands take the hour's colors, the moon sets and a
+// rayed winter sun rises on the left for Christmas morning, the snow stops for the bright day and
+// comes back with the dusk. Nothing ever crosses the sun or the moon.
+
+// ---------------------------------------------------------------- the bands
+
+/**
+ * Where the sky's bands hang from: the horizon while it is on screen, then the screen's bottom
+ * once the climb has sunk it (so past the first turn of the loop the bands never move again).
+ */
+function skyAnchor(s: Scene): number {
+  return Math.max(1, Math.min(s.horizonY, s.cssH));
+}
+
+/** The whole screen, in the hour's flat bands; the last runs on to the bottom behind the land. */
+export function skyFill(ctx: Ctx, s: Scene, tone: Tone): void {
+  const h = skyAnchor(s);
+  let y0 = 0;
+  for (let i = 0; i < BANDS.length; i++) {
+    const y1 = i + 1 < BANDS.length ? Math.round(BANDS[i + 1]! * h) : s.cssH;
+    if (y1 <= y0) continue;
+    ctx.fillStyle = tone.bands[i]!;
+    // Two pixels' overlap into the next band (more than a whole device pixel at any zoom), so the
+    // next one's anti-aliased edge always lies over solid color and no seam shows between them.
+    ctx.fillRect(0, y0, s.cssW, y1 - y0 + (y1 < s.cssH ? 2 : 0));
+    y0 = y1;
+  }
+}
 
 // ---------------------------------------------------------------- moon
 
@@ -25,13 +53,18 @@ function moonY(s: Scene, up: number): number {
 function moonR(s: Scene): number {
   return s.u * 0.068;
 }
-/** The soft halos of the moon and the sun reach this many radii. */
-const HALO_REACH = 2.6;
+/** The flat rings of light round the moon and the sun reach this many radii. */
+const HALO_REACH = 1.9;
+/** The halo's two flat rings: radius (in radii) and opacity, so it steps out like a print. */
+const HALO_RINGS = [
+  [1.9, 0.05],
+  [1.45, 0.09],
+] as const;
 /**
  * Rising and setting, the sun and the moon pass the bottom of the screen; once the street's
  * horizon has sunk out of view nothing hides them there, so they fade there instead of being cut by
- * the screen's edge: gone while anything visible of them (the sun's rays, the brighter part of a
- * halo, out to BODY_REACH radii) would touch the edge, whole again EDGE_FADE radii higher.
+ * the screen's edge: gone while anything of them (the rays, the halo, out to BODY_REACH radii)
+ * would touch the edge, whole again EDGE_FADE radii higher.
  */
 const BODY_REACH = 2.2;
 const EDGE_FADE = 1.5;
@@ -42,27 +75,26 @@ function edgeFade(s: Scene, y: number, r: number): number {
   return k <= 0 ? 0 : k >= 1 ? 1 : k;
 }
 
-const MOON = "#fff6df";
-const MOON_SHADE = "#f0d9c4";
-const CRATER = "#f6e6d2";
-const HALO_STOPS = [
-  [0, alpha("#fff3e0", 0.4)],
-  [0.45, alpha("#ffe9e0", 0.12)],
-  [1, alpha("#ffe9e0", 0)],
-] as const;
-let haloCtx: Ctx | null = null;
-let haloFill: CanvasGradient | null = null;
+/** Two flat rings of light about (x, y), radius r, at `fade` opacity. */
+function halo(ctx: Ctx, x: number, y: number, r: number, color: string, fade: number): void {
+  ctx.fillStyle = color;
+  for (const [k, a] of HALO_RINGS) {
+    ctx.beginPath();
+    circle(ctx, x, y, r * k);
+    ctx.globalAlpha = a * fade;
+    ctx.fill();
+  }
+  ctx.globalAlpha = fade;
+}
 
-/** Craters as (x, y, r) fractions of the moon's radius. */
-const CRATERS = [
-  [-0.3, -0.24, 0.2],
-  [0.3, 0.1, 0.22],
-  [-0.1, 0.42, 0.13],
-  [0.08, -0.52, 0.09],
-  [-0.52, 0.18, 0.09],
+/** Its flat seas, as (x, y, r) fractions of the radius. */
+const SEAS = [
+  [-0.28, -0.22, 0.22],
+  [0.26, 0.16, 0.2],
+  [-0.08, 0.44, 0.12],
 ] as const;
 
-/** A pale full moon: one soft halo, a warm shaded rim, flat craters and a slow twinkle. */
+/** A pale full moon, flat: a stepped halo, a shaded crescent along its rim, flat seas, a twinkle. */
 function moon(ctx: Ctx, s: Scene, up: number): void {
   if (up <= 0) return;
   const x = moonX(s);
@@ -70,39 +102,26 @@ function moon(ctx: Ctx, s: Scene, up: number): void {
   const r = moonR(s);
   const fade = edgeFade(s, y, r);
   if (fade <= 0) return;
-  ctx.globalAlpha = fade;
-
-  if (haloCtx !== ctx || !haloFill) {
-    haloCtx = ctx;
-    haloFill = ctx.createRadialGradient(0, 0, 0.35, 0, 0, 1);
-    for (const [at, c] of HALO_STOPS) haloFill.addColorStop(at, c);
-  }
-  const reach = r * HALO_REACH;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(reach, reach);
-  ctx.fillStyle = haloFill;
-  ctx.fillRect(-1, -1, 2, 2);
-  ctx.restore();
-
+  halo(ctx, x, y, r, MOON_HALO, fade);
   ctx.beginPath();
   circle(ctx, x, y, r);
   ctx.fillStyle = MOON_SHADE;
   ctx.fill();
   ctx.beginPath();
-  circle(ctx, x - r * 0.08, y - r * 0.08, r * 0.88);
+  circle(ctx, x - r * 0.1, y - r * 0.06, r * 0.9);
   ctx.fillStyle = MOON;
   ctx.fill();
   ctx.beginPath();
-  for (const [cx, cy, cr] of CRATERS) circle(ctx, x + cx * r, y + cy * r, cr * r);
-  ctx.fillStyle = CRATER;
+  for (const [cx, cy, cr] of SEAS) circle(ctx, x + cx * r, y + cy * r, cr * r);
+  ctx.fillStyle = MOON_SHADE;
+  ctx.globalAlpha = 0.55 * fade;
   ctx.fill();
 
   const tw = 0.5 + 0.5 * Math.sin(s.t * 1.3);
   ctx.beginPath();
   // On the outer (right) shoulder, so the twinkle never reaches into the HUD's column.
   sparklePath(ctx, x + r * 0.85, y - r * 0.75, r * (0.22 + 0.12 * tw));
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = WHITE;
   ctx.globalAlpha = (0.65 + 0.35 * tw) * fade;
   ctx.fill();
   ctx.globalAlpha = 1;
@@ -117,30 +136,19 @@ function sunX(s: Scene): number {
 function sunR(s: Scene): number {
   return s.u * 0.062;
 }
-/** Its soft halo, warmer than the moon's, reaching HALO_REACH radii. */
-const SUN_HALO_STOPS = [
-  [0, alpha("#fff1c8", 0.5)],
-  [0.45, alpha("#ffe6b8", 0.16)],
-  [1, alpha("#ffe6b8", 0)],
-] as const;
-let sunHaloCtx: Ctx | null = null;
-let sunHaloFill: CanvasGradient | null = null;
-/**
- * Short rounded rays around the disc: how many, where their feet sit and how far their curve
- * pulls out (in radii; the tips reach about 1.4).
- */
-const RAYS = 12;
-const RAY_FOOT = 1.18;
-const RAY_PULL = 1.62;
+/** An atomic sun's rays: how many (long and short by turns), their feet and tips in radii. */
+const RAYS = 16;
+const RAY_FOOT = 1.14;
+const RAY_LONG = 1.62;
+const RAY_SHORT = 1.36;
 /** Half a ray's width at its foot, radians. */
-const RAY_HALF = (TAU / RAYS) * 0.22;
+const RAY_HALF = (TAU / RAYS) * 0.3;
 
 /**
  * Christmas morning's sun: rises from below the screen on the left as you climb into the morning
- * (out of the haze: see edgeFade), keeps its spot through the day and sinks again in the late
- * afternoon. A soft halo like the
- * moon's, a ring of short flat rays, a shaded rim and a highlight; warm gold low down, pale at
- * its height.
+ * (see edgeFade), keeps its spot through the day and sinks again in the late afternoon. A flat
+ * disc in a ring of pointed rays, long and short by turns, like a 1950s starburst clock; warm gold
+ * low down, pale at its height.
  */
 function sun(ctx: Ctx, s: Scene, tone: Tone, up: number): void {
   if (up <= 0) return;
@@ -150,102 +158,28 @@ function sun(ctx: Ctx, s: Scene, tone: Tone, up: number): void {
   const x = sunX(s);
   const fade = edgeFade(s, y, r);
   if (fade <= 0) return;
-  ctx.globalAlpha = fade;
-
-  if (sunHaloCtx !== ctx || !sunHaloFill) {
-    sunHaloCtx = ctx;
-    sunHaloFill = ctx.createRadialGradient(0, 0, 0.35, 0, 0, 1);
-    for (const [at, c] of SUN_HALO_STOPS) sunHaloFill.addColorStop(at, c);
-  }
-  const reach = r * HALO_REACH;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(reach, reach);
-  ctx.fillStyle = sunHaloFill;
-  ctx.fillRect(-1, -1, 2, 2);
-  ctx.restore();
+  halo(ctx, x, y, r, SUN_HALO, fade);
 
   ctx.beginPath();
   const foot = r * RAY_FOOT;
-  const pull = r * RAY_PULL;
   for (let i = 0; i < RAYS; i++) {
     const a = (i / RAYS) * TAU;
+    const tip = r * (i % 2 ? RAY_SHORT : RAY_LONG);
     ctx.moveTo(x + Math.cos(a - RAY_HALF) * foot, y + Math.sin(a - RAY_HALF) * foot);
-    ctx.quadraticCurveTo(x + Math.cos(a) * pull, y + Math.sin(a) * pull, x + Math.cos(a + RAY_HALF) * foot, y + Math.sin(a + RAY_HALF) * foot);
+    ctx.lineTo(x + Math.cos(a) * tip, y + Math.sin(a) * tip);
+    ctx.lineTo(x + Math.cos(a + RAY_HALF) * foot, y + Math.sin(a + RAY_HALF) * foot);
     ctx.closePath();
   }
   ctx.fillStyle = tone.sunShade;
-  ctx.globalAlpha = 0.75 * fade;
   ctx.fill();
-  ctx.globalAlpha = fade;
-
   ctx.beginPath();
   circle(ctx, x, y, r);
   ctx.fillStyle = tone.sunShade;
   ctx.fill();
   ctx.beginPath();
-  circle(ctx, x - r * 0.07, y - r * 0.08, r * 0.88);
+  circle(ctx, x, y, r * 0.84);
   ctx.fillStyle = tone.sunBody;
   ctx.fill();
-  ctx.beginPath();
-  oval(ctx, x - r * 0.36, y - r * 0.4, r * 0.24, r * 0.15, -0.6);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-  ctx.fill();
-  ctx.globalAlpha = 1;
-}
-
-// ---------------------------------------------------------------- the loop's sky
-
-/** Where the sky's three colors sit between the top of the screen and the horizon (as the base's). */
-const SKY_STOPS = [0, 0.6, 1] as const;
-/** The loop's sky gradient, built in unit space and rebuilt only when the light or the context changes. */
-const skyCache = { ctx: null as Ctx | null, index: -1, fill: null as CanvasGradient | null };
-
-/** The base world's small stars (src/base/world.ts), redrawn over the loop's sky as the light allows. */
-const STARS = Array.from({ length: 60 }, (_, i) => ({
-  x: hash(i),
-  y: hash(i + 100) * 0.8,
-  r: 0.8 + hash(i + 200) * 1.2,
-  sparkle: hash(i + 300) > 0.85,
-}));
-
-/**
- * In the loop the skin paints the sky over the base's: the hour's three colors hanging from where
- * the horizon stood at the loop's start (the base's night sky there, exactly), and the small stars.
- */
-function loopSky(ctx: Ctx, s: Scene, tone: Tone, index: number): void {
-  if (skyCache.ctx !== ctx || skyCache.index !== index || !skyCache.fill) {
-    const g = ctx.createLinearGradient(0, 0, 0, 1);
-    for (let i = 0; i < SKY_STOPS.length; i++) g.addColorStop(SKY_STOPS[i]!, tone.sky[i]!);
-    skyCache.ctx = ctx;
-    skyCache.index = index;
-    skyCache.fill = g;
-  }
-  // The field covers everything below the horizon.
-  const bottom = Math.min(s.cssH, Math.ceil(s.horizonY) + 1);
-  if (bottom <= 0) return;
-  const h = Math.max(1, loopHorizon(s));
-  ctx.save();
-  ctx.scale(1, h);
-  ctx.fillStyle = skyCache.fill;
-  ctx.fillRect(0, 0, s.cssW, bottom / h);
-  ctx.restore();
-
-  if (tone.stars <= 0) return;
-  ctx.fillStyle = STAR;
-  for (const [i, st] of STARS.entries()) {
-    const y = st.y * s.cssH;
-    if (y > s.horizonY - s.u * 0.05) continue;
-    ctx.globalAlpha = (0.55 + 0.35 * Math.sin(s.t * 1.5 + i)) * tone.stars;
-    const x = st.x * s.cssW;
-    if (st.sparkle) {
-      const r = st.r * 2.2;
-      ctx.fillRect(x - 0.6, y - r, 1.2, r * 2);
-      ctx.fillRect(x - r, y - 0.6, r * 2, 1.2);
-    } else {
-      ctx.fillRect(x, y, st.r, st.r);
-    }
-  }
   ctx.globalAlpha = 1;
 }
 
@@ -256,12 +190,138 @@ export function bodies(ctx: Ctx, s: Scene): void {
   moon(ctx, s, moonUp(lvl));
 }
 
-/** The celestial layer: in the loop the sky itself, then the sun and the moon. */
-export function celestial(ctx: Ctx, s: Scene): void {
-  const lvl = level(s);
-  const tone = toneAt(lvl);
-  if (tone.loop) loopSky(ctx, s, tone, toneIndexAt(lvl));
-  bodies(ctx, s);
+// ---------------------------------------------------------------- stars
+
+/** How far either side of the center line the tower's column keeps clear of stars (u). */
+const STAR_CLEAR = 0.24;
+
+/** Small dot stars over the sky: x, y as fractions of the screen, size (px) and a twinkle phase. */
+const DOTS = Array.from({ length: 60 }, (_, i) => ({ x: hash(i), y: hash(i + 100) * 0.8, r: 0.7 + hash(i + 200) * 0.9 }));
+
+/** Small dots in the side lanes, above the horizon, twinkling. */
+function dotStars(ctx: Ctx, s: Scene, tone: Tone): void {
+  if (tone.stars <= 0) return;
+  const cx = s.cssW / 2;
+  const clear = s.u * STAR_CLEAR;
+  ctx.fillStyle = CREAM;
+  for (let g = 0; g < 3; g++) {
+    ctx.beginPath();
+    for (let i = g; i < DOTS.length; i += 3) {
+      const st = DOTS[i]!;
+      const x = st.x * s.cssW;
+      const y = st.y * s.cssH;
+      if (Math.abs(x - cx) < clear || y > s.horizonY - s.u * 0.05) continue;
+      circle(ctx, x, y, st.r);
+    }
+    ctx.globalAlpha = (0.55 + 0.35 * Math.sin(s.t * 1.5 + g * 2.1)) * tone.stars;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * Atomic starbursts that come out as the tower climbs into the night: [x, y] as fractions of
+ * the screen, a twinkle group. They keep to the side lanes, clear of the HUD and the tower.
+ */
+const BURSTS = Array.from({ length: 12 }, (_, i) => {
+  const fy = 0.06 + hash(i + 7600) * 0.56;
+  const side = i % 2;
+  const fx = (side ? 0.82 : 0.03) + hash(i + 7800) * 0.15;
+  return [fx, fy, i % 3] as const;
+});
+
+/** The starbursts' ink: mustard warmed toward the cream of the moon. */
+const BURST = mix(MUSTARD, CREAM, 0.35);
+
+/** No starburst within this many u of the sun's or the moon's spot, so none peeks out round them. */
+const BODY_CLEAR = 0.17;
+
+function starbursts(ctx: Ctx, s: Scene, tone: Tone): void {
+  const a = tone.sparkles;
+  if (a <= 0) return;
+  const by = s.cssH * 0.205;
+  const clear = s.u * BODY_CLEAR;
+  for (let g = 0; g < 3; g++) {
+    const tw = 0.5 + 0.5 * Math.sin(s.t * 1.6 + g * 2.1);
+    ctx.beginPath();
+    for (const [fx, fy, group] of BURSTS) {
+      if (group !== g) continue;
+      const x = fx * s.cssW;
+      const y = fy * s.cssH;
+      if (Math.hypot(x - moonX(s), y - by) < clear || Math.hypot(x - sunX(s), y - by) < clear) continue;
+      starburstPath(ctx, x, y, s.u * (0.022 + 0.008 * tw));
+    }
+    ctx.fillStyle = BURST;
+    ctx.globalAlpha = a * (0.55 + 0.45 * tw);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- day clouds
+
+/**
+ * Flat cut-paper clouds that drift by in the right lane on the loop's bright day, while the moon
+ * is set (so none ever crosses it): stacks of rounded strips, the longest at the bottom. Each
+ * passes 40% of the way down the screen at story level `at` (past LOOP_START), center `x` u right
+ * of the center line, `w` u long; they sink half as fast as the tower as you climb.
+ */
+const CLOUDS = [
+  { at: 46, x: 0.35, w: 0.17 },
+  { at: 55, x: 0.32, w: 0.18 },
+  { at: 63, x: 0.37, w: 0.15 },
+  { at: 72, x: 0.33, w: 0.18 },
+] as const;
+/** The clouds grow in once the moon has set and shrink away before it rises (levels past LOOP_START: tone.ts), opaque like cut paper (a fade would turn them grey). */
+const CLOUD_IN = [36, 42] as const;
+const CLOUD_OUT = [76, 82] as const;
+/** How fast they sink as the tower climbs, against the tower. */
+const CLOUD_PARALLAX = 0.5;
+/** Each cloud's strips: [left end, right end] as fractions of its length, top down; each strip CLOUD_H u thick. */
+const STRIPS = [
+  [0.3, 0.72],
+  [0.12, 0.88],
+  [0, 1],
+] as const;
+const CLOUD_H = 0.026;
+/** Below this size (a fraction of full) a growing or shrinking cloud is not drawn. */
+const CLOUD_MIN = 0.04;
+
+function dayClouds(ctx: Ctx, s: Scene): void {
+  const p = storyLevel(level(s)) - LOOP_START;
+  const k = smooth(CLOUD_IN[0], CLOUD_IN[1], p) * (1 - smooth(CLOUD_OUT[0], CLOUD_OUT[1], p));
+  if (k < CLOUD_MIN) return;
+  const u = s.u;
+  const h = CLOUD_H * u * k;
+  const perLevel = BLOCK_HEIGHT * s.scale * CLOUD_PARALLAX;
+  ctx.beginPath();
+  for (const c of CLOUDS) {
+    const y0 = s.cssH * 0.4 + (p - c.at) * perLevel;
+    if (y0 < -h * 4 || y0 - h * 3 > s.cssH) continue;
+    const L = c.w * u * k;
+    const x0 = s.cssW / 2 + c.x * u - L / 2;
+    STRIPS.forEach(([l, r], i) => {
+      const y = y0 - (STRIPS.length - 1 - i) * h * 0.85;
+      const xa = x0 + l * L;
+      const xb = x0 + r * L;
+      ctx.moveTo(xa + h / 2, y - h / 2);
+      ctx.lineTo(xb - h / 2, y - h / 2);
+      ctx.arc(xb - h / 2, y, h / 2, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(xa + h / 2, y + h / 2);
+      ctx.arc(xa + h / 2, y, h / 2, Math.PI / 2, (Math.PI * 3) / 2);
+      ctx.closePath();
+    });
+  }
+  ctx.fillStyle = SNOW;
+  ctx.fill();
+}
+
+/** Sky layer: the dot stars, the starbursts and the day's clouds, behind the sun and the moon. */
+export function stars(ctx: Ctx, s: Scene): void {
+  const tone = toneOf(s);
+  dayClouds(ctx, s);
+  dotStars(ctx, s, tone);
+  starbursts(ctx, s, tone);
 }
 
 // ---------------------------------------------------------------- snow
@@ -282,11 +342,11 @@ function flakes(n: number, seed: number, zMin: number, zMax: number): Flake[] {
   }));
 }
 
-/** Small distant flakes (drawn as squares) and fewer, larger near ones (round). */
+/** Small distant flakes (dots) and fewer, larger near ones (six-armed asterisks). */
 const FAR_FLAKES = flakes(90, 4000, 0, 0.6);
 const NEAR_FLAKES = flakes(34, 6000, 0.6, 1);
-const FAR_FLAKE = alpha("#ffffff", 0.62);
-const NEAR_FLAKE = alpha("#ffffff", 0.94);
+const FAR_FLAKE = alpha(WHITE, 0.6);
+const NEAR_FLAKE = alpha(WHITE, 0.92);
 
 function flakeY(s: Scene, f: Flake): number {
   const speed = 0.03 + 0.06 * f.z; // screen heights per second
@@ -299,11 +359,21 @@ function flakeX(s: Scene, f: Flake): number {
   return f.x * s.cssW + Math.sin(s.t * (0.5 + 0.6 * f.z) + f.phase) * s.u * (0.012 + 0.03 * f.z);
 }
 
+/** Flakes are finer behind the tower: their size, from FINE in its column to whole in the lanes. */
+const FINE = 0.45;
+function laneSize(s: Scene, x: number): number {
+  const d = (Math.abs(x - s.cssW / 2) / s.u - 0.12) / 0.18;
+  const k = d <= 0 ? 0 : d >= 1 ? 1 : d * d * (3 - 2 * d);
+  return FINE + (1 - FINE) * k;
+}
+
 /**
  * As the snow eases off, flakes fade out in this many groups, one after the other, so it thins
  * rather than all of it turning faint.
  */
 const SNOW_GROUPS = 4;
+/** The near flakes' arms, as unit vectors: three lines through the middle make six arms. */
+const ARMS = [0, 1, 2].map((i) => [Math.cos((i * Math.PI) / 3 + Math.PI / 2), Math.sin((i * Math.PI) / 3 + Math.PI / 2)] as const);
 
 /** The flakes of `list` in group g (every one when g < 0), between screen rows yMin and yMax. */
 function flakePaths(ctx: Ctx, s: Scene, list: readonly Flake[], near: boolean, g: number, yMin: number, yMax: number): void {
@@ -313,15 +383,27 @@ function flakePaths(ctx: Ctx, s: Scene, list: readonly Flake[], near: boolean, g
     const f = list[i]!;
     const y = flakeY(s, f);
     if (y < yMin || y > yMax) continue;
+    const x = flakeX(s, f);
+    const k = laneSize(s, x);
     if (near) {
-      circle(ctx, flakeX(s, f), y, s.u * (0.004 + 0.0045 * f.z));
+      const r = s.u * (0.006 + 0.007 * f.z) * k;
+      for (const [dx, dy] of ARMS) {
+        ctx.moveTo(x - dx * r, y - dy * r);
+        ctx.lineTo(x + dx * r, y + dy * r);
+      }
     } else {
-      const r = s.u * (0.003 + 0.004 * f.z);
-      ctx.rect(flakeX(s, f) - r / 2, y - r / 2, r, r);
+      circle(ctx, x, y, s.u * (0.0018 + 0.0024 * f.z) * k);
     }
   }
-  ctx.fillStyle = near ? NEAR_FLAKE : FAR_FLAKE;
-  ctx.fill();
+  if (near) {
+    ctx.strokeStyle = NEAR_FLAKE;
+    ctx.lineWidth = Math.max(1, s.u * 0.0032);
+    ctx.lineCap = "round";
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = FAR_FLAKE;
+    ctx.fill();
+  }
 }
 
 /** Falling snow between screen rows yMin and yMax, as heavy as the story's weather has it. */
@@ -364,7 +446,8 @@ export function flockProgress(t: number): number {
 
 /**
  * A loose flock of pigeons crossing right to left above the rooftops, wings beating, rising
- * gently. Drawn by the far layer, so it passes in front of the skyline but behind the fog.
+ * gently: flat cut-paper birds, a teardrop body and a pointed wing. Drawn before the sun and the
+ * moon, so where one is rising or setting through their height it stays whole in front of them.
  */
 export function pigeonFlock(ctx: Ctx, s: Scene): void {
   const k = flockProgress(s.t);
@@ -379,62 +462,24 @@ export function pigeonFlock(ctx: Ctx, s: Scene): void {
     const y = base + b.dy * u + Math.sin(s.t * 2 + b.phase) * u * 0.006;
     const q = u * 0.011 * b.size;
     const flap = Math.sin(s.t * 13 + b.phase);
-    // Body facing left, a small head, a fanned tail.
-    ctx.moveTo(x - q * 1.5, y - q * 0.2);
-    ctx.quadraticCurveTo(x - q * 0.2, y - q * 0.75, x + q * 1.2, y - q * 0.1);
-    ctx.lineTo(x + q * 2.0, y - q * 0.35);
-    ctx.lineTo(x + q * 2.0, y + q * 0.35);
-    ctx.lineTo(x + q * 1.1, y + q * 0.3);
-    ctx.quadraticCurveTo(x - q * 0.2, y + q * 0.75, x - q * 1.5, y - q * 0.2);
+    // A teardrop body facing left, its head the round end, and a forked tail.
+    ctx.moveTo(x - q * 1.9, y - q * 0.25);
+    ctx.quadraticCurveTo(x - q * 1.6, y - q * 0.9, x - q * 0.6, y - q * 0.45);
+    ctx.lineTo(x + q * 1.4, y - q * 0.15);
+    ctx.lineTo(x + q * 2.3, y - q * 0.5);
+    ctx.lineTo(x + q * 2.0, y + q * 0.05);
+    ctx.lineTo(x + q * 2.3, y + q * 0.45);
+    ctx.lineTo(x + q * 1.2, y + q * 0.3);
+    ctx.quadraticCurveTo(x - q * 0.6, y + q * 0.7, x - q * 1.9, y - q * 0.25);
     ctx.closePath();
-    circle(ctx, x - q * 1.55, y - q * 0.45, q * 0.5);
-    // Wings: one triangle beating up and down from the shoulders.
-    const tip = y - flap * q * 1.9;
-    ctx.moveTo(x - q * 0.6, y - q * 0.3);
-    ctx.lineTo(x + q * 0.7, tip - q * 0.4);
-    ctx.lineTo(x + q * 0.9, tip + q * 0.2);
-    ctx.lineTo(x + q * 0.5, y - q * 0.1);
+    // The wing: one pointed blade beating up and down from the shoulders.
+    const tip = y - flap * q * 2;
+    ctx.moveTo(x - q * 0.7, y - q * 0.3);
+    ctx.lineTo(x + q * 1.0, tip - q * 0.3);
+    ctx.lineTo(x + q * 0.6, y);
     ctx.closePath();
   }
   // Faded like the skyline, a shade darker so they read against the sky.
   ctx.fillStyle = toneOf(s).flyer;
   ctx.fill();
-}
-
-// ---------------------------------------------------------------- night stars
-
-/**
- * Bright twinkling stars that come out as the tower climbs into the night: [x, y] as
- * fractions of the screen, and a twinkle group. Up top they keep to the sides, clear of
- * the HUD.
- */
-const NIGHT_STARS = Array.from({ length: 12 }, (_, i) => {
-  const fy = 0.06 + hash(i + 7600) * 0.56;
-  const side = hash(i + 7700) < 0.5 ? 0 : 1;
-  const fx = fy < 0.35 ? (side ? 0.84 : 0.04) + hash(i + 7800) * 0.12 : 0.04 + hash(i + 7800) * 0.92;
-  return [fx, fy, i % 3] as const;
-});
-
-function nightStars(ctx: Ctx, s: Scene): void {
-  const tone = toneOf(s);
-  const a = tone.loop ? tone.sparkles : Math.min(1, Math.max(0, (altitude01(s) - 0.2) / 0.5));
-  if (a <= 0) return;
-  for (let g = 0; g < 3; g++) {
-    const tw = 0.5 + 0.5 * Math.sin(s.t * 1.6 + g * 2.1);
-    ctx.beginPath();
-    for (const [fx, fy, group] of NIGHT_STARS) {
-      if (group !== g) continue;
-      sparklePath(ctx, fx * s.cssW, fy * s.cssH, s.u * (0.008 + 0.008 * tw));
-    }
-    ctx.fillStyle = "#fffbe8";
-    ctx.globalAlpha = a * (0.45 + 0.55 * tw);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-/** Sky layer: bright stars up high, and snow down to the horizon. */
-export function skyLayer(ctx: Ctx, s: Scene): void {
-  nightStars(ctx, s);
-  snow(ctx, s, -s.u, s.horizonY);
 }

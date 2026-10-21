@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { christmas } from "../christmas";
-import { CART_LAP, carriageBackProgress, carriageProgress, props } from "./ground";
-import { celestial } from "./sky";
+import { far } from "./far";
+import { CART_LAP, carriageBackProgress, carriageProgress, ground, props } from "./ground";
+import { hills } from "./hills";
+import { skyFill } from "./sky";
 import { context, mask, MIN_ZOOM, sceneAt, SIZES } from "./test-scene";
-import { LOOP_PERIOD, LOOP_START } from "./tone";
+import { LOOP_PERIOD, LOOP_START, toneOf } from "./tone";
 
 // Hard mode's camera zooms out (down to MIN_ZOOM) when a leaning tower's top would leave the
 // screen: the scene is built for a virtual screen 1/z wider and taller at the same u, then drawn
@@ -59,20 +61,45 @@ describe("christmas zoomed out", () => {
   );
 
   it.each(SIZES.flatMap(([W, H]) => ZOOMS.map((z) => [W, H, z] as const)))(
-    "%ix%i at zoom %s: the loop's own sky covers the whole screen down to the horizon at every hour",
+    "%ix%i at zoom %s: the sky's bands alone cover the whole screen at every hour",
     (W, H, z) => {
-      // (The base's sky under it always fills the screen, so this looks at the skin's sky alone.)
-      for (let lvl = LOOP_START; lvl < LOOP_START + 2 * LOOP_PERIOD; lvl += 7) {
+      // (The skin paints its own backdrop: nothing of the base's world is under it.)
+      for (let lvl = 0; lvl < LOOP_START + 2 * LOOP_PERIOD; lvl += 7) {
         const s = sceneAt(W, H, lvl, 1, z);
         const ctx = context(W, H);
         ctx.scale(z, z);
-        celestial(ctx, s);
-        const rows = Math.min(H, Math.floor(s.horizonY * z) - 1);
-        const data = ctx.getImageData(0, 0, W, rows).data;
+        skyFill(ctx, s, toneOf(s));
+        const data = ctx.getImageData(0, 0, W, H).data;
         let gaps = 0;
         for (let i = 3; i < data.length; i += 4) if (data[i]! < 255) gaps++;
-        expect(gaps, `level ${lvl}: sky pixels the loop's sky leaves uncovered`).toBe(0);
+        expect(gaps, `level ${lvl}: pixels the sky leaves uncovered`).toBe(0);
       }
+    },
+  );
+
+  it.each(SIZES.flatMap(([W, H]) => ZOOMS.map((z) => [W, H, z] as const)))(
+    "%ix%i at zoom %s: the land covers everything under the horizon, so no sky (and no setting sun or moon) shows below the skyline",
+    (W, H, z) => {
+      let seen = 0;
+      for (let lvl = 0; lvl <= LOOP_START + LOOP_PERIOD; lvl += 2.5) {
+        const s = sceneAt(W, H, lvl, lvl * 0.29, z);
+        // Whole pixels only (a zoomed-out virtual screen is a fraction of a pixel over).
+        const w = Math.floor(s.cssW);
+        const h = Math.floor(s.cssH);
+        // The row under the horizon's own (anti-aliased) row, down to the bottom of the screen.
+        const top = Math.ceil(s.horizonY) + 1;
+        if (top >= h) continue;
+        seen++;
+        const ctx = context(s.cssW, s.cssH);
+        far(ctx, s);
+        hills(ctx, s);
+        ground(ctx, s);
+        const data = ctx.getImageData(0, top, w, h - top).data;
+        let gaps = 0;
+        for (let i = 3; i < data.length; i += 4) if (data[i]! < 255) gaps++;
+        expect(gaps, `level ${lvl}: pixels under the horizon the land leaves open`).toBe(0);
+      }
+      expect(seen).toBeGreaterThan(20);
     },
   );
 

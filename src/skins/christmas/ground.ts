@@ -1,13 +1,13 @@
-import { hash, ink, outlined, type Ctx } from "../../base/draw";
+import { circle, hash, type Ctx } from "../../base/draw";
 import { fieldY, layerGround, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
-import { INK, SNOW, SNOW_DEEP, SNOW_SHADE } from "./colors";
+import { AQUA, BERRY, EVERGREEN, NAVY, SLATE, SNOW, SNOW_SHADE, TEAL, WHITE } from "./colors";
 import { carriage, RIG_LENGTH } from "./carriage";
 import { countingHouse, HOUSE_W, type HouseFrame, poulterer, terrace, TERRACES, terraceReach } from "./houses";
 import { carolers, lamplighter, lighterReach } from "./people";
-import { mound, sparklePath } from "./shapes";
-import { snow } from "./sky";
+import { drift, sparklePath } from "./shapes";
 import { cobbles, gasLamp, LADDER_BAR, LAMP_BURNER, pigeon, PIGEONS, ruts } from "./street";
+import { HILL_ROWS, toneOf } from "./tone";
 
 // The street around the tower, back to front: snowy cobbles, the two townhouses framing the
 // scene, a gas lamp at each side, pigeons pecking in front of the tower, the lamplighter
@@ -31,6 +31,7 @@ function rowX(s: Scene, dx: number, z: number): number {
   return s.cssW / 2 + dx * unit(s, z);
 }
 
+/** Width of the fine lines (window bars, the whip, faces), px. */
 function lineW(s: Scene, k = 1): number {
   return Math.max(1.5, s.u * 0.0062 * k);
 }
@@ -185,8 +186,8 @@ export function street(ctx: Ctx, s: Scene): void {
     }
     countingHouse(ctx, at(rowX(s, -HOUSE_OUT, z), y, U, lw, t));
     poulterer(ctx, at(rowX(s, HOUSE_IN, z), y, U, lw, t));
-    mound(ctx, rowX(s, -0.47, z), y + U * 0.006, U * 0.13, U * 0.02, lw);
-    mound(ctx, rowX(s, 0.49, z), y + U * 0.006, U * 0.12, U * 0.022, lw);
+    drift(ctx, rowX(s, -0.47, z), y + U * 0.006, U * 0.13, U * 0.022);
+    drift(ctx, rowX(s, 0.49, z), y + U * 0.006, U * 0.12, U * 0.024);
   }
 
   // Gas lamps; the lamplighter reaches up to the left one now and then.
@@ -194,11 +195,11 @@ export function street(ctx: Ctx, s: Scene): void {
   const ly = fieldY(s, LAMP_Z);
   const rightX = lampX(s, 1);
   const leftX = lampX(s, -1);
-  gasLamp(ctx, rightX, ly, LU, lw, t, 2.1, 0);
-  mound(ctx, rightX, ly + LU * 0.004, LU * 0.048, LU * 0.012, lw);
+  gasLamp(ctx, rightX, ly, LU, t, 2.1, 0);
+  drift(ctx, rightX, ly + LU * 0.004, LU * 0.05, LU * 0.014);
   const reach = lighterReach(t);
-  gasLamp(ctx, leftX, ly, LU, lw, t, 0.4, reach * reach * reach * reach);
-  mound(ctx, leftX, ly + LU * 0.004, LU * 0.048, LU * 0.012, lw);
+  gasLamp(ctx, leftX, ly, LU, t, 0.4, reach * reach * reach * reach);
+  drift(ctx, leftX, ly + LU * 0.004, LU * 0.05, LU * 0.014);
 
   // Pigeons on the cobbles in front of the tower; they flutter up as the carriage nears.
   for (let i = 0; i < PIGEONS.length; i++) {
@@ -219,9 +220,9 @@ export function townsfolk(ctx: Ctx, s: Scene): void {
   const FU = unit(s, fz) * FOLK_SCALE;
   const fy = fieldY(s, fz);
   lamplighter(ctx, at(rowX(s, -0.236, fz), fy, FU, lw, t), leftX + LU * 0.004, burnerY + LU * 0.03, leftX + LU * 0.016, ly - LADDER_BAR * LU);
-  mound(ctx, rowX(s, -0.24, fz), fy + FU * 0.004, FU * 0.08, FU * 0.014, lw);
+  drift(ctx, rowX(s, -0.24, fz), fy + FU * 0.004, FU * 0.08, FU * 0.016);
   carolers(ctx, at(rowX(s, 0.182, fz), fy, FU, lw, t));
-  mound(ctx, rowX(s, 0.182, fz) + FU * 0.05, fy + FU * 0.004, FU * 0.17, FU * 0.014, lw);
+  drift(ctx, rowX(s, 0.182, fz) + FU * 0.05, fy + FU * 0.004, FU * 0.17, FU * 0.016);
 }
 
 // ---------------------------------------------------------------- snow glints
@@ -242,104 +243,154 @@ function glints(ctx: Ctx, s: Scene): void {
       if (y < s.horizonY + 2 || y > s.cssH) continue;
       sparklePath(ctx, cx + fx * cx, y, s.u * 0.011 * Math.min(1.6, TOWER_DEPTH / z) * (0.4 + 0.6 * tw));
     }
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = WHITE;
     ctx.globalAlpha = 0.95 * tw;
     ctx.fill();
   }
   ctx.globalAlpha = 1;
 }
 
-/** Floor layer: cobbles and glints, the street's props while it's in view, and snow over it. */
+/** The street's floor (in front of the nearest row of hills) and its props, while it's in view. */
 export function ground(ctx: Ctx, s: Scene): void {
-  if (s.horizonY < s.cssH) {
+  const top = fieldY(s, HILL_ROWS[0].z);
+  if (top < s.cssH) {
+    ctx.fillStyle = toneOf(s).street;
+    ctx.fillRect(0, top, s.cssW, s.cssH - top);
     cobbles(ctx, s);
     ruts(ctx, s);
     glints(ctx, s);
   }
   if (fieldY(s, HOUSE_Z) - s.u * 0.65 < s.cssH) props(ctx, s);
-  snow(ctx, s, s.horizonY, s.cssH + s.u * 0.1);
 }
 
 // ---------------------------------------------------------------- foreground
 
+/** Icicles hanging from the kerb's snow near the sides: [x as a fraction of the width, length (u)]. */
 const ICICLES = [
-  [0.04, 0.034],
-  [0.09, 0.022],
-  [0.15, 0.03],
-  [0.85, 0.026],
-  [0.9, 0.036],
-  [0.95, 0.022],
+  [0.05, 0.03],
+  [0.09, 0.02],
+  [0.14, 0.026],
+  [0.86, 0.024],
+  [0.9, 0.032],
+  [0.95, 0.02],
+] as const;
+/** Holly sprigs in the kerb's snow, out at the sides: x as a fraction of the width, and which way they lean. */
+const SPRIGS = [
+  [0.07, -1],
+  [0.93, 1],
 ] as const;
 
-/** How far the snow hangs over the kerb at lump i: longer drips near the sides, short in the middle. */
-function dripDepth(i: number, step: number, w: number, band: number, u: number): number {
-  const f = (i * step) / w;
-  const side = f < 0.25 || f > 0.75;
-  return band + u * (side ? 0.006 + 0.014 * hash(i + 3100) : 0.002 + 0.004 * hash(i + 3100));
-}
+/** How far the base band's grass tips reach above its top (u: src/base/world.ts's tiles). */
+const GRASS_TIPS = 0.026;
+/** The pavement: a slate ground and its cobbles a shade lighter. */
+const COBBLES_INK = TEAL;
+const PAVEMENT = SLATE;
 
 /**
- * Snow lying on the base's kerb: soft lumps along the top, little drips over the first row of
- * stones (kept short in the middle so "tap to drop" stays clear), and a few icicles near the
- * sides. Drops away with the tiles as you climb.
+ * The near edge we look over: a bank of snow along the kerb, its top edge a row of round
+ * scallops, a band of aqua shade under its lip with icicles near the sides, and below it the
+ * slate pavement printed with rows of round cobbles (it covers the base's band and tiles). Holly pokes
+ * out of the snow at either side. Drops away with the base band as you climb.
  */
 export function foreground(ctx: Ctx, s: Scene): void {
   const u = s.u;
   const top = layerGround(s, 1.6) + u * 0.36;
-  if (top - u * 0.05 > s.cssH) return;
-  const lw = lineW(s);
-  const band = u * 0.025;
-  const step = u * 0.055;
-  const n = Math.ceil(s.cssW / step) + 1;
+  if (top - u * 0.06 > s.cssH) return;
+  const W = s.cssW;
+  const bank = u * 0.03;
+  const lip = top + bank;
+  const kerb = lip + u * 0.012;
 
-  // Icicles first, so the snow covers their roots.
+  // The pavement, from just under the snow to the bottom of the screen, and its cobbles: rows of
+  // round stones in a staggered repeat, like a printed pattern.
+  ctx.fillStyle = PAVEMENT;
+  ctx.fillRect(0, kerb - 1, W, s.cssH - kerb + 1);
+  const rowH = u * 0.036;
+  const gap = u * 0.042;
+  const r = u * 0.014;
+  ctx.beginPath();
+  for (let row = 0, y = kerb + u * 0.03; y - r < s.cssH; row++, y += rowH) {
+    const off = row % 2 ? gap / 2 : 0;
+    for (let x = (W / 2) % gap - gap + off; x - r < W; x += gap) circle(ctx, x, y, r);
+  }
+  ctx.fillStyle = COBBLES_INK;
+  ctx.globalAlpha = 0.24;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Icicles under the lip, near the sides.
   ctx.beginPath();
   for (const [fx, len] of ICICLES) {
-    const x = fx * s.cssW;
-    const y = top + band + u * 0.004;
-    ctx.moveTo(x - u * 0.011, y);
-    ctx.lineTo(x, y + len * u);
-    ctx.lineTo(x + u * 0.011, y);
+    const x = fx * W;
+    ctx.moveTo(x - u * 0.01, kerb - 1);
+    ctx.lineTo(x, kerb + len * u);
+    ctx.lineTo(x + u * 0.01, kerb - 1);
     ctx.closePath();
   }
-  outlined(ctx, "#e6f1ff", lw * 0.8, INK);
+  ctx.fillStyle = AQUA;
+  ctx.fill();
 
+  // The snow bank: a scalloped top, the lip's shade band under it.
+  // (The scallops' notches stand above the base band's grass tips, so none show between them.)
+  const step = u * 0.06;
+  const crest = top - u * GRASS_TIPS;
+  const n = Math.ceil(W / step) + 1;
+  const x0 = (W / 2) % step - step;
   ctx.beginPath();
-  ctx.moveTo(-step, top);
+  ctx.moveTo(x0, kerb);
+  ctx.lineTo(x0, crest);
   for (let i = 0; i <= n; i++) {
-    const x = i * step;
-    const lump = u * (0.012 + 0.012 * hash(i + 3000));
-    ctx.quadraticCurveTo(x - step / 2, top - lump * 2, x, top - u * 0.008);
+    const x = x0 + i * step;
+    ctx.arc(x + step / 2, crest, step / 2, Math.PI, 0);
   }
-  ctx.lineTo(n * step + step, top - u * 0.008);
-  ctx.lineTo(n * step + step, top + band);
-  for (let i = n; i >= 0; i--) {
-    const x = i * step;
-    ctx.quadraticCurveTo(x + step / 2, top + dripDepth(i, step, s.cssW, band, u) + u * 0.008, x, top + band);
+  ctx.lineTo(x0 + (n + 1) * step, kerb);
+  ctx.closePath();
+  ctx.fillStyle = SNOW_SHADE;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x0, lip);
+  ctx.lineTo(x0, crest);
+  for (let i = 0; i <= n; i++) {
+    const x = x0 + i * step;
+    ctx.arc(x + step / 2, crest, step / 2, Math.PI, 0);
   }
-  ctx.lineTo(-step, top + band);
+  ctx.lineTo(x0 + (n + 1) * step, lip);
   ctx.closePath();
   ctx.fillStyle = SNOW;
   ctx.fill();
-  ink(ctx, lw, INK);
 
-  // Blue shade dashes along the lumps.
-  ctx.beginPath();
-  for (let i = 1; i < n; i += 3) {
-    const x = i * step + step * 0.2 * hash(i + 3200);
-    ctx.moveTo(x - u * 0.012, top + band * 0.45);
-    ctx.quadraticCurveTo(x, top + band * 0.75, x + u * 0.014, top + band * 0.4);
+  // Holly sprigs: three pointed leaves and a cluster of berries, planted in the bank.
+  for (const [fx, lean] of SPRIGS) {
+    const x = fx * W;
+    const y = crest - u * 0.006;
+    const r = u * 0.022;
+    ctx.beginPath();
+    for (let k = -1; k <= 1; k++) {
+      const a = -Math.PI / 2 + k * 0.75 + lean * 0.15;
+      const tx = x + Math.cos(a) * r * 1.6;
+      const ty = y + Math.sin(a) * r * 1.6;
+      const nx = -Math.sin(a) * r * 0.45;
+      const ny = Math.cos(a) * r * 0.45;
+      ctx.moveTo(x, y);
+      ctx.lineTo((x + tx) / 2 + nx, (y + ty) / 2 + ny);
+      ctx.lineTo(tx, ty);
+      ctx.lineTo((x + tx) / 2 - nx, (y + ty) / 2 - ny);
+      ctx.closePath();
+    }
+    ctx.fillStyle = EVERGREEN;
+    ctx.fill();
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const bx = x + (k - 1) * r * 0.32;
+      const by = y - r * (0.15 + (k % 2) * 0.25);
+      ctx.moveTo(bx + r * 0.22, by);
+      ctx.arc(bx, by, r * 0.22, 0, Math.PI * 2);
+    }
+    ctx.fillStyle = BERRY;
+    ctx.fill();
   }
-  ctx.strokeStyle = SNOW_DEEP;
-  ctx.lineWidth = Math.max(1, lw * 0.6);
-  ctx.lineCap = "round";
-  ctx.stroke();
-  ctx.beginPath();
-  for (let i = 0; i <= n; i += 2) {
-    const x = i * step + step * 0.3;
-    ctx.moveTo(x - u * 0.016, top + band * 0.15);
-    ctx.quadraticCurveTo(x, top - u * 0.004, x + u * 0.016, top + band * 0.15);
-  }
-  ctx.strokeStyle = SNOW_SHADE;
-  ctx.stroke();
+
+  // A navy line along the kerb's edge.
+  ctx.fillStyle = NAVY;
+  ctx.fillRect(0, kerb - u * 0.004, W, u * 0.004);
 }
