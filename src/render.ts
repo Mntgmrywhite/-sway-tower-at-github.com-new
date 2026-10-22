@@ -16,7 +16,7 @@ import {
   type Frame,
   type Zoom,
 } from "./camera";
-import type { Scene, Skin } from "./skins/skin";
+import type { BarInfo, Scene, Skin } from "./skins/skin";
 import type { Achievement } from "./achievements";
 import { drawMedalStrip } from "./medals";
 import { addFalling as pushFalling, FALL_ALPHA, stepFalling, type Falling } from "./fx/falling";
@@ -98,6 +98,11 @@ export interface View {
   topple: Topple | null;
   /** Animation clock for background effects, seconds. */
   t: number;
+  /**
+   * The clock (`t`) when a bar last landed on the tower (a perfect or a slice): scenery and a skin's
+   * own bars react to a new floor (Scene.sinceLand, BarInfo.sinceLand). -Infinity before the first.
+   */
+  landedAt: number;
 }
 
 export function newView(): View {
@@ -113,6 +118,7 @@ export function newView(): View {
     pops: [],
     topple: null,
     t: 0,
+    landedAt: -Infinity,
   };
 }
 
@@ -150,6 +156,7 @@ export function isToppling(view: View): boolean {
  * and the previews both call it.
  */
 export function showLanding(view: View, state: GameState, r: DropResult, level: number, towerX: number): void {
+  if (r.kind !== "miss") view.landedAt = view.t;
   if (r.kind === "perfect") {
     addFlash(view, level, state.streak);
     return;
@@ -261,6 +268,8 @@ export function render(
     baseX: base ? sx(base.x) : 0,
     baseW: base ? base.w * scale : 0,
     songTime,
+    still: opts.still === true,
+    sinceLand: view.t - view.landedAt,
   };
   const kit = kitFor(skin);
   const h = BLOCK_HEIGHT * scale;
@@ -286,9 +295,14 @@ export function render(
   }
   kit.world(ctx, scene);
 
+  // What every bar is told (a skin's own painter animates it); one object, re-pointed per bar.
+  const info: BarInfo = { t: view.t, role: "tower", sinceLand: scene.sinceLand!, still: scene.still! };
+
   /** Draw a block whose world left edge is `x`. */
-  const drawBlock = (x: number, w: number, level: number) =>
-    kit.bar(ctx, tx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level);
+  const drawBlock = (x: number, w: number, level: number, role: BarInfo["role"]) => {
+    info.role = role;
+    kit.bar(ctx, tx(x), sy((level + 1) * BLOCK_HEIGHT), w * scale, h, level, info);
+  };
 
   /** A bar off the tower (a falling piece), centered at world (cx, cy). */
   const drawLoose = (cx: number, cy: number, w: number, angle: number, level: number) => {
@@ -297,7 +311,8 @@ export function render(
     ctx.translate(tx(cx), sy(cy));
     ctx.rotate(angle);
     ctx.globalAlpha = FALL_ALPHA;
-    kit.bar(ctx, -pw / 2, -h / 2, pw, h, level);
+    info.role = "loose";
+    kit.bar(ctx, -pw / 2, -h / 2, pw, h, level, info);
     ctx.restore();
   };
   /** Whether a loose bar centered at world (cx, cy) can touch the screen at any angle. */
@@ -313,7 +328,7 @@ export function render(
   const firstVisible = Math.max(0, Math.floor(cameraY / BLOCK_HEIGHT - vh / h - 2));
   for (let i = firstVisible; i < standing; i++) {
     const b = state.blocks[i];
-    if (b) drawBlock(b.x + swayOffset(state, i), b.w, i);
+    if (b) drawBlock(b.x + swayOffset(state, i), b.w, i, i === standing - 1 ? "top" : "tower");
   }
 
   // Perfect-drop flash: accent tint on the block, light along the seam below it.
@@ -367,7 +382,8 @@ export function render(
   if (state.phase === "playing" && !titleScreen) {
     const level = state.blocks.length;
     const s = state.slider;
-    kit.bar(ctx, tx(s.x), sy((level + 1) * BLOCK_HEIGHT + sliderLift(state)), s.w * scale, h, level);
+    info.role = "slider";
+    kit.bar(ctx, tx(s.x), sy((level + 1) * BLOCK_HEIGHT + sliderLift(state)), s.w * scale, h, level, info);
   }
 
   // The PERFECT pop goes over the slider so it always reads. Once the last life is gone the

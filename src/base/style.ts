@@ -1,4 +1,4 @@
-import type { Scene, Skin } from "../skins/skin";
+import type { BarInfo, Scene, Skin } from "../skins/skin";
 import { cartoonBlast, neonBlast, type BlastPainter } from "../fx/blast";
 import { BAR_RADIUS, drawBar } from "./blocks";
 import { ink, neonStroke, neonText, outlinedText, roundRectPath, type Ctx } from "./draw";
@@ -14,7 +14,8 @@ export interface StyleKit {
   world(ctx: Ctx, s: Scene): void;
   /** Everything in front of the tower, under the HUD. */
   front(ctx: Ctx, s: Scene): void;
-  bar(ctx: Ctx, x: number, y: number, w: number, h: number, level: number): void;
+  /** A bar; `info` (time, role, the last landing) lets a skin's own painter animate it. */
+  bar(ctx: Ctx, x: number, y: number, w: number, h: number, level: number, info?: BarInfo): void;
   /** Bar corner radius as a fraction of bar height. */
   radius: number;
   /** Font stack for numbers and labels. */
@@ -28,6 +29,9 @@ export interface StyleKit {
   /** The game-over blast's burst, smoke, sparks and flash (src/fx/blast.ts; src/fx/topple.ts poses them). */
   blast: BlastPainter;
 }
+
+/** What a bar painter is told when the caller has no clock (the preview sheet, the blast's slabs). */
+export const RESTING: BarInfo = Object.freeze({ t: 0, role: "tower", sinceLand: Infinity, still: true });
 
 const kits = new WeakMap<Skin, StyleKit>();
 
@@ -45,7 +49,8 @@ function cartoonKit(skin: Exclude<Skin, { style: "neon" }>): StyleKit {
   return {
     world: (ctx, s) => drawWorld(ctx, s, skin),
     front: (ctx, s) => drawForeground(ctx, s, skin),
-    bar: (ctx, x, y, w, h, level) => drawBar(ctx, x, y, w, h, level, skin),
+    bar: (ctx, x, y, w, h, level, info) =>
+      skin.bar ? skin.bar(ctx, x, y, w, h, level, info ?? RESTING) : drawBar(ctx, x, y, w, h, level, skin),
     radius: BAR_RADIUS,
     blast: cartoonBlast(skin),
     body: "Fredoka, 'Trebuchet MS', system-ui, sans-serif",

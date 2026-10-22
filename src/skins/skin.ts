@@ -33,6 +33,29 @@ export interface Scene {
    * set it: read it as `s.songTime ?? NaN`.
    */
   songTime?: number;
+  /**
+   * The player asked for less motion (Settings): scenery skips flashes (lightning and the like) and
+   * keeps its motion gentle. Optional only so hand-built test scenes needn't set it.
+   */
+  still?: boolean;
+  /**
+   * Seconds since the last bar landed on the tower (a perfect or a slice, not a miss); Infinity
+   * before the first. For scenery that reacts to a new floor; cosmetic only. Read it as
+   * `s.sinceLand ?? Infinity`.
+   */
+  sinceLand?: number;
+}
+
+/** What a skin's own bar painter is told about the bar it draws (see CartoonSkin.bar). */
+export interface BarInfo {
+  /** Seconds of animation time: the scene's clock (Scene.t). */
+  t: number;
+  /** Standing in the tower, the tower's top bar, the slider, or loose (a falling or flung piece). */
+  role: "tower" | "top" | "slider" | "loose";
+  /** Seconds since the last bar landed on the tower (Infinity before the first). */
+  sinceLand: number;
+  /** The player asked for less motion. */
+  still: boolean;
 }
 
 /** A symbol drawn on a bar, centered at (cx, cy), about `s` pixels tall, with the current stroke/fill style. */
@@ -134,6 +157,13 @@ interface SkinBase {
 export interface CartoonSkin extends SkinBase {
   style?: "cartoon";
   palette: Palette;
+  /**
+   * Draws this skin's bars instead of the standard cartoon block (src/base/blocks.ts). The bar's
+   * rectangle x..x+w, y..y+h is what the game judges: fill it edge to edge with crisp edges and
+   * corners rounded at BAR_RADIUS (the perfect flash tints that shape), and draw nothing outside
+   * it, except on the tower's top bar (info.role "top"), which may wear decoration above y.
+   */
+  bar?(ctx: Ctx, x: number, y: number, w: number, h: number, level: number, info: BarInfo): void;
 }
 
 /** The pure neon look (src/base/neon-world.ts, src/base/neon-blocks.ts). */
