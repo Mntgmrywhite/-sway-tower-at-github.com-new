@@ -1,13 +1,16 @@
-import { circle, oval, type Ctx } from "../../base/draw";
+import { circle, hash, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
+import { add, addSpark, batch, FLAME, flameColors, puffs, skyPaint, sparkBatch, sparks, toyRocket } from "./rocket";
 import { block } from "./shapes";
-import type { Tone } from "./tone";
+import { smooth, type Tone } from "./tone";
 
 // The toys that drift down the right lane (drift.ts), each drawn around (x, y) at size k (px):
 // our own designs of classic toys, far off, so flat fills in the faded toy colors of the hour
 // (tone.ts) with a lit side and a shaded side, and no outline. Lit windows and lamps follow the
 // light: dark by day, warm at night. Each keeps within about ±3 k of its center sideways and
-// moves only gently in place (a turning propeller, a flickering flame, a swinging parachute).
+// moves only gently in place (a turning propeller, a flickering flame, a swinging parachute). The
+// rocket is the one from the launch pad (rocket.ts), so its k is its size against the rocket on
+// its pad, and it keeps within about ±0.15 k sideways and ±0.45 k up and down.
 
 const TAU = Math.PI * 2;
 
@@ -380,77 +383,135 @@ export function satellite(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number, 
 // ---------------------------------------------------------------- rocket
 
 /**
- * The toy rocket from the launch tower, now flying: cream body with a red nose, fins and band, a
- * round blue window, a flickering flame and puffs of smoke falling away below it.
+ * The lane rocket, all in k (px to the u of the rocket on its pad): its nozzle sits NOZZLE_UP
+ * above its center, so the rocket, its flame and the smoke and sparks streaming away below it
+ * keep within about ±0.45 k of it. It weaves WEAVE either way and back every WEAVE_T s as it
+ * corkscrews on up, leaning into each turn as if climbing at CLIMB k/s, and trembles.
  */
-export function rocket(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number, k: number): void {
-  const red = tone.toys[0];
-  const w = k * 0.76;
-  const top = y - k * 1.2;
-  const bottom = y + k * 0.9;
-  // Smoke: three puffs drifting down and swelling as they fade.
-  for (let i = 0; i < 3; i++) {
-    const a = (s.t * 0.45 + i / 3) % 1;
-    ctx.globalAlpha = 0.7 * (1 - a);
-    ctx.beginPath();
-    circle(ctx, x + Math.sin(i * 2.3) * k * 0.15, bottom + k * (0.75 + a * 1.4), k * (0.2 + a * 0.22));
-    fill(ctx, tone.cloud);
+const NOZZLE_UP = 0.11;
+const WEAVE = 0.05;
+const WEAVE_T = 2.2;
+const CLIMB = 1.2;
+const LEAN = 0.5;
+/** Its flame: ROAR × FLAME long (as on its climb from the pad, and then some), flickering, surging BOOST more every BOOST_T s. */
+const ROAR = 1.75;
+const BOOST = 0.55;
+const BOOST_T = 4.6;
+
+/** How far into a surge of the engine it is at time t (0 none, 1 at its height), surges BOOST_T s apart. */
+function boostAt(t: number, phase: number): number {
+  const a = (((t + phase) % BOOST_T) + BOOST_T) % BOOST_T;
+  return a < 0.7 ? Math.sin((a / 0.7) * Math.PI) : 0;
+}
+
+/** Its weave across at time t (k). */
+function weaveAt(t: number, phase: number): number {
+  return WEAVE * Math.sin((t * TAU) / WEAVE_T + phase);
+}
+
+/** Where the lane rocket is and how it looks now: its nozzle (px), lean (radians, clockwise) and flame (u at full size). */
+export interface LaneRocket {
+  x: number;
+  y: number;
+  lean: number;
+  flame: number;
+}
+const POSE: LaneRocket = { x: 0, y: 0, lean: 0, flame: 0 };
+
+/** The lane rocket's pose, centered on (x, y) at size k, at the scene's time (the returned object is reused). */
+export function laneRocket(s: Scene, x: number, y: number, k: number, phase: number): LaneRocket {
+  const t = s.t;
+  POSE.x = x + (weaveAt(t, phase) + 0.004 * Math.sin(t * 53)) * k;
+  POSE.y = y - NOZZLE_UP * k + 0.003 * Math.sin(t * 41 + 1) * k;
+  const across = (WEAVE * TAU) / WEAVE_T * Math.cos((t * TAU) / WEAVE_T + phase);
+  POSE.lean = LEAN * Math.atan(across / CLIMB);
+  POSE.flame = FLAME * (ROAR + 0.28 * Math.sin(t * 31) + 0.14 * Math.sin(t * 17 + 1.3) + BOOST * boostAt(t, phase));
+  return POSE;
+}
+
+/**
+ * The smoke it leaves: a puff every PUFF_EVERY s out of its flame, streaming away below it at
+ * STREAM k/s and swelling, then shrinking away, gone after PUFF_LIFE s (cut at PUFF_CUT of its
+ * size, so it never leaves beads); each puff keeps the weave of the moment it came out, so the
+ * smoke curls after the rocket.
+ */
+const PUFF_EVERY = 0.05;
+const PUFF_LIFE = 0.4;
+const STREAM = 1.1;
+const PUFF_CUT = 0.5;
+/** A puff's radius as it comes out and at its biggest, and how far it drifts off the weave by the end (k). */
+const PUFF_R0 = 0.035;
+const PUFF_R1 = 0.085;
+const PUFF_DRIFT = 0.08;
+/** Puffs younger than this (of their life) are still in the flame's light. */
+const HOT_AGE = 0.3;
+const SMOKE = batch(16);
+const HOT = batch(16);
+
+/**
+ * Its sparks: one every SPARK_EVERY s out of its flame (half of them, all of them as the engine
+ * surges), flying down at SPARK_V0 to SPARK_V1 k/s and out either way at up to half SPARK_SPREAD
+ * k/s, burning out after SPARK_LIFE s; a head SPARK_R k wide and a streak of SPARK_STREAK s of its
+ * flight behind it.
+ */
+const SPARK_EVERY = 0.024;
+const SPARK_LIFE = 0.26;
+const SPARK_V0 = 0.8;
+const SPARK_V1 = 1.3;
+const SPARK_SPREAD = 1.1;
+const SPARK_R = 0.012;
+const SPARK_STREAK = 0.05;
+const SPARKS = sparkBatch(20);
+
+/**
+ * The toy rocket from the launch pad, out among the stars: the very rocket that blasts off at
+ * the foot of the climb (rocket.ts: the same body, colors, fins, windows and flame), roaring on up
+ * the lane, a long flame flickering and surging under it, sparks spraying out of the flame and a
+ * billowing trail of smoke streaming away below; it weaves a little as it corkscrews on and
+ * trembles with the roar. k is its size against the rocket on its pad.
+ */
+export function rocket(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number, k: number, phase: number): void {
+  const t = s.t;
+  const pose = laneRocket(s, x, y, k, phase);
+  const paint = skyPaint(tone);
+  const x0 = x;
+  const y0 = pose.y + FLAME * 0.9 * k;
+  // The smoke, oldest first, each puff where the nozzle was as it came out: the cooler smoke
+  // further down, then the smoke still in the flame's light over it.
+  SMOKE.n = 0;
+  HOT.n = 0;
+  const n = Math.floor(t / PUFF_EVERY);
+  for (let j = Math.floor(PUFF_LIFE / PUFF_EVERY); j >= 0; j--) {
+    const born = (n - j) * PUFF_EVERY;
+    const a = (t - born) / PUFF_LIFE;
+    if (a < 0 || a >= 1) continue;
+    const fade = 1 - smooth(0.6, 1, a);
+    if (fade < PUFF_CUT) continue;
+    const size = (PUFF_R0 + (PUFF_R1 - PUFF_R0) * smooth(0, 0.55, a)) * fade * (1 + 0.25 * boostAt(born, phase));
+    const drift = (hash(n - j + 9100) - 0.5) * PUFF_DRIFT * a;
+    add(a < HOT_AGE ? HOT : SMOKE, x0 + (weaveAt(born, phase) + drift) * k, y0 + STREAM * a * PUFF_LIFE * k, size * k);
   }
-  ctx.globalAlpha = 1;
-  // Flame: an outer orange teardrop and an inner yellow one, breathing.
-  const f = k * (0.62 + 0.1 * Math.sin(s.t * 7));
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.32, bottom);
-  ctx.quadraticCurveTo(x - w * 0.32, bottom + f * 0.6, x, bottom + f);
-  ctx.quadraticCurveTo(x + w * 0.32, bottom + f * 0.6, x + w * 0.32, bottom);
-  ctx.closePath();
-  fill(ctx, tone.toys[4].body);
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.18, bottom);
-  ctx.quadraticCurveTo(x - w * 0.16, bottom + f * 0.4, x, bottom + f * 0.66);
-  ctx.quadraticCurveTo(x + w * 0.16, bottom + f * 0.4, x + w * 0.18, bottom);
-  ctx.closePath();
-  fill(ctx, tone.toys[1].light);
-  // Fins.
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.5, bottom - k * 0.65);
-  ctx.lineTo(x - w * 0.98, bottom + k * 0.08);
-  ctx.lineTo(x - w * 0.5, bottom);
-  ctx.closePath();
-  ctx.moveTo(x + w * 0.5, bottom - k * 0.65);
-  ctx.lineTo(x + w * 0.98, bottom + k * 0.08);
-  ctx.lineTo(x + w * 0.5, bottom);
-  ctx.closePath();
-  fill(ctx, red.shade);
-  // Body: shaded right side, lit left.
-  ctx.beginPath();
-  block(ctx, x - w / 2, top + k * 0.45, w, bottom - top - k * 0.45, w * 0.3);
-  fill(ctx, tone.cream.shade);
-  ctx.beginPath();
-  block(ctx, x - w / 2, top + k * 0.45, w * 0.72, bottom - top - k * 0.45, w * 0.3);
-  fill(ctx, tone.cream.body);
-  ctx.fillStyle = red.body;
-  ctx.fillRect(x - w / 2, bottom - k * 0.42, w, k * 0.16);
-  // Nose cone.
-  ctx.beginPath();
-  ctx.moveTo(x - w / 2, top + k * 0.62);
-  ctx.quadraticCurveTo(x - w * 0.45, top + k * 0.1, x, top);
-  ctx.quadraticCurveTo(x + w * 0.45, top + k * 0.1, x + w / 2, top + k * 0.62);
-  ctx.closePath();
-  fill(ctx, red.body);
-  ctx.beginPath();
-  oval(ctx, x - w * 0.18, top + k * 0.3, w * 0.08, k * 0.18, 0.3);
-  fill(ctx, red.light);
-  // The window: a cream rim, blue glass and a glint.
-  ctx.beginPath();
-  circle(ctx, x, y - k * 0.12, w * 0.3);
-  fill(ctx, tone.cream.light);
-  ctx.beginPath();
-  circle(ctx, x, y - k * 0.12, w * 0.22);
-  fill(ctx, tone.toys[2].body);
-  ctx.beginPath();
-  circle(ctx, x - w * 0.07, y - k * 0.19, w * 0.07);
-  fill(ctx, tone.toys[2].light);
+  puffs(ctx, SMOKE, paint.smoke[0], paint.smoke[1], paint.smoke[2]);
+  puffs(ctx, HOT, paint.hot[0], paint.hot[1], paint.hot[2]);
+  // The sparks.
+  SPARKS.n = 0;
+  const m = Math.floor(t / SPARK_EVERY);
+  for (let j = Math.floor(SPARK_LIFE / SPARK_EVERY); j >= 0; j--) {
+    const i = m - j;
+    const born = i * SPARK_EVERY;
+    const a = t - born;
+    if (a < 0 || a >= SPARK_LIFE) continue;
+    if (hash(i + 9200) > 0.5 + 0.5 * boostAt(born, phase)) continue;
+    const vx = (hash(i + 9300) - 0.5) * SPARK_SPREAD;
+    const vy = SPARK_V0 + (SPARK_V1 - SPARK_V0) * hash(i + 9400);
+    const r = SPARK_R * (1 - smooth(0.55, 1, a / SPARK_LIFE));
+    if (r < SPARK_R * 0.4) continue;
+    addSpark(SPARKS, x0 + (weaveAt(born, phase) + vx * a) * k, y0 + vy * a * k, vx * SPARK_STREAK * k, vy * SPARK_STREAK * k, r * k);
+  }
+  const fire = flameColors(tone);
+  sparks(ctx, SPARKS, fire.spark, fire.core);
+  // The rocket over its smoke and sparks.
+  toyRocket(ctx, paint, pose.x, pose.y, k, pose.lean, 1, pose.flame, 0);
 }
 
 // ---------------------------------------------------------------- planet

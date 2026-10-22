@@ -18,9 +18,10 @@ import * as toy from "./toys";
 // lane on wide screens (`lightsSpan`, sky.ts); on a phone there is none, and it stays empty.
 // The near lane (parallax NEAR_P) is the right one: the toys, with block clouds between them: a
 // loose kite, flights of paper planes, a biplane trailing bunting, a teddy in a hot-air balloon,
-// the airship with its windows lit at dusk, a satellite, a toy rocket out among the stars, a
-// ringed toy planet, a flying saucer, a toy soldier on a parachute at dawn, and party balloons
-// carrying a block away in the morning. Far lanes (FAR_P, behind the near ones): small faded
+// the airship with its windows lit at dusk, a satellite, the rocket from the launch pad roaring on
+// up among the stars (the very rocket you saw blast off: rocket.ts), a ringed toy planet, a flying
+// saucer, a toy soldier on a parachute at dawn, and party balloons carrying a block away in the
+// morning. Far lanes (FAR_P, behind the near ones): small faded
 // clouds, spreading out on wide screens.
 //
 // The lanes start above the land (nothing comes down past the castle or the rocket before the
@@ -82,7 +83,7 @@ const FAR_FROM = 22;
 /** One authored entry: what, its level in the lap, and optionally its center (u from the screen center). */
 type Spec = readonly [kind: Kind, lvl: number, x?: number];
 
-/** Sizes (u) by kind. */
+/** Sizes (u) by kind; the rocket's is its size against the rocket on its launch pad (toys.ts, rocket.ts). */
 const SIZE: Record<Kind, number> = {
   cloud: 0.05,
   kite: 0.036,
@@ -90,7 +91,7 @@ const SIZE: Record<Kind, number> = {
   hotair: 0.037,
   airship: 0.035,
   satellite: 0.034,
-  rocket: 0.037,
+  rocket: 0.5,
   planet: 0.035,
   saucer: 0.036,
   parachute: 0.038,
@@ -116,9 +117,9 @@ function drifter(spec: Spec, side: number, k: number, salt: number, far: boolean
 // The near right lane, one lap: toys at the hours they suit. The lap starts at NEAR_FROM (a high
 // day; LOOP levels later it is high day again), so: a kite by day, then paper planes, the
 // biplane in the afternoon and more paper planes, the hot-air balloon at sunset, the airship at
-// dusk, the satellite and a toy rocket as night falls (out among the stars), the planet and the
-// saucer in the deep night, the parachute at dawn,
-// the balloons in the morning and paper planes again. The kite and the first paper planes keep
+// dusk, the satellite and the rocket from the launch pad as night falls (out among the stars,
+// roaring on up, with room above its block cloud for its trail), the planet and the saucer in the
+// deep night, the parachute at dawn, the balloons in the morning and paper planes again. The kite and the first paper planes keep
 // above the cloud the rocket flew into on its launch (launch.ts, at the same depth). Block
 // clouds, now low and wide, now tall, come down between the toys every other gap (listed last,
 // so the toys keep their looks).
@@ -131,7 +132,7 @@ const RIGHT: Spec[] = [
   ["hotair", 29],
   ["airship", 42],
   ["satellite", 55],
-  ["rocket", 68],
+  ["rocket", 72.5],
   ["planet", 81],
   ["saucer", 94],
   ["parachute", 107],
@@ -243,16 +244,25 @@ export function eachVisible(s: Scene, draw: (p: Placed) => void, only?: (lane: n
   }
 }
 
-/** Draw one item where it is now. */
-export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, p: Placed): void {
+const AT = { x: 0, y: 0, bob: 0, k: 0 };
+
+/** Where an item is drawn now: its center (px), swaying and bobbing gently in place, the bob (px) and its size (px). The returned object is reused. */
+export function drifterAt(s: Scene, p: Placed): { x: number; y: number; bob: number; k: number } {
   const { d } = p;
   const u = s.u;
   const far = p.lane < FAR_LANES;
-  const sway = Math.sin(s.t * 0.13 + d.phase) * u * (far ? 0.004 : 0.008);
-  const bob = Math.sin(s.t * 0.4 + d.phase) * u * (far ? 0.003 : 0.005);
-  const x = p.x + sway;
-  const y = p.y + bob;
-  const k = d.size * u;
+  AT.bob = Math.sin(s.t * 0.4 + d.phase) * u * (far ? 0.003 : 0.005);
+  AT.x = p.x + Math.sin(s.t * 0.13 + d.phase) * u * (far ? 0.004 : 0.008);
+  AT.y = p.y + AT.bob;
+  AT.k = d.size * u;
+  return AT;
+}
+
+/** Draw one item where it is now. */
+export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, p: Placed): void {
+  const { d } = p;
+  const far = p.lane < FAR_LANES;
+  const { x, y, bob, k } = drifterAt(s, p);
   switch (d.kind) {
     case "cloud":
       if (far) blockCloud(ctx, d.shape, x, y, k, tone.farCloudShade, tone.farCloud, tone.farCloudLight);
@@ -274,7 +284,7 @@ export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, p: Placed): void {
       toy.satellite(ctx, s, tone, x, y, k, d.phase);
       return;
     case "rocket":
-      toy.rocket(ctx, s, tone, x, y, k);
+      toy.rocket(ctx, s, tone, x, y, k, d.phase);
       return;
     case "planet":
       toy.planet(ctx, s, tone, x, y, k);

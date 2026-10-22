@@ -3,18 +3,45 @@ import { layerGround } from "../../base/world";
 import type { Scene } from "../skin";
 import { NEAR_P } from "./drift";
 import { climbed, HORIZON_UP, horizon, landShows, RISE1, seaTop } from "./place";
-import { block, blockCloud, TALL_CLOUD } from "./shapes";
+import {
+  add,
+  addSpark,
+  batch,
+  FLAME,
+  flameColors,
+  LEG_DROP,
+  LEG_HINGE,
+  LEG_OUT,
+  landPaint,
+  legLength,
+  PAD_SQUASH,
+  puffs,
+  ROCKET_HW,
+  ROCKET_LEN,
+  sparkBatch,
+  sparks,
+  toyRocket,
+  toyRocketFlame,
+} from "./rocket";
+import { blockCloud, TALL_CLOUD } from "./shapes";
 import { smooth, type Tone } from "./tone";
+
+export { PAD_SQUASH };
 
 // The rocket's round trip: Toy Kingdom's one late action (the owner's call: after the mouse's
 // run-down, at 10 s), and it comes round again for as long as the scene runs (the owner: "if
 // there is an action it needs to repeat again — the rocket can land"). The toy rocket stands on
 // its pad beside the lattice launch tower up the right lane (far.ts). The tower's three lamps count
 // down, red, yellow, green; just before IGNITE the service arm swings up out of the way; at
-// IGNITE the engine lights (a flickering flame, the rocket trembling) and a launch cloud of round
-// smoke puffs billows out over the pad; at LIFTOFF it climbs, slowly at first, then faster and
-// faster, clears the launch tower and corkscrews up the lane, smaller and smaller as it goes,
-// into a block cloud high above, and is gone. A few seconds later it comes back out of the
+// IGNITE the engine lights (a flickering flame, the rocket trembling, the pad and the tower
+// shaking harder and harder under the roar, tongues of fire licking up round its foot and sparks
+// flying out of them) and a launch cloud of round smoke puffs billows out over the pad, lit from
+// below by the fire; at LIFTOFF the fire leaps up in a blast, a second wave of smoke is thrown up
+// and out into a tall plume, and the rocket climbs on a roaring flame, slowly at first, then faster
+// and faster, out of the plume (its lift-off smoke billowing out under it), clears the launch tower
+// and corkscrews up the lane, smaller and smaller as it goes, into a block cloud high above, and
+// is gone. (The owner: "big bold, almost too wild to believe".) It is the very rocket that roars
+// up the lane at night (rocket.ts, toys.ts). A few seconds later it comes back out of the
 // cloud tail first, like a booster coming home: it falls down the lane, folds out its landing
 // legs, lights its engine again for the landing burn, slows, and sets down on its pad in a puff
 // of smoke that makes the launch tower bounce; it settles onto its fins as its legs fold away,
@@ -82,20 +109,18 @@ export function tripTime(t: number): number {
   return t - tripIndex(t) * PERIOD;
 }
 
-/** The pad's center (u right of the screen's center), and how squat the pad and all on it are drawn. */
+/** The pad's center (u right of the screen's center); the pad and all on it are drawn PAD_SQUASH squat (rocket.ts). */
 export const PAD_X = 0.37;
-export const PAD_SQUASH = 0.95;
 /** The launch tower's height (u above the horizon, before the squash). */
 export const GANTRY_TOP = 0.36;
 
-/** The rocket on its pad: its center line (u from the pad's center), its nozzle (u up, before the squash) and its size. */
+/** The rocket on its pad: its center line (u from the pad's center) and its nozzle (u up, before the squash). */
 const ROCKET_DX = -0.025;
 const NOZZLE = 0.035;
 /** Half the rocket's length, nozzle to nose tip (u at full size). */
-const HALF = 0.18;
-const ROCKET_HW = 0.027;
-/** Its flame's length below the nozzle (u at full size). */
-const FLAME = 0.09;
+const HALF = ROCKET_LEN / 2;
+/** The engine roars as it leaves: its flame this much longer from lift-off on than as it stands lit on its pad. */
+const ROAR = 1.35;
 
 /** The rocket's center on the pad: across, and its z. */
 const PAD_ROCKET_X = PAD_X + ROCKET_DX;
@@ -107,12 +132,12 @@ const A = 0.1;
 
 /** The corkscrew: its axis (u right of center), its widest radius and its last, its pitch (u a turn), and where it starts (z). */
 const AXIS = 0.375;
-const R_MAX = 0.055;
+const R_MAX = 0.065;
 const R_END = 0.01;
 const PITCH = 0.24;
 const SPIRAL_Z = 0.66;
 /** How far the rocket leans into the corkscrew (a fraction of the slope of its path). */
-const LEAN = 0.52;
+const LEAN = 0.44;
 /**
  * We see the corkscrew from a little below: its near side dips and its far side rises by this
  * much of its radius, so the trail coils like a spring instead of waving like a snake (never so
@@ -295,40 +320,16 @@ export interface Rocket {
 
 /**
  * Seconds after lift-off when the rocket is gone into the cloud: its flame's tip has passed the
- * cloud's flat bottom (the nozzle as seen sits within TILT × R_END of its height; the flame
- * reaches FLAME × its size below it, a little bigger on the near side of the corkscrew).
+ * cloud's flat bottom (the nozzle as seen sits within TILT × R_END of its height; the flame, the
+ * roaring flame of its climb, reaches ROAR × FLAME × its size below it, a little bigger on the
+ * near side of the corkscrew).
  */
-export const GONE = LIFTOFF + passes(CLOUD_Z + 0.004 + TILT * R_END + FLAME * PAD_SQUASH * sizeAt(CLOUD_Z) * 1.08);
+export const GONE = LIFTOFF + passes(CLOUD_Z + 0.004 + TILT * R_END + ROAR * FLAME * PAD_SQUASH * sizeAt(CLOUD_Z) * 1.08);
 
 /** The nozzle's height on the pad. */
 const PAD_NZ = HORIZON_UP + NOZZLE * PAD_SQUASH;
 
 // ---------------------------------------------------------------- the way back down
-
-/**
- * Its landing legs, two telescoping struts hinged on its sides LEG_HINGE above the nozzle, LEG
- * long when out (u at full size): they slide out of their hinges pointing up along the body
- * (fully out of them by LEG_GROW of the way), swing out and down through LEG_OUT radians (from
- * pointing straight up), lengthening, until their feet stand LEG_DROP below the nozzle, so it
- * lands on them, standing that much higher than on its fins; folding away, they go back into
- * their hinges, so they never pop in or out. Short as they swing past level, they never reach
- * out toward the tower's column.
- */
-const LEG_HINGE = 0.03;
-const LEG = 0.06;
-const LEG_DROP = 0.022;
-const LEG_OUT = Math.acos(-(LEG_HINGE + LEG_DROP) / LEG);
-const LEG_GROW = 0.3;
-
-/** How far a leg has slid out of its hinge `d` of the way out (0 none of it, 1 all). */
-function legGrown(d: number): number {
-  return smooth(0, LEG_GROW, d);
-}
-
-/** A leg's length `d` of the way out (u at full size). */
-function legLength(d: number): number {
-  return LEG * (0.5 + 0.5 * d) * legGrown(d);
-}
 
 /** How far below the nozzle its feet stand with the legs `d` of the way out (u at full size; below 0 they clear the pad and it stands on its fins). */
 function legDrop(d: number): number {
@@ -400,10 +401,11 @@ export function rocketAt(t: number): Rocket {
     r.phase = "pad";
     r.nz = PAD_NZ;
     // Trembling on the pad while the engine roars.
-    r.x = PAD_ROCKET_X + (lit > 0 ? Math.sin(c * 53) * 0.0025 * lit : 0);
+    r.x = PAD_ROCKET_X + (lit > 0 ? Math.sin(c * 53) * 0.0035 * lit : 0);
     r.k = 1;
     r.lean = 0;
-    r.flame = FLAME * lit * flicker(c);
+    // Lit, then roaring as it leaves the pad.
+    r.flame = FLAME * lit * flicker(c) * (1 + (ROAR - 1) * smooth(LIFTOFF - 0.4, LIFTOFF, c));
     r.near = 0;
     if (c >= TOUCHDOWN) {
       // Landed: the landing burn dies away, it bounces on its legs, then folds them and settles onto its fins.
@@ -444,9 +446,27 @@ export function rocketAt(t: number): Rocket {
   r.y = pathZ(nz);
   r.k = sizeAt(z) * (1 + 0.08 * depthAt(nz));
   r.lean = leanAt(nz);
-  r.flame = FLAME * flicker(c);
+  r.flame = FLAME * ROAR * flicker(c);
   r.near = nearOf(nz);
   return r;
+}
+
+/** How hard the pad shakes at its hardest (u across and down). */
+const SHAKE_X = 0.005;
+const SHAKE_Y = 0.003;
+const SHAKE = { x: 0, y: 0 };
+
+/**
+ * How the launch pad and its tower shake under the engine's roar at scene time t (u across and
+ * down; the returned object is reused): from ignition, harder and harder up to lift-off, dying
+ * away as the rocket climbs clear; still the rest of the trip.
+ */
+export function padShake(t: number): { x: number; y: number } {
+  const c = tripTime(t);
+  const k = smooth(IGNITE, LIFTOFF, c) * (1 - smooth(LIFTOFF + 0.3, LIFTOFF + 1.8, c));
+  SHAKE.x = k > 0 ? k * SHAKE_X * Math.sin(c * 71) : 0;
+  SHAKE.y = k > 0 ? k * SHAKE_Y * Math.sin(c * 59 + 1.1) : 0;
+  return SHAKE;
 }
 
 // ---------------------------------------------------------------- the smoke
@@ -478,7 +498,7 @@ const TRAIL: readonly Puff[] = (() => {
     out.push({
       z: pathZ(z) + (hash(i + 7100) - 0.5) * 0.005,
       x: pathX(z) + (hash(i + 7200) - 0.5) * 0.008 * k,
-      r: (0.009 + 0.024 * k) * (0.88 + 0.24 * hash(i + 7300)),
+      r: (0.012 + 0.033 * k) * (0.88 + 0.24 * hash(i + 7300)),
       at: passes(z),
       front: depthAt(z) > -0.2,
       near: nearOf(z),
@@ -490,8 +510,16 @@ const TRAIL: readonly Puff[] = (() => {
   return out;
 })();
 
-/** The lift-off smoke from the pad up to the launch tower's top (heights above the horizon, u): stays with the land. */
+/**
+ * The lift-off smoke from the pad up to the launch tower's top (heights above the horizon, u):
+ * stays with the land. Big puffs at its foot, where the blast is, which billow out over BILLOW_T s
+ * to 1 + BILLOW times their size, rolling BILLOW_DRIFT u toward the screen's side; less further up
+ * (a third of that at the top).
+ */
 const COLUMN_TOP = 0.39;
+const BILLOW = 0.5;
+const BILLOW_T = 3;
+const BILLOW_DRIFT = 0.024;
 const COLUMN: readonly Puff[] = (() => {
   const out: Puff[] = [];
   const h0 = NOZZLE * PAD_SQUASH + 0.014;
@@ -500,7 +528,7 @@ const COLUMN: readonly Puff[] = (() => {
     out.push({
       z: h,
       x: pathX(z) + (hash(i + 7400) - 0.5) * 0.012,
-      r: (0.024 + 0.008 * hash(i + 7500)) * (1 - h * 0.5),
+      r: (0.03 + 0.012 * hash(i + 7500)) * (1 - h * 0.62),
       at: passes(z),
       front: true,
       near: 0,
@@ -514,19 +542,43 @@ const COLUMN: readonly Puff[] = (() => {
 /**
  * The launch cloud over the pad: where each puff billows out to from the nozzle (u across and
  * up), its radius (u) and how long after ignition it starts (s). Lopsided toward the screen's
- * side: the tower's column is close on the left.
+ * side: the tower's column is close on the left. The first wave billows out under the roaring
+ * engine; at lift-off the blast throws a second wave up and out, a tall plume over the pad.
+ * Across, it spreads further on screens with more room beside the pad (plumeWide).
  */
 const MOUND = [
-  [-0.036, 0.012, 0.025, 0.2],
-  [-0.016, 0.034, 0.029, 0.45],
-  [0, 0.006, 0.033, 0.1],
-  [0.026, 0.03, 0.03, 0.3],
-  [0.05, 0.008, 0.031, 0.25],
-  [0.074, 0.026, 0.027, 0.5],
-  [0.088, 0.006, 0.025, 0.4],
-  [-0.004, 0.056, 0.024, 0.75],
-  [0.044, 0.054, 0.025, 0.65],
+  [-0.03, 0.012, 0.028, 0.2],
+  [-0.012, 0.036, 0.031, 0.45],
+  [0, 0.006, 0.034, 0.1],
+  [0.024, 0.03, 0.032, 0.3],
+  [0.046, 0.008, 0.032, 0.25],
+  [0.066, 0.026, 0.029, 0.5],
+  [0.08, 0.007, 0.026, 0.4],
+  [-0.006, 0.06, 0.027, 0.75],
+  [0.04, 0.058, 0.028, 0.65],
+  // The blast at lift-off.
+  [0.018, 0.088, 0.031, 1.15],
+  [0.064, 0.05, 0.029, 1.2],
+  [-0.022, 0.084, 0.026, 1.3],
+  [0.05, 0.104, 0.028, 1.4],
+  [0.004, 0.13, 0.025, 1.55],
+  [0.074, 0.078, 0.024, 1.5],
+  [0.032, 0.142, 0.027, 1.7],
+  [0.07, 0.115, 0.022, 1.8],
+  [-0.014, 0.158, 0.022, 1.95],
 ] as const;
+/** How far the blast throws the launch cloud out (a fraction of its reach) and swells its puffs. */
+const BLAST_OUT = 0.16;
+const BLAST_SWELL = 0.3;
+/** The room right of the pad's rocket on a phone (u); a wider screen's plume spreads into its extra room, up to PLUME_WIDE times as far. */
+const PHONE_ROOM = 0.14;
+const PLUME_WIDE = 1.5;
+
+/** How far the launch cloud spreads toward the screen's side here (1 on a phone). */
+function plumeWide(s: Scene): number {
+  const room = s.cssW / 2 / s.u - PAD_ROCKET_X - 0.016;
+  return Math.max(1, Math.min(PLUME_WIDE, room / PHONE_ROOM));
+}
 
 /**
  * The landing's smoke: as the landing burn's flame reaches the pad (SPLASH), a low cloud billows
@@ -564,42 +616,9 @@ const VENT_TO = TRIP_START + PERIOD - 1.5 - VENT_LIFE;
 /** The vent: up from the nozzle on the pad (u, before the squash). */
 const VENT_UP = 0.215;
 
-/** Scratch lists of puffs to draw (x, y, r in px), so a frame allocates nothing. */
-const MAX_PUFFS = 128;
-const BACK = { n: 0, x: new Float64Array(MAX_PUFFS), y: new Float64Array(MAX_PUFFS), r: new Float64Array(MAX_PUFFS) };
-const FRONT = { n: 0, x: new Float64Array(MAX_PUFFS), y: new Float64Array(MAX_PUFFS), r: new Float64Array(MAX_PUFFS) };
-type Batch = typeof BACK;
-
-function add(b: Batch, x: number, y: number, r: number): void {
-  if (b.n >= MAX_PUFFS) return;
-  b.x[b.n] = x;
-  b.y[b.n] = y;
-  b.r[b.n] = r;
-  b.n++;
-}
-
-/** A batch of puffs as one soft cloud: all the shaded undersides, then the bodies, then the lit caps. Three fills. */
-function puffs(ctx: Ctx, b: Batch, shade: string, body: string, light: string): void {
-  if (b.n === 0) return;
-  ctx.fillStyle = shade;
-  ctx.beginPath();
-  for (let i = 0; i < b.n; i++) circle(ctx, b.x[i]!, b.y[i]!, b.r[i]!);
-  ctx.fill();
-  ctx.fillStyle = body;
-  ctx.beginPath();
-  for (let i = 0; i < b.n; i++) {
-    const r = b.r[i]!;
-    circle(ctx, b.x[i]! - r * 0.07, b.y[i]! - r * 0.1, r * 0.86);
-  }
-  ctx.fill();
-  ctx.fillStyle = light;
-  ctx.beginPath();
-  for (let i = 0; i < b.n; i++) {
-    const r = b.r[i]!;
-    circle(ctx, b.x[i]! - r * 0.3, b.y[i]! - r * 0.36, r * 0.34);
-  }
-  ctx.fill();
-}
+/** Scratch lists of puffs to draw, so a frame allocates nothing. */
+const BACK = batch(128);
+const FRONT = batch(128);
 
 /** How a puff grows: from a small burst to its full size in under a second, then swelling a little more. */
 function grown(age: number): number {
@@ -635,87 +654,6 @@ function cleared(c: number, up: number): number {
 
 // ---------------------------------------------------------------- the rocket
 
-/**
- * The toy rocket in its own frame: its nozzle's center at the origin, up is -y, in px for the
- * rocket at full size; with `flame` (px) a flame below the nozzle and its landing legs `legs` of
- * the way out (0: folded away, not drawn). A cream body (shaded right side) with a red nose,
- * fins and band and two round windows; blue legs with yellow feet.
- */
-function rocketShape(ctx: Ctx, u: number, tone: Tone, flame: number, legs: number): void {
-  const [red, yellow, blue] = tone.land;
-  const hw = ROCKET_HW * u;
-  if (flame > 0) {
-    // An orange teardrop with a yellow heart.
-    ctx.beginPath();
-    ctx.moveTo(-hw * 0.62, -u * 0.004);
-    ctx.quadraticCurveTo(-hw * 0.62, flame * 0.62, 0, flame);
-    ctx.quadraticCurveTo(hw * 0.62, flame * 0.62, hw * 0.62, -u * 0.004);
-    ctx.closePath();
-    fill(ctx, tone.toys[4].body);
-    ctx.beginPath();
-    ctx.moveTo(-hw * 0.34, -u * 0.004);
-    ctx.quadraticCurveTo(-hw * 0.3, flame * 0.42, 0, flame * 0.66);
-    ctx.quadraticCurveTo(hw * 0.3, flame * 0.42, hw * 0.34, -u * 0.004);
-    ctx.closePath();
-    fill(ctx, tone.toys[1].light);
-  }
-  // Fins.
-  ctx.beginPath();
-  ctx.moveTo(-hw, -0.085 * u);
-  ctx.lineTo(-hw - 0.024 * u, 0);
-  ctx.lineTo(-hw, 0);
-  ctx.closePath();
-  ctx.moveTo(hw, -0.085 * u);
-  ctx.lineTo(hw + 0.024 * u, 0);
-  ctx.lineTo(hw, 0);
-  ctx.closePath();
-  fill(ctx, red.shade);
-  // Body: shade, body, band.
-  ctx.beginPath();
-  block(ctx, -hw, -0.265 * u, hw * 2, 0.265 * u, hw * 0.5);
-  fill(ctx, tone.landCream.shade);
-  ctx.beginPath();
-  block(ctx, -hw, -0.265 * u, hw * 1.45, 0.265 * u, hw * 0.5);
-  fill(ctx, tone.landCream.body);
-  ctx.fillStyle = red.body;
-  ctx.fillRect(-hw, -0.065 * u, hw * 2, 0.014 * u);
-  // Nose cone.
-  ctx.beginPath();
-  ctx.moveTo(-hw, -0.255 * u);
-  ctx.quadraticCurveTo(-hw * 0.9, -0.335 * u, 0, -0.36 * u);
-  ctx.quadraticCurveTo(hw * 0.9, -0.335 * u, hw, -0.255 * u);
-  ctx.closePath();
-  fill(ctx, red.body);
-  // Windows.
-  ctx.beginPath();
-  circle(ctx, 0, -0.2 * u, u * 0.012);
-  circle(ctx, 0, -0.145 * u, u * 0.01);
-  fill(ctx, blue.light);
-  if (legs > 0.01) {
-    // The landing legs, in front of the fins: struts sliding out of the body's sides and swinging
-    // out and down, a round foot on each (all of it thinner while it is still in its hinge).
-    const grown = legGrown(legs);
-    const a = legs * LEG_OUT;
-    const len = legLength(legs) * u;
-    const fx = hw + Math.sin(a) * len;
-    const fy = -LEG_HINGE * u - Math.cos(a) * len;
-    ctx.strokeStyle = blue.shade;
-    ctx.lineWidth = u * 0.009 * grown;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(-hw, -LEG_HINGE * u);
-    ctx.lineTo(-fx, fy);
-    ctx.moveTo(hw, -LEG_HINGE * u);
-    ctx.lineTo(fx, fy);
-    ctx.stroke();
-    ctx.lineCap = "butt";
-    ctx.beginPath();
-    circle(ctx, -fx, fy, u * 0.0075 * grown);
-    circle(ctx, fx, fy, u * 0.0075 * grown);
-    fill(ctx, yellow.body);
-  }
-}
-
 function fill(ctx: Ctx, c: string): void {
   ctx.fillStyle = c;
   ctx.fill();
@@ -748,14 +686,8 @@ export function nozzleOnScreen(s: Scene, r: Rocket): { x: number; y: number } {
 
 /** Draw the rocket as it is now, its nozzle on its trail's tip. */
 function drawRocket(ctx: Ctx, s: Scene, tone: Tone, r: Rocket): void {
-  const u = s.u;
   const at = nozzleOnScreen(s, r);
-  ctx.save();
-  ctx.translate(at.x, at.y);
-  if (r.lean !== 0) ctx.rotate(r.lean);
-  ctx.scale(r.k, r.k * PAD_SQUASH * r.squash);
-  rocketShape(ctx, u, tone, r.flame * u, r.legs);
-  ctx.restore();
+  toyRocket(ctx, landPaint(tone), at.x, at.y, s.u * r.k, r.lean, r.squash, r.flame, r.legs);
 }
 
 /** Whether the rocket is drawn with the land now (on its pad, or still low beside the launch tower: at the land's depth either way). */
@@ -774,7 +706,8 @@ const LAND_FRONT = 0.12;
 /**
  * Whether the rocket, drawn with the land now, is drawn again in front of the smoke in the sky
  * (rocketSky): on its way down, and on its pad from its landing until the last trip's trail has
- * cleared away (not while it lights up and lifts off: the launch cloud stays in front of it).
+ * cleared away (not while it lights up and lifts off: the launch cloud stays in front of it, with
+ * only its flame blazing out of the cloud, flameThrough).
  */
 function overSmoke(s: Scene, r: Rocket, c: number): boolean {
   if (!withLand(r)) return false;
@@ -821,7 +754,10 @@ export function padSmokeBehind(ctx: Ctx, s: Scene, tone: Tone): void {
   for (const p of COLUMN) {
     if (p.at > tau) break;
     const left = thinned(c, p.thin);
-    if (left >= THIN_CUT) add(BACK, cx + p.x * u, hz + shift - p.z * u, p.r * u * grown(tau - p.at) * left);
+    if (left < THIN_CUT) continue;
+    // The blast billows out at the foot of the column: its lower puffs swell and roll away from the tower's column.
+    const billow = (1 - 0.7 * p.thin) * smooth(0, BILLOW_T, tau - p.at);
+    add(BACK, cx + (p.x + BILLOW_DRIFT * billow) * u, hz + shift - p.z * u, p.r * u * grown(tau - p.at) * (1 + BILLOW * billow) * left);
   }
   puffs(ctx, BACK, tone.cloudShade, tone.cloud, tone.cloudLight);
 }
@@ -834,39 +770,127 @@ export function padRocket(ctx: Ctx, s: Scene, tone: Tone): void {
 
 /**
  * The engine's fire at the rocket's foot, licking up out of the smoke: tongues of orange flame
- * with yellow hearts, flickering, from ignition until the rocket is clear of the pad, and again,
- * smaller, as the landing burn reaches the pad until it dies at touchdown. In front of the smoke,
- * so the fire shows at the bottom of it.
+ * with yellow hearts, flickering, from ignition until the rocket is clear of the pad, leaping up
+ * to twice their height in a blast as it lifts off; and again, smaller, as the landing burn reaches
+ * the pad until it dies at touchdown. In front of the smoke, so the fire shows at the bottom of it,
+ * and the engine's sparks flying out of it; and the climbing rocket's own flame blazing out of its
+ * launch cloud (flameThrough).
  */
 export function padFlames(ctx: Ctx, s: Scene, tone: Tone): void {
   const c = tripTime(s.t);
-  const on =
-    smooth(IGNITE, IGNITE + 0.35, c) * (1 - smooth(LIFTOFF + 0.4, LIFTOFF + 1.4, c)) +
-    0.6 * smooth(SPLASH, SPLASH + 0.5, c) * (1 - smooth(TOUCHDOWN, TOUCHDOWN + 0.35, c));
-  if (on <= 0.02) return;
   const u = s.u;
-  const x0 = s.cssW / 2 + PAD_ROCKET_X * u;
   const y0 = horizon(s) + padShift(s) - NOZZLE * PAD_SQUASH * u + 0.006 * u;
+  flameThrough(ctx, s, tone, y0);
+  const on = fireOn(c);
+  if (on <= 0.02) return;
+  const x0 = s.cssW / 2 + PAD_ROCKET_X * u;
+  const blast = 1 + FIRE_BLAST * smooth(LIFTOFF - 0.35, LIFTOFF + 0.1, c) * (1 - smooth(LIFTOFF + 0.3, LIFTOFF + 1.3, c));
+  const fire = flameColors(tone);
   for (let pass = 0; pass < 2; pass++) {
     const k = pass === 0 ? 1 : 0.55;
     ctx.beginPath();
     for (let i = 0; i < FIRE.length; i++) {
       const [dx, w, h] = FIRE[i]!;
-      const f = on * (0.8 + 0.2 * Math.sin(c * 23 + i * 2.3));
+      const f = on * blast * (0.8 + 0.2 * Math.sin(c * 23 + i * 2.3));
       tongue(ctx, x0 + dx * u * (0.55 + 0.45 * on), y0, w * k * u * on, h * k * f * u);
     }
-    fill(ctx, pass === 0 ? tone.toys[4].body : tone.toys[1].light);
+    fill(ctx, pass === 0 ? fire.fire : fire.heart);
   }
+  padSparks(ctx, s, tone, c);
 }
+
+/**
+ * The rocket's roaring flame as it climbs out of its launch cloud (still drawn with the land):
+ * drawn again over the cloud, so the fire blazes out of the smoke under it all the way up instead
+ * of going out behind it; only above the pad's top (`top`, px), which stands in front of it.
+ */
+function flameThrough(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
+  const r = rocketAt(s.t);
+  if (r.phase !== "climb" || !withLand(r) || r.flame <= 0) return;
+  const at = nozzleOnScreen(s, r);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, s.cssW, top);
+  ctx.clip();
+  toyRocketFlame(ctx, landPaint(tone), at.x, at.y, s.u * r.k, r.lean, r.squash, r.flame);
+  ctx.restore();
+}
+
+/** How much the fire at the rocket's foot burns, with the trip's clock at `c`: lit at ignition until it is clear of the pad, and smaller for the landing burn. */
+function fireOn(c: number): number {
+  return (
+    smooth(IGNITE, IGNITE + 0.35, c) * (1 - smooth(LIFTOFF + 0.4, LIFTOFF + 1.4, c)) +
+    0.6 * smooth(SPLASH, SPLASH + 0.5, c) * (1 - smooth(TOUCHDOWN, TOUCHDOWN + 0.35, c))
+  );
+}
+
+/** How far up the cloud over the pad the fire lights it (u above the nozzle), and how strongly. */
+const FIRE_LIT = 0.07;
+const FIRE_GLOW = 0.55;
 
 /** The fire's tongues: across from the nozzle, half-width and height (u). */
 const FIRE = [
-  [0, 0.017, 0.062],
-  [-0.026, 0.012, 0.04],
-  [0.029, 0.013, 0.044],
-  [-0.045, 0.009, 0.024],
-  [0.05, 0.009, 0.026],
+  [0, 0.02, 0.068],
+  [-0.027, 0.014, 0.045],
+  [0.031, 0.015, 0.05],
+  [-0.047, 0.01, 0.027],
+  [0.055, 0.011, 0.032],
+  [0.077, 0.008, 0.02],
 ] as const;
+/** How much higher the fire leaps in the blast at lift-off. */
+const FIRE_BLAST = 1.2;
+
+/**
+ * The engine's sparks: from ignition until the rocket is clear of the pad, one every SPARK_EVERY
+ * s spits out of the fire at its nozzle (on the pad, then wherever the nozzle is as it climbs
+ * away) and flies off in an arc, mostly toward the screen's side (the tower's column is close on
+ * the left), falls back and burns out within SPARK_LIFE s, before it falls below where it was
+ * born. Speeds in u/s, gravity in u/s².
+ */
+const SPARK_FROM = IGNITE + 0.2;
+const SPARK_TO = LIFTOFF + 1.1;
+const SPARK_EVERY = 0.022;
+const SPARK_LIFE = 0.62;
+const SPARK_G = 1.5;
+const SPARK_VX0 = -0.085;
+const SPARK_VX1 = 0.17;
+const SPARK_VY0 = 0.18;
+const SPARK_VY1 = 0.75;
+/** A spark's head (u) and how long a streak it leaves behind it (s of its flight). */
+const SPARK_R = 0.0065;
+const SPARK_STREAK = 0.07;
+const PAD_SPARKS = sparkBatch(64);
+
+/** The sparks flying out of the fire now, with the trip's clock at `c`. */
+function padSparks(ctx: Ctx, s: Scene, tone: Tone, c: number): void {
+  if (c < SPARK_FROM || c > SPARK_TO + SPARK_LIFE) return;
+  const u = s.u;
+  const cx = s.cssW / 2 + PAD_ROCKET_X * u;
+  const hz = horizon(s) + padShift(s);
+  PAD_SPARKS.n = 0;
+  const first = Math.max(0, Math.ceil((c - SPARK_LIFE - SPARK_FROM) / SPARK_EVERY));
+  const last = Math.floor((Math.min(c, SPARK_TO) - SPARK_FROM) / SPARK_EVERY);
+  for (let i = first; i <= last; i++) {
+    const born = SPARK_FROM + i * SPARK_EVERY;
+    const a = c - born;
+    if (a <= 0) continue;
+    const vx = SPARK_VX0 + (SPARK_VX1 - SPARK_VX0) * hash(i + 7800);
+    const vy = SPARK_VY0 + (SPARK_VY1 - SPARK_VY0) * hash(i + 7900);
+    // It burns out by SPARK_LIFE, or as it falls back a little below where it was born.
+    const life = Math.min(SPARK_LIFE * (0.6 + 0.4 * hash(i + 8000)), (vy + Math.sqrt(vy * vy + 2 * SPARK_G * 0.01)) / SPARK_G);
+    if (a >= life) continue;
+    const r = SPARK_R * (1 - smooth(0.6, 1, a / life));
+    if (r < SPARK_R * 0.35) continue;
+    // Born in the fire at the nozzle, wherever it was then (straight above the pad, low).
+    const z0 = born <= LIFTOFF ? PAD_NZ : nozzleOf(climb(born - LIFTOFF));
+    const x = (hash(i + 8100) - 0.5) * 0.016 + vx * a;
+    const h = z0 - HORIZON_UP + vy * a - 0.5 * SPARK_G * a * a;
+    const vya = vy - SPARK_G * a;
+    addSpark(PAD_SPARKS, cx + x * u, hz - h * PAD_SQUASH * u, vx * SPARK_STREAK * u, -vya * SPARK_STREAK * PAD_SQUASH * u, r * u);
+  }
+  const fire = flameColors(tone);
+  sparks(ctx, PAD_SPARKS, fire.spark, fire.core);
+}
 
 /** A flame tongue standing on (x, y): a round foot `w` wide each side, its tip `h` up. Its own subpath. */
 function tongue(ctx: Ctx, x: number, y: number, w: number, h: number): void {
@@ -887,13 +911,15 @@ export function padSmokeFront(ctx: Ctx, s: Scene, tone: Tone): void {
   FRONT.n = 0;
   if (c > IGNITE && !allThinned(c)) {
     const blast = smooth(LIFTOFF, LIFTOFF + 1.5, c);
+    const wide = plumeWide(s);
     for (const [dx, dy, r, delay] of MOUND) {
       const b = smooth(IGNITE + delay, IGNITE + delay + 1.1, c);
       if (b <= 0) continue;
-      const out = 0.35 + 0.65 * b + 0.12 * blast;
+      const out = 0.35 + 0.65 * b + BLAST_OUT * blast;
       // The launch cloud is the bottom of the lift-off smoke: it thins first, its top puffs last.
       const left = thinned(c, dy / COLUMN_TOP);
-      if (left >= THIN_CUT) add(FRONT, x0 + dx * out * u, y0 - dy * out * u, r * u * (0.3 + 0.7 * b) * (1 + 0.12 * blast) * left);
+      const across = dx > 0 ? dx * wide : dx;
+      if (left >= THIN_CUT) add(FRONT, x0 + across * out * u, y0 - dy * out * u, r * u * (0.3 + 0.7 * b) * (1 + BLAST_SWELL * blast) * left);
     }
   }
   if (c > SPLASH && c < LAND_THIN0 + LAND_SPREAD + LAND_EACH) {
@@ -908,6 +934,19 @@ export function padSmokeFront(ctx: Ctx, s: Scene, tone: Tone): void {
     }
   }
   puffs(ctx, FRONT, tone.cloudShade, tone.cloud, tone.cloudLight);
+  // The fire lights the bottom of the cloud while it burns.
+  const glow = fireOn(c);
+  if (glow > 0.02 && FRONT.n > 0) {
+    const lit = y0 - FIRE_LIT * u;
+    ctx.beginPath();
+    for (let i = 0; i < FRONT.n; i++) {
+      const r = FRONT.r[i]!;
+      if (FRONT.y[i]! - r * 0.5 > lit) circle(ctx, FRONT.x[i]! + r * 0.05, FRONT.y[i]! + r * 0.08, r * 0.8);
+    }
+    ctx.globalAlpha = FIRE_GLOW * glow;
+    fill(ctx, flameColors(tone).heart);
+    ctx.globalAlpha = 1;
+  }
 }
 
 /**

@@ -2,7 +2,7 @@ import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { MEADOW, MEADOW_LIGHT } from "./colors";
 import { horizon } from "./place";
-import { armSwing, GANTRY_TOP, gantryBounce, lampLit, PAD_SQUASH, PAD_X, padFlames, padRocket, padSmokeBehind, padSmokeFront } from "./launch";
+import { armSwing, GANTRY_TOP, gantryBounce, lampLit, PAD_SQUASH, PAD_X, padFlames, padRocket, padShake, padSmokeBehind, padSmokeFront } from "./launch";
 import { block } from "./shapes";
 import type { FarToy, Tone } from "./tone";
 
@@ -13,7 +13,7 @@ import type { FarToy, Tone } from "./tone";
 // keep and a round tower flying the kingdom's flag, bunting between them), on the right the
 // toy rocket on its launch pad beside a lattice launch tower with a beacon (at 10 s it lifts off
 // and corkscrews away, comes back down onto its pad and goes again, round and round, launch.ts;
-// a rocket flies past at night, drift.ts); then the green railway
+// the same rocket roars past up the lane at night, drift.ts); then the green railway
 // hills, with a toy railway running between two tunnels (no train: the owner had it removed),
 // and a block bridge crosses a pool; then the meadow the fort stands on. All of it built from the
 // same rounded toy blocks as the tower, faded toward the sky and flat, with no outline; only the
@@ -548,15 +548,18 @@ function farBlockPath(ctx: Ctx, s: Scene, ox: number, x0: number, y0: number, x1
  * band and two round windows, beside an orange lattice launch tower with a service arm reaching
  * over to it, a beacon on top that blinks and a board of three countdown lamps. At 10 s the
  * lamps count down, the arm swings up out of the way, the engine lights and the rocket lifts off
- * in a cloud of smoke; the pad stands empty until it lands again, the launch tower bouncing at
- * its touchdown, and goes again (launch.ts).
+ * in a cloud of smoke, the pad and the tower shaking under the roar; the pad stands empty until it
+ * lands again, the launch tower bouncing at its touchdown, and goes again (launch.ts).
  */
 export function launchPad(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
   const ox = s.cssW / 2 + PAD_X * u;
   const hz = horizon(s);
+  const shake = padShake(s.t);
+  const sx = shake.x * u;
+  const sy = shake.y * u;
   ctx.save();
-  ctx.translate(0, hz);
+  ctx.translate(sx, hz + sy);
   // The launch tower bounces on its foot as the rocket touches down beside it.
   ctx.scale(1, PAD_SQUASH * (1 + gantryBounce(s.t)));
   ctx.translate(0, -hz);
@@ -613,7 +616,7 @@ export function launchPad(ctx: Ctx, s: Scene, tone: Tone): void {
   padRocket(ctx, s, tone);
   // The pad: a wide low block under it all.
   ctx.save();
-  ctx.translate(0, hz);
+  ctx.translate(sx, hz + sy);
   ctx.scale(1, PAD_SQUASH);
   ctx.translate(0, -hz);
   farBlock(ctx, s, ox, -0.1, -0.005, 0.1, 0.036, blue);

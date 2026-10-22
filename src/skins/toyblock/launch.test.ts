@@ -18,7 +18,9 @@ import {
   nozzleOnScreen,
   PAD_SQUASH,
   PAD_X,
+  padFlames,
   padRocket,
+  padShake,
   padSmokeBehind,
   padSmokeFront,
   pathX,
@@ -32,8 +34,9 @@ import {
   tripTime,
 } from "./launch";
 import { COLUMN, horizon, landShows, seaTop } from "./place";
+import { flameColors } from "./rocket";
 import { moon, sun } from "./sky";
-import { context, masker, overlap, sceneAt, SIZES, VIEWS } from "./test-scene";
+import { context, masker, only, overlap, sceneAt, SIZES, VIEWS } from "./test-scene";
 import { LOOP_START, toneOf } from "./tone";
 
 // The rocket's round trip (launch.ts): the owner asked for the rocket to take off after 10 seconds
@@ -623,23 +626,16 @@ function smokeColors(s: Scene): Set<string> {
   return new Set([t.cloudShade, t.cloud, t.cloudLight, t.farCloudShade, t.farCloud, t.farCloudLight]);
 }
 
-/** A context that only fills and strokes in the colors `keep` passes (the rest of the drawing is skipped). */
-function only(ctx: CanvasRenderingContext2D, keep: (color: string) => boolean): CanvasRenderingContext2D {
-  let fill = "";
-  let stroke = "";
-  const call = (name: "fill" | "fillRect" | "stroke", color: () => string) => (...a: unknown[]) =>
-    keep(color()) && (ctx[name] as (...b: unknown[]) => void).apply(ctx, a);
+/** A context that fills and strokes in `to` wherever the drawing asks for `from` (the rest as drawn). */
+function recolor(ctx: CanvasRenderingContext2D, from: string, to: string): CanvasRenderingContext2D {
   return new Proxy(ctx, {
     get(target, prop) {
-      if (prop === "fill" || prop === "fillRect") return call(prop, () => fill);
-      if (prop === "stroke") return call(prop, () => stroke);
       const v: unknown = Reflect.get(target, prop, target);
       return typeof v === "function" ? (v as (...b: unknown[]) => unknown).bind(target) : v;
     },
     set(target, prop, value) {
-      if (prop === "fillStyle") fill = String(value);
-      if (prop === "strokeStyle") stroke = String(value);
-      return Reflect.set(target, prop, value, target);
+      const swap = (prop === "fillStyle" || prop === "strokeStyle") && String(value) === from;
+      return Reflect.set(target, prop, swap ? to : value, target);
     },
   });
 }
@@ -807,5 +803,116 @@ describe("toy kingdom launch tower", () => {
     const y = Math.round(hz - 0.2 * u);
     expect(before[y * W + Math.round(rocket)]).toBe(1);
     expect(after[y * W + Math.round(rocket)]).toBe(0);
+  });
+});
+
+describe("toy kingdom blast-off", () => {
+  // The owner wants the launch "big bold, almost too wild to believe": the pad and its tower shake
+  // under the roar, sparks fly out of the fire, and a huge plume of fire and smoke goes up over the
+  // pad at lift-off; all of it in the launch's own moments, every trip, and still the rest of it.
+  it("the pad shakes from ignition, hardest at lift-off, and is still the rest of the trip", () => {
+    for (let n = 0; n < 4; n++) {
+      const at = n * PERIOD;
+      let most = 0;
+      for (let c = TRIP_START; c < TRIP_START + PERIOD; c += FRAME / 2) {
+        const { x, y } = padShake(at + c);
+        const k = Math.hypot(x, y);
+        if (c < IGNITE || c > LIFTOFF + 1.8) expect(k, `trip ${n}, ${c.toFixed(3)} s in`).toBe(0);
+        if (c > LIFTOFF - 0.3 && c < LIFTOFF + 0.4) most = Math.max(most, k);
+        expect(k, "a rumble, not a jump").toBeLessThan(0.008);
+      }
+      expect(most, `trip ${n}: shaking at lift-off`).toBeGreaterThan(0.004);
+    }
+  });
+
+  it.each(SIZES)("%ix%i: the launch tower shakes, and only while the engine roars", (W, H) => {
+    // The tower's orange posts, as drawn: where they stand at rest outside the launch's roar,
+    // shaken out of place during it (or back down at touchdown, when the tower bounces).
+    const s0 = sceneAt(W, H, 0, 0.5);
+    const tone = toneOf(s0);
+    const posts = tone.land[4].body;
+    const draw = masker(W, H);
+    const at = (t: number) => draw((ctx) => launchPad(only(ctx, (c) => c === posts), { ...s0, t }, tone));
+    const rest = at(0.5);
+    expect(sum(rest), "the posts").toBeGreaterThan(100);
+    let moved = 0;
+    let checked = 0;
+    for (let n = 0; n < 2; n++) {
+      for (let c = TRIP_START; c < TRIP_START + PERIOD; c += 0.05) {
+        const m = at(n * PERIOD + c);
+        const same = m.every((v, i) => v === rest[i]);
+        if (c > IGNITE + 0.2 && c < LIFTOFF + 0.6) {
+          checked++;
+          if (!same) moved++;
+        } else if (c < IGNITE || (c > LIFTOFF + 1.8 && gantryBounce(c) === 0)) expect(same, `trip ${n}, ${c.toFixed(2)} s in: the tower at rest`).toBe(true);
+      }
+    }
+    expect(moved, `moments of the roar with the tower shaken, of ${checked}`).toBeGreaterThan(checked * 0.8);
+  });
+
+  it.each(SIZES)("%ix%i: sparks fly out of the fire from ignition until the rocket is clear of the pad", (W, H) => {
+    const draw = masker(W, H);
+    const sparksAt = (t: number) => {
+      const s = sceneAt(W, H, 0, t);
+      const tone = toneOf(s);
+      const fire = flameColors(tone);
+      return sum(draw((ctx) => padFlames(only(ctx, (c) => c === fire.spark || c === fire.core), s, tone)));
+    };
+    for (let n = 0; n < 3; n++) {
+      const at = n * PERIOD;
+      for (const c of [COUNTDOWN, IGNITE - 0.01, LIFTOFF + 2, DESCEND, BURN + 1, TOUCHDOWN + 0.2]) expect(sparksAt(at + c), `trip ${n}, ${c.toFixed(2)} s in`).toBe(0);
+      for (const c of [IGNITE + 0.5, LIFTOFF - 0.2, LIFTOFF + 0.4, LIFTOFF + 0.9]) expect(sparksAt(at + c), `trip ${n}, ${c.toFixed(2)} s in`).toBeGreaterThan(0);
+    }
+  });
+
+  it.each([...SIZES, [834, 1194] as const])("%ix%i: a huge plume of fire and smoke goes up over the pad at lift-off", (W, H) => {
+    // The fire and the smoke over the pad and up the lane (in u²): everything the launch draws in
+    // the fire's and the clouds' colors.
+    const draw = masker(W, H);
+    const added = (t: number) => {
+      const s = sceneAt(W, H, 0, t);
+      const tone = toneOf(s);
+      const fire = flameColors(tone);
+      const keep = new Set([...smokeColors(s), fire.fire, fire.heart, fire.spark, fire.core]);
+      return (
+        sum(
+          draw((ctx) => {
+            const c = only(ctx, (k) => keep.has(k));
+            launchPad(c, s, tone);
+            rocketSky(c, s, tone);
+          }),
+        ) /
+        (s.u * s.u)
+      );
+    };
+    // At lift-off the fire leaps up round the rocket's foot; the cloud billows up over the pad.
+    expect(added(LIFTOFF), "fire and smoke at lift-off").toBeGreaterThan(0.0125);
+    expect(added(LIFTOFF + 1.5), "the plume a moment later").toBeGreaterThan(0.028);
+    expect(added(LIFTOFF + 2), "and still growing").toBeGreaterThan(0.033);
+  });
+
+  it.each([...SIZES, [834, 1194] as const])("%ix%i: the rocket climbs out of its plume on a flame that never goes out of sight", (W, H) => {
+    // The whole launch drawn as the game draws it (the pad and its smoke, then the sky), with the
+    // flame's orange painted a color of its own: from the moment the fire at its foot has died
+    // down until it is out of the plume, its flame shows, never hidden in its launch cloud.
+    const ctx = context(W, H);
+    const flameShows = (t: number) => {
+      const s = sceneAt(W, H, 0, t);
+      const tone = toneOf(s);
+      const fire = flameColors(tone).fire;
+      const c = recolor(ctx, fire, "#ff00ff");
+      ctx.clearRect(0, 0, W, H);
+      launchPad(c, s, tone);
+      rocketSky(c, s, tone);
+      const data = ctx.getImageData(0, 0, W, H).data;
+      let n = 0;
+      for (let i = 0; i < data.length; i += 4) if (data[i] === 255 && data[i + 1] === 0 && data[i + 2] === 255 && data[i + 3] === 255) n++;
+      return n;
+    };
+    for (let n = 0; n < 2; n++) {
+      for (let c = LIFTOFF + 1.45; c < LIFTOFF + 2.2; c += 1 / 30) {
+        expect(flameShows(n * PERIOD + c), `trip ${n}, ${(c - LIFTOFF).toFixed(2)} s after lift-off: flame px`).toBeGreaterThan(Math.min(W, H * 0.6) * 0.12);
+      }
+    }
   });
 });

@@ -164,3 +164,24 @@ export function overlap(a: Uint8Array, b: Uint8Array): number {
   for (let i = 0; i < a.length; i++) n += a[i]! & b[i]!;
   return n;
 }
+
+/** A context that only fills and strokes in the colors `keep` passes (the rest of the drawing is skipped). */
+export function only(ctx: CanvasRenderingContext2D, keep: (color: string) => boolean): CanvasRenderingContext2D {
+  let fill = "";
+  let stroke = "";
+  const call = (name: "fill" | "fillRect" | "stroke", color: () => string) => (...a: unknown[]) =>
+    keep(color()) && (ctx[name] as (...b: unknown[]) => void).apply(ctx, a);
+  return new Proxy(ctx, {
+    get(target, prop) {
+      if (prop === "fill" || prop === "fillRect") return call(prop, () => fill);
+      if (prop === "stroke") return call(prop, () => stroke);
+      const v: unknown = Reflect.get(target, prop, target);
+      return typeof v === "function" ? (v as (...b: unknown[]) => unknown).bind(target) : v;
+    },
+    set(target, prop, value) {
+      if (prop === "fillStyle") fill = String(value);
+      if (prop === "strokeStyle") stroke = String(value);
+      return Reflect.set(target, prop, value, target);
+    },
+  });
+}
