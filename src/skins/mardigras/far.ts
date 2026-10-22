@@ -1,71 +1,83 @@
 import { circle, hash, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
+import { GOLD, TORCH_FLECK } from "./colors";
 import { COLUMN } from "./place";
-import { archPath } from "./shapes";
+import { downtown, riverfront } from "./river";
+import { cottages } from "./rows";
+import { archPath, cloud, fleurPath, LONG_CLOUD, TALL_CLOUD } from "./shapes";
 import { square } from "./square";
 import { DAY_HIGH, level, smooth, type Tone } from "./tone";
 
-// The far layer, standing on the horizon: the cathedral's square between it and the street
-// (square.ts, all of it below the horizon), the river at the end of the street, its far bank a
-// low line of wharf sheds and a crane, a riverboat with twin stacks and a red paddlewheel
-// churning away at its stern out on the right, the far street along the levee with a
-// streetcar that rolls in from the right to its stop and back out again, our own three-spired
-// cathedral on its square straight ahead (its body hidden by the townhouses until you climb,
-// its spires over their roofs from the start), a big live oak at the square's corner, and
-// gulls wheeling over the river. All of it is faded and flat, with no outline. Only the lane's
-// things move (the wheel, the smoke, the streetcar, the gulls): nothing moves behind the tower.
-// Above the start a floor of cloud gathers below you and covers the city: from then on its
-// puffy top is the horizon, and only the cathedral's spires stand out of it. Then it sinks
-// with them to rest low on the screen, and there it stays for good, for the sun to set into
-// and rise out of on every turn of the story's loop (tone.ts). By night the flambeaux of the
-// parade below light the clouds from beneath at the sides, and at the loop's dawn a mist lies
-// over them.
+// The far layer, standing on the horizon, back to front: two fair-weather clouds in the right
+// lane of the afternoon sky; the riverfront (river.ts: the far bank with its truss bridge, the
+// river with the paddlewheeler, the riverwalk with its live oaks and the streetcar); a tower
+// downtown beside the cathedral (more of them further out on a wide screen); the Quarter's
+// rooftops stepping back along the horizon (hip roofs and dormers, parapets with urns, paired
+// chimneys, a gallery here and there); our own three-spired cathedral straight ahead; and below
+// the horizon the cathedral's square (square.ts) and the row of Creole cottages across the
+// street (rows.ts), which hide the square at the start and drop away to show it as you climb.
+// All of it is faded and flat, with no outline, and plainer behind the tower than at the sides;
+// only the lane's things move (the clouds, the riverboat, the streetcar, the gulls, the river's
+// glints): nothing moves behind the tower.
+// Above the start a floor of cloud gathers below you and covers the city, piling up first over
+// the river on the right while the sun goes down on the left: once gathered, its puffy top lies
+// over the river and the far bank (the bridge has faded into the haze by then), and only the
+// cathedral's spires and the tower downtown stand out of it. Then it sinks with them to rest low
+// on the screen, and there it stays for good, for the sun to set into and rise out of on every
+// turn of the story's loop (tone.ts). By night the flambeaux of the parade below light the clouds
+// from beneath at the sides, and at the loop's dawn a mist lies over them.
 //
 // Positions are in u from the screen center, heights in u from the horizon (negative is up).
 
 /** Once it has covered the city, the cloud floor sinks to rest this far above the screen's bottom (u)... */
 const FLOOR_REST = 0.3;
+
+/** Where the cloud floor's top edge comes to rest on screen, once it has sunk: things that stand in the cloud sea for good stand on this line. */
+export function floorRest(s: Scene): number {
+  return s.cssH - s.u * FLOOR_REST;
+}
 /** ...by this level, and stays there: before the story's loop begins (tone.ts LOOP_START), so every turn of it looks the same. */
 export const FLOOR_SETTLED = 90;
+/** How far above the horizon the gathered cloud floor lies (u): over the river and its far bank (river.ts), under the bridge's peaks. */
+const COVER = 0.31;
 
 /**
- * The line the cloud floor lies along once it has gathered, and the cathedral stands on: the
- * horizon while the city shows; above the clouds it eases down to its rest low on the screen.
+ * The line the cloud floor lies along once it has gathered: COVER over the horizon while the
+ * city shows; above the clouds it eases down to its rest low on the screen.
  */
 function seaLine(s: Scene, lvl: number): number {
-  const horizon = s.horizonY + s.u * 0.01;
-  return horizon + (s.cssH - s.u * FLOOR_REST - horizon) * smooth(DAY_HIGH, FLOOR_SETTLED, lvl);
+  const gathered = s.horizonY - s.u * (COVER - 0.01);
+  return gathered + (s.cssH - s.u * FLOOR_REST - gathered) * smooth(DAY_HIGH, FLOOR_SETTLED, lvl);
 }
 
 /** Where the cloud floor's top edge is: below the screen at the start, at the horizon once you are above the clouds, then at rest. */
 export function floorTop(s: Scene, lvl: number): number {
-  const k = smooth(20, DAY_HIGH, lvl);
+  const k = smooth(17, DAY_HIGH, lvl);
   const below = s.cssH + s.u * 0.16;
   return below + (seaLine(s, lvl) - below) * k;
 }
 
 /** The city below shows only until the cloud floor covers it (`top` is the floor's top edge). */
 export function landShows(s: Scene, top: number): boolean {
-  return level(s) < DAY_HIGH && top > s.horizonY + s.u * 0.02;
+  return level(s) < DAY_HIGH && top > s.horizonY - s.u * (COVER - 0.02);
 }
 
-/** The line the cathedral stands on: the horizon while the city shows, then the cloud floor's line as it sinks to rest. */
+/** The line the cathedral and the towers downtown stand on: the horizon while the city shows, then sinking with the cloud floor's line to rest. */
 function spireLine(s: Scene): number {
-  return seaLine(s, level(s)) - s.u * 0.01;
+  return seaLine(s, level(s)) + s.u * (COVER - 0.01);
 }
 
+/** While the city shows, the river (river.ts) covers everything from this far above the horizon (u) down to its riverwalk, and the rooftops, the cottages and the street the rest. */
+const RIVER_SKY = 0.27;
 /** Below this (u under the floor's top) the cloud floor is solid. */
 const FLOOR_SOLID = 0.06;
-/** The river's top and bottom edges (u above the horizon). */
-const RIVER_TOP = 0.1;
-const RIVER_BOTTOM = 0.04;
 
 /**
  * Where the sky stops: below this the river and the city, or the cloud floor, cover everything
  * (each fill runs on under the next, so no seam between two fills is ever left half painted).
  */
 export function skyBottom(s: Scene, top: number): number {
-  return landShows(s, top) ? s.horizonY + s.u * 0.03 : top + s.u * FLOOR_SOLID;
+  return landShows(s, top) ? s.horizonY - s.u * RIVER_SKY : top + s.u * FLOOR_SOLID;
 }
 
 // ---------------------------------------------------------------- the cloud bank
@@ -84,323 +96,175 @@ const BANK = [
   [0.68, 0.13, 0.13],
 ] as const;
 
-/** Soft clouds piled along the line at either side, in the hour's cloud colors, a shaded body and lit caps. */
-function cloudBank(ctx: Ctx, s: Scene, tone: Tone, hz: number): void {
+/** When each side's bank gathers: [side, from level, to level]. */
+const BANK_IN = [
+  [1, 13, 23],
+  [-1, 30, 38],
+] as const;
+
+/** Soft clouds piled along the line on one side (`side` -1 left, 1 right), in the hour's cloud colors, a shaded body and lit caps. */
+function cloudBank(ctx: Ctx, s: Scene, tone: Tone, hz: number, side: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
   for (let pass = 0; pass < 3; pass++) {
     ctx.fillStyle = pass === 0 ? tone.cloudShade : pass === 1 ? tone.cloud : tone.cloudLight;
     ctx.beginPath();
     for (const [X, h, r] of BANK) {
+      if (Math.sign(X) !== side) continue;
       const x = X < 0 ? Math.min(cx + X * u, (X + 0.5) * u) : Math.max(cx + X * u, s.cssW - (0.5 - X) * u);
       const y = hz - h * u;
       if (pass === 0) circle(ctx, x, y, r * u);
       else if (pass === 1) circle(ctx, x - r * u * 0.08, y - r * u * 0.1, r * u * 0.9);
       else circle(ctx, x - r * u * 0.3, y - r * u * 0.42, r * u * 0.4);
     }
-    if (pass === 0) {
-      ctx.rect(-1, hz - u * 0.06, Math.max(0, Math.min(cx - u * 0.24, u * 0.26)) + 1, u * 0.12);
-      ctx.rect(Math.max(cx + u * 0.2, s.cssW - u * 0.3), hz - u * 0.06, s.cssW, u * 0.12);
-    }
+    if (pass === 0 && side < 0) ctx.rect(-1, hz - u * 0.06, Math.max(0, Math.min(cx - u * 0.24, u * 0.26)) + 1, u * 0.12);
+    if (pass === 0 && side > 0) ctx.rect(Math.max(cx + u * 0.2, s.cssW - u * 0.3), hz - u * 0.06, s.cssW, u * 0.12);
     ctx.fill();
   }
 }
 
-// ---------------------------------------------------------------- the river and its far bank
+// ---------------------------------------------------------------- the afternoon's clouds
 
-/** Wharf sheds along the far bank: [X (u), width, height], and a crane. */
-const SHEDS = [
-  [-0.62, 0.1, 0.03],
-  [-0.5, 0.08, 0.04],
-  [-0.4, 0.07, 0.028],
-  [-0.3, 0.09, 0.035],
-  [-0.18, 0.06, 0.03],
-  [-0.1, 0.09, 0.042],
-  [0.02, 0.07, 0.03],
-  [0.11, 0.1, 0.038],
-  [0.24, 0.08, 0.03],
-  [0.34, 0.09, 0.045],
-  [0.46, 0.07, 0.03],
-  [0.56, 0.1, 0.036],
+/** Two fair-weather clouds in the right lane: [X (u from center), size (u), how far below the first (u), shape]. */
+const DAY_CLOUDS = [
+  [0.33, 0.032, 0, LONG_CLOUD],
+  [0.435, 0.02, 0.03, TALL_CLOUD],
 ] as const;
 
-/** The far bank: a flat strip with the sheds' gables and a crane along it, then the river down to the levee, with still glints. */
-function river(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const hz = s.horizonY;
-  const top = hz - u * RIVER_TOP;
-  // The far bank.
-  ctx.fillStyle = tone.farBank;
-  ctx.beginPath();
-  ctx.rect(-1, top - u * 0.012, s.cssW + 2, u * 0.014);
-  for (const [X, w, h] of SHEDS) {
-    const x = cx + X * u;
-    ctx.moveTo(x - (w / 2) * u, top);
-    ctx.lineTo(x - (w / 2) * u, top - h * u);
-    ctx.lineTo(x, top - (h + 0.012) * u);
-    ctx.lineTo(x + (w / 2) * u, top - h * u);
-    ctx.lineTo(x + (w / 2) * u, top);
-    ctx.closePath();
-  }
-  // A crane on the wharf, right of center.
-  const kx = cx + u * 0.2;
-  ctx.rect(kx - u * 0.003, top - u * 0.09, u * 0.006, u * 0.09);
-  ctx.moveTo(kx - u * 0.004, top - u * 0.088);
-  ctx.lineTo(kx - u * 0.06, top - u * 0.062);
-  ctx.lineTo(kx - u * 0.06, top - u * 0.056);
-  ctx.lineTo(kx + u * 0.004, top - u * 0.08);
-  ctx.closePath();
-  ctx.fill();
-  // The river.
-  ctx.fillStyle = tone.river;
-  ctx.fillRect(0, top, s.cssW, u * (RIVER_TOP - RIVER_BOTTOM) + 1);
-  // Still glints along the water, kept off the cathedral's reflection in the middle.
-  ctx.fillStyle = tone.riverLit;
-  ctx.beginPath();
-  for (let i = 0; i < 26; i++) {
-    const X = (hash(i + 7100) - 0.5) * 1.6;
-    if (Math.abs(X) < 0.12) continue;
-    const y = top + u * (0.008 + hash(i + 7110) * 0.05);
-    const w = u * (0.012 + hash(i + 7120) * 0.03);
-    ctx.rect(cx + X * u - w / 2, y, w, Math.max(1, u * 0.0025));
-  }
-  ctx.fill();
-}
-
-// ---------------------------------------------------------------- the riverboat
-
-/** Where the riverboat paddles, out on the right (u from center), its waterline (u above the horizon: out in midstream, clear above the streetcar's roof and pole), and its size unit (u). */
-const BOAT_X = 0.325;
-const BOAT_UP = RIVER_BOTTOM + 0.034;
-const BOAT = 0.09;
-
-/** The riverboat's whistle: a jet of steam at WHISTLE_AT and every WHISTLE_EVERY seconds, for WHISTLE_LEN. */
-export const WHISTLE_AT = 3.2;
-export const WHISTLE_EVERY = 26;
-const WHISTLE_LEN = 1.6;
-
-/** How far into a whistle blast the clock is (0..1), or -1 between them. */
-export function whistleAt(t: number): number {
-  if (t < WHISTLE_AT) return -1;
-  const k = ((t - WHISTLE_AT) % WHISTLE_EVERY) / WHISTLE_LEN;
-  return k < 1 ? k : -1;
-}
-
 /**
- * A white riverboat seen from the side, steaming upriver in place: a long low hull with a
- * red water line, two decks of railings, a pilot house with a flag, twin stacks with crowns
- * puffing smoke, and at the stern a red paddlewheel turning in a wash of foam.
+ * Two soft cel-shaded clouds in the right lane over the river, halfway between the title and the
+ * bridge, drifting a little to and fro (the left of the sky is the sun's). They sink with the
+ * horizon as you climb and melt into the gathering cloud floor.
  */
-export function riverboat(ctx: Ctx, s: Scene, tone: Tone): void {
+function dayClouds(ctx: Ctx, s: Scene, tone: Tone): void {
+  const a = 1 - smooth(20, 29, level(s));
+  if (a <= 0.01) return;
   const u = s.u;
-  const k = BOAT * u;
-  const x = s.cssW / 2 + BOAT_X * u;
-  const y = s.horizonY - u * BOAT_UP;
-  const bob = Math.sin(s.t * 0.9) * k * 0.01;
-  // Smoke from the stacks, drifting back and up (never into the tower's column on the left).
-  ctx.fillStyle = tone.smoke;
-  for (let st = 0; st < 2; st++) {
-    const sx = x + (st ? -0.12 : -0.3) * k;
-    const sy = y - k * 0.58;
-    for (let i = 0; i < 4; i++) {
-      const p = ((s.t * 0.35 + i * 0.25 + st * 0.12) % 1 + 1) % 1;
-      ctx.globalAlpha = (1 - p) * 0.75;
-      ctx.beginPath();
-      circle(ctx, sx + p * k * 0.5 + Math.sin(p * 9 + i) * k * 0.03, sy - p * k * 0.42, k * (0.03 + p * 0.05));
-      ctx.fill();
-    }
+  const y0 = s.horizonY - s.cssH * 0.28 + u * 0.005;
+  ctx.globalAlpha = a;
+  for (const [X, r, dy, shape] of DAY_CLOUDS) {
+    const x = s.cssW / 2 + X * u + Math.sin(s.t * 0.11 + X * 9) * u * 0.008;
+    cloud(ctx, shape, x, y0 + dy * u, r * u, tone.cloudShade, tone.cloud, tone.cloudLight);
   }
   ctx.globalAlpha = 1;
-  // The hull: a long rounded box, red along the water, and the wash of the wheel.
-  ctx.fillStyle = tone.boatTrim;
+}
+
+// ---------------------------------------------------------------- the rooftops stepping back
+
+/** One house of the far row: its left edge and width (u), its height, its roof, and its chimneys. */
+interface Roof {
+  x: number;
+  w: number;
+  h: number;
+  /** 0 a flat parapet with urns, 1 a hipped roof with a dormer, 2 a gable end, 3 a gallery front under a parapet. */
+  kind: number;
+  chimneys: number;
+}
+
+/** The far row of rooftops along the horizon, across any screen. */
+const FAR_START = -1.6;
+const FAR_END = 1.6;
+const ROOFS: Roof[] = (() => {
+  const out: Roof[] = [];
+  let x = FAR_START;
+  for (let i = 0; x < FAR_END; i++) {
+    const w = Math.min(0.05 + hash(i + 6100) * 0.045, FAR_END - x);
+    out.push({ x, w, h: 0.035 + hash(i + 6200) * 0.035, kind: Math.floor(hash(i + 6300) * 4), chimneys: Math.floor(hash(i + 6400) * 3) });
+    x += w;
+  }
+  return out;
+})();
+
+/**
+ * The far row of the Quarter's rooftops along the horizon, either side of the cathedral: a flat
+ * silhouette of parapets with urns, hipped roofs with dormers, gable ends and paired chimneys,
+ * the lit slopes and the galleries' lines a lighter tone over it.
+ */
+function rooftops(ctx: Ctx, s: Scene, tone: Tone): void {
+  const u = s.u;
+  const cx = s.cssW / 2;
+  const hz = s.horizonY + 1;
+  const half = s.cssW / 2 / u + 0.05;
+  ctx.fillStyle = tone.roofFar;
   ctx.beginPath();
-  ctx.moveTo(x - k * 0.62, y + bob);
-  ctx.lineTo(x + k * 0.58, y + bob);
-  ctx.quadraticCurveTo(x + k * 0.66, y + bob, x + k * 0.62, y + bob - k * 0.06);
-  ctx.lineTo(x - k * 0.66, y + bob - k * 0.06);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = tone.boat;
-  ctx.beginPath();
-  ctx.rect(x - k * 0.6, y + bob - k * 0.2, k * 1.18, k * 0.15);
-  // The lower deck's rail and the upper deck, stepped in; the pilot house on top.
-  ctx.rect(x - k * 0.46, y + bob - k * 0.36, k * 0.88, k * 0.14);
-  ctx.rect(x - k * 0.1, y + bob - k * 0.48, k * 0.3, k * 0.12);
-  ctx.fill();
-  // Railings: fine posts along both decks.
-  ctx.fillStyle = tone.stoneShade;
-  ctx.beginPath();
-  for (let i = 0; i < 11; i++) ctx.rect(x - k * 0.44 + i * k * 0.085, y + bob - k * 0.35, Math.max(1, k * 0.012), k * 0.07);
-  for (let i = 0; i < 14; i++) ctx.rect(x - k * 0.58 + i * k * 0.087, y + bob - k * 0.19, Math.max(1, k * 0.012), k * 0.07);
-  // Dark windows on the pilot house.
-  ctx.rect(x - k * 0.06, y + bob - k * 0.46, k * 0.07, k * 0.05);
-  ctx.rect(x + k * 0.05, y + bob - k * 0.46, k * 0.07, k * 0.05);
-  ctx.fill();
-  // The twin stacks with their crowns.
-  ctx.fillStyle = tone.stoneShade;
-  ctx.beginPath();
-  for (let st = 0; st < 2; st++) {
-    const sx = x + (st ? -0.12 : -0.3) * k;
-    ctx.rect(sx - k * 0.035, y + bob - k * 0.6, k * 0.07, k * 0.26);
-    ctx.rect(sx - k * 0.05, y + bob - k * 0.64, k * 0.1, k * 0.05);
+  for (const r of ROOFS) {
+    if (r.x > half || r.x + r.w < -half) continue;
+    const x0 = cx + r.x * u;
+    const x1 = cx + (r.x + r.w) * u;
+    const top = hz - r.h * u;
+    ctx.moveTo(x0, hz);
+    if (r.kind === 1) {
+      ctx.lineTo(x0, top + u * 0.012);
+      ctx.lineTo(x0 + (x1 - x0) * 0.22, top - u * 0.008);
+      ctx.lineTo(x1 - (x1 - x0) * 0.22, top - u * 0.008);
+      ctx.lineTo(x1, top + u * 0.012);
+    } else if (r.kind === 2) {
+      ctx.lineTo(x0, top);
+      ctx.lineTo((x0 + x1) / 2, top - u * 0.018);
+      ctx.lineTo(x1, top);
+    } else {
+      ctx.lineTo(x0, top);
+      ctx.lineTo(x1, top);
+    }
+    ctx.lineTo(x1, hz);
+    ctx.closePath();
+    // Chimneys in pairs, and urns on a parapet.
+    for (let c = 0; c < r.chimneys; c++) {
+      const chx = x0 + (x1 - x0) * (0.2 + c * 0.5);
+      ctx.rect(chx, top - u * 0.02, u * 0.007, u * 0.022);
+    }
+    if (r.kind === 0) for (let c = 1; c < 3; c++) circle(ctx, x0 + ((x1 - x0) * c) / 3, top - u * 0.004, u * 0.0035);
   }
   ctx.fill();
-  // The whistle's jet of steam, when it blows.
-  const w = whistleAt(s.t);
-  if (w >= 0) {
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = Math.sin(Math.PI * w) * 0.9;
+  ctx.fillStyle = tone.roofMidLit;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  for (const r of ROOFS) {
+    if (r.x > half || r.x + r.w < -half || (r.x + r.w > -COLUMN && r.x < COLUMN)) continue;
+    const x0 = cx + r.x * u;
+    const x1 = cx + (r.x + r.w) * u;
+    const top = hz - r.h * u;
+    if (r.kind === 1) {
+      ctx.moveTo(x0 + u * 0.002, top + u * 0.012);
+      ctx.lineTo(x0 + (x1 - x0) * 0.22, top - u * 0.006);
+      ctx.lineTo(x0 + (x1 - x0) * 0.32, top - u * 0.006);
+      ctx.lineTo(x0 + (x1 - x0) * 0.14, top + u * 0.012);
+      ctx.closePath();
+    } else if (r.kind === 3) {
+      // A gallery's two lines across the front.
+      ctx.rect(x0 + u * 0.003, top + r.h * u * 0.32, x1 - x0 - u * 0.006, Math.max(1, u * 0.003));
+      ctx.rect(x0 + u * 0.003, top + r.h * u * 0.62, x1 - x0 - u * 0.006, Math.max(1, u * 0.003));
+    } else ctx.rect(x0, top, Math.max(1, u * 0.004), r.h * u);
+  }
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Windows lit at dusk, a few to a house.
+  if (tone.lit > 0.05) {
+    ctx.fillStyle = tone.glow;
+    ctx.globalAlpha = tone.lit;
     ctx.beginPath();
-    oval(ctx, x + k * 0.26 + w * k * 0.1, y + bob - k * 0.6 - w * k * 0.1, k * (0.04 + w * 0.1), k * (0.03 + w * 0.05), -0.5);
+    for (let i = 0; i < ROOFS.length; i++) {
+      const r = ROOFS[i]!;
+      if (r.x > half || r.x + r.w < -half) continue;
+      const x0 = cx + r.x * u;
+      for (let c = 0; c < 3; c++) {
+        if (hash(i * 5 + c + 6500) < 0.45) continue;
+        ctx.rect(x0 + r.w * u * (0.18 + c * 0.28), hz - r.h * u * (0.4 + (c % 2) * 0.3), u * 0.006, u * 0.008);
+      }
+    }
     ctx.fill();
     ctx.globalAlpha = 1;
   }
-  // The paddlewheel at the stern, turning: a red drum with paddles, in a wash of foam.
-  const wx = x + k * 0.66;
-  const wy = y + bob - k * 0.14;
-  const wr = k * 0.17;
-  ctx.fillStyle = tone.riverLit;
-  ctx.beginPath();
-  oval(ctx, wx + k * 0.02, y + k * 0.01, k * 0.16, k * 0.04);
-  ctx.fill();
-  ctx.fillStyle = tone.boatTrim;
-  ctx.beginPath();
-  circle(ctx, wx, wy, wr);
-  ctx.fill();
-  ctx.strokeStyle = tone.boat;
-  ctx.lineWidth = Math.max(1, k * 0.02);
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const a = s.t * 2.4 + (i * Math.PI) / 3;
-    ctx.moveTo(wx + Math.cos(a) * wr * 0.2, wy + Math.sin(a) * wr * 0.2);
-    ctx.lineTo(wx + Math.cos(a) * wr * 0.95, wy + Math.sin(a) * wr * 0.95);
-  }
-  ctx.stroke();
-  // A flag on the pilot house.
-  ctx.fillStyle = "#7a3fc4";
-  ctx.beginPath();
-  ctx.moveTo(x + k * 0.06, y + bob - k * 0.6);
-  ctx.lineTo(x + k * 0.06 + k * 0.09 * (1 + 0.1 * Math.sin(s.t * 6)), y + bob - k * 0.57);
-  ctx.lineTo(x + k * 0.06, y + bob - k * 0.54);
-  ctx.closePath();
-  ctx.fill();
 }
 
-// ---------------------------------------------------------------- the far street and the streetcar
-
-/** The streetcar's size unit (u) and its stop (u from center): where it waits before heading back out. */
-const TRAM = 0.1;
-export const TRAM_STOP = 0.33;
-/** Its run: it rounds a phone's right edge (TRAM_IN) at TRAM_AT, how fast it rolls (u/s), how long it waits at the stop, and how often it comes. */
-export const TRAM_AT = 1.4;
-const TRAM_SPEED = 0.06;
-const TRAM_WAIT = 2.2;
-export const TRAM_EVERY = 30;
-/** Where it comes in on a phone: u right of the screen's center, just past the edge. */
-const TRAM_IN = 0.56;
-/** When it reaches its stop, on every run. */
-const TRAM_ARRIVE = TRAM_AT + (TRAM_IN - TRAM_STOP) / TRAM_SPEED;
-/** Each way takes half of what the run leaves after the wait: it turns round that far out (TRAM_STOP + TRAM_SPEED * TRAM_LEG), past any phone's edge and behind the next houses on a wider screen. */
-const TRAM_LEG = (TRAM_EVERY - TRAM_WAIT) / 2;
-
-/** Scratch result of `tramAt`. */
-const TRAM_NOW = { x: 0, shown: false, dir: -1 };
-
-/**
- * Where the streetcar is at time t: its center (u from the screen center), whether it is on
- * its run, and which way it goes (-1 inbound, 1 outbound). It rolls in to its stop, waits,
- * and rolls back out the way it came; it never crosses into the tower's column. On a phone it
- * first comes round the right edge at TRAM_AT; out past the edge it turns round, so a wider
- * screen sees it roll on out and back in, never pop in or out.
- */
-export function tramAt(t: number): typeof TRAM_NOW {
-  const r = TRAM_NOW;
-  // Seconds since it last reached its stop.
-  const q = (((t - TRAM_ARRIVE) % TRAM_EVERY) + TRAM_EVERY) % TRAM_EVERY;
-  if (q < TRAM_WAIT) {
-    r.x = TRAM_STOP;
-    r.dir = -1;
-  } else if (q < TRAM_WAIT + TRAM_LEG) {
-    r.x = TRAM_STOP + (q - TRAM_WAIT) * TRAM_SPEED;
-    r.dir = 1;
-  } else {
-    r.x = TRAM_STOP + (TRAM_EVERY - q) * TRAM_SPEED;
-    r.dir = -1;
-  }
-  // In sight on a phone while it is in from the edge (wider screens see it further out).
-  r.shown = r.x < TRAM_IN + 1e-9;
-  return r;
-}
-
-/** The far street along the levee: its surface and a pair of rails, from the river's edge down to the horizon. */
-function farStreet(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const hz = s.horizonY;
-  ctx.fillStyle = tone.stoneShade;
-  ctx.fillRect(0, hz - u * RIVER_BOTTOM, s.cssW, u * RIVER_BOTTOM + 1);
-  ctx.fillStyle = tone.slate;
-  ctx.fillRect(0, hz - u * 0.014, s.cssW, Math.max(1, u * 0.0025));
-  ctx.fillRect(0, hz - u * 0.006, s.cssW, Math.max(1, u * 0.0025));
-}
-
-/**
- * The streetcar on the far street: an olive-green car with a cream band of windows, a
- * rounded roof and a trolley pole up to the wire, its wheels in a dark skirt, rolling on the
- * right only (out from the right edge to its stop and back).
- */
-export function streetcar(ctx: Ctx, s: Scene, tone: Tone): void {
-  const now = tramAt(s.t);
-  const u = s.u;
-  const k = TRAM * u;
-  const x = s.cssW / 2 + now.x * u;
-  if (x - k * 0.62 > s.cssW) return;
-  const y = s.horizonY - u * 0.004;
-  // The body: a rounded box over a dark skirt, the windows a cream band with dark panes.
-  ctx.fillStyle = tone.stoneShade;
-  ctx.fillRect(x - k * 0.6, y - k * 0.1, k * 1.2, k * 0.1);
-  ctx.fillStyle = tone.tram;
-  ctx.beginPath();
-  ctx.moveTo(x - k * 0.62, y - k * 0.1);
-  ctx.lineTo(x - k * 0.62, y - k * 0.4);
-  ctx.quadraticCurveTo(x - k * 0.62, y - k * 0.5, x - k * 0.5, y - k * 0.5);
-  ctx.lineTo(x + k * 0.5, y - k * 0.5);
-  ctx.quadraticCurveTo(x + k * 0.62, y - k * 0.5, x + k * 0.62, y - k * 0.4);
-  ctx.lineTo(x + k * 0.62, y - k * 0.1);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = tone.tramLit;
-  ctx.fillRect(x - k * 0.56, y - k * 0.42, k * 1.12, k * 0.17);
-  ctx.fillStyle = tone.lit > 0.3 ? tone.glow : tone.stoneShade;
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) ctx.rect(x - k * 0.52 + i * k * 0.18, y - k * 0.4, k * 0.12, k * 0.12);
-  ctx.fill();
-  // The trolley pole, trailing back the way it came, kept low under the riverboat's waterline.
-  ctx.strokeStyle = tone.stoneShade;
-  ctx.lineWidth = Math.max(1, u * 0.002);
-  ctx.beginPath();
-  ctx.moveTo(x, y - k * 0.5);
-  ctx.lineTo(x - now.dir * k * 0.34, y - k * 0.62);
-  ctx.stroke();
-  // Wheels under the skirt.
-  ctx.fillStyle = tone.slate;
-  ctx.beginPath();
-  circle(ctx, x - k * 0.38, y - k * 0.03, k * 0.05);
-  circle(ctx, x + k * 0.38, y - k * 0.03, k * 0.05);
-  ctx.fill();
-}
-
-// ---------------------------------------------------------------- the cathedral and the square
+// ---------------------------------------------------------------- the cathedral
 
 /** The cathedral's center (u from the screen's center), its half width, and its heights (u above its line): the body, the side spires, the center spire. */
 const CATHEDRAL_X = 0;
-const CATH_HW = 0.17;
-const BODY_H = 0.17;
-const SIDE_H = 0.33;
-const MID_H = 0.44;
-/** The live oak at the square's corner: center and the crown's radius (u). */
-const OAK_X = 0.448;
-const OAK_R = 0.044;
+const CATH_HW = 0.105;
+const BODY_H = 0.135;
+const SIDE_H = 0.3;
+const MID_H = 0.42;
 
 /** Scratch for the spires' places. */
 const SPIRE = { x: 0, y: 0 };
@@ -412,142 +276,102 @@ export function spireAt(s: Scene): typeof SPIRE {
   return SPIRE;
 }
 
-/** One spire: a tower body with a slate steeple on top and a small cross, standing on `base`. */
-function spire(ctx: Ctx, s: Scene, tone: Tone, x: number, base: number, w: number, h: number): void {
-  const u = s.u;
-  const towerH = h * 0.62;
-  ctx.fillStyle = tone.stone;
-  ctx.fillRect(x - w / 2, base - towerH, w, towerH);
-  ctx.fillStyle = tone.stoneLit;
-  ctx.fillRect(x - w / 2, base - towerH, w * 0.4, towerH);
-  ctx.fillStyle = tone.stoneShade;
-  ctx.beginPath();
-  archPath(ctx, x - w * 0.14, base - towerH * 0.45, w * 0.28, towerH * 0.28);
-  ctx.fill();
-  // The steeple, lit on the left, with a little cross on top.
-  ctx.fillStyle = tone.slate;
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.58, base - towerH);
-  ctx.lineTo(x, base - h);
-  ctx.lineTo(x + w * 0.58, base - towerH);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = tone.stoneLit;
-  ctx.globalAlpha = 0.35;
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.58, base - towerH);
-  ctx.lineTo(x, base - h);
-  ctx.lineTo(x - w * 0.02, base - towerH);
-  ctx.closePath();
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = tone.stoneLit;
-  ctx.fillRect(x - u * 0.0015, base - h - u * 0.02, u * 0.003, u * 0.02);
-  ctx.fillRect(x - u * 0.005, base - h - u * 0.015, u * 0.01, u * 0.003);
-}
-
 /**
- * The cathedral: a pale façade with three round-headed doors and a rose window, a slate roof
- * behind, and three spires, the middle one tallest. Our own generic design.
+ * The cathedral: a pale stucco façade in three bays under a pediment, round-headed doors and a
+ * clock, two stepped side towers and a taller middle one, each crowned with a slate spire and a
+ * little gold cross, a fleur-de-lis on the pediment. Our own generic design. By night its doors
+ * and clock glow.
  */
 export function cathedral(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
   const x = s.cssW / 2 + CATHEDRAL_X * u;
   const base = spireLine(s);
+  if (base - MID_H * u > s.cssH) return;
   const hw = CATH_HW * u;
   const body = BODY_H * u;
-  // The nave's roof behind the façade, and the façade with its lit left half.
+  // The towers' bodies and the façade between them.
+  const towers = [
+    [x - hw * 0.74, u * 0.042, SIDE_H],
+    [x + hw * 0.74, u * 0.042, SIDE_H],
+    [x, u * 0.056, MID_H],
+  ] as const;
+  ctx.fillStyle = tone.stone;
+  ctx.beginPath();
+  ctx.rect(x - hw, base - body, hw * 2, body);
+  // The pediment over the middle bay.
+  ctx.moveTo(x - hw * 0.5, base - body);
+  ctx.lineTo(x, base - body - u * 0.035);
+  ctx.lineTo(x + hw * 0.5, base - body);
+  ctx.closePath();
+  for (const [tx, w, h] of towers) {
+    const th = h * 0.6 * u;
+    ctx.rect(tx - w / 2, base - th, w, th);
+    ctx.rect(tx - w * 0.4, base - th - u * 0.018, w * 0.8, u * 0.02);
+  }
+  ctx.fill();
+  // Lit left sides.
+  ctx.fillStyle = tone.stoneLit;
+  ctx.beginPath();
+  ctx.rect(x - hw, base - body, hw * 0.6, body);
+  for (const [tx, w, h] of towers) {
+    const th = h * 0.6 * u;
+    ctx.rect(tx - w / 2, base - th, w * 0.38, th);
+  }
+  ctx.fill();
+  // The spires: slate, lit on the left, with a gold cross each.
   ctx.fillStyle = tone.slate;
   ctx.beginPath();
-  ctx.moveTo(x - hw * 0.7, base - body);
-  ctx.lineTo(x, base - body - u * 0.05);
-  ctx.lineTo(x + hw * 0.7, base - body);
-  ctx.closePath();
+  for (const [tx, w, h] of towers) {
+    const th = h * 0.6 * u + u * 0.018;
+    ctx.moveTo(tx - w * 0.5, base - th);
+    ctx.lineTo(tx, base - h * u);
+    ctx.lineTo(tx + w * 0.5, base - th);
+    ctx.closePath();
+  }
   ctx.fill();
-  ctx.fillStyle = tone.stone;
-  ctx.fillRect(x - hw, base - body, hw * 2, body);
   ctx.fillStyle = tone.stoneLit;
-  ctx.fillRect(x - hw, base - body, hw * 0.9, body);
-  // A cornice line, the rose window, the three doors.
-  ctx.fillStyle = tone.stoneShade;
+  ctx.globalAlpha = 0.3;
   ctx.beginPath();
-  ctx.rect(x - hw, base - body * 0.55, hw * 2, Math.max(1, u * 0.003));
-  circle(ctx, x, base - body * 0.76, u * 0.022);
-  archPath(ctx, x - u * 0.016, base, u * 0.032, u * 0.07);
-  archPath(ctx, x - hw * 0.62 - u * 0.012, base, u * 0.024, u * 0.055);
-  archPath(ctx, x + hw * 0.62 - u * 0.012, base, u * 0.024, u * 0.055);
-  ctx.fill();
-  ctx.fillStyle = tone.lit > 0.3 ? tone.glow : tone.stoneLit;
-  ctx.globalAlpha = tone.lit > 0.3 ? 0.5 + tone.lit * 0.5 : 0.8;
-  ctx.beginPath();
-  circle(ctx, x, base - body * 0.76, u * 0.014);
+  for (const [tx, w, h] of towers) {
+    const th = h * 0.6 * u + u * 0.018;
+    ctx.moveTo(tx - w * 0.5, base - th);
+    ctx.lineTo(tx, base - h * u);
+    ctx.lineTo(tx - w * 0.04, base - th);
+    ctx.closePath();
+  }
   ctx.fill();
   ctx.globalAlpha = 1;
-  spire(ctx, s, tone, x - hw * 0.72, base, u * 0.052, SIDE_H * u);
-  spire(ctx, s, tone, x + hw * 0.72, base, u * 0.052, SIDE_H * u);
-  spire(ctx, s, tone, x, base, u * 0.064, MID_H * u);
-}
-
-/** A big live oak at the square's corner on the right: a broad, low crown of three lobes over a short thick trunk, flat and faded. */
-export function liveOak(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const x = s.cssW / 2 + OAK_X * u;
-  const base = s.horizonY;
-  const r = OAK_R * u;
+  // Cornice lines, the doors, the windows in the towers, the clock's face, the fleur on the pediment.
   ctx.fillStyle = tone.stoneShade;
   ctx.beginPath();
-  ctx.moveTo(x - r * 0.18, base);
-  ctx.lineTo(x - r * 0.12, base - r * 0.9);
-  ctx.lineTo(x + r * 0.12, base - r * 0.9);
-  ctx.lineTo(x + r * 0.18, base);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = tone.oak;
-  ctx.beginPath();
-  circle(ctx, x - r * 0.55, base - r * 1.15, r * 0.5);
-  circle(ctx, x + r * 0.55, base - r * 1.2, r * 0.5);
-  circle(ctx, x, base - r * 1.55, r * 0.62);
-  circle(ctx, x - r * 0.2, base - r * 1.05, r * 0.45);
-  circle(ctx, x + r * 0.25, base - r * 1.0, r * 0.42);
-  ctx.fill();
-}
-
-// ---------------------------------------------------------------- gulls
-
-/** Where the gulls wheel: u right of the screen's center and u above the horizon, and their wingspan (u). */
-const GULL_X = 0.375;
-const GULL_UP = 0.25;
-const GULL = 0.013;
-
-/**
- * Three gulls wheeling over the river in the right lane, each on its own slow loop: far-off
- * "m" strokes in the haze, flapping now and then. They stay over the river while the city
- * shows and fade as the clouds gather.
- */
-function gulls(ctx: Ctx, s: Scene, tone: Tone): void {
-  const a = 1 - smooth(28, 35, level(s));
-  if (a <= 0.01) return;
-  const u = s.u;
-  const cx = s.cssW / 2 + GULL_X * u;
-  const cy = s.horizonY - GULL_UP * u;
-  const g = GULL * u;
-  ctx.globalAlpha = a;
-  ctx.strokeStyle = tone.farBank;
-  ctx.lineWidth = Math.max(1, u * 0.0035);
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  for (let i = 0; i < 3; i++) {
-    const t = s.t * 0.3 + i * 2.1;
-    const x = cx + Math.cos(t) * u * (0.03 + i * 0.012);
-    const y = cy + Math.sin(t * 2) * u * 0.012 + i * u * 0.02;
-    const flap = Math.sin(s.t * 3 + i * 1.7) * 0.5;
-    const tip = y - flap * g * 0.5;
-    ctx.moveTo(x - g, tip);
-    ctx.quadraticCurveTo(x - g * 0.45, y - g * 0.5, x, y);
-    ctx.quadraticCurveTo(x + g * 0.45, y - g * 0.5, x + g, tip);
+  ctx.rect(x - hw, base - body * 0.5, hw * 2, Math.max(1, u * 0.003));
+  archPath(ctx, x - u * 0.016, base, u * 0.032, u * 0.062);
+  archPath(ctx, x - hw * 0.74 - u * 0.009, base, u * 0.018, u * 0.042);
+  archPath(ctx, x + hw * 0.74 - u * 0.009, base, u * 0.018, u * 0.042);
+  for (const [tx, , h] of towers) {
+    const th = h * 0.6 * u;
+    archPath(ctx, tx - u * 0.007, base - th + u * 0.055, u * 0.014, u * 0.03);
   }
-  ctx.stroke();
+  circle(ctx, x, base - body * 0.74, u * 0.018);
+  ctx.fill();
+  const lit = tone.lit > 0.3;
+  ctx.fillStyle = lit ? tone.glow : tone.stoneLit;
+  ctx.globalAlpha = lit ? 0.5 + tone.lit * 0.5 : 0.85;
+  ctx.beginPath();
+  circle(ctx, x, base - body * 0.74, u * 0.012);
+  if (lit) archPath(ctx, x - u * 0.011, base, u * 0.022, u * 0.05);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = GOLD.body;
+  ctx.globalAlpha = 0.75;
+  ctx.beginPath();
+  for (const [tx, , h] of towers) {
+    const ty = base - h * u;
+    ctx.rect(tx - u * 0.0015, ty - u * 0.02, u * 0.003, u * 0.02);
+    ctx.rect(tx - u * 0.006, ty - u * 0.015, u * 0.012, u * 0.003);
+  }
+  fleurPath(ctx, x, base - body - u * 0.016, u * 0.018);
+  ctx.fill();
   ctx.globalAlpha = 1;
 }
 
@@ -647,7 +471,7 @@ export function cloudFloor(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   if (tone.flambeau > 0.01) {
     for (let pass = 0; pass < 3; pass++) {
       ctx.fillStyle = pass === 0 ? tone.flamCloud : tone.flamLight;
-      if (pass === 2) ctx.fillStyle = "#fff0c8";
+      if (pass === 2) ctx.fillStyle = TORCH_FLECK;
       ctx.beginPath();
       for (let j = -half; j <= half; j++) {
         const x = s.cssW / 2 + j * step;
@@ -681,31 +505,31 @@ export function cloudFloor(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   }
 }
 
-/** Everything on the horizon, back to front (the cloud floor over it is drawn later: `cloudFloor`). */
+/** Everything on the horizon and below it to the street, back to front (the cloud floor over it is drawn later: `cloudFloor`). */
 export function farLayer(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   const hz = s.horizonY;
   const line = spireLine(s);
   const shows = landShows(s, top);
-  if (shows && hz - s.u * 0.2 < s.cssH) {
-    river(ctx, s, tone);
-    riverboat(ctx, s, tone);
-    farStreet(ctx, s, tone);
-  }
+  dayClouds(ctx, s, tone);
+  if (shows) riverfront(ctx, s, tone);
   // The cathedral stands out of the cloud floor once it has covered the city, clouds piled at
   // either side behind it (they gather as the floor does: the afternoon sky over the river is clear).
   if (line - s.u * 0.5 < s.cssH && top - s.u * 0.06 > line - MID_H * s.u) {
-    const bank = smooth(30, 38, level(s));
-    if (bank > 0) {
+    downtown(ctx, s, tone, line);
+    // The clouds roll in over the river on the right first, as the sun goes down on the left;
+    // the left's pile up once it has set.
+    for (const [side, a, b] of BANK_IN) {
+      const bank = smooth(a, b, level(s));
+      if (bank <= 0) continue;
       ctx.globalAlpha = bank;
-      cloudBank(ctx, s, tone, line);
+      cloudBank(ctx, s, tone, seaLine(s, level(s)), side);
       ctx.globalAlpha = 1;
     }
+    if (shows && hz - s.u * 0.1 < s.cssH) rooftops(ctx, s, tone);
     cathedral(ctx, s, tone);
   }
   if (shows && hz - s.u * 0.2 < s.cssH) {
     square(ctx, s, tone);
-    liveOak(ctx, s, tone);
-    streetcar(ctx, s, tone);
-    gulls(ctx, s, tone);
+    cottages(ctx, s, tone);
   }
 }

@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
+import { kitFor } from "../../base/style";
 import type { Scene } from "../skin";
-import { quarter } from "../mardigras";
-import { drawDrifter, drifters, eachVisible, type Drifter } from "./drift";
-import { cloudFloor, farLayer, floorTop, landShows, liveOak, riverboat, streetcar } from "./far";
+import { mardiGras, quarter } from "../mardigras";
+import { routeConfetti } from "./air";
+import { drawDrifter, drifterBox, drifters, eachVisible, type Drifter } from "./drift";
+import { cloudFloor, farLayer, floorTop, landShows } from "./far";
 import { front } from "./front";
+import { skyIsland } from "./island";
 import { parade } from "./parade";
-import { BURST_R, fireworks, moonAt, sunAt, SUN_REACH } from "./sky";
+import { kingGator } from "./gator";
+import { rightLaneClear } from "./lane";
+import { carnivalQueen } from "./queen";
+import { riverboat, streetcar } from "./river";
+import { BURST_R, fireworks, lowestBurst, moonAt, rightFireworks, rightShowBox, sunAt, SUN_REACH } from "./sky";
 import { reviewingStand } from "./stand";
 import { streetGround } from "./street";
 import { context, mask, overlap, sceneAt, SIZES, zoomedScene } from "./test-scene";
@@ -53,8 +60,33 @@ describe("mardi gras drifters", () => {
       });
     }
     // Every kind of drifter was on screen at some point on the way up.
-    expect([...kinds].sort()).toEqual(["balloon", "beads", "cloud", "confetti", "doubloon", "jester", "lantern"]);
+    expect([...kinds].sort()).toEqual(["balloon", "beads", "cloud", "coins", "confetti", "doubloon", "doves", "jester", "lantern", "pelicans", "streamers", "swag"]);
   }, 120_000);
+
+  it("every drifter keeps inside the box the lane's big things keep clear of (lane.ts), with all its motion", () => {
+    // The King Gator and the right lane's fireworks hold back for whatever is in the lane by these
+    // boxes: a drifter painting outside its own would let them meet it.
+    const [W, H] = [390, 844];
+    let checked = 0;
+    for (let lvl = LOOP_START; lvl < LOOP_START + LOOP; lvl += 3) {
+      for (const t of [0, 2.7, 6.1, 9.4, 13.3, 21.8]) {
+        const s = sceneAt(W, H, lvl, t);
+        const tone = toneOf(s);
+        eachVisible(s, (d) => {
+          const b = { ...drifterBox(s, d) };
+          const m = mask(W, H, (ctx) => drawDrifter(ctx, s, tone, d));
+          for (let i = 0; i < m.length; i++) {
+            if (!m[i]) continue;
+            const x = (i % W) + 0.5;
+            const y = Math.floor(i / W) + 0.5;
+            if (x < b.l - 1 || x > b.r + 1 || y < b.t - 1 || y > b.b + 1) expect.fail(`level ${lvl}, t=${t}: the ${d.kind} at ${Math.round(d.at)} paints outside its box at (${x}, ${y})`);
+          }
+          checked++;
+        });
+      }
+    }
+    expect(checked, "drifters checked").toBeGreaterThan(300);
+  }, 60_000);
 });
 
 /** The screens the sun and moon are checked on: phones, a tablet, a wide desktop window, and zoomed out (the virtual screen up to 1/0.6 the phone's size). */
@@ -123,7 +155,7 @@ describe("mardi gras sun and moon", () => {
     expect(moonChecked, "the moon is up").toBeGreaterThan(100);
   }, 60_000);
 
-  it.each(SCREENS)("%ix%i at zoom %s: no firework bursts over the moon, and all of them keep to the left lane", (W0, H0, z) => {
+  it.each(SCREENS)("%ix%i at zoom %s: no firework bursts over the moon, and all of them keep to the left lane, above the Queen", (W0, H0, z) => {
     // Fireworks come by night, when the moon is up: every one of the first 200 bursts, frame by
     // frame, on a night of the first day and one of the loop.
     let bursts = 0;
@@ -137,6 +169,8 @@ describe("mardi gras sun and moon", () => {
       const ctx = context(s0.cssW, s0.cssH, K);
       const w = Math.round(s0.cssW * K);
       const c0 = (s0.cssW / 2 - s0.u * 0.25) * K;
+      // Nothing falls below the lowest burst's reach: the Carnival Queen stands under it (queen.ts).
+      const lowest = lowestBurst(s0) * K + 1;
       for (let n = 0; n < 200; n++) {
         let shown = false;
         for (let k = 0; k <= 1; k += 0.1) {
@@ -150,6 +184,8 @@ describe("mardi gras sun and moon", () => {
             shown = true;
             const x = ((i - 3) / 4) % w;
             expect(x < c0 && x > 0, `level ${lvl}, t=${s.t.toFixed(2)}: a spark at x ${x / K} out of the left lane`).toBe(true);
+            const y = Math.floor((i - 3) / 4 / w);
+            expect(y, `level ${lvl}, t=${s.t.toFixed(2)}: a spark below the lowest burst's reach`).toBeLessThanOrEqual(lowest);
           }
         }
         if (shown) bursts++;
@@ -163,8 +199,9 @@ describe("mardi gras sun and moon", () => {
 
   it.each(SCREENS)("%ix%i at zoom %s: nothing in the whole scene passes over the sun by day or the moon at all", (W0, H0, z) => {
     // Not just the lane: everything the scene paints after the sun and the moon (the street and
-    // the far city, the lane, the houses, the stand, the parade, the cloud floor, the curb in
-    // front). The sun is clear all day, until it begins to set into the cloud floor (and from
+    // the far city, the lane, the houses, the stand, the parade, the confetti, the Carnival
+    // Queen and the King Gator, the right lane's fireworks, the cloud floor, the floating island,
+    // the curb in front). The sun is clear all day, until it begins to set into the cloud floor (and from
     // when it has risen out of it at the loop's dawn); the moon is clear whenever it is up.
     const probe = screenAt(W0, H0, z, 0, 0);
     const ctx = context(probe.cssW, probe.cssH, K);
@@ -176,13 +213,18 @@ describe("mardi gras sun and moon", () => {
       const floor = floorTop(s, level(s));
       ctx.clearRect(0, 0, s.cssW, s.cssH);
       fireworks(ctx, s, tone);
+      rightFireworks(ctx, s, tone, rightLaneClear(s, rightShowBox(s)));
       if (landShows(s, floor)) streetGround(ctx, s);
       farLayer(ctx, s, tone, floor);
       drifters(ctx, s, tone);
-      quarter(ctx, s);
+      quarter(ctx, s, tone);
       reviewingStand(ctx, s);
       parade(ctx, s);
+      routeConfetti(ctx, s);
+      carnivalQueen(ctx, s, tone, floor);
+      kingGator(ctx, s, tone, floor);
       if (floor < s.cssH + s.u * 0.15) cloudFloor(ctx, s, tone, floor);
+      skyIsland(ctx, s, mardiGras.bars);
       front(ctx, s);
       if (tone.sunSet === 0) {
         sunChecked++;
@@ -215,26 +257,29 @@ describe("mardi gras sun and moon", () => {
 
 describe("mardi gras drifters over the city", () => {
   // While the city still shows (until the cloud floor covers it), what comes down the lane may
-  // never pass over the river's boat, the streetcar or the oak.
-  const CITY_LEVELS = Array.from({ length: 40 }, (_, i) => i);
-  it.each(SIZES.flatMap(([W, H]) => [0, 5.3, 11].map((t) => [W, H, t] as const)))("%ix%i at t=%s: nothing drifts over the far city", (W, H, t) => {
-    let checked = 0;
+  // never pass over the river's boat or the streetcar, on any screen or zoomed out; on a screen at
+  // full size the lane is empty until then (its first things come in above Sky Islands' island,
+  // which has the lane to itself around level 50).
+  const CITY_LEVELS = Array.from({ length: 80 }, (_, i) => i / 2);
+  it.each(SCREENS)("%ix%i at zoom %s: nothing drifts down the lane while the city shows", (W0, H0, z) => {
+    let city = 0;
     for (const lvl of CITY_LEVELS) {
-      const s = sceneAt(W, H, lvl, t);
-      const tone = toneOf(s);
-      if (!landShows(s, floorTop(s, level(s)))) continue;
-      const props = mask(W, H, (ctx) => {
-        riverboat(ctx, s, tone);
-        liveOak(ctx, s, tone);
-        streetcar(ctx, s, tone);
-      });
-      eachVisible(s, (d) => {
-        checked++;
-        const m = mask(W, H, (ctx) => drawDrifter(ctx, s, tone, d));
-        expect(overlap(m, props), `level ${lvl}: ${d.kind} at ${Math.round(d.at)} over the far city`).toBe(0);
-      });
+      for (const t of [0, 5.3, 11]) {
+        const s = screenAt(W0, H0, z, lvl, t);
+        if (!landShows(s, floorTop(s, level(s)))) continue;
+        city++;
+        const props = mask(s.cssW, s.cssH, (ctx) => {
+          riverboat(ctx, s, toneOf(s));
+          streetcar(ctx, s, toneOf(s));
+        }, K);
+        eachVisible(s, (d) => {
+          const m = mask(s.cssW, s.cssH, (ctx) => drawDrifter(ctx, s, toneOf(s), d), K);
+          expect(overlap(m, props), `level ${lvl}: ${d.kind} at ${Math.round(d.at)} over the far city`).toBe(0);
+          if (z === 1) expect(d.kind, `level ${lvl}: a ${d.kind} at ${Math.round(d.at)} in the lane while the city shows`).toBe("none");
+        });
+      }
     }
-    expect(checked, "drifters seen while the city shows").toBeGreaterThan(0);
+    expect(city, "levels where the city shows").toBeGreaterThan(40);
   }, 60_000);
 });
 
@@ -281,5 +326,33 @@ describe("mardi gras lanes zoomed out", () => {
         expect(edge, `level ${lvl}: ${d.kind} on a side`).toBe(0);
       });
     }
+  }, 60_000);
+});
+
+describe("mardi gras island over the cloud floor", () => {
+  // Sky Islands' island floats over the cloud sea: as the camera climbs past it, it passes in
+  // front of the cloud floor and leaves by the bottom of the screen, never cut off by the floor.
+  // Wherever the island alone paints a solid pixel, the whole backdrop shows that very pixel.
+  it.each(SIZES)("%ix%i: whole in front of the cloud floor as it comes down", (W, H) => {
+    let checked = 0;
+    for (let lvl = 44; lvl <= 90; lvl += 2) {
+      const s = sceneAt(W, H, lvl, 2.3);
+      const alone = context(W, H);
+      skyIsland(alone, s, mardiGras.bars);
+      const a = alone.getImageData(0, 0, W, H).data;
+      const world = context(W, H);
+      kitFor(mardiGras).world(world, s);
+      const b = world.getImageData(0, 0, W, H).data;
+      const floor = floorTop(s, level(s));
+      let hidden = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        if (a[i + 3]! < 255) continue;
+        if (Math.floor(i / 4 / W) < floor - s.u * 0.1) continue;
+        checked++;
+        if (Math.abs(a[i]! - b[i]!) + Math.abs(a[i + 1]! - b[i + 1]!) + Math.abs(a[i + 2]! - b[i + 2]!) > 6) hidden++;
+      }
+      expect(hidden, `level ${lvl}: island pixels hidden`).toBe(0);
+    }
+    expect(checked, "the island comes down over the floor").toBeGreaterThan(2000);
   }, 60_000);
 });

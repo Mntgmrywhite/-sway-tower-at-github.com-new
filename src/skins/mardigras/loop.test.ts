@@ -189,4 +189,35 @@ describe("mardi gras zoomed out", () => {
     },
     60_000,
   );
+
+  // Zoomed out, the cloud floor comes up over the street while the near curb is still on the
+  // taller virtual screen: the curb sinks into it with the street, never floats on the cloud sea.
+  // Under the floor's puffs, where it is solid, the foreground adds nothing to the backdrop (a
+  // cloud's edge painted a second time can differ by a few levels; any of the curb by hundreds).
+  it.each([
+    [390, 844, 0.6],
+    [390, 844, 0.8],
+    [375, 667, 0.6],
+  ] as const)("%ix%i at zoom %s: the curb goes under the cloud floor with the street", (W, H, z) => {
+    let covered = 0;
+    for (let lvl = 16; lvl <= 40; lvl += 1.5) {
+      const s = zoomedScene(W, H, z, lvl, 3.3);
+      const floor = floorTop(s, level(s));
+      const y0 = Math.ceil(floor + s.u * 0.06);
+      if (y0 >= s.cssH) continue;
+      const draw = (fore: boolean) => {
+        const ctx = context(s.cssW, s.cssH);
+        mardiGras.ground!(ctx, s);
+        if (fore) mardiGras.foreground!(ctx, s);
+        return ctx.getImageData(0, y0, Math.floor(s.cssW), Math.floor(s.cssH) - y0).data;
+      };
+      const a = draw(false);
+      const b = draw(true);
+      let differ = 0;
+      for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i]! - b[i]!) + Math.abs(a[i + 1]! - b[i + 1]!) + Math.abs(a[i + 2]! - b[i + 2]!) > 60) differ++;
+      expect(differ, `level ${lvl}: the curb shows through the solid cloud floor`).toBe(0);
+      covered++;
+    }
+    expect(covered, "the cloud floor is up while the curb could show").toBeGreaterThan(4);
+  }, 60_000);
 });

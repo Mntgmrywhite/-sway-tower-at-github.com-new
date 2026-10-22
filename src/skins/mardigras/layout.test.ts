@@ -1,25 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
+import { laneConfetti } from "./air";
 import { beadsInFlight, familyOnDeck, sidewalkKids, TOSS_EVERY } from "./balcony";
 import { CURB } from "./colors";
 import { farLayer, floorTop } from "./far";
-import { curbTop, front, GAP } from "./front";
+import { curbTop, front, GAP, ladder } from "./front";
+import { beadSeller, curbLady, poleLift } from "./onlookers";
 import { parade } from "./parade";
-import { inkW } from "./place";
+import { deckY, inkW } from "./place";
 import { sun } from "./sky";
 import { square } from "./square";
 import { reviewingStand } from "./stand";
-import { cafe, cakeCart, centerBlock, deckY, lamppost, leftHouse } from "./street";
+import { beyond, cafe, cakeCart, cornerHouse, lamppost, streetLamps } from "./street";
 import { context, mask, overlap, sceneAt, SIZES, startScene, zoomedScene } from "./test-scene";
 import { level, toneOf } from "./tone";
 
 // The start view, on a tall and a short phone, at a few animation times: each prop is drawn
 // alone, and none touches a screen edge, the HUD at the top or the curb in front, none stands
-// in the tower's column above its floor line (but the houses straight ahead, which stand still
-// there), and no two overlap, except where that is the design: the far city stands behind the
-// roofs and the lamppost, the parade passes in front of the stand and behind the folks at the
-// curb, and the float's riders throw beads up to the kids on the sidewalk and the ladder.
+// in the tower's column above its floor line (but the far city and the gas lamps across the way,
+// which stand still there), and no two overlap, except where that is the design: the far city
+// stands behind the houses, the café and the lamps, the confetti in the lanes drifts down in
+// front of the houses, the parade passes in front of the stand and throws beads up to the folks
+// on the gallery and the sidewalk.
 
 /**
  * Moments of the scene's clock: before the parade, the marshal passing the stand, the band,
@@ -30,44 +33,48 @@ const TIMES = [0, 1.2, 2.4, 3.6, 4.6, 5.8, 6.6, 7.4, 8.4, 9.6, 11, 14, 22, 41.5,
 
 type Draw = (ctx: CanvasRenderingContext2D, s: Scene) => void;
 /**
- * `above`: stands above the floor line (so must keep out of the tower's column). `scenery`:
- * runs off the screen's sides by design (the river and the far street).
+ * `above`: stands above the floor line and moves (so must keep out of the tower's column).
+ * `scenery`: runs off the screen's sides by design (the river, the rooftops, the cottages).
  */
 const PROPS: { name: string; draw: Draw; above: boolean; scenery?: boolean }[] = [
   { name: "sun", draw: (ctx, s) => sun(ctx, s, toneOf(s), floorTop(s, level(s))), above: true },
   { name: "far city", draw: (ctx, s) => farLayer(ctx, s, toneOf(s), floorTop(s, level(s))), above: false, scenery: true },
-  { name: "center block", draw: centerBlock, above: false },
+  { name: "street lamps", draw: (ctx, s) => streetLamps(ctx, s, toneOf(s)), above: false },
   {
-    name: "left house",
+    name: "corner house",
     draw: (ctx, s) => {
-      leftHouse(ctx, s, (c, deck) => familyOnDeck(c, s, deck));
+      cornerHouse(ctx, s, toneOf(s), (c, deck) => familyOnDeck(c, s, deck));
       cakeCart(ctx, s);
       sidewalkKids(ctx, s);
       beadsInFlight(ctx, s);
     },
     above: true,
   },
-  { name: "cafe", draw: cafe, above: true },
-  { name: "lamppost", draw: lamppost, above: true },
+  { name: "cafe", draw: (ctx, s) => cafe(ctx, s, toneOf(s)), above: true },
+  { name: "lamppost", draw: (ctx, s) => lamppost(ctx, s, toneOf(s)), above: true },
+  { name: "lane confetti", draw: laneConfetti, above: true },
   { name: "stand", draw: reviewingStand, above: true },
   { name: "parade", draw: parade, above: true },
 ];
 
 /** The meetings that are the design. */
 const ALLOWED = [
-  // The far city stands behind the roofs, the lamppost and the café's parapet.
-  ["far city", "center block"],
-  ["far city", "left house"],
+  // The far city (the riverfront, the cathedral, the rooftops and the cottages) stands behind the houses and the lamps.
+  ["far city", "corner house"],
   ["far city", "cafe"],
   ["far city", "lamppost"],
-  // The parade passes in front of the stand, and throws beads up to the kids on the sidewalk,
-  // past the cathedral's square (square.ts), which lies behind the houses at the start.
+  ["far city", "street lamps"],
+  // Confetti drifts down in front of the houses, the café, the lamppost and the far city.
+  ["lane confetti", "corner house"],
+  ["lane confetti", "cafe"],
+  ["lane confetti", "lamppost"],
+  ["lane confetti", "far city"],
+  // The parade passes in front of the stand, and throws beads up to the folks on the gallery
+  // and the sidewalk, past the cottages across the way.
   ["parade", "stand"],
-  ["parade", "left house"],
+  ["parade", "corner house"],
   ["parade", "far city"],
-  // The houses of the terrace share their party walls and their galleries' rails.
-  ["center block", "left house"],
-  ["center block", "cafe"],
+  ["parade", "lane confetti"],
 ];
 
 function allowed(a: string, b: string): boolean {
@@ -133,9 +140,10 @@ describe("mardi gras layout", () => {
 });
 
 describe("mardi gras gallery", () => {
-  // The family stands on the left house's gallery right under its eave: the feathers and the
-  // plume on their Carnival masks, the little one's jester's hat and his hands up for the
-  // skeletons' beads all keep under the roof's edge, through every pose of their tosses.
+  // The family stands on the corner house's first gallery right under the second one: the
+  // feathers and the plume on their Carnival masks, the little one's jester's hat and his hands
+  // up for the skeletons' beads all keep under the gallery's ceiling, through every pose of their
+  // tosses.
   it.each(SIZES)("%ix%i: the family on the gallery keeps under the eave", (W, H) => {
     const K = 4;
     for (let t = 0; t < TOSS_EVERY * 2 + 1; t += 0.05) {
@@ -187,58 +195,118 @@ describe("mardi gras curb", () => {
   });
 });
 
+describe("mardi gras bead seller", () => {
+  // The bead seller stands right of the clear middle between the reviewing stand's corner and the
+  // parade ladder: his pole (lifted or not), its swinging strings, his hands and the string he
+  // offers keep clear of the ladder, its rungs and its riders, and the ladder of him, at every
+  // moment of a tower's first forty seconds (the parade's first pass and its second), on both
+  // phones, a tablet and zoomed out; and in the start view he and the masked lady across the
+  // middle keep clear of the stand's drape behind them.
+  const VIEWS = [
+    [390, 844, 1],
+    [375, 667, 1],
+    [834, 1194, 1],
+    [390, 844, 0.6],
+    [375, 667, 0.6],
+  ] as const;
+  it.each(VIEWS)("%ix%i at zoom %s: the seller and the parade ladder never cut into each other", (W, H, z) => {
+    let lifted = 0;
+    for (let t = 0; t <= 40; t += 0.05) {
+      const s = z === 1 ? sceneAt(W, H, 0, t) : zoomedScene(W, H, z, 0, t);
+      const top = curbTop(s);
+      const lw = inkW(s);
+      const seller = mask(s.cssW, s.cssH, (ctx) => beadSeller(ctx, s, top, lw));
+      const steps = mask(s.cssW, s.cssH, (ctx) => ladder(ctx, s, top, lw));
+      expect(overlap(seller, steps), `t=${t.toFixed(2)}: the seller and the ladder overlap`).toBe(0);
+      if (poleLift(t) > 0.9) lifted++;
+    }
+    expect(lifted, "the pole is lifted high at some of these moments").toBeGreaterThan(10);
+  }, 120_000);
+
+  it.each([
+    [390, 844],
+    [375, 667],
+    [834, 1194],
+  ] as const)("%ix%i: the seller and the lady never cut into the reviewing stand", (W, H) => {
+    for (let t = 0; t <= 40; t += 0.05) {
+      const s = startScene(W, H, t);
+      const top = curbTop(s);
+      const lw = inkW(s);
+      const stand = mask(W, H, (ctx) => reviewingStand(ctx, s));
+      const seller = mask(W, H, (ctx) => beadSeller(ctx, s, top, lw));
+      const lady = mask(W, H, (ctx) => curbLady(ctx, s, top, lw));
+      expect(overlap(seller, stand), `t=${t.toFixed(2)}: the seller and the stand overlap`).toBe(0);
+      expect(overlap(lady, stand), `t=${t.toFixed(2)}: the lady and the stand overlap`).toBe(0);
+    }
+  }, 120_000);
+});
+
 describe("mardi gras on wider screens", () => {
   // The zoomed-out view (a virtual screen up to 1/0.6 the phone's size at the same u) and a
   // tablet show more of the street either side: the props of the start view are still whole
-  // there, none touching a side of the screen.
+  // there, none touching a side of the screen; and so are they on the phones themselves, where
+  // the curb's props come closest to the sides.
   const SCREENS = [
+    [390, 844, 1],
+    [375, 667, 1],
+    [414, 896, 1],
     [390, 844, 0.6],
     [390, 844, 0.8],
     [375, 667, 0.6],
     [768, 1024, 1],
+    [834, 1194, 1],
   ] as const;
-  const WHOLE: { name: string; draw: Draw }[] = [
+  /** `sometimes`: drawn only where it fits whole (the neighbouring houses: none on a phone or a tablet, two zoomed out). */
+  const WHOLE: { name: string; draw: Draw; sometimes?: boolean }[] = [
+    { name: "neighbours", draw: (ctx, s) => beyond(ctx, s, toneOf(s)), sometimes: true },
     {
-      name: "left house",
+      name: "corner house",
       draw: (ctx, s) => {
-        leftHouse(ctx, s, (c, deck) => familyOnDeck(c, s, deck));
+        cornerHouse(ctx, s, toneOf(s), (c, deck) => familyOnDeck(c, s, deck));
         cakeCart(ctx, s);
         sidewalkKids(ctx, s);
       },
     },
-    { name: "cafe", draw: cafe },
-    { name: "lamppost", draw: lamppost },
+    { name: "cafe", draw: (ctx, s) => cafe(ctx, s, toneOf(s)) },
+    { name: "lamppost", draw: (ctx, s) => lamppost(ctx, s, toneOf(s)) },
     { name: "stand", draw: reviewingStand },
     { name: "curb's folk", draw: front },
   ];
   it.each(SCREENS)("%ix%i at zoom %s: nothing is cut off at the sides", (W, H, z) => {
-    const K = 0.5;
+    // Full size on a phone, where a prop comes within a pixel or two of the side.
+    const K = z === 1 && W < 500 ? 1 : 0.5;
     for (const t of [0, 1.9, 6.3]) {
       const s = z === 1 ? sceneAt(W, H, 0, t) : zoomedScene(W, H, z, 0, t);
       const w = Math.round(s.cssW * K);
-      for (const { name, draw } of WHOLE) {
-        const m = mask(s.cssW, s.cssH, (ctx) => draw(ctx, s), K);
+      const masks = WHOLE.map(({ draw }) => mask(s.cssW, s.cssH, (ctx) => draw(ctx, s), K));
+      WHOLE.forEach(({ name, sometimes }, j) => {
+        const m = masks[j]!;
         let edge = 0;
         let drawn = 0;
         for (let i = 0; i < m.length; i++) {
           if (!m[i]) continue;
           drawn++;
           const x = i % w;
-          // The curb itself runs edge to edge: only its folk and ladder count, above it.
+          // The curb and the frieze under it run edge to edge: only its folk and props count, above it.
           if (name === "curb's folk" && Math.floor(i / w) >= Math.floor(curbTop(s) * K) - 1) continue;
           if (x === 0 || x === w - 1) edge++;
         }
-        expect(drawn, `t=${t}: ${name} is drawn`).toBeGreaterThan(20);
+        if (!sometimes) expect(drawn, `t=${t}: ${name} is drawn`).toBeGreaterThan(20);
         expect(edge, `t=${t}: ${name} touches a side`).toBe(0);
-      }
+      });
+      // The neighbouring houses show zoomed out (whole), and stand clear of the corner house,
+      // the café and the lamppost beside them.
+      const near = masks[0]!;
+      if (z === 0.6) expect(near.reduce((n, v) => n + v, 0), `t=${t}: the neighbours are drawn`).toBeGreaterThan(1000);
+      for (let j = 1; j < 4; j++) expect(overlap(near, masks[j]!), `t=${t}: the neighbours overlap the ${WHOLE[j]!.name}`).toBe(0);
     }
-  });
+  }, 60_000);
 });
 
 describe("mardi gras square", () => {
-  // The cathedral's square shows between the river and the street as the townhouses drop away;
-  // all of it lies below the horizon on every screen, so none of it ever stands against the
-  // sky, the river, the riverboat, the streetcar or the live oak.
+  // The cathedral's square shows behind the cottages as the street drops away; all of it lies
+  // below the horizon on every screen, so none of it ever stands against the rooftops, the river
+  // or the sky.
   const SCREENS = [
     [390, 844, 1],
     [375, 667, 1],

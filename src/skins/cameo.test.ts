@@ -28,6 +28,12 @@ import { island as july4Island, islandFrame as july4Frame } from "./july4/island
 import { moonAt as july4Moon, MOON_REACH as JULY4_MOON_REACH, sunAt as july4Sun, SUN_REACH as JULY4_SUN_REACH } from "./july4/sky";
 import { sceneAt as july4Scene, zoomedScene as july4Zoomed } from "./july4/test-scene";
 import { LOOP as JULY4_LOOP, toneOf as july4Tone } from "./july4/tone";
+import { mardiGras } from "./mardigras";
+import { drawDrifter, eachVisible } from "./mardigras/drift";
+import { floorTop } from "./mardigras/far";
+import { islandFrame, paintIsland } from "./mardigras/island";
+import { moonAt, sunAt, SUN_REACH } from "./mardigras/sky";
+import { level as mardiLevel, toneOf as mardiTone } from "./mardigras/tone";
 import type { Scene, Skin } from "./skin";
 
 // The cameo: Sky Islands' floating island with a 25-bar tower on it, placed in every skin's sky
@@ -99,6 +105,45 @@ const PLACED: Placement[] = [
           expect(b.x).toBeCloseTo(at.x, 6);
           expect(b.y).toBeCloseTo(at.y, 6);
           expect(july4Tone(july4Scene(W, H, 50 + JULY4_LOOP, 2))).toEqual(july4Tone(july4Scene(W, H, 50, 2)));
+        }
+      },
+    },
+  },
+  {
+    // Mardi Gras: a papier-mâché float of an island in the right lane (the left is the sun's and
+    // the moon's), coming down with the tower; the lane's drifters keep clear of it.
+    skin: mardiGras,
+    frame: (s) => ({ ...islandFrame(s) }),
+    lights(s) {
+      const tone = mardiTone(s);
+      const out: Disc[] = [];
+      if (tone.sunSet < 1) {
+        const sun = sunAt(s, tone, floorTop(s, mardiLevel(s)));
+        out.push({ name: "the sun", x: sun.x, y: sun.y, r: sun.r * SUN_REACH });
+      }
+      if (tone.moon > 0) {
+        const moon = moonAt(s);
+        out.push({ name: "the moon", x: moon.x, y: moon.y, r: moon.r });
+      }
+      return out;
+    },
+    paint: (ctx, s) => paintIsland(ctx, islandFrame(s), mardiGras.bars),
+    checks: {
+      "mardigras: nothing in the lane drifts across the island": () => {
+        for (const [W, H] of SCREENS) {
+          for (let lvl = 20; lvl <= 90; lvl += 1) {
+            const s = rendererScene(W, H, lvl, 3.1);
+            const tone = mardiTone(s);
+            const b = cameoBounds(islandFrame(s), PAD);
+            if (b.b < 0 || b.t > s.cssH) continue;
+            const island = alphas(W, H, (ctx) => paintIsland(ctx, islandFrame(s), mardiGras.bars), 0.5);
+            eachVisible(s, (d) => {
+              const lane = alphas(W, H, (ctx) => drawDrifter(ctx, s, tone, d), 0.5);
+              let both = 0;
+              for (let i = 3; i < lane.length; i += 4) if (lane[i]! > 40 && island[i]! > 40) both++;
+              expect(both, `${W}x${H} level ${lvl}: the ${d.kind} at ${Math.round(d.at)} crosses the island`).toBe(0);
+            });
+          }
         }
       },
     },
