@@ -22,8 +22,9 @@ export interface FlagInks {
 const STRIPE_MIN = 1.6;
 /** The canton's length along the fly, as a share of the flag's (the real flag's 0.76 of 1.9). */
 export const CANTON_W = 0.4;
-/** Points along the fly the ripple is drawn through. */
+/** Points along the fly the ripple is drawn through: at most SEGS on a big flag, fewer on a small one (the canvas's cost is in its points). */
 const SEGS = 6;
+let segs = SEGS;
 /** Stars a row and rows at full size (the real fifty: nine rows, six and five by turns). */
 const FULL_COLS = 6;
 const FULL_ROWS = 9;
@@ -43,14 +44,14 @@ export function stripesFor(h: number): 7 | 13 {
 
 /** How far the ripple lifts the flag at `k` (0 hoist .. 1 fly end). */
 function lift(k: number): number {
-  const f = k * SEGS;
-  const i = Math.min(SEGS - 1, Math.floor(f));
+  const f = k * segs;
+  const i = Math.min(segs - 1, Math.floor(f));
   return WAVE[i]! + (WAVE[i + 1]! - WAVE[i]!) * (f - i);
 }
 
 /** One band of the flag from `v0` to `v1` (fractions of its height), over the fly from k0 to k1, following the ripple. */
 function band(ctx: Ctx, x: number, y: number, w: number, h: number, dir: number, v0: number, v1: number, k0: number, k1: number): void {
-  const n = Math.max(1, Math.round((k1 - k0) * SEGS));
+  const n = Math.max(1, Math.round((k1 - k0) * segs));
   for (let j = 0; j <= n; j++) {
     const k = k0 + ((k1 - k0) * j) / n;
     const px = x + dir * w * k;
@@ -70,8 +71,9 @@ function band(ctx: Ctx, x: number, y: number, w: number, h: number, dir: number,
  * `phase` where the ripple is along it (the clock moves it).
  */
 export function usFlag(ctx: Ctx, x: number, y: number, w: number, h: number, dir: 1 | -1, wave: number, phase: number, inks: FlagInks): void {
-  for (let i = 0; i <= SEGS; i++) {
-    const k = i / SEGS;
+  segs = w >= 36 ? SEGS : w >= 16 ? 4 : 3;
+  for (let i = 0; i <= segs; i++) {
+    const k = i / segs;
     WAVE[i] = Math.sin(phase - k * 5) * wave * k;
   }
   const n = stripesFor(h);

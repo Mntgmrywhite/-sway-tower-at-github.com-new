@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
-import { cloudFloor, floorTop } from "./far";
-import { moonAt, sun, sunAt, SUN_REACH } from "./sky";
+import { hills } from "./hills";
+import { backLine, hillLine } from "./land";
+import { moonAt, sun, sunAt, sunFloor, SUN_REACH } from "./sky";
 import { mask, overlap, sceneAt, zoomedScene } from "./test-scene";
-import { level, LOOP, LOOP_START, toneOf, type Tone } from "./tone";
+import { LOOP, LOOP_START, toneOf, type Tone } from "./tone";
 
 // The owner, about the newest skins: "when you get up to the cloud layer, the sun does not
 // smoothly come down but shifts jarringly". Here the camera climbs a twentieth of a level at a
-// time (the scene rising with it, as render.ts frames it), from the ground up through the cloud
-// floor, the sunset, the night and a whole turn of the story's loop: the sun glides (it never
+// time (the scene rising with it, as render.ts frames it), from the square up over the town,
+// through the sunset, the night and a whole turn of the story's loop: the sun glides (it never
 // moves or grows by more than twice what the bars scroll in that step, and never jumps), the
 // moon stays where it hangs, and the amounts that fade things in and out change by a sliver a
-// step. Fully set, the sun is wholly behind the cloud floor when it stops being drawn (every
-// pixel of it under the floor's paint), so it goes without a blink, and it comes back up the
-// same way at the loop's dawn. And every color of the light turns by a sliver a step too: a
-// tone table in half-level steps popped the sky and the cloud floor a shade at a time.
+// step. Fully set, the sun is wholly behind the far hills when it stops being drawn (every pixel
+// of it under the hills' paint), so it goes without a blink, and it comes back up the same way
+// at the loop's dawn. And every color of the light turns by a sliver a step too: a tone table
+// in half-level steps popped the sky and the hills a shade at a time.
 
 const SCREENS = [
   [390, 844, 1],
@@ -62,17 +63,17 @@ function colorStep(a: Tone, b: Tone): number {
 /** The most any color channel may change in a step of the climb (the lit windows turn fastest, at dusk and dawn). */
 const COLOR_STEP = 5;
 
-/** Every pixel the sun paints at `s` lies under the cloud floor's paint. */
-function underTheFloor(s: Scene, tone: Tone, floor: number): boolean {
-  const sunM = mask(s.cssW, s.cssH, (ctx) => sun(ctx, s, tone, floor));
-  const floorM = mask(s.cssW, s.cssH, (ctx) => cloudFloor(ctx, s, tone, floor));
+/** Every pixel the sun paints at `s` lies under the far hills' paint. */
+function underTheHills(s: Scene, tone: Tone): boolean {
+  const sunM = mask(s.cssW, s.cssH, (ctx) => sun(ctx, s, tone));
+  const floorM = mask(s.cssW, s.cssH, (ctx) => hills(ctx, s, tone, hillLine(s), backLine(s) + s.u * 0.02));
   let n = 0;
   for (const v of sunM) n += v;
   return n > 0 && overlap(sunM, floorM) === n;
 }
 
 describe("independence day's sun and moon through the climb", () => {
-  it.each(SCREENS)("%ix%i at zoom %s: the sun glides down into the clouds and back up, the moon holds still", (W, H, z) => {
+  it.each(SCREENS)("%ix%i at zoom %s: the sun glides down behind the hills and back up, the moon holds still", (W, H, z) => {
     let prev: { x: number; y: number; r: number; up: boolean; moon: { x: number; y: number }; s: Scene; floor: number } | null = null;
     let prevTone: Tone | null = null;
     let setting = 0;
@@ -83,8 +84,8 @@ describe("independence day's sun and moon through the climb", () => {
       const lvl = i * STEP;
       const s = screenAt(W, H, z, lvl);
       const tone = toneOf(s);
-      const floor = floorTop(s, level(s));
-      const { x, y, r } = sunAt(s, tone, floor);
+      const { x, y, r } = sunAt(s, tone);
+      const floor = sunFloor(s, x, r * SUN_REACH);
       const up = tone.sunSet < 1;
       const m = moonAt(s);
       const now = { x, y, r, up, moon: { x: m.x, y: m.y }, s, floor };
@@ -105,14 +106,14 @@ describe("independence day's sun and moon through the climb", () => {
           expect(Math.abs(y - prev.y), `${what}: the sun jumps up or down`).toBeLessThanOrEqual(bound);
           expect(Math.abs(r - prev.r), `${what}: the sun's size jumps`).toBeLessThanOrEqual(bound);
         }
-        // Where it goes or comes back, the sun is wholly behind the solid floor: by the geometry, and pixel by pixel.
+        // Where it goes or comes back, the sun is wholly behind the hills: by the geometry, and pixel by pixel.
         if (up !== prev.up) {
           const where = up ? now : prev;
           const light = up ? tone : prevTone;
           if (up) rises++;
           else sets++;
-          expect(where.y - where.r * SUN_REACH, `${what}: the sun blinks ${up ? "on" : "out"} above the floor`).toBeGreaterThan(Math.min(where.floor, where.s.cssH) + s.u * 0.015);
-          expect(underTheFloor(where.s, light, where.floor), `${what}: a pixel of the sun shows as it blinks ${up ? "on" : "out"}`).toBe(true);
+          expect(where.y - where.r * SUN_REACH, `${what}: the sun blinks ${up ? "on" : "out"} above the hills`).toBeGreaterThan(Math.min(where.floor, where.s.cssH) + s.u * 0.01);
+          expect(underTheHills(where.s, light), `${what}: a pixel of the sun shows as it blinks ${up ? "on" : "out"}`).toBe(true);
         }
         if (tone.moon > 0 && prevTone.moon > 0) {
           expect(m.x, `${what}: the moon moves`).toBe(prev.moon.x);

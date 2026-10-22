@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
-import { floorTop, landmarkLine } from "./far";
+import { cameoBounds } from "../cameo";
+import { BLOOM, eachBurst, eachPieceBox, fireworks, lanceAt, RISE, skyline, type Burst } from "./fireworks";
+import { islandFrame } from "./island";
+import { backLine } from "./land";
 import { POLE_TOP, STEEPLE_REACH } from "./landmarks";
-import { BLOOM, eachBurst, eachPieceBox, fireworks, lanceAt, RISE, type Burst } from "./fireworks";
-import { moonAt } from "./sky";
+import { moonAt, MOON_REACH } from "./sky";
 import { context, mask, sceneAt, SIZES, zoomedScene } from "./test-scene";
-import { level, LOOP, LOOP_START, toneOf } from "./tone";
+import { LOOP, LOOP_START, toneOf } from "./tone";
 
 // The fireworks show, through the night of the first day and of a turn of the loop, on both
 // phones, a tablet, a desktop window and zoomed out: every burst keeps to its lane (never across
-// the tower's column), below the HUD's rows, on the screen, clear of the moon and above the
-// steeple's cross (the left lane) and above the courthouse dome and its flag (the right lane);
+// the tower's column), below the HUD's corner buttons, on the screen, clear of the moon (and its
+// glow), above the land's skyline in its lane (the steeple's cross on the left, the courthouse
+// dome and its flag on the right, the flagpoles and the cloud banks) and above Sky Islands'
+// floating island where it comes down the right lane;
 // the show fires in both lanes, builds to a finale of many more shells, and by day there is
 // none. The finale's lancework flag hangs in the left lane by the same rules.
 // Everything it draws stays inside the reach it claims, so the geometry is what the rules are
@@ -47,12 +51,13 @@ describe("independence day's fireworks", () => {
       for (let t = 0; t < 40; t += 0.37) {
         const s = screenAt(W, H, z, lvl, t);
         const tone = toneOf(s);
-        const floor = floorTop(s, level(s));
         const cx = s.cssW / 2;
         const moon = moonAt(s);
-        const flagTop = landmarkLine(s) - s.u * POLE_TOP;
-        const crossTop = landmarkLine(s) - s.u * STEEPLE_REACH;
-        eachBurst(s, tone, floor, (b) => {
+        const flagTop = backLine(s) - s.u * POLE_TOP;
+        const crossTop = backLine(s) - s.u * STEEPLE_REACH;
+        const isle = islandFrame(s);
+        const isleTop = isle ? cameoBounds(isle, 2).t : Infinity;
+        eachBurst(s, tone, (b) => {
           bursts++;
           sides.add(b.side);
           const what = `level ${lvl}, t=${t.toFixed(2)}: a burst at (${Math.round(b.x)}, ${Math.round(b.y)}) reaching ${Math.round(b.across)} across, ${Math.round(b.up)} up, ${Math.round(b.down)} down`;
@@ -61,10 +66,12 @@ describe("independence day's fireworks", () => {
           expect(b.x + b.across, `${what}: off the right`).toBeLessThanOrEqual(s.cssW);
           // The HUD: its corner buttons (the top 15% of the screen at the sides); its rows of text keep to the column, checked above.
           expect(b.y - b.up, `${what}: in the HUD's corner buttons`).toBeGreaterThanOrEqual(s.cssH * 0.15 - 1);
-          expect(b.y + b.down, `${what}: in the cloud floor`).toBeLessThanOrEqual(floor);
-          if (b.side < 0 && tone.moon > 0) expect(boxToPoint(b, moon.x, moon.y), `${what}: over the moon`).toBeGreaterThan(moon.r);
-          if (b.side > 0) expect(b.y + b.down, `${what}: over the courthouse dome and its flag`).toBeLessThanOrEqual(flagTop);
-          else expect(b.y + b.down, `${what}: over the steeple`).toBeLessThanOrEqual(crossTop);
+          expect(b.y + b.down, `${what}: below its lane's skyline`).toBeLessThanOrEqual(skyline(s, tone, b.side) + 0.5);
+          if (b.side < 0 && tone.moon > 0) expect(boxToPoint(b, moon.x, moon.y), `${what}: over the moon`).toBeGreaterThan(moon.r * MOON_REACH);
+          if (b.side > 0) {
+            expect(b.y + b.down, `${what}: over the courthouse dome and its flag`).toBeLessThanOrEqual(flagTop);
+            expect(b.y + b.down, `${what}: over the floating island`).toBeLessThanOrEqual(isleTop);
+          } else expect(b.y + b.down, `${what}: over the steeple`).toBeLessThanOrEqual(crossTop);
         });
       }
     }
@@ -80,23 +87,22 @@ describe("independence day's fireworks", () => {
       for (let t = 0.1; t < 30; t += 0.53) {
         const s = sceneAt(W, H, lvl, t);
         const tone = toneOf(s);
-        const floor = floorTop(s, level(s));
         // Every box something of the show draws inside: a burst's reach, or (a rocket still
         // climbing) the strip from its burst down to where it climbs from, as wide as it wanders;
         // and the finale's fountains and Roman candles.
         const boxes: { x0: number; y0: number; x1: number; y1: number }[] = [];
-        eachBurst(s, tone, floor, (b, local) => {
+        eachBurst(s, tone, (b, local) => {
           if (local < RISE) boxes.push({ x0: b.x - b.wander - s.u * 0.01, y0: b.y - s.u * 0.01, x1: b.x + b.wander + s.u * 0.01, y1: b.launchY });
           else boxes.push({ x0: b.x - b.across, y0: b.y - b.up, x1: b.x + b.across, y1: b.y + b.down });
         });
-        eachPieceBox(s, tone, floor, (p) => boxes.push({ x0: p.x - p.across, y0: p.top, x1: p.x + p.across, y1: p.foot }));
+        eachPieceBox(s, tone, (p) => boxes.push({ x0: p.x - p.across, y0: p.top, x1: p.x + p.across, y1: p.foot }));
         if (!boxes.length) continue;
         checked++;
         // The finale's lancework flag burns in its own box: its pole, the flag and the sparks dropping from its foot.
         const lance = { ...lanceAt(s, tone) };
         const inLance = (x: number, y: number) =>
           lance.on > 0.02 && x >= lance.x - s.u * 0.006 - 2 && x <= lance.x + lance.w + 2 && y >= lance.y - s.u * 0.012 - 2 && y <= lance.y + lance.h + s.u * 0.05 + 2;
-        const m = mask(W, H, (ctx) => fireworks(ctx, s, tone, floor), K);
+        const m = mask(W, H, (ctx) => fireworks(ctx, s, tone), K);
         const c0 = (s.cssW / 2 - s.u * 0.25) * K;
         const c1 = (s.cssW / 2 + s.u * 0.25) * K;
         let column = 0;
@@ -124,11 +130,10 @@ describe("independence day's fireworks", () => {
       for (let t = 0; t < 12; t += 0.7) {
         const s = screenAt(W, H, z, lvl, t);
         const tone = toneOf(s);
-        const floor = floorTop(s, level(s));
         const cx = s.cssW / 2;
         const moon = moonAt(s);
-        const line = landmarkLine(s);
-        eachPieceBox(s, tone, floor, (p) => {
+        const line = backLine(s);
+        eachPieceBox(s, tone, (p) => {
           pieces++;
           const side = p.x < cx ? -1 : 1;
           sides.add(side);
@@ -138,7 +143,7 @@ describe("independence day's fireworks", () => {
           expect(p.x + p.across, `${what}: off the right`).toBeLessThanOrEqual(s.cssW);
           expect(p.top, `${what}: above its lane's landmark`).toBeGreaterThanOrEqual(line - s.u * (side > 0 ? POLE_TOP : STEEPLE_REACH) - s.u * 0.02);
           expect(p.top, `${what}: in the HUD`).toBeGreaterThanOrEqual(s.cssH * 0.3);
-          if (tone.moon > 0) expect(Math.hypot(Math.max(0, Math.abs(moon.x - p.x) - p.across), Math.max(0, p.top - moon.y)), `${what}: over the moon`).toBeGreaterThan(moon.r);
+          if (tone.moon > 0) expect(Math.hypot(Math.max(0, Math.abs(moon.x - p.x) - p.across), Math.max(0, p.top - moon.y)), `${what}: over the moon`).toBeGreaterThan(moon.r * MOON_REACH);
         });
       }
     }
@@ -160,8 +165,8 @@ describe("independence day's fireworks", () => {
         expect(l.x - s.u * 0.006, `${what}: off the left`).toBeGreaterThanOrEqual(0);
         expect(l.x + l.w, `${what}: in the tower's column`).toBeLessThanOrEqual(s.cssW / 2 - s.u * 0.25);
         expect(l.y - s.u * 0.012, `${what}: in the HUD`).toBeGreaterThanOrEqual(s.cssH * 0.3 - 1);
-        if (tone.moon > 0) expect(l.y - s.u * 0.012, `${what}: over the moon`).toBeGreaterThan(moon.y + moon.r);
-        expect(l.y + l.h + s.u * 0.05, `${what}: over the steeple`).toBeLessThanOrEqual(landmarkLine(s) - s.u * STEEPLE_REACH);
+        if (tone.moon > 0) expect(l.y - s.u * 0.012, `${what}: over the moon`).toBeGreaterThan(moon.y + moon.r * MOON_REACH);
+        expect(l.y + l.h + s.u * 0.05, `${what}: over the steeple`).toBeLessThanOrEqual(backLine(s) - s.u * STEEPLE_REACH);
       }
     }
     expect(burns, "the lancework flag burns through the finale").toBeGreaterThan(20);
@@ -172,7 +177,7 @@ describe("independence day's fireworks", () => {
       let n = 0;
       for (let t = 0; t < 60; t += 0.25) {
         const s = sceneAt(390, 844, lvl, t);
-        eachBurst(s, toneOf(s), floorTop(s, level(s)), (_b, local) => {
+        eachBurst(s, toneOf(s), (_b, local) => {
           if (local >= RISE && local < RISE + BLOOM) n++;
         });
       }
@@ -196,7 +201,7 @@ describe("independence day's fireworks", () => {
     const s = sceneAt(390, 844, 82, 7.3);
     const ctx = context(390, 844);
     ctx.globalAlpha = 1;
-    fireworks(ctx, s, toneOf(s), floorTop(s, level(s)));
+    fireworks(ctx, s, toneOf(s));
     expect(ctx.globalAlpha).toBe(1);
   });
 });

@@ -23,6 +23,11 @@ import {
 import { classic } from "./classic";
 import { context, sceneAt as rendererScene } from "./classic/test-scene";
 import { SKINS } from "./index";
+import { july4 } from "./july4";
+import { island as july4Island, islandFrame as july4Frame } from "./july4/island";
+import { moonAt as july4Moon, MOON_REACH as JULY4_MOON_REACH, sunAt as july4Sun, SUN_REACH as JULY4_SUN_REACH } from "./july4/sky";
+import { sceneAt as july4Scene, zoomedScene as july4Zoomed } from "./july4/test-scene";
+import { LOOP as JULY4_LOOP, toneOf as july4Tone } from "./july4/tone";
 import type { Scene, Skin } from "./skin";
 
 // The cameo: Sky Islands' floating island with a 25-bar tower on it, placed in every skin's sky
@@ -64,7 +69,41 @@ interface Placement {
 }
 
 /** The skins that place the cameo. Each skin's rebuild adds itself here. */
-const PLACED: Placement[] = [];
+const PLACED: Placement[] = [
+  {
+    // Independence Day: painted as a vintage postcard, in the right lane at the golden hour, passing behind the town as you climb.
+    skin: july4,
+    frame: (s) => july4Frame(s),
+    lights: (s) => {
+      const tone = july4Tone(s);
+      const out: Disc[] = [];
+      if (tone.sunSet < 1) {
+        const sun = july4Sun(s, tone);
+        out.push({ name: "the sun", x: sun.x, y: sun.y, r: sun.r * JULY4_SUN_REACH });
+      }
+      if (tone.moon > 0) {
+        const moon = july4Moon(s);
+        out.push({ name: "the moon", x: moon.x, y: moon.y, r: moon.r * JULY4_MOON_REACH });
+      }
+      return out;
+    },
+    paint: (ctx, s) => july4Island(ctx, s, july4Tone(s), july4.bars),
+    sceneAt: (W, H, lvl, t, z) => (z === 1 ? july4Scene(W, H, lvl, t) : july4Zoomed(W, H, z, lvl, t)),
+    checks: {
+      "comes round with every turn of the story's loop, at the same golden hour": () => {
+        for (const [W, H] of SCREENS) {
+          const a = july4Frame(july4Scene(W, H, 50, 2))!;
+          const at = { x: a.x, y: a.y };
+          const b = july4Frame(july4Scene(W, H, 50 + JULY4_LOOP, 2))!;
+          expect(b, `${W}x${H}: in the loop`).not.toBeNull();
+          expect(b.x).toBeCloseTo(at.x, 6);
+          expect(b.y).toBeCloseTo(at.y, 6);
+          expect(july4Tone(july4Scene(W, H, 50 + JULY4_LOOP, 2))).toEqual(july4Tone(july4Scene(W, H, 50, 2)));
+        }
+      },
+    },
+  },
+];
 
 const SCREENS = [
   [390, 844],

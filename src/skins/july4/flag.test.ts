@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { FIREWORK, FLAG } from "./colors";
-import { floorTop, landmarkLine, landShows } from "./far";
+import { backLine } from "./land";
 import { CANTON_W, stripesFor, usFlag, type FlagInks } from "./flag";
 import { lanceAt, lancework } from "./fireworks";
 import { courthouse, FLAG_H, FLAG_W, poleTop } from "./landmarks";
 import { context, sceneAt, SIZES } from "./test-scene";
-import { level, LOOP, LOOP_START, toneOf } from "./tone";
+import { LOOP, LOOP_START, toneOf } from "./tone";
 
 // The owner saw the courthouse flag at night read as Puerto Rico's: one star in a canton the
 // night swallowed. Every flag in the skin must read as the Stars and Stripes at any size and
@@ -151,11 +151,11 @@ function expectStarsAndStripes(r: Reading, w: number, n: number, what: string): 
 }
 
 describe("independence day's flags", () => {
-  // The day at the start, over the town; the night of the show and the night of a turn of the
-  // loop, the flag on the dome standing out of the cloud sea under its floodlight.
+  // The day at the start, over the town; the golden evening, the dusk, the night of the show and
+  // the night of a turn of the loop, the flag on the dome over the town under its floodlight.
   const HOURS = [
     ["day", 0],
-    ["afternoon over the clouds", 36],
+    ["golden evening", 36],
     ["dusk", 60],
     ["night", 100],
     ["night in the loop", LOOP_START + LOOP - 10],
@@ -165,9 +165,9 @@ describe("independence day's flags", () => {
     (W, H, _hour, lvl) => {
       const s = sceneAt(W, H, lvl, 0);
       const tone = toneOf(s);
-      const line = landmarkLine(s);
+      const line = backLine(s);
       const ctx = context(W, H, K);
-      courthouse(ctx, s, tone, line, landShows(s));
+      courthouse(ctx, s, tone, line);
       const pole = poleTop(s, line);
       const w = FLAG_W * s.u;
       const h = FLAG_H * s.u;
@@ -178,17 +178,25 @@ describe("independence day's flags", () => {
         blue: tone.flagBlue,
       });
       expectStarsAndStripes(r, w * K, stripesFor(h), `level ${lvl}`);
-      expect(floorTop(s, level(s)), `level ${lvl}: the flag stands clear of the cloud floor`).toBeGreaterThan(pole.y + h);
+      expect(pole.y + h, `level ${lvl}: the flag is on screen`).toBeLessThan(H);
     },
   );
 
-  // Every other flag, at the size it is drawn (u on a phone): the barbecue table's little flag in
-  // a jar, the kids' flag in the grass, the color guard's, the fire truck's, and a big one.
+  // Every other flag, at the size it is drawn (u on a phone): the porch flags beyond Main Street,
+  // Main Street's and its balcony's, the flagpoles' over the town, the barbecue table's little
+  // flag in a jar, the kids' flag in the grass, the color guard's, the fire truck's, and a big one.
   const OTHERS = [
+    ["a porch flag on a house beyond Main Street", 0.026, 0.017, 1],
+    ["a flag from a Main Street upper floor", 0.034, 0.022, -1],
+    ["the balcony's flag", 0.036, 0.024, 1],
+    ["a flagpole's flag over the town", 0.07, 0.045, -1],
     ["the flag in a jar", 0.034, 0.022, 1],
     ["the kids' flag", 0.044, 0.029, 1],
     ["the color guard's flag", 0.06, 0.039, -1],
     ["the fire truck's flag", 0.064, 0.042, -1],
+    ["a child's hand flag (the fire truck, the picnic)", 0.032, 0.021, -1],
+    ["a child's hand flag waved the other way", 0.032, 0.021, 1],
+    ["the boy's flag on his dad's shoulders, far off", 0.0264, 0.0174, 1],
     ["a big flag", 0.16, 0.1, 1],
   ] as const;
   it.each(OTHERS)("%s reads as the Stars and Stripes", (what, fw, fh, dir) => {
@@ -202,8 +210,8 @@ describe("independence day's flags", () => {
     expectStarsAndStripes(r, w * K, stripesFor(h), what);
   });
 
-  it("the great flag hung down the courthouse portico reads as the Stars and Stripes, its union at the top on the left", () => {
-    // Drawn as the courthouse hangs it: flying, then turned over its diagonal (stripes upright).
+  it("the great flag hung down a Main Street front reads as the Stars and Stripes, its union at the top on the left", () => {
+    // Drawn as Main Street hangs it (mainstreet.ts hungFlag): flying, then turned over its diagonal (stripes upright).
     const u = 390;
     const len = 0.126 * u;
     const fw = 0.067 * u;
@@ -228,7 +236,7 @@ describe("independence day's flags", () => {
     flat.drawImage(hung.canvas, 0, 0);
     flat.setTransform(K, 0, 0, K, 0, 0);
     const r = read(flat, 20 * K, 20 * K - K, len * K, fw * K + 2 * K, "left", FLAG);
-    expectStarsAndStripes(r, len * K, stripesFor(fw), "the portico flag");
+    expectStarsAndStripes(r, len * K, stripesFor(fw), "the hung flag");
   });
 
   it.each(SIZES)("%ix%i: the finale's lancework flag reads as the Stars and Stripes", (W, H) => {

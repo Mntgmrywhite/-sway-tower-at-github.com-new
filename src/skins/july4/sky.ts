@@ -1,180 +1,41 @@
 import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { MOON, MOON_SHADE, STAR_CREAM, STAR_RED } from "./colors";
-import { crescent, dot, starPath } from "./shapes";
-import { STRIPE_LANES, type Tone } from "./tone";
+import { MOON, MOON_SHADE, STAR, STAR_WARM, SUN_CORE } from "./colors";
+import { hillsK, ridgeH } from "./hills";
+import { hillLine } from "./land";
+import { bands } from "./paint";
+import { crescent, dot, sparkle } from "./shapes";
+import type { Tone } from "./tone";
 
-// The sky, printed like a WPA poster: flat bands of the hour's inks from the top of the screen
-// down to the glow on the horizon (no soft gradients), and a great sunburst of broad rays
-// radiating from behind the town (later from behind the cloud sea) up both side lanes to the
-// top corners, each ray printed a step toward the next band's ink and the hour's burst ink (the
-// paper by day, gold in the evening); at dusk the rays are the flag's red stripes over lanes
-// printed cream between them. The burst is cut by a plain panel behind the tower, as a poster's
-// burst is by its central panel: the sky behind the tower stays flat bands, and the eye carries
-// the rays on to their center behind it. By night the burst is gone: in the show's night the
-// lanes are printed Pop Art instead, big Ben-Day halftone dots, a step off the sky's ink, that
-// swell toward the screen's edges and the horizon and shrink to nothing beside the column, and
-// bold five-point stars printed over off-register red ones. A summer sun hangs up on the left
-// by day (white-gold in the afternoon, amber in the golden evening), a flat disc with spoked
-// rays, and sinks into the cloud floor at sunset; then a flat crescent moon in the same place,
-// lit on the side the sun set; at the loop's dawn the moon and stars fade and the sun comes back
-// up where it set. Celestial things are far away: flat inks, no outline, a solid flat halo
-// instead of a glow (a see-through one let the band and ray edges show across the sun).
+// The sky, painted like a postcard's: one soft wash from the deep summer blue overhead down
+// through paler blues to a creamy glow on the hills (the hour's colors, tone.ts), laid in thin
+// flat bands too close in color to see (paint.ts), with no rays, so the sky behind the tower is calm. A warm summer sun hangs up on the left by day, a
+// glowing disc in a soft halo, and sinks behind the far hills at sunset; then a crescent moon in
+// the same place, lit on the side the sun set, and the stars, twinkling gently, out in the
+// lanes; at the loop's dawn the moon and stars fade and the sun comes back up over the hills.
 //
-// The left of the sky belongs to the sun and the moon: nothing drifts there (drift.ts), and
-// the fireworks in that lane burst below the moon (fireworks.ts), so nothing ever passes over
-// either.
+// The left of the sky belongs to the sun and the moon: nothing comes down the left lane
+// (drift.ts; over the square only a cloud and the stunt plane hang there, below the sun, and they
+// only ever move down), the cloud bank on the left rises only as far as the sun and the moon
+// leave room (clouds.ts), the kites fly below the sun (hills.ts), and the fireworks in that lane
+// burst below the moon (fireworks.ts), so nothing ever passes over either.
 
-/** Where each band starts, as a fraction of the way from the top of the screen down to the horizon. */
-const BANDS = [0, 0.3, 0.52, 0.7, 0.85] as const;
+/** Where the wash's colors sit, from the top of the screen (0) to the hills (1). */
+const STOPS = [0, 0.32, 0.6, 0.84, 1] as const;
 
-/**
- * The sunburst: a poster's burst of broad rays radiating from a center BURST_DEPTH u below the
- * line (behind the town, later behind the cloud sea), every other slice of the fan printed in
- * the band's ray ink. It is cut by a plain panel PANEL u either side of the center, the sky
- * behind the tower, so the rays fill both lanes from the horizon to the top corners while the
- * column stays flat bands: the eye carries the rays on to their center behind the tower.
- */
-const BURST_DEPTH = 0.12;
-const PANEL = 0.27;
-/**
- * The fan, a side: FAN_RAYS rays from FAN_FROM to FAN_TO radians off the vertical, each RAY_W of its
- * share of the fan wide (the gaps between them a little broader, as a poster's burst prints),
- * so a phone's lane shows two or three broad rays at every height of the sky and more toward
- * the horizon.
- */
-const FAN_FROM = 0.02;
-const FAN_TO = 1.5;
-const FAN_RAYS = 6;
-const RAY_W = 0.46;
-const RAY_STEP = (FAN_TO - FAN_FROM) / (FAN_RAYS - 1 + RAY_W);
-/** Each ray's edges as tan of their angles: how far out from the center an edge runs per pixel of rise. */
-const EDGES = Array.from({ length: FAN_RAYS }, (_, i) => {
-  const a = FAN_FROM + i * RAY_STEP;
-  return [Math.tan(a), Math.tan(a + RAY_STEP * RAY_W)] as const;
-});
-
-/**
- * The part of slice `i` (between edges i and i + 1) inside a band from rise h0 (its top) down to
- * h1 above the center at (cx, ay), out past the panel `c` on `side`, as its own subpath: the
- * slice's wedge cut by the panel's edge (where its inner edge meets the panel, it runs up the
- * panel's edge instead).
- */
-function slice(ctx: Ctx, cx: number, ay: number, side: number, c: number, k0: number, k1: number, h0: number, h1: number): void {
-  // Below `he` the whole slice is inside the panel.
-  const he = c / k1;
-  if (h0 <= he) return;
-  const hb = Math.max(h1, he);
-  const inner = (h: number) => Math.max(c, h * k0);
-  ctx.moveTo(cx + side * inner(h0), ay - h0);
-  ctx.lineTo(cx + side * h0 * k1, ay - h0);
-  ctx.lineTo(cx + side * hb * k1, ay - hb);
-  ctx.lineTo(cx + side * inner(hb), ay - hb);
-  const hk = k0 > 0 ? c / k0 : Infinity;
-  if (hk > hb && hk < h0) ctx.lineTo(cx + side * c, ay - hk);
-  ctx.closePath();
-}
-
-/** The rays across a band from rise h0 down to h1, both sides of the panel; those wholly off the screen left out. */
-function slices(ctx: Ctx, s: Scene, ay: number, h0: number, h1: number): void {
-  const cx = s.cssW / 2;
-  const c = s.u * PANEL;
-  ctx.beginPath();
-  for (const [k0, k1] of EDGES) {
-    // Its innermost point in the band is at the band's foot: past the screen's side, so is the rest.
-    if (Math.max(c, Math.max(h1, 0) * k0) > cx + 1) break;
-    for (const side of [-1, 1]) slice(ctx, cx, ay, side, c, k0, k1, h0, Math.max(h1, 0));
-  }
-  ctx.fill();
-}
-
-/**
- * Paint the sky down to `bottom` (everything below it is covered by the hills and the lawn, or
- * the cloud floor): flat bands hung from the line the town (later the cloud sea) stands on, the
- * last running on down, and over them the sunburst's rays in each band's ray ink, down to
- * `rayFoot` (below it the lanes are covered: rays there would never be seen); at dusk the lanes
- * under the rays are printed as the flag's cream stripes. The panel behind the tower is left as
- * plain bands.
- */
-export function skyFill(ctx: Ctx, s: Scene, tone: Tone, line: number, bottom: number, rayFoot: number): void {
-  const h = Math.max(1, Math.min(line, s.cssH));
+/** The sky down to `bottom` (everything below is covered by the hills): its wash ends on the hills' line. */
+export function skyFill(ctx: Ctx, s: Scene, tone: Tone, bottom: number): void {
+  const line = Math.max(1, hillLine(s));
   const end = Math.min(s.cssH, Math.ceil(bottom));
-  const foot = Math.min(end, rayFoot);
-  const ay = line + s.u * BURST_DEPTH;
-  let y0 = 0;
-  for (let i = 0; i < BANDS.length && y0 < end; i++) {
-    const y1 = i + 1 < BANDS.length ? Math.min(end, Math.round(BANDS[i + 1]! * h)) : end;
-    if (y1 <= y0) continue;
-    ctx.fillStyle = tone.sky[i]!;
-    // A pixel's overlap into the next band, so no seam shows between them at any zoom.
-    const y1o = y1 < end ? y1 + 1 : y1;
-    ctx.fillRect(0, y0, s.cssW, y1o - y0);
-    if (tone.burst > 0.01 && y0 < foot) {
-      const yb = Math.min(y1o, foot);
-      // At dusk the slices between the rays are the flag's cream stripes: the lanes either side of the panel, under the rays.
-      if (tone.stripe > STRIPE_LANES) {
-        const c = s.cssW / 2 - s.u * PANEL;
-        ctx.fillStyle = tone.gaps[i]!;
-        ctx.fillRect(0, y0, c, yb - y0);
-        ctx.fillRect(s.cssW - c, y0, c, yb - y0);
-      }
-      ctx.fillStyle = tone.rays[i]!;
-      slices(ctx, s, ay, ay - y0, ay - yb);
-    }
-    y0 = y1;
+  if (end <= 0) return;
+  bands(ctx, "sky", 0, s.cssW, 0, line, tone.sky, STOPS, 5);
+  if (end > line) {
+    ctx.fillStyle = tone.sky[4];
+    ctx.fillRect(0, line, s.cssW, end - line);
   }
 }
 
-/** The halftone: grid pitch (u), how far out from the center the dots begin, and over how far they swell to full size. */
-const DOT_PITCH = 0.072;
-const DOT_FROM = 0.27;
-const DOT_SWELL = 0.24;
-/** The dotted field starts this far down the screen (below the HUD and the moon). */
-const DOT_TOP = 0.3;
-/**
- * Dot sizes come in DOT_STEPS steps, each printed as one stroke of round-capped dabs (one wide
- * path of hundreds of little circles costs a phone's whole frame; a dab per dot in a few strokes
- * costs about a millisecond).
- */
-const DOT_STEPS = 8;
-const DAB = 0.01;
-
-/** Ben-Day dots in both lanes through the show's night, in staggered rows, swelling toward the edges and the line. */
-export function halftone(ctx: Ctx, s: Scene, tone: Tone, line: number): void {
-  if (tone.dots <= 0.01) return;
-  const u = s.u;
-  const cx = s.cssW / 2;
-  const g = u * DOT_PITCH;
-  const top = s.cssH * DOT_TOP;
-  const bottom = Math.min(line, s.cssH);
-  if (bottom <= top) return;
-  const rMax = g * 0.38 * tone.dots;
-  const cols = Math.ceil((s.cssW / 2 - DOT_FROM * u) / g) + 1;
-  ctx.strokeStyle = tone.dot;
-  ctx.lineCap = "round";
-  for (let step = 1; step <= DOT_STEPS; step++) {
-    const r = (rMax * step) / DOT_STEPS;
-    if (r < 0.4) continue;
-    ctx.lineWidth = r * 2;
-    ctx.beginPath();
-    for (let row = 0, y = top; y < bottom; row++, y += g * 0.87) {
-      const fy = Math.sqrt((y - top) / (bottom - top));
-      const shift = row % 2 ? g * 0.5 : 0;
-      for (let i = 0; i < cols; i++) {
-        const d = DOT_FROM * u + i * g + shift;
-        const fx = Math.min(1, (d - DOT_FROM * u) / (DOT_SWELL * u));
-        if (Math.round(fx * fy * DOT_STEPS) !== step) continue;
-        ctx.moveTo(cx - d, y);
-        ctx.lineTo(cx - d + DAB, y);
-        ctx.moveTo(cx + d, y);
-        ctx.lineTo(cx + d + DAB, y);
-      }
-    }
-    ctx.stroke();
-  }
-}
-
-// ---------------------------------------------------------------- sun
+// ---------------------------------------------------------------- the sun
 
 /** Scratch results of `sunAt` / `moonAt`, reused so placing them allocates nothing. */
 const SUN = { x: 0, y: 0, r: 0 };
@@ -182,74 +43,75 @@ const MOON_AT = { x: 0, y: 0, r: 0 };
 
 /** The halo's reach, in disc radii. Everything the sun draws stays inside this. */
 export const SUN_REACH = 1.42;
-/** How far out in the left lane the sun and the moon hang (u from the screen's center): clear of the steeple, which the sun sets and rises beside. */
+/** How far out in the left lane the sun and the moon hang (u from the screen's center): clear of the steeple. */
 export const SUN_X = 0.41;
-/**
- * The disc's radius (u) by day, and how much it swells as it sets. On a phone the sun's lane is
- * the room between the screen's left edge and the steeple (far.ts STEEPLE_X), and the whole
- * halo must fit it at every height of the set and the rise, so the owner's rule holds (nothing
- * but the clouds ever covers the sun): a 0.056 u sun swelling by a quarter put its halo behind
- * the steeple's foot as it sank (drift.test.ts).
- */
-const SUN_R = 0.052;
+/** The disc's radius (u) by day, and how much it swells as it sets. */
+const SUN_R = 0.05;
 const SUN_SWELL = 0.1;
 /**
- * The sun's day height: SUN_HEIGHT u below the HUD's top line (render.ts HUD_TOP). The title
- * screen lays its Slide / Drop cards over the scene from that line (title.css: the logo's
- * 0.052 u, then cards 0.14 u deep with a 0.012 u shadow), and the start view shows the sun by
- * day, so the whole halo hangs below the cards on every screen: a sun at a fraction of the
- * screen's height sat under the Slide card on a short phone and on an iPad.
+ * The sun's day height: SUN_HEIGHT u below the HUD's top line (render.ts HUD_TOP), so the whole
+ * halo hangs below the title screen's Slide / Drop cards on every screen (layout.test.ts).
  */
 const HUD_TOP = 0.14;
 const SUN_HEIGHT = 0.29;
+/** The sun sets this far (u) below the hills' crest, so it is wholly behind them when it goes. */
+const BELOW = 0.016;
 
-/** The cloud floor's puffs dip at most this far (u) below its top line (far.ts): below it, the floor is solid. */
-const FLOOR_DIP = 0.02;
+/** The lowest the day sun's halo reaches (px): over the square, the left lane's clouds start below it. */
+export function sunHaloFoot(s: Scene): number {
+  return s.cssH * HUD_TOP + s.u * (SUN_HEIGHT + SUN_R * SUN_REACH);
+}
 
 /**
- * Where the sun is: by day left of the tower, below the title's cards; at sunset it swells a little and
- * sinks below `floor` (the cloud floor's top), or below the bottom of the screen once the floor
- * has sunk out of view (and it comes up the same way at dawn). Fully set, the whole halo is
- * behind the solid floor, so it goes without a blink. `r` is the disc; its halo reaches
+ * The line the sun sets behind: the far ridge's crest where it is lowest across the sun's halo
+ * (the ridge is drawn over the sun, so below this line it is hidden).
+ */
+export function sunFloor(s: Scene, x: number, reach: number): number {
+  const X0 = (x - reach - s.cssW / 2) / s.u;
+  const X1 = (x + reach - s.cssW / 2) / s.u;
+  let low = Infinity;
+  for (let i = 0; i <= 8; i++) low = Math.min(low, ridgeH(X0 + ((X1 - X0) * i) / 8));
+  return hillLine(s) - low * hillsK(s) * s.u;
+}
+
+/**
+ * Where the sun is: by day left of the tower, below the title's cards; at sunset it swells a
+ * little and sinks behind the far hills (and it comes up the same way at dawn). Fully set, the
+ * whole halo is behind the hills, so it goes without a blink. `r` is the disc; its halo reaches
  * SUN_REACH r.
  */
-export function sunAt(s: Scene, tone: Tone, floor: number): typeof SUN {
+export function sunAt(s: Scene, tone: Tone): typeof SUN {
   const k = tone.sunSet;
   const r0 = s.u * SUN_R;
   const y0 = s.cssH * HUD_TOP + s.u * SUN_HEIGHT;
   SUN.r = r0 * (1 + SUN_SWELL * k);
   SUN.x = Math.max(r0 * 1.6, s.cssW / 2 - s.u * SUN_X);
-  SUN.y = y0 + (Math.min(floor, s.cssH) + SUN.r * SUN_REACH + s.u * FLOOR_DIP - y0) * k;
+  const floor = Math.min(sunFloor(s, SUN.x, r0 * (1 + SUN_SWELL) * SUN_REACH), s.cssH);
+  SUN.y = y0 + (floor + SUN.r * SUN_REACH + s.u * BELOW - y0) * k;
   return SUN;
 }
 
-/** Rays round the afternoon sun: a flat spoked halo, long and short by turns. */
-const RAYS = 16;
-
-export function sun(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
+/** The sun: a soft halo in two rings round a glowing disc, warm at its rim. */
+export function sun(ctx: Ctx, s: Scene, tone: Tone): void {
   if (tone.sunSet >= 1) return;
-  const { x, y, r } = sunAt(s, tone, floor);
+  const { x, y, r } = sunAt(s, tone);
   ctx.fillStyle = tone.sunHalo;
+  ctx.globalAlpha = 0.42;
   ctx.beginPath();
   circle(ctx, x, y, r * SUN_REACH);
   ctx.fill();
-  // Straight flat rays, turning slowly: a poster's summer sun.
-  ctx.fillStyle = tone.sunShade;
+  ctx.globalAlpha = 0.6;
   ctx.beginPath();
-  for (let i = 0; i < RAYS; i++) {
-    const a = (i / RAYS) * Math.PI * 2 + s.t * 0.05;
-    const w = 0.08;
-    const len = i % 2 ? 1.24 : 1.38;
-    ctx.moveTo(x + Math.cos(a - w) * r * 1.02, y + Math.sin(a - w) * r * 1.02);
-    ctx.lineTo(x + Math.cos(a) * r * len, y + Math.sin(a) * r * len);
-    ctx.lineTo(x + Math.cos(a + w) * r * 1.02, y + Math.sin(a + w) * r * 1.02);
-    ctx.closePath();
-  }
-  circle(ctx, x, y, r);
+  circle(ctx, x, y, r * 1.18);
   ctx.fill();
-  ctx.fillStyle = tone.sunBody;
+  ctx.globalAlpha = 1;
+  const g = ctx.createRadialGradient(x - r * 0.25, y - r * 0.3, r * 0.1, x, y, r);
+  g.addColorStop(0, SUN_CORE);
+  g.addColorStop(0.45, tone.sunBody);
+  g.addColorStop(1, tone.sunShade);
+  ctx.fillStyle = g;
   ctx.beginPath();
-  circle(ctx, x, y, r * 0.84);
+  circle(ctx, x, y, r);
   ctx.fill();
 }
 
@@ -257,51 +119,55 @@ export function sun(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
 
 /** Where the moon hangs: up on the left where the sun hung, below the title. */
 export function moonAt(s: Scene): typeof MOON_AT {
-  MOON_AT.r = s.u * 0.05;
+  MOON_AT.r = s.u * 0.048;
   MOON_AT.x = Math.max(MOON_AT.r * 2, s.cssW / 2 - s.u * SUN_X);
   MOON_AT.y = s.cssH * 0.22;
   return MOON_AT;
 }
 
-/** A crescent moon up on the left, fading in at dusk, lit low on the side the sun set: the disc less a bite, so the sky shows through the bite. */
+/** The moon's soft glow reaches this many radii (all it draws stays inside its disc and glow). */
+export const MOON_REACH = 1.3;
+
+/** A crescent moon up on the left, fading in at dusk, in a faint glow, lit low on the side the sun set. */
 export function moon(ctx: Ctx, s: Scene, tone: Tone): void {
   if (tone.moon <= 0) return;
   const { x, y, r } = moonAt(s);
-  const bx = x + r * 0.5;
-  const by = y - r * 0.28;
+  const bx = x + r * 0.52;
+  const by = y - r * 0.3;
+  ctx.globalAlpha = tone.moon * 0.16;
+  ctx.fillStyle = MOON;
+  ctx.beginPath();
+  circle(ctx, x, y, r * MOON_REACH);
+  ctx.fill();
   ctx.globalAlpha = tone.moon;
   ctx.fillStyle = MOON_SHADE;
   ctx.beginPath();
   crescent(ctx, x, y, r, bx, by, r * 0.86);
   ctx.fill();
-  // The lit crescent, inset toward the lower left so a rim of shade shows along its inner curve.
   ctx.fillStyle = MOON;
   ctx.beginPath();
-  crescent(ctx, x - r * 0.08, y + r * 0.02, r * 0.92, bx, by, r * 0.94);
+  crescent(ctx, x - r * 0.07, y + r * 0.02, r * 0.92, bx, by, r * 0.94);
   ctx.fill();
   ctx.globalAlpha = 1;
 }
 
-/** Stars: position (fractions of the screen), size (u), twinkle group, and whether it is a big five-point star. */
-const STARS = Array.from({ length: 52 }, (_, i) => ({
+/** Stars: position (fractions of the screen), size (u), twinkle group, and whether it is a sparkle (four soft points) or warm. */
+const STARS = Array.from({ length: 56 }, (_, i) => ({
   x: hash(i * 3 + 4700),
-  y: 0.03 + hash(i * 3 + 4701) * 0.7,
-  r: 0.0028 + hash(i * 3 + 4702) * 0.0034,
+  y: 0.03 + hash(i * 3 + 4701) * 0.68,
+  r: 0.0022 + hash(i * 3 + 4702) * 0.003,
   g: i % 3,
-  big: hash(i + 4900) > 0.85,
+  sparkle: hash(i + 4900) > 0.84,
+  warm: hash(i + 4950) > 0.7,
 }));
 
 /** Half width of the tower's column (u): no stars there, so nothing twinkles beside the bars. */
 const COLUMN = 0.27;
-/** Stars keep this far (u) in from the screen's sides, so no star is cut in half by an edge. */
+/** Stars keep this far (u) in from the screen's sides, and a sparkle's points reach this many of its radii. */
 const STAR_MARGIN = 0.022;
+const SPARKLE = 3.4;
 
-/** How far the big stars' red plate is printed off register, below and to the right of the cream (in star radii): Pop Art. */
-const OFF_REGISTER = 0.22;
-/** A big star's points reach this many times its dot's radius: bold enough to read on a phone. */
-const BIG = 3.2;
-
-/** Stars over the night sky in three twinkle groups: bold five-point stars (each on its off-register red) and dots. */
+/** Stars over the night sky in three twinkle groups: soft dots, and a few four-point sparkles. */
 export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
   if (tone.stars <= 0) return;
   const u = s.u;
@@ -309,21 +175,21 @@ export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
   const c1 = s.cssW / 2 + u * COLUMN;
   const edge = u * STAR_MARGIN;
   const span = s.cssW - edge * 2;
+  const bottom = hillLine(s);
   for (let g = 0; g < 3; g++) {
-    ctx.globalAlpha = tone.stars * (0.62 + 0.38 * Math.sin(s.t * 0.9 + g * 2.1));
+    ctx.globalAlpha = tone.stars * (0.6 + 0.4 * Math.sin(s.t * 0.9 + g * 2.1));
     for (let pass = 0; pass < 2; pass++) {
-      ctx.fillStyle = pass ? STAR_CREAM : STAR_RED;
+      ctx.fillStyle = pass ? STAR_WARM : STAR;
       ctx.beginPath();
       for (const st of STARS) {
-        if (st.g !== g || (!pass && !st.big)) continue;
+        if (st.g !== g || st.warm !== (pass === 1)) continue;
         const x = edge + st.x * span;
         const r = st.r * u;
-        // The whole star, its red plate and all, keeps out of the column.
-        const reach = st.big ? r * BIG * (1 + OFF_REGISTER) : r;
+        const reach = st.sparkle ? r * SPARKLE : r;
         if (x > c0 - reach && x < c1 + reach) continue;
         const y = st.y * s.cssH;
-        if (!pass) starPath(ctx, x + r * BIG * OFF_REGISTER, y + r * BIG * OFF_REGISTER, r * BIG);
-        else if (st.big) starPath(ctx, x, y, r * BIG);
+        if (y > bottom - u * 0.25) continue;
+        if (st.sparkle) sparkle(ctx, x, y, r * SPARKLE);
         else dot(ctx, x, y, r);
       }
       ctx.fill();

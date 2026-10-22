@@ -59,8 +59,8 @@ export function starPath(ctx: Ctx, x: number, y: number, r: number, rot = 0): vo
 }
 
 /**
- * One swag of bunting hung between (x0, y) and (x1, y), sagging `sag` below the line: a
- * pleated half-fan of stripes. Band `i` of `n` (0 outermost), as its own subpath.
+ * One swag of bunting hung between (x0, y) and (x1, y) (x0 < x1), sagging `sag` below the line:
+ * a pleated half-fan of stripes. Band `i` of `n` (0 outermost), as its own subpath.
  */
 export function swagBand(ctx: Ctx, x0: number, x1: number, y: number, sag: number, i: number, n: number): void {
   const cx = (x0 + x1) / 2;
@@ -70,7 +70,7 @@ export function swagBand(ctx: Ctx, x0: number, x1: number, y: number, sag: numbe
   ctx.moveTo(cx - rx * k0, y);
   ctx.ellipse(cx, y, rx * k0, sag * k0, 0, Math.PI, 0, true);
   ctx.lineTo(cx + rx * k1, y);
-  ctx.ellipse(cx, y, rx * k1, sag * k1, 0, 0, Math.PI, false);
+  if (k1 > 0) ctx.ellipse(cx, y, rx * k1, sag * k1, 0, 0, Math.PI, false);
   ctx.closePath();
 }
 
