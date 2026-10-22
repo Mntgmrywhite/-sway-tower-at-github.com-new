@@ -3,12 +3,14 @@ import { BLOCK_HEIGHT } from "../../config";
 import { titleLayout } from "../../render";
 import type { Scene } from "../skin";
 import { drifters } from "./drift";
-import { church, courthouse, floorTop, landmarkLine, townRow, trees } from "./far";
+import { floorTop, landmarkLine } from "./far";
+import { church, courthouse } from "./landmarks";
 import { front } from "./front";
 import { drawUnit, paradeX, ROUTE, UNITS, type Unit } from "./parade";
 import { sun, sunAt, SUN_REACH } from "./sky";
 import { bandstand, barbecue, hedge, inkW, lampPosts, path, sparklerKids } from "./square";
 import { context, mask, overlap, SIZES, startScene } from "./test-scene";
+import { townRow, trees } from "./town";
 import { level, toneOf } from "./tone";
 
 // The start view, on a tall and a short phone, at a few animation times: each prop is drawn

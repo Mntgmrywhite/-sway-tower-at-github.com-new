@@ -1,14 +1,15 @@
 import { mix } from "../../base/draw";
 import type { Palette } from "../skin";
 
-// Independence Day colors: a WPA screen-print poster of a small-town Fourth. A tight set of
-// inks on cream paper: a deep navy (the key: night, shadows, eyes), flag red, the cream of the
-// paper itself (the flag's white), a clear poster sky blue and one warm ochre gold, with a
-// summer green for the lawn and the trees. Every color comes in two to four flat steps (lit,
-// body, shade); nothing in the scene is outlined (only the bars keep theirs), shapes are told
-// apart by their tones. Far things are mixed toward the sky of the moment (tone.ts).
+// Independence Day colors: a 1930s WPA screen-print poster of a small-town Fourth. A tight set of
+// bold inks on cream paper: a deep navy (the key plate: the night, shadows, and the thin keyline
+// round everything up close), flag red, the cream of the paper itself (the flag's white), flag
+// blue, a clear poster sky blue and one warm ochre gold, with the summer greens for the lawn,
+// the hills and the trees. Every color comes in flat steps (lit, body, shade); far things carry
+// no keyline and are mixed toward the hour's haze, a paler ink a row further back (tone.ts), so
+// the town steps back in flat layers of atmosphere as a WPA poster does.
 
-/** The key ink: the darkest step of everything (the night, shadows, eyes). */
+/** The key ink: the darkest step of everything (the night, shadows, eyes, the keyline up close). */
 export const NAVY = "#1b2550";
 export const INK = NAVY;
 
@@ -27,26 +28,29 @@ function shades(body: string, light = 0.4, shade = 0.3): Shades {
 
 /** The paper: the flag's white, the stripes' cream. */
 export const CREAM = "#f6ead0";
-const RED = "#d5383d";
+const RED = "#d6363d";
 const BLUE = "#2b4796";
 const SKY = "#86c2e2";
 export const GOLD = "#efa935";
 const GREEN = "#5c9f49";
 
-/** The flag's stripes and field, as printed. */
+/** The flag's stripes and field, as printed up close. */
 export const STRIPE_RED = RED;
 export const STRIPE_WHITE = CREAM;
 export const STRIPE_BLUE = BLUE;
 export const STAR_WHITE = CREAM;
+export const FLAG = { red: RED, white: "#fbf3e2", blue: BLUE } as const;
 
 // ---------------------------------------------------------------- the lawn and the street
 
 /** The town square's lawn (its hazy far edge is in tone.ts), mown in two greens. */
 export const LAWN = "#6cae4f";
-export const LAWN_NEAR = "#57983f";
+export const LAWN_NEAR = "#5a9c42";
 /** The concrete path from the bandstand's steps to the street, and its joints. */
-export const PATH = "#e4cc98";
+export const PATH = "#e8d3a2";
 export const PATH_EDGE = "#c9ac74";
+/** The white picket fence along the square's far side: lit pickets, their shaded edge, the rails. */
+export const PICKET = shades("#f2e8d2", 0.5, 0.18);
 /** The street in front: navy asphalt, its gold center line, the curb painted for the Fourth. */
 export const ASPHALT = shades("#34406e", 0.16, 0.3);
 export const LANE_LINE = GOLD;
@@ -77,6 +81,14 @@ export const COOLER = shades("#3d84cf", 0.4, 0.3);
 export const BUN = shades("#e9b06a", 0.4, 0.22);
 export const SAUSAGE = "#b9403a";
 export const SMOKE = "#efe6d4";
+export const LEMONADE = "#f7dc5a";
+/** The flag in a jar of water on the barbecue table. */
+export const JAR = "#bfe3ff";
+/** The geraniums either side of the bandstand's steps: their clay pots and their leaves. */
+export const POT = "#c8643c";
+export const LEAVES = "#3f8f45";
+/** A sparkler's crackle. */
+export const SPARK = "#fff1c4";
 
 // ---------------------------------------------------------------- people
 
@@ -109,6 +121,7 @@ export const CHROME = shades("#d7dde6", 0.5, 0.3);
 export const LADDER = shades("#d6a35a", 0.4, 0.26);
 export const TIRE = NAVY;
 export const HUBCAP = "#e2dccb";
+export const WINDSCREEN = "#bfe3ff";
 /** The girl's bike and dress. */
 export const BIKE = shades("#ee6aa5", 0.4, 0.28);
 export const DRESS = shades(CREAM, 0.5, 0.2);
@@ -117,6 +130,8 @@ export const JEANS = shades("#3f62b8", 0.4, 0.3);
 export const KID_SHIRTS = [shades("#f08a3a"), shades("#3fa9dc"), shades("#8e68d8")] as const;
 export const DOG = shades("#f3ead6", 0.5, 0.22);
 export const DOG_SPOT = NAVY;
+/** The glint in the dog's eye. */
+export const GLINT = "#ffffff";
 export const BANDANA = BLUE;
 
 // ---------------------------------------------------------------- the sky's things
@@ -127,9 +142,21 @@ export const MOON_SHADE = "#e9d496";
 /** The show night's big stars: cream, printed over an off-register red plate (Pop Art). */
 export const STAR_CREAM = "#fff4d6";
 export const STAR_RED = "#e0484d";
+/** The flag-stripe sunburst's inks at dusk (mixed into the hour's sky, tone.ts). */
+export const RAY_RED = "#e2414a";
+export const RAY_CREAM = "#fff1d8";
+/** The show night's Ben-Day dots: a step of this blue over the sky's low band, a texture, never the picture. */
+export const DOT_INK = "#5d77c8";
 
-/** The lane's balloons, kite and biplane take the tone's faded red, cream, blue and gold (tone.ts); the eagle's beak keeps its own. */
+/** The eagle: dark brown body and wings, white head and tail, gold beak and feet. */
+export const EAGLE = shades("#4a2f22", 0.3, 0.3);
+export const EAGLE_WHITE = "#fbf6ea";
 export const EAGLE_BEAK = GOLD;
+/** The barnstormer: a yellow biplane with red wings. */
+export const PLANE = shades("#f4c430", 0.45, 0.25);
+export const PLANE_WING = shades(RED, 0.4, 0.3);
+/** The hot-air balloon's basket and ropes. */
+export const BASKET = shades("#b7834a", 0.35, 0.3);
 
 /** Firework inks: red, cream, sky blue and gold, in a fixed order so hash() can pick from them. */
 export const FIREWORK = ["#ff4e55", "#fff3d6", "#7fb6ff", "#ffc843"] as const;
@@ -140,9 +167,13 @@ export const FIREWORK_LIGHT = ["#ffa9ad", "#fffaf0", "#c4dcff", "#ffe6a0"] as co
 export const BRICK = "#b94a3a";
 export const BRICK_TAN = "#d9a35a";
 export const BRICK_CREAM = "#eedcb8";
-export const BRICK_SAGE = "#7fae9a";
-export const STONE = "#eadbb8";
+export const BRICK_SAGE = "#6fa592";
+export const BRICK_BLUE = "#4f72b0";
+/** The courthouse's sandstone, a warmer ink than the clouds behind it, and the church's white clapboard. */
+export const STONE = "#e6c590";
+export const CLAPBOARD = "#f7f0e0";
 export const SLATE = "#3d4b7c";
+export const GILT = "#f2b33d";
 export const WINDOW = "#2c3a6c";
 export const WINDOW_LIT = "#ffd36e";
 /** The courthouse clock's face, lit after dark. */
@@ -150,9 +181,19 @@ export const CLOCK_LIT = "#fff0c2";
 export const AWNING = [GREEN, RED, BLUE] as const;
 export const TREE = "#4b9447";
 export const TREE_LIT = "#7cbd5a";
+export const TREE_SHADE = "#3a7a3d";
 export const TRUNK = "#6b4426";
+/** The hills: the far ridge, the nearer rolling hill, and the woods on them. */
+export const RIDGE = "#8db7c8";
 export const HILL_FAR = "#9cc48a";
 export const HILL = "#78ad66";
+export const WOODS = "#4e8f52";
+/** The water tower's steel and its painted tank. */
+export const STEEL = "#7d8fb2";
+export const TANK = "#eadfc6";
+/** The rooftops behind Main Street: their walls (two rows, the far one paler) and roofs. */
+export const ROOF_WALL = "#c98f6b";
+export const ROOF_TOP = "#6a6f96";
 
 /**
  * The base palette. Independence Day paints its own backdrop over the base sky, field and
@@ -175,6 +216,6 @@ export const PALETTE: Palette = {
   grassDark: CURB.shade,
   stone: ASPHALT.body,
   stoneLight: ASPHALT.light,
-  // The bars' outline (the scene itself has none).
+  // The bars' outline and the keyline round everything up close.
   ink: "#1f2342",
 };

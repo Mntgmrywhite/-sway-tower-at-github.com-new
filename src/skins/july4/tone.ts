@@ -4,33 +4,49 @@ import type { Scene } from "../skin";
 import {
   AWNING,
   BRICK,
+  BRICK_BLUE,
   BRICK_CREAM,
   BRICK_SAGE,
   BRICK_TAN,
+  CLAPBOARD,
   CLOCK_LIT,
-  GOLD,
+  DOT_INK,
+  FLAG,
+  GILT,
   HILL,
   HILL_FAR,
+  RAY_CREAM,
+  RAY_RED,
+  RIDGE,
+  ROOF_TOP,
+  ROOF_WALL,
   SLATE,
+  STEEL,
   STONE,
   STRIPE_BLUE,
   STRIPE_RED,
   STRIPE_WHITE,
+  TANK,
   TREE,
   TREE_LIT,
+  TREE_SHADE,
   TRUNK,
   WINDOW,
   WINDOW_LIT,
+  WOODS,
 } from "./colors";
 import { smooth } from "./shapes";
 
 // Height tells the story: the light changes with the camera's altitude, in tower levels, and
-// every hour is a set of flat poster inks (the sky's five bands, the rays' steps, the clouds). A
-// bright sunny afternoon over the town square; up into a summer cumulus floor that covers the
-// town; a golden barbecue evening as the sun sinks into the clouds; a rose-and-violet dusk with
-// the first stars and the moon, when the first shells go up; the night, when the big fireworks
-// show fills both sides of the sky and builds to its finale, lighting the cloud floor; then
-// the show ends and the stars have the sky, with the smoke drifting off. Past that the story
+// every hour is a set of flat poster inks (the sky's five bands, the sunburst's rays, the
+// clouds, the town fading row by row into the haze). A bright sunny afternoon over the town
+// square; up into a summer cumulus floor that covers the town, the cumulus towering out of it
+// by day; a golden barbecue evening as the sun sinks into the clouds and the towers settle; a
+// rose-and-violet dusk whose sunburst is printed as the flag's red and cream stripes, with the
+// first stars and the moon, when the first shells go up; the night, when the big fireworks show
+// fills both sides of the sky, printed Pop Art over Ben-Day dots, and builds to its finale,
+// lighting the cloud floor; then the show ends and the stars have the sky, with the smoke
+// drifting off. Past that the story
 // loops for as long as you can climb: the night holds a while, a peach dawn brings the sun back
 // up out of the clouds, and from the afternoon on the day runs exactly as the first one did
 // (evening, dusk, the show) into the night again. The light is worked out at the camera's exact
@@ -90,13 +106,17 @@ export function level(s: Scene): number {
   return s.altitude / BLOCK_HEIGHT;
 }
 
+
 /** The light at one stage. */
 interface Key {
   at: number;
   /** The sky's flat bands, as a screen print lays them: top, upper, middle, low, and the glow on the horizon. */
   sky: [string, string, string, string, string];
-  /** How far the sunburst's rays step from each band's ink toward the next band's (0..1). */
+  /** How far the sunburst's rays step from each band's ink toward the next band's (0..1)... */
   rays: number;
+  /** ...and then how far toward the hour's burst ink (the paper by day, gold in the evening): how bold the burst prints. */
+  burst: number;
+  burstInk: string;
   /** Clouds: shaded underside, body, lit caps. */
   cloud: [string, string, string];
   /** What distance fades toward. */
@@ -106,13 +126,15 @@ interface Key {
 }
 
 const NIGHT_SHADOW = "#121a44";
-/** The paper the poster is printed on: the horizon band's rays step toward it. */
+/** The paper the poster is printed on: the day's rays step toward it. */
 const PAPER = "#fff8ea";
 
 const DAY: Omit<Key, "at"> = {
-  sky: ["#2d63ad", "#4a85c6", "#6fa6d8", "#a2cbe6", "#f2e2b9"],
+  sky: ["#2a5fab", "#4682c5", "#6ca4d8", "#a0cae6", "#f4e2b6"],
   rays: 0.9,
-  cloud: ["#b4c9dc", "#f6eedb", "#fffaf0"],
+  burst: 0.42,
+  burstInk: PAPER,
+  cloud: ["#a9c1da", "#f6eedb", "#fffaf0"],
   haze: "#b5d3e6",
   dark: 0,
 };
@@ -120,6 +142,8 @@ const DAY: Omit<Key, "at"> = {
 const NIGHT_KEY: Omit<Key, "at"> = {
   sky: ["#0f1640", "#141d50", "#19255e", "#1f2e6c", "#2a3b7e"],
   rays: 0.9,
+  burst: 0,
+  burstInk: PAPER,
   cloud: ["#28336f", "#45528f", "#6a79b4"],
   haze: "#263472",
   dark: 0.58,
@@ -130,9 +154,11 @@ const KEYS: Key[] = [
   { at: AFTERNOON, ...DAY },
   {
     at: GOLDEN,
-    sky: ["#36589f", "#6a76b0", "#d6886a", "#f0ab4c", "#f8d68c"],
+    sky: ["#33569e", "#6a74b0", "#d6866a", "#f0a94a", "#f8d68c"],
     rays: 0.85,
-    cloud: ["#dba27e", "#fadcb4", "#fff3dc"],
+    burst: 0.32,
+    burstInk: "#ffd27a",
+    cloud: ["#d79a78", "#fadcb4", "#fff3dc"],
     haze: "#eec493",
     dark: 0.08,
   },
@@ -140,6 +166,8 @@ const KEYS: Key[] = [
     at: DUSK,
     sky: ["#1f2667", "#3b3584", "#7e3f7f", "#c6505a", "#ee8c55"],
     rays: 0.8,
+    burst: 0.14,
+    burstInk: "#ffc59a",
     cloud: ["#674f9c", "#ad91cb", "#d6c0ea"],
     haze: "#86649f",
     dark: 0.4,
@@ -159,6 +187,8 @@ const DAWN_KEYS: Key[] = [
     at: DAWN_PEAK,
     sky: ["#33478f", "#6a63a8", "#b9779c", "#f19b80", "#fad7a0"],
     rays: 0.85,
+    burst: 0.3,
+    burstInk: "#ffe0bc",
     cloud: ["#b588ab", "#fccbbf", "#fff0e2"],
     haze: "#e2a6ae",
     dark: 0.16,
@@ -170,38 +200,76 @@ const DAWN_KEYS: Key[] = [
 export interface Tone {
   /** The sky's flat bands, top to horizon. */
   sky: [string, string, string, string, string];
-  /** The sunburst's ray ink over each band: a step toward the next band's ink (the last, toward the paper). */
+  /** The sunburst's ink over each band: its rays, and the slices between them (the band itself but at dusk). */
   rays: [string, string, string, string, string];
+  gaps: [string, string, string, string, string];
+  /** How far the dusk prints the burst as the flag's red and cream stripes (0..1): the slices between the rays are only drawn while it does. */
+  stripe: number;
   cloudShade: string;
   cloud: string;
   cloudLight: string;
-  /** The far hills, faded, and their tree line. */
+  /** The far blue ridge, the hills in front of it and their woods, faded. */
+  ridge: string;
   hillFar: string;
   hill: string;
   treeFar: string;
-  /** Main Street: brick in four tones, stone (lit and shaded), slate roofs, windows (lit at dusk), trim, awnings. */
+  woods: string;
+  /** The water tower: its steel, its tank (lit, and its shadow plane), and its cap (lit and shaded). */
+  steel: string;
+  tank: string;
+  tankDark: string;
+  tankShade: string;
+  capShade: string;
+  /** The rooftops behind Main Street, two rows: walls and their shadow planes, roofs, and the near row's windows. */
+  roofBack: string;
+  roofBackShade: string;
+  roofBackTop: string;
+  roofFar: string;
+  roofFarShade: string;
+  roofFarTop: string;
+  roofWindow: string;
+  /** Main Street: brick in five tones and their shadow planes, stone (lit and shaded), clapboard, slate roofs and their shade, gilt and its shade, windows (lit at dusk), trim, awnings. */
   brick: string;
   tan: string;
   cream: string;
   sage: string;
+  blueWall: string;
+  wallShade: [string, string, string, string, string];
   stone: string;
   stoneLit: string;
   stoneShade: string;
+  clapboard: string;
+  clapShade: string;
   slate: string;
+  slateShade: string;
+  gilt: string;
+  giltShade: string;
   window: string;
   trim: string;
   awnings: [string, string, string];
   /** The center block behind the tower, printed faint: its wall and its windows. */
   quiet: string;
   quietWindow: string;
-  /** Bunting and flags on the far buildings, and the lane's things. */
+  /** Bunting on the far buildings, and the lane's things (and their shaded sides); a row further back, the far bunting and the tank's paint. */
   red: string;
   white: string;
   blue: string;
-  yellow: string;
-  /** The big summer trees on the square's far side: canopy, its shaded half, trunk. */
+  redShade: string;
+  whiteShade: string;
+  blueShade: string;
+  farRed: string;
+  farWhite: string;
+  farBlue: string;
+  /** The courthouse flag: lit by its floodlight after dark, so it reads as the flag all night. */
+  flagRed: string;
+  flagWhite: string;
+  flagBlue: string;
+  /** The floodlight's beam up the flagpole after dark (0..1). */
+  flood: number;
+  /** The big summer trees on the square's far side: canopy, its lit crown, its shade, trunk. */
   tree: string;
   treeLit: string;
+  treeShade: string;
   trunk: string;
   /** The lawn's far band, as it fades with the light. */
   lawnFar: string;
@@ -215,18 +283,24 @@ export interface Tone {
   sunBody: string;
   sunShade: string;
   sunHalo: string;
-  /** The fireworks show: how many launchers fire (0..1), the finale (0..1), and the glow its bursts put on the sky and the cloud floor. */
+  /** The fireworks show: how many launchers fire (0..1), and the finale (0..1), whose bursts light the sky's low bands and the cloud floor. */
   show: number;
   finale: number;
-  glow: number;
   /** The show's night printed Pop Art: how big the halftone dots in the lanes are (0..1), and their ink. */
   dots: number;
   dot: string;
   /** The smoke the show leaves drifting (0..1). */
   smoke: number;
+  /** How high the summer cumulus tower over the cloud sea (1 by day, 0 by night, when they settle to low banks and leave the sky to the show). */
+  towers: number;
   /** The cloud floor's body and lit caps, warmed by the finale's bursts (the cloud colors otherwise). */
   floorCloud: string;
   floorCap: string;
+}
+
+/** A color's shadow plane: the poster's navy printed thin over it (opaque, so it costs what a plain fill does). */
+function shade(c: string): string {
+  return mix(c, "#141c42", 0.24);
 }
 
 /** Mid-distance color: faded toward the haze, then sunk toward the night (`night` scales how far). */
@@ -240,6 +314,8 @@ function blendKeys(a: Key, b: Key, t: number): Key {
     at: a.at + (b.at - a.at) * t,
     sky: [m(a.sky[0], b.sky[0]), m(a.sky[1], b.sky[1]), m(a.sky[2], b.sky[2]), m(a.sky[3], b.sky[3]), m(a.sky[4], b.sky[4])],
     rays: a.rays + (b.rays - a.rays) * t,
+    burst: a.burst + (b.burst - a.burst) * t,
+    burstInk: m(a.burstInk, b.burstInk),
     cloud: [m(a.cloud[0], b.cloud[0]), m(a.cloud[1], b.cloud[1]), m(a.cloud[2], b.cloud[2])],
     haze: m(a.haze, b.haze),
     dark: a.dark + (b.dark - a.dark) * t,
@@ -258,10 +334,12 @@ function keyIn(keys: Key[], lvl: number): Key {
   return keys[0]!;
 }
 
-/** How far the town's things fade toward the haze; the center block behind the tower much further. */
+/** How far the town's things fade toward the haze, row by row back from Main Street; the center block behind the tower much further. */
 const ROW = 0.14;
-const FAR = 0.45;
-const QUIET = 0.62;
+const BACK = 0.3;
+const FAR = 0.48;
+const RIDGE_FADE = 0.6;
+const QUIET = 0.5;
 
 /** What the light does, apart from its colors. */
 interface Light {
@@ -273,6 +351,8 @@ interface Light {
   show: number;
   finale: number;
   smoke: number;
+  stripe: number;
+  towers: number;
 }
 
 function toneFrom(k: Key, l: Light): Tone {
@@ -282,26 +362,53 @@ function toneFrom(k: Key, l: Light): Tone {
   const glow = l.finale * 0.5;
   // The finale's bursts light the low bands rose and violet.
   const sky: Tone["sky"] = [k.sky[0], k.sky[1], k.sky[2], mix(k.sky[3], "#5e3a86", glow), mix(k.sky[4], "#8a4a86", glow)];
+  const ray = (i: number, next: string) => mix(mix(mix(sky[i]!, next, k.rays), k.burstInk, k.burst), RAY_RED, l.stripe * 0.78);
+  const gap = (i: number) => mix(sky[i]!, RAY_CREAM, l.stripe * 0.62);
+  // The courthouse flag: by day as the far bunting; after dark, lit by its floodlight, it keeps its colors.
+  const flagFade = (c: string) => mix(mix(c, k.haze, ROW * 0.6), NIGHT_SHADOW, k.dark * 0.28);
   return {
     sky,
-    rays: [mix(sky[0], sky[1], k.rays), mix(sky[1], sky[2], k.rays), mix(sky[2], sky[3], k.rays), mix(sky[3], sky[4], k.rays), mix(sky[4], PAPER, k.rays * 0.6 * (1 - k.dark))],
+    rays: [ray(0, sky[1]), ray(1, sky[2]), ray(2, sky[3]), ray(3, sky[4]), ray(4, mix(sky[4], PAPER, 0.6 * (1 - k.dark)))],
+    gaps: [gap(0), gap(1), gap(2), gap(3), gap(4)],
+    stripe: l.stripe,
     cloudShade: k.cloud[0],
     cloud: k.cloud[1],
     cloudLight: k.cloud[2],
+    ridge: fade(RIDGE, k, RIDGE_FADE),
     hillFar: fade(HILL_FAR, k, FAR),
-    hill: fade(HILL, k, 0.32),
-    treeFar: fade("#4e8f52", k, 0.36),
+    hill: fade(HILL, k, 0.34),
+    treeFar: fade("#4e8f52", k, 0.4),
+    woods: fade(WOODS, k, 0.44),
+    steel: fade(STEEL, k, BACK),
+    tank: fade(TANK, k, BACK),
+    tankDark: fade(shade(TANK), k, BACK),
+    tankShade: fade(mix(TANK, SLATE, 0.3), k, BACK),
+    capShade: fade(shade(mix(TANK, SLATE, 0.3)), k, BACK),
+    roofBack: fade(ROOF_WALL, k, BACK),
+    roofBackShade: fade(shade(ROOF_WALL), k, BACK),
+    roofBackTop: fade(ROOF_TOP, k, BACK),
+    roofFar: fade(mix(ROOF_WALL, HILL_FAR, 0.3), k, FAR),
+    roofFarShade: fade(shade(mix(ROOF_WALL, HILL_FAR, 0.3)), k, FAR),
+    roofFarTop: fade(ROOF_TOP, k, FAR),
+    roofWindow: mix(fade(mix(WINDOW, ROOF_WALL, 0.3), k, BACK), WINDOW_LIT, lit * 0.8),
     brick: fade(BRICK, k, ROW),
     tan: fade(BRICK_TAN, k, ROW),
     cream: fade(BRICK_CREAM, k, ROW),
     sage: fade(BRICK_SAGE, k, ROW),
+    blueWall: fade(BRICK_BLUE, k, ROW),
+    wallShade: [fade(shade(BRICK), k, ROW), fade(shade(BRICK_TAN), k, ROW), fade(shade(BRICK_CREAM), k, ROW), fade(shade(BRICK_SAGE), k, ROW), fade(shade(BRICK_BLUE), k, ROW)],
     // From dusk the steeple and the courthouse tower standing out of the cloud sea are printed as
     // the poster's skyline silhouettes: one dark ink (a trace of the lit side left), their windows
     // and the clock face lit.
     stone: mix(fade(STONE, k, ROW, 0.65), NIGHT_SHADOW, sil * 0.9),
-    stoneLit: mix(fade("#fff8e8", k, ROW, 0.65), NIGHT_SHADOW, sil * 0.84),
-    stoneShade: mix(fade("#b9aa8c", k, ROW, 0.65), NIGHT_SHADOW, sil * 0.94),
+    stoneLit: mix(fade(mix(STONE, PAPER, 0.45), k, ROW, 0.65), NIGHT_SHADOW, sil * 0.84),
+    stoneShade: mix(fade(mix(STONE, SLATE, 0.32), k, ROW, 0.65), NIGHT_SHADOW, sil * 0.94),
+    clapboard: mix(fade(CLAPBOARD, k, ROW, 0.65), NIGHT_SHADOW, sil * 0.86),
+    clapShade: mix(fade(mix(CLAPBOARD, SLATE, 0.25), k, ROW, 0.65), NIGHT_SHADOW, sil * 0.94),
     slate: mix(fade(SLATE, k, ROW), NIGHT_SHADOW, sil * 0.6),
+    slateShade: mix(fade(shade(SLATE), k, ROW), NIGHT_SHADOW, sil * 0.6),
+    gilt: mix(fade(GILT, k, ROW * 0.6), "#7a5a2a", sil * 0.55),
+    giltShade: mix(fade(shade(GILT), k, ROW * 0.6), "#5e4420", sil * 0.55),
     window: mix(fade(WINDOW, k, ROW), WINDOW_LIT, lit),
     trim: mix(fade(STRIPE_WHITE, k, ROW), CLOCK_LIT, lit * 0.8),
     awnings: [fade(AWNING[0], k, ROW), fade(AWNING[1], k, ROW), fade(AWNING[2], k, ROW)],
@@ -310,9 +417,19 @@ function toneFrom(k: Key, l: Light): Tone {
     red: fade(STRIPE_RED, k, ROW * 0.8),
     white: fade(STRIPE_WHITE, k, ROW * 0.8),
     blue: fade(STRIPE_BLUE, k, ROW * 0.8),
-    yellow: fade(GOLD, k, ROW * 0.8),
+    redShade: fade(shade(STRIPE_RED), k, ROW * 0.8),
+    whiteShade: fade(shade(STRIPE_WHITE), k, ROW * 0.8),
+    blueShade: fade(shade(STRIPE_BLUE), k, ROW * 0.8),
+    farRed: fade(STRIPE_RED, k, BACK),
+    farWhite: fade(STRIPE_WHITE, k, BACK),
+    farBlue: fade(STRIPE_BLUE, k, BACK),
+    flagRed: flagFade(FLAG.red),
+    flagWhite: flagFade(FLAG.white),
+    flagBlue: flagFade(FLAG.blue),
+    flood: lit,
     tree: fade(TREE, k, 0.3),
     treeLit: fade(TREE_LIT, k, 0.3),
+    treeShade: fade(TREE_SHADE, k, 0.3),
     trunk: fade(TRUNK, k, 0.3),
     lawnFar: fade("#8fc46a", k, 0.1),
     bird: mix(k.sky[1], NIGHT_SHADOW, 0.55),
@@ -325,15 +442,26 @@ function toneFrom(k: Key, l: Light): Tone {
     sunHalo: mix(sky[4], mix("#fff4c4", "#ffc496", warm), 0.5),
     show: l.show,
     finale: l.finale,
-    glow: l.finale,
     // The halftone dots come and go with the show.
     dots: l.show,
-    dot: mix(k.sky[3], "#5d77c8", 0.5),
+    dot: mix(k.sky[3], DOT_INK, 0.45),
     smoke: l.smoke,
+    towers: l.towers,
     floorCloud: mix(k.cloud[1], "#c98a9c", l.finale * 0.4),
     floorCap: mix(k.cloud[2], "#ffe2b4", l.finale * 0.65),
   };
 }
+
+/** The flag-stripe burst: it comes up as the golden evening turns to dusk and gives way to the night's dots. */
+const STRIPE_FROM = GOLDEN + 2;
+const STRIPE_FULL = DUSK - 6;
+const STRIPE_END = SHOW_FULL - 2;
+const STRIPE_GONE = NIGHT - 4;
+
+/** The cumulus settle from towers to low banks through the golden evening, before the first shells go up, and build again through the loop's dawn. */
+const TOWERS_END = GOLDEN + 6;
+const TOWERS_GONE = SHOW_FROM;
+const TOWERS_RISE = 10;
 
 /** The first day's light at a level (its night holds past NIGHT). */
 function dayLight(lvl: number): Light {
@@ -345,6 +473,8 @@ function dayLight(lvl: number): Light {
     show: smooth(SHOW_FROM, SHOW_FULL, lvl) * (1 - smooth(SHOW_END, SHOW_GONE, lvl)),
     finale: smooth(FINALE_FROM, FINALE_FULL, lvl) * (1 - smooth(FINALE_END, FINALE_GONE, lvl)),
     smoke: smooth(SHOW_FULL, FINALE_FROM, lvl),
+    stripe: smooth(STRIPE_FROM, STRIPE_FULL, lvl) * (1 - smooth(STRIPE_END, STRIPE_GONE, lvl)),
+    towers: 1 - smooth(TOWERS_END, TOWERS_GONE, lvl),
   };
 }
 
@@ -367,6 +497,8 @@ function dawnLight(e: number): Light {
     show: 0,
     finale: 0,
     smoke: 1 - smooth(0, 6, x),
+    stripe: 0,
+    towers: smooth(TOWERS_RISE, DAWN_SPAN, x),
   };
 }
 

@@ -1,16 +1,20 @@
 import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { MOON, MOON_SHADE, STAR_CREAM, STAR_RED } from "./colors";
-import { crescent, starPath } from "./shapes";
+import { crescent, dot, starPath } from "./shapes";
 import type { Tone } from "./tone";
 
 // The sky, printed like a WPA poster: flat bands of the hour's inks from the top of the screen
-// down to the glow on the horizon (no soft gradients), and a sunburst of narrow rays fanning up
+// down to the glow on the horizon (no soft gradients), and a sunburst of broad rays fanning up
 // from behind the town (later from behind the cloud sea) into both side lanes, each ray printed
-// nearly the next band's ink, so it reads as a poster's sunburst on every screen. The fan keeps out of the tower's column (it rises from below the skyline, and
-// its steepest ray clears the column at the skyline's height), so the sky behind the tower stays
-// plain. In the show's night the lanes are printed Pop Art: Ben-Day halftone dots that swell
-// toward the screen's edges and the horizon and shrink to nothing beside the column. A summer
+// a step toward the next band's ink and the hour's burst ink (the paper by day, gold in the
+// evening), over the angles a phone's lane shows, so it reads as a poster's sunburst on every
+// screen; at dusk the rays and the slices between them are printed as the flag's red and cream
+// stripes. The fan keeps out of the tower's column (it rises from below the skyline, and its
+// steepest ray clears the column at the skyline's height), so the sky behind the tower stays
+// plain. In the show's night the lanes are printed Pop Art: a texture of Ben-Day halftone dots,
+// a step off the sky's ink, that swell toward the screen's edges and the horizon and shrink to
+// nothing beside the column (a texture only, never the picture). A summer
 // sun hangs up on the left by day (white-gold in the afternoon, amber in the golden evening),
 // a flat disc with spoked rays, and sinks into the cloud floor at sunset; then a flat crescent
 // moon in the same place, lit on the side the sun set, and bold five-point stars; at the loop's
@@ -28,9 +32,13 @@ const BANDS = [0, 0.3, 0.52, 0.7, 0.85] as const;
 /** The sunburst's apex lies RAY_DEPTH u below the line; at the line's height its steepest ray is RAY_CLEAR u out from the center. */
 const RAY_DEPTH = 0.8;
 const RAY_CLEAR = 0.27;
-/** The fan's shallowest edge (radians above the horizontal), and how many rays a side (narrow, so several show in a phone's lane). */
-const RAY_FROM = 0.12;
-const RAYS_A_SIDE = 20;
+/**
+ * The fan's shallowest edge (radians above the horizontal), and how many rays a side: the fan
+ * spans the angles a phone's lane shows above the town (shallower rays would only run behind
+ * the town and out of the screen's sides), so a lane shows the whole poster burst.
+ */
+const RAY_FROM = 0.72;
+const RAYS_A_SIDE = 7;
 /** Its steepest edge: the ray through (RAY_CLEAR, the line). */
 const RAY_TO = Math.atan2(RAY_DEPTH, RAY_CLEAR);
 const RAY_SLICE = (RAY_TO - RAY_FROM) / (RAYS_A_SIDE * 2 - 1);
@@ -39,6 +47,27 @@ const RAY_RUN = Array.from({ length: RAYS_A_SIDE }, (_, i) => {
   const a0 = RAY_FROM + RAY_SLICE * i * 2;
   return [1 / Math.tan(a0), 1 / Math.tan(a0 + RAY_SLICE)] as const;
 });
+/** The slices between the rays (printed only at dusk, when the burst becomes the flag's stripes). */
+const GAP_RUN = Array.from({ length: RAYS_A_SIDE - 1 }, (_, i) => {
+  const a0 = RAY_FROM + RAY_SLICE * (i * 2 + 1);
+  return [1 / Math.tan(a0), 1 / Math.tan(a0 + RAY_SLICE)] as const;
+});
+
+/** One set of slices across a band, from its top (r0 out per unit of `run`) to its foot, both sides of the center (those wholly off the screen's sides left out). */
+function slices(ctx: Ctx, run: readonly (readonly [number, number])[], cx: number, y0: number, y1: number, r0: number, r1: number): void {
+  ctx.beginPath();
+  for (const side of [-1, 1]) {
+    for (const [k0, k1] of run) {
+      if (r1 * k1 > cx + 1) continue;
+      ctx.moveTo(cx + side * r0 * k0, y0);
+      ctx.lineTo(cx + side * r0 * k1, y0);
+      ctx.lineTo(cx + side * r1 * k1, y1);
+      ctx.lineTo(cx + side * r1 * k0, y1);
+      ctx.closePath();
+    }
+  }
+  ctx.fill();
+}
 
 /**
  * Paint the sky down to `bottom` (everything below it is covered by the hills and the lawn, or
@@ -61,27 +90,24 @@ export function skyFill(ctx: Ctx, s: Scene, tone: Tone, line: number, bottom: nu
     // A pixel's overlap into the next band, so no seam shows between them at any zoom.
     const y1o = y1 < end ? y1 + 1 : y1;
     ctx.fillRect(0, y0, s.cssW, y1o - y0);
-    // The rays across this band: each a quad between its two edges, from the band's top to its foot.
-    const r0 = ay - y0;
-    const r1 = Math.max(0, ay - y1o);
-    ctx.fillStyle = tone.rays[i]!;
-    ctx.beginPath();
-    for (const side of [-1, 1]) {
-      for (const [k0, k1] of RAY_RUN) {
-        ctx.moveTo(cx + side * r0 * k0, y0);
-        ctx.lineTo(cx + side * r0 * k1, y0);
-        ctx.lineTo(cx + side * r1 * k1, y1o);
-        ctx.lineTo(cx + side * r1 * k0, y1o);
-        ctx.closePath();
+    // The rays across this band: each a quad between its two edges, from the band's top to its foot
+    // (none in the top band, which the HUD's rows cover).
+    if (i > 0) {
+      const r0 = ay - y0;
+      const r1 = Math.max(0, ay - y1o);
+      ctx.fillStyle = tone.rays[i]!;
+      slices(ctx, RAY_RUN, cx, y0, y1o, r0, r1);
+      if (tone.stripe > 0.01) {
+        ctx.fillStyle = tone.gaps[i]!;
+        slices(ctx, GAP_RUN, cx, y0, y1o, r0, r1);
       }
     }
-    ctx.fill();
     y0 = y1;
   }
 }
 
 /** The halftone: grid pitch (u), how far out from the center the dots begin, and over how far they swell to full size. */
-const DOT_PITCH = 0.036;
+const DOT_PITCH = 0.046;
 const DOT_FROM = 0.27;
 const DOT_SWELL = 0.24;
 /** The dotted field starts this far down the screen (below the HUD and the moon). */
@@ -103,7 +129,7 @@ export function halftone(ctx: Ctx, s: Scene, tone: Tone, line: number): void {
   const top = s.cssH * DOT_TOP;
   const bottom = Math.min(line, s.cssH);
   if (bottom <= top) return;
-  const rMax = g * 0.42 * tone.dots;
+  const rMax = g * 0.34 * tone.dots;
   const cols = Math.ceil((s.cssW / 2 - DOT_FROM * u) / g) + 1;
   ctx.strokeStyle = tone.dot;
   ctx.lineCap = "round";
@@ -275,7 +301,7 @@ export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
         const r = st.r * u;
         if (!pass) starPath(ctx, x + r * 2.4 * OFF_REGISTER, y + r * 2.4 * OFF_REGISTER, r * 2.4);
         else if (st.big) starPath(ctx, x, y, r * 2.4);
-        else circle(ctx, x, y, r);
+        else dot(ctx, x, y, r);
       }
       ctx.fill();
     }

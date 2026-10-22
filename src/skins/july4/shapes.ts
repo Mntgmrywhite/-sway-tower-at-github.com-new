@@ -1,8 +1,9 @@
 import type { Ctx } from "../../base/draw";
 
 // Shapes shared by the scenery: rounded blocks, pills, five-point stars, bunting swags, far-off
-// birds, sparkles. Paths only (each starts its own subpath, so several can share one fill).
-// Nothing here allocates.
+// birds, round dots and specks (cheaper than arcs where many are drawn), rows of scallops,
+// sparkles. Paths only (each starts its own subpath, so several can share one fill). Nothing
+// here allocates.
 
 function clamp01(x: number): number {
   return x < 0 ? 0 : x > 1 ? 1 : x;
@@ -83,6 +84,34 @@ export function birdStroke(ctx: Ctx, x: number, y: number, g: number, flap: numb
   ctx.quadraticCurveTo(x + g * 0.45, y - g * 0.5, x + g, tip);
 }
 
+/** The eight corners of a unit octagon. */
+const OCTAGON = Array.from({ length: 8 }, (_, i) => [Math.cos((i * Math.PI) / 4), Math.sin((i * Math.PI) / 4)] as const);
+
+/**
+ * A small round dot as its own subpath: an octagon, which reads as round at the sizes it is
+ * used (sparks, heads of light, buttons) and costs under half what an arc does to fill.
+ */
+export function dot(ctx: Ctx, x: number, y: number, r: number): void {
+  ctx.moveTo(x + r, y);
+  for (let i = 1; i < 8; i++) ctx.lineTo(x + OCTAGON[i]![0] * r, y + OCTAGON[i]![1] * r);
+  ctx.closePath();
+}
+
+/** A speck as its own subpath: a square, for dots a pixel or two across (stars on a flag, eyes), where a square and a circle print alike. */
+export function speck(ctx: Ctx, x: number, y: number, r: number): void {
+  ctx.rect(x - r, y - r, r * 2, r * 2);
+}
+
+/** A row of round scallops from x0 to x1 along `y` (each `step` wide, rising `bump` above it), filled down `depth` below it, as its own subpath. */
+export function scallops(ctx: Ctx, x0: number, x1: number, y: number, step: number, bump: number, depth: number): void {
+  if (x1 <= x0) return;
+  ctx.moveTo(x0, y + depth);
+  ctx.lineTo(x0, y);
+  for (let x = x0; x < x1; x += step) ctx.quadraticCurveTo(x + step / 2, y - bump * 2, Math.min(x1, x + step), y);
+  ctx.lineTo(x1, y + depth);
+  ctx.closePath();
+}
+
 /** A four-point sparkle as its own subpath. */
 export function sparkle(ctx: Ctx, x: number, y: number, r: number): void {
   const w = r * 0.24;
@@ -111,13 +140,4 @@ export function crescent(ctx: Ctx, x: number, y: number, r: number, bx: number, 
   ctx.arc(x, y, r, toward + a, toward - a + Math.PI * 2);
   ctx.arc(bx, by, br, back + b, back - b, true);
   ctx.closePath();
-}
-
-/** Stroke the current path as a flat band of `color`, `width` wide, round at its ends and joints (limbs, poles, wires). */
-export function line(ctx: Ctx, color: string, width: number): void {
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.stroke();
 }

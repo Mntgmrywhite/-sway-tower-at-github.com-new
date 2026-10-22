@@ -169,3 +169,41 @@ describe("independence day's sky behind the tower", () => {
     }
   }, 60_000);
 });
+
+describe("independence day's cloud sea behind the tower", () => {
+  // Below its scalloped top edge the cloud sea is one plain ink across the tower's column: its
+  // rows of billows keep to the lanes. (The calm test above averages the column over the whole
+  // screen, where the plain sky outweighs a band of busy cloud behind the tower.) Checked on the
+  // whole backdrop, so nothing else drawn there may show either.
+  const VIEWS = [
+    [390, 844, 1],
+    [375, 667, 1],
+    [834, 1194, 1],
+    [390, 844, 0.6],
+  ] as const;
+  /** The floor's top edge (its lobes, their caps and the shade under them) reaches this far (u) under its top. */
+  const EDGE = 0.1;
+  const STEPS = Array.from({ length: Math.ceil((LOOP_START + LOOP) / 3) + 1 }, (_, i) => i * 3);
+
+  it.each(VIEWS)("%ix%i at zoom %s: the cloud sea across the column is one ink", (W0, H0, z) => {
+    const view = (lvl: number, t: number): Scene => (z === 1 ? sceneAt(W0, H0, lvl, t) : zoomedScene(W0, H0, z, lvl, t));
+    const probe = view(0, 0);
+    const ctx = context(probe.cssW, probe.cssH);
+    let checked = 0;
+    for (const lvl of STEPS) {
+      const s = view(lvl, (lvl * 0.71) % 9);
+      const y0 = Math.ceil(floorTop(s, level(s)) + s.u * EDGE);
+      if (y0 >= s.cssH) continue;
+      ctx.clearRect(0, 0, s.cssW, s.cssH);
+      kitFor(july4).world(ctx, s);
+      const x0 = Math.floor(s.baseX);
+      const w = Math.ceil(s.baseW);
+      const d = ctx.getImageData(x0, y0, w, Math.floor(s.cssH) - y0).data;
+      let busy = 0;
+      for (let i = 4; i < d.length; i += 4) if (Math.abs(d[i]! - d[0]!) + Math.abs(d[i + 1]! - d[1]!) + Math.abs(d[i + 2]! - d[2]!) > 3) busy++;
+      expect(busy, `level ${lvl}: pixels of the cloud sea across the column that differ from its face`).toBe(0);
+      checked++;
+    }
+    expect(checked, "levels with the cloud sea on screen").toBeGreaterThan(20);
+  }, 60_000);
+});

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { july4 } from "../july4";
 import type { Scene } from "../skin";
-import { DOME_TOP, floorTop, FLOOR_SETTLED, landmarkLine, poleTop, STEEPLE_TOP } from "./far";
+import { floorTop, FLOOR_SETTLED, landmarkLine } from "./far";
+import { DOME_TOP, poleTop, STEEPLE_TOP } from "./landmarks";
+import { townLine, TOWN_TOP } from "./town";
 import { context, sceneAt, SIZES, zoomedScene } from "./test-scene";
 import { DAY_HIGH, level, LOOP, LOOP_START, storyLevel, toneAtLevel, type Tone } from "./tone";
 
@@ -165,9 +167,9 @@ describe("independence day's loop on screen", () => {
       expect(gathering, `${W}x${H}: the floor's biggest step as it gathers`).toBeLessThan(s0.u * 0.03);
       // Once it has covered the town it sinks slower than the tower comes down past it (a quarter level is 2 world units).
       expect(sinking, `${W}x${H}: the floor's biggest step as it sinks to rest`).toBeLessThan(s0.scale * 2);
-      // At the moment the town stops being drawn, the floor's top stands over every storefront and tree.
+      // At the moment the town stops being drawn, the floor's top stands over every storefront, rooftop, tree and the water tower.
       const s = sceneAt(W, H, DAY_HIGH, 0);
-      expect(floorTop(s, level(s))).toBeLessThan(s.horizonY - s.u * 0.17);
+      expect(floorTop(s, level(s))).toBeLessThan(townLine(s) - s.u * TOWN_TOP);
     }
   });
 });

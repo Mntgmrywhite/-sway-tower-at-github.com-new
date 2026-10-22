@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
 import { drawDrifter, drifters, eachVisible, type Drifter } from "./drift";
-import { church, cloudFloor, courthouse, farLayer, floorTop, landmarkLine, landShows, POLE_TOP, trees } from "./far";
+import { cloudFloor, farLayer, farProps, farShows, floorTop, landmarkLine, landShows } from "./far";
+import { church, courthouse } from "./landmarks";
 import { fireworks } from "./fireworks";
 import { front } from "./front";
 import { parade } from "./parade";
 import { moonAt, sunAt, SUN_REACH } from "./sky";
 import { bandstand, barbecue, hedge, lampPosts, lawn, path, sparklerKids } from "./square";
 import { context, mask, overlap, sceneAt, SIZES, zoomedScene } from "./test-scene";
+import { trees, waterTower } from "./town";
 import { level, LOOP, LOOP_START, toneOf } from "./tone";
 
 // Everything drifting past in the lane, all the way up through the first day and two whole
@@ -56,7 +58,7 @@ describe("independence day's drifters", () => {
       });
     }
     // Every kind of drifter was on screen at some point on the way up.
-    expect([...kinds].sort()).toEqual(["balloons", "biplane", "birds", "eagle", "kite", "smoke"]);
+    expect([...kinds].sort()).toEqual(["balloons", "biplane", "birds", "blimp", "eagle", "hotair", "jumper", "kite", "smoke", "stunt"]);
   }, 120_000);
 });
 
@@ -104,14 +106,9 @@ function afterSky(ctx: CanvasRenderingContext2D, s: Scene, clouds = true): void 
   fireworks(ctx, s, tone, floor);
   if (clouds) farLayer(ctx, s, tone, floor);
   else {
-    // The far layer as farLayer() draws it (only while its landmarks stand out of the floor), less the cloud bank.
+    // The far layer as farLayer() draws it (only while its landmarks stand out of the floor), less the cumulus.
     const line = landmarkLine(s);
-    const land = landShows(s);
-    if (line - s.u * POLE_TOP < s.cssH && floor - s.u * 0.06 > line - s.u * POLE_TOP) {
-      church(ctx, s, tone, line, land);
-      courthouse(ctx, s, tone, line, land);
-      if (land) trees(ctx, s, tone);
-    }
+    if (farShows(s, floor, line)) farProps(ctx, s, tone, floor, line, landShows(s));
   }
   drifters(ctx, s, tone);
   if (landShows(s) && s.horizonY < s.cssH) {
@@ -218,8 +215,8 @@ describe("independence day's sun and moon", () => {
 
 describe("independence day's drifters over the land", () => {
   // While the land still shows (until the cloud floor covers it), what comes down the lane may
-  // pass in front of the plain hills and the park but never over the church, the courthouse,
-  // the big trees or the lamp posts.
+  // pass in front of the plain hills, the park and the clouds but never over the church, the
+  // courthouse, the water tower, the big trees or the lamp posts.
   const PROPS_LEVELS = Array.from({ length: 32 }, (_, i) => i);
   // The moments include the swifts wheeling out to the left edge of their flock (about 20 s).
   it.each(SIZES.flatMap(([W, H]) => [0, 5.3, 11, 19.6, 20.3].map((t) => [W, H, t] as const)))("%ix%i at t=%s: nothing drifts over the far props", (W, H, t) => {
@@ -232,6 +229,7 @@ describe("independence day's drifters over the land", () => {
         const line = landmarkLine(s);
         church(ctx, s, tone, line, true);
         courthouse(ctx, s, tone, line, true);
+        waterTower(ctx, s, tone, line);
         trees(ctx, s, tone);
         lampPosts(ctx, s, tone);
       });
