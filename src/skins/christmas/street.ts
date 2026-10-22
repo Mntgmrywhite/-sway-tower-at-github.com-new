@@ -1,13 +1,13 @@
-import { circle, hash, oval, type Ctx } from "../../base/draw";
+import { hash, oval, type Ctx } from "../../base/draw";
 import { TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
 import { BEAK, COBBLE, IRON, LAMP, LAMP_CORE, NAVY, PIGEON, PIGEON_LIGHT, PIGEON_NECK, RUT, SNOW, TEAL } from "./colors";
-import { glow, snowCap } from "./shapes";
+import { glow, inked, INKW, puff, puffOval, snowCap } from "./shapes";
 
 // Street furniture and life on the snowy cobbles, cut from flat paper: cobblestones peeking
-// through the snow (thickest along the carriage track), Victorian gas lamps (a slim navy post,
-// a ladder bar, a mustard lantern in its ring of light), and pigeons pecking about in front of
-// the tower that flutter up when the carriage clatters by.
+// through the snow (thickest along the carriage track), Victorian gas lamps (a slim
+// navy post, a ladder bar, an inked mustard lantern in its ring of light), and pigeons pecking
+// about in front of the tower, drawn round in ink, that flutter up when the carriage clatters by.
 
 const Y = (v: number) => -v;
 
@@ -29,8 +29,8 @@ const COBBLES: number[] = (() => {
       const sx = (dx * TOWER_DEPTH) / z; // screen offset in u
       // Smooth patches where the snow has worn thin, and the carriage track up front.
       const patch = Math.sin(sx * 9.1 + z * 2.3) * 0.5 + Math.sin(sx * 4.3 - z * 4.1 + 1.3) * 0.5;
-      const track = z < 1.7 ? 0.6 : 0;
-      const keep = Math.max(track, patch > 0.4 ? 0.8 : patch > 0.2 ? 0.25 : 0.02);
+      const track = z < 1.7 ? 0.5 : 0;
+      const keep = Math.max(track, patch > 0.4 ? 0.65 : patch > 0.2 ? 0.2 : 0);
       if (hash(i * 131 + j * 7 + 5000) > keep) continue;
       out.push(z, dx + (hash(i * 17 + j + 5100) - 0.5) * w * 0.2, 0.85 + hash(i * 7 + j * 3 + 5200) * 0.3);
     }
@@ -53,7 +53,7 @@ function stone(ctx: Ctx, x: number, y: number, rx: number, ry: number): void {
   ctx.closePath();
 }
 
-/** Cobbles in patches on the snowy street: flat pale stones, one tint, no highlights. */
+/** Cobbles in patches on the snowy street: flat stones in one tint, no highlights. */
 export function cobbles(ctx: Ctx, s: Scene): void {
   const cx = s.cssW / 2;
   const hy = s.horizonY;
@@ -106,8 +106,9 @@ export const LADDER_BAR = 0.29 * LAMP_SCALE;
  * a ladder bar, and a mustard lantern under a pointed cap, in a ring of light. `flare` (0..1)
  * brightens it as it's lit.
  */
-export function gasLamp(ctx: Ctx, x: number, y: number, depthU: number, t: number, seed: number, flare: number): void {
+export function gasLamp(ctx: Ctx, x: number, y: number, depthU: number, lwPx: number, t: number, seed: number, flare: number): void {
   const U = depthU * LAMP_SCALE;
+  const ink = (lwPx * INKW) / U;
   const flick = 0.9 + 0.1 * Math.sin(t * 8.3 + seed) * Math.sin(t * 3.7 + seed * 2);
   glow(ctx, x, y - 0.342 * U, 0.13 * U, Math.min(1, flick * (0.8 + 0.4 * flare)));
   ctx.save();
@@ -128,14 +129,14 @@ export function gasLamp(ctx: Ctx, x: number, y: number, depthU: number, t: numbe
   ctx.closePath();
   ctx.rect(-0.0085, Y(0.168), 0.017, 0.008);
   ctx.rect(-0.024, Y(0.29), 0.048, 0.006);
-  circle(ctx, -0.024, Y(0.287), 0.0045);
-  circle(ctx, 0.024, Y(0.287), 0.0045);
+  puff(ctx, -0.024, Y(0.287), 0.0045);
+  puff(ctx, 0.024, Y(0.287), 0.0045);
   ctx.rect(-0.012, Y(0.318), 0.024, 0.008);
   ctx.moveTo(-0.022, Y(0.368));
   ctx.lineTo(0, Y(0.398));
   ctx.lineTo(0.022, Y(0.368));
   ctx.closePath();
-  circle(ctx, 0, Y(0.402), 0.0045);
+  puff(ctx, 0, Y(0.402), 0.0045);
   ctx.fillStyle = IRON;
   ctx.fill();
   // A teal glint down the post.
@@ -152,8 +153,9 @@ export function gasLamp(ctx: Ctx, x: number, y: number, depthU: number, t: numbe
   ctx.closePath();
   ctx.fillStyle = LAMP;
   ctx.fill();
+  inked(ctx, ink);
   ctx.beginPath();
-  oval(ctx, 0, Y(0.342), 0.006, 0.0105 * flick * (1 + 0.25 * flare));
+  puffOval(ctx, 0, Y(0.342), 0.006, 0.0105 * flick * (1 + 0.25 * flare));
   ctx.fillStyle = LAMP_CORE;
   ctx.fill();
   ctx.beginPath();
@@ -179,10 +181,16 @@ export const PIGEONS = [
   [2.15, 0.15, -1, 4.4],
 ] as const;
 
+/** The shadows of pigeons on the snow, as subpaths: a flat oval under the bird at screen (x, y), U px per unit. */
+export function pigeonShadow(ctx: Ctx, x: number, y: number, U: number): void {
+  puffOval(ctx, x, y, 0.012 * U, 0.0025 * U);
+}
+
 /**
  * One plump pigeon with its feet at screen (x, y), U px per unit, facing left (dir 1) or right
- * (-1), pecking now and then; `lift` (0..1) flutters it up off the ground. Flat shapes: a slate
- * body, a paler wing, a teal neck, a round head.
+ * (-1), pecking now and then; `lift` (0..1) flutters it up off the ground. Flat shapes, inked
+ * round its silhouette: a slate body and head, a paler wing, a teal collar. (Its shadow on the
+ * snow is drawn with the others', by pigeonShadow.)
  */
 export function pigeon(ctx: Ctx, x: number, y: number, U: number, lwPx: number, dir: number, t: number, phase: number, lift: number): void {
   const lw = lwPx / U;
@@ -193,11 +201,6 @@ export function pigeon(ctx: Ctx, x: number, y: number, U: number, lwPx: number, 
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(U * dir, U);
-  // Shadow on the snow
-  ctx.beginPath();
-  oval(ctx, 0, 0, 0.012, 0.0025);
-  ctx.fillStyle = "rgba(47, 128, 130, 0.18)";
-  ctx.fill();
   ctx.translate(0, Y(hop));
   // Feet
   if (lift < 0.2) {
@@ -211,9 +214,11 @@ export function pigeon(ctx: Ctx, x: number, y: number, U: number, lwPx: number, 
     ctx.lineCap = "round";
     ctx.stroke();
   }
-  // Tail and body
+  // Tail, body and head, dipping forward to peck: one shape, inked under so it reads whole.
   const tilt = peck * 0.35;
   ctx.rotate(-tilt * 0.5);
+  const hx = -0.012 - peck * 0.006;
+  const hy = 0.021 - peck * 0.014;
   ctx.beginPath();
   ctx.moveTo(0.008, Y(0.013));
   ctx.lineTo(0.024, Y(0.017));
@@ -221,7 +226,23 @@ export function pigeon(ctx: Ctx, x: number, y: number, U: number, lwPx: number, 
   ctx.lineTo(0.008, Y(0.007));
   ctx.closePath();
   oval(ctx, 0, Y(0.0115), 0.0135, 0.0085);
+  ctx.moveTo(-0.008, Y(0.017));
+  ctx.quadraticCurveTo(-0.012, Y(0.02), hx, Y(hy));
+  ctx.lineTo(hx + 0.006, Y(hy - 0.006));
+  ctx.lineTo(-0.004, Y(0.012));
+  ctx.closePath();
+  puff(ctx, hx, Y(hy), 0.0055);
+  inked(ctx, lw * INKW * 2);
   ctx.fillStyle = PIGEON;
+  ctx.fill();
+  // The teal collar round its neck.
+  ctx.beginPath();
+  ctx.moveTo(-0.0075, Y(0.0175));
+  ctx.quadraticCurveTo(-0.011, Y(0.0195), hx + 0.002, Y(hy - 0.003));
+  ctx.lineTo(hx + 0.0065, Y(hy - 0.0065));
+  ctx.lineTo(-0.0035, Y(0.0125));
+  ctx.closePath();
+  ctx.fillStyle = PIGEON_NECK;
   ctx.fill();
   // Wing: folded, or raised and beating when it flutters
   ctx.beginPath();
@@ -233,25 +254,11 @@ export function pigeon(ctx: Ctx, x: number, y: number, U: number, lwPx: number, 
     ctx.lineTo(0.008, Y(0.012));
     ctx.closePath();
   } else {
-    oval(ctx, 0.005, Y(0.0125), 0.0085, 0.005, -0.15);
+    puffOval(ctx, 0.005, Y(0.0125), 0.0085, 0.005, -0.15);
   }
   ctx.fillStyle = PIGEON_LIGHT;
   ctx.fill();
-  // Neck and head, dipping forward to peck
-  const hx = -0.012 - peck * 0.006;
-  const hy = 0.021 - peck * 0.014;
-  ctx.beginPath();
-  ctx.moveTo(-0.008, Y(0.017));
-  ctx.quadraticCurveTo(-0.012, Y(0.02), hx, Y(hy));
-  ctx.lineTo(hx + 0.006, Y(hy - 0.006));
-  ctx.lineTo(-0.004, Y(0.012));
-  ctx.closePath();
-  ctx.fillStyle = PIGEON_NECK;
-  ctx.fill();
-  ctx.beginPath();
-  circle(ctx, hx, Y(hy), 0.0055);
-  ctx.fillStyle = PIGEON;
-  ctx.fill();
+  // Beak and eye
   ctx.beginPath();
   ctx.moveTo(hx - 0.004, Y(hy + 0.001));
   ctx.lineTo(hx - 0.0095, Y(hy - 0.0015));
@@ -260,7 +267,7 @@ export function pigeon(ctx: Ctx, x: number, y: number, U: number, lwPx: number, 
   ctx.fillStyle = BEAK;
   ctx.fill();
   ctx.beginPath();
-  circle(ctx, hx - 0.0015, Y(hy + 0.0012), 0.0014);
+  puff(ctx, hx - 0.0015, Y(hy + 0.0012), 0.0014);
   ctx.fillStyle = NAVY;
   ctx.fill();
   ctx.restore();

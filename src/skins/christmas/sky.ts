@@ -198,6 +198,15 @@ const STAR_CLEAR = 0.24;
 /** Small dot stars over the sky: x, y as fractions of the screen, size (px) and a twinkle phase. */
 const DOTS = Array.from({ length: 60 }, (_, i) => ({ x: hash(i), y: hash(i + 100) * 0.8, r: 0.7 + hash(i + 200) * 0.9 }));
 
+/** A small diamond of half-diagonal r as its own subpath: the card's dot of light (and much cheaper than a tiny circle). */
+function dot(ctx: Ctx, x: number, y: number, r: number): void {
+  ctx.moveTo(x, y - r);
+  ctx.lineTo(x + r, y);
+  ctx.lineTo(x, y + r);
+  ctx.lineTo(x - r, y);
+  ctx.closePath();
+}
+
 /** Small dots in the side lanes, above the horizon, twinkling. */
 function dotStars(ctx: Ctx, s: Scene, tone: Tone): void {
   if (tone.stars <= 0) return;
@@ -211,7 +220,7 @@ function dotStars(ctx: Ctx, s: Scene, tone: Tone): void {
       const x = st.x * s.cssW;
       const y = st.y * s.cssH;
       if (Math.abs(x - cx) < clear || y > s.horizonY - s.u * 0.05) continue;
-      circle(ctx, x, y, st.r);
+      dot(ctx, x, y, st.r * 1.2);
     }
     ctx.globalAlpha = (0.55 + 0.35 * Math.sin(s.t * 1.5 + g * 2.1)) * tone.stars;
     ctx.fill();
@@ -221,20 +230,26 @@ function dotStars(ctx: Ctx, s: Scene, tone: Tone): void {
 
 /**
  * Atomic starbursts that come out as the tower climbs into the night: [x, y] as fractions of
- * the screen, a twinkle group. They keep to the side lanes, clear of the HUD and the tower.
+ * the screen, a twinkle group, a size. They keep to the side lanes, clear of the HUD and the
+ * tower; a few (BIG_BURSTS) are the card's big feature stars, low in the lanes.
  */
+const BIG_BURSTS: readonly number[] = [1, 6, 7];
+const BIG = 1.8;
 const BURSTS = Array.from({ length: 12 }, (_, i) => {
   const fy = 0.06 + hash(i + 7600) * 0.56;
   const side = i % 2;
   const fx = (side ? 0.82 : 0.03) + hash(i + 7800) * 0.15;
-  return [fx, fy, i % 3] as const;
+  return [fx, fy, i % 3, BIG_BURSTS.includes(i) ? BIG : 1] as const;
 });
 
 /** The starbursts' ink: mustard warmed toward the cream of the moon. */
 const BURST = mix(MUSTARD, CREAM, 0.35);
 
-/** No starburst within this many u of the sun's or the moon's spot, so none peeks out round them. */
-const BODY_CLEAR = 0.17;
+/** No starburst within this many u (plus its own reach) of the sun's or the moon's spot, so none peeks out round them. */
+const BODY_CLEAR = 0.14;
+/** A starburst's radius (u) at its smallest twinkle, and how much it grows. */
+const BURST_R = 0.022;
+const BURST_TW = 0.008;
 
 function starbursts(ctx: Ctx, s: Scene, tone: Tone): void {
   const a = tone.sparkles;
@@ -244,12 +259,13 @@ function starbursts(ctx: Ctx, s: Scene, tone: Tone): void {
   for (let g = 0; g < 3; g++) {
     const tw = 0.5 + 0.5 * Math.sin(s.t * 1.6 + g * 2.1);
     ctx.beginPath();
-    for (const [fx, fy, group] of BURSTS) {
+    for (const [fx, fy, group, size] of BURSTS) {
       if (group !== g) continue;
       const x = fx * s.cssW;
       const y = fy * s.cssH;
-      if (Math.hypot(x - moonX(s), y - by) < clear || Math.hypot(x - sunX(s), y - by) < clear) continue;
-      starburstPath(ctx, x, y, s.u * (0.022 + 0.008 * tw));
+      const near = clear + s.u * (BURST_R + BURST_TW) * size;
+      if (Math.hypot(x - moonX(s), y - by) < near || Math.hypot(x - sunX(s), y - by) < near) continue;
+      starburstPath(ctx, x, y, s.u * (BURST_R + BURST_TW * tw) * size);
     }
     ctx.fillStyle = BURST;
     ctx.globalAlpha = a * (0.55 + 0.45 * tw);
@@ -342,7 +358,7 @@ function flakes(n: number, seed: number, zMin: number, zMax: number): Flake[] {
   }));
 }
 
-/** Small distant flakes (dots) and fewer, larger near ones (six-armed asterisks). */
+/** Small distant flakes (diamond dots) and fewer, larger near ones (six-armed asterisks). */
 const FAR_FLAKES = flakes(90, 4000, 0, 0.6);
 const NEAR_FLAKES = flakes(34, 6000, 0.6, 1);
 const FAR_FLAKE = alpha(WHITE, 0.6);
@@ -392,13 +408,13 @@ function flakePaths(ctx: Ctx, s: Scene, list: readonly Flake[], near: boolean, g
         ctx.lineTo(x + dx * r, y + dy * r);
       }
     } else {
-      circle(ctx, x, y, s.u * (0.0018 + 0.0024 * f.z) * k);
+      dot(ctx, x, y, s.u * (0.0022 + 0.003 * f.z) * k);
     }
   }
   if (near) {
     ctx.strokeStyle = NEAR_FLAKE;
     ctx.lineWidth = Math.max(1, s.u * 0.0032);
-    ctx.lineCap = "round";
+    ctx.lineCap = "butt";
     ctx.stroke();
   } else {
     ctx.fillStyle = FAR_FLAKE;
@@ -421,6 +437,83 @@ export function snow(ctx: Ctx, s: Scene, yMin: number, yMax: number): void {
     flakePaths(ctx, s, FAR_FLAKES, false, g, yMin, yMax);
     flakePaths(ctx, s, NEAR_FLAKES, true, g, yMin, yMax);
   }
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- ornamental flakes
+
+/**
+ * Big ornamental snowflakes like those printed on a 1950s card, drifting slowly down the upper
+ * left lane (the moon keeps the right): [x (u left of the center line), phase, radius (u), spin].
+ * Part of the printed sky: they grow in below the HUD and shrink away before they reach anything
+ * standing in their lane (the roofs, the chimney smoke, the city's towers and the hills), fall
+ * only while it snows, and stay away while the loop's winter sun is up in their lane.
+ */
+const ORNAMENTS = [
+  [0.4, 0, 0.034, 0.3],
+  [0.34, 0.36, 0.026, -0.25],
+  [0.41, 0.69, 0.03, 0.2],
+] as const;
+/** Screen heights per second they drift down, and the band of the screen they cross (fractions of its height). */
+const ORN_FALL = 0.008;
+const ORN_BAND = [0.16, 0.44] as const;
+/** The lane they drift down: this far left of the center line at most and at least (u), sway and arms included. */
+export const ORN_LANE = [0.46, 0.29] as const;
+/** They are gone (shrunk away) this far above the top of whatever stands in their lane (u), the biggest's arms included. */
+const ORN_CLEAR = 0.045;
+/** Below this much room between the HUD and the land (u) none are drawn; below ORN_FULL they are drawn smaller, so they never touch. */
+const ORN_ROOM = 0.12;
+const ORN_FULL = 0.26;
+/** The arms' branches: [where along the arm, length], as fractions of the radius. */
+const BRANCHES = [
+  [0.42, 0.3],
+  [0.7, 0.22],
+] as const;
+const ORN_INK = alpha(CREAM, 0.55);
+
+/**
+ * The ornamental flakes, as heavy as the story's snow has them, above `floor`: the screen y of the
+ * highest thing standing in their lane (ORN_LANE), which they keep clear of.
+ */
+export function ornaments(ctx: Ctx, s: Scene, floor: number): void {
+  const k = toneOf(s).snow * (1 - smooth(0, 0.05, sunUp(level(s))));
+  if (k <= 0.01) return;
+  const u = s.u;
+  const top = s.cssH * ORN_BAND[0];
+  const span = Math.min(s.cssH * ORN_BAND[1], floor - u * ORN_CLEAR) - top;
+  if (span < u * ORN_ROOM) return;
+  const room = Math.min(1, span / (u * ORN_FULL));
+  ctx.beginPath();
+  for (const [dx, phase, size, spin] of ORNAMENTS) {
+    const p = (phase + s.t * ORN_FALL) % 1;
+    // They grow in as they drift in and shrink away before the roofs, like the day's clouds.
+    const grow = smooth(0, 0.15, p) * (1 - smooth(0.7, 1, p));
+    if (grow <= 0.05) continue;
+    const r = size * u * grow * room;
+    const x = s.cssW / 2 - dx * u + Math.sin(s.t * 0.4 + phase * 9) * u * 0.012;
+    const y = top + p * span;
+    const a0 = s.t * spin + phase * 5;
+    for (let i = 0; i < 6; i++) {
+      const a = a0 + (i * Math.PI) / 3;
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      ctx.moveTo(x + c * r * 0.16, y + sn * r * 0.16);
+      ctx.lineTo(x + c * r, y + sn * r);
+      for (const [at, len] of BRANCHES) {
+        const bx = x + c * r * at;
+        const by = y + sn * r * at;
+        ctx.moveTo(bx + Math.cos(a - 0.8) * r * len, by + Math.sin(a - 0.8) * r * len);
+        ctx.lineTo(bx, by);
+        ctx.lineTo(bx + Math.cos(a + 0.8) * r * len, by + Math.sin(a + 0.8) * r * len);
+      }
+    }
+  }
+  ctx.strokeStyle = ORN_INK;
+  ctx.lineWidth = Math.max(1, u * 0.0035);
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+  ctx.globalAlpha = k;
+  ctx.stroke();
   ctx.globalAlpha = 1;
 }
 

@@ -108,7 +108,7 @@ describe("christmas looping story", () => {
     expect(at(50).tone.snow).toBe(0);
     expect(at(50).tone.stars).toBe(0);
     // The day: bright, the skyline in daylight colors.
-    expect(at(68).tone.far).not.toBe(at(0).tone.far);
+    expect(at(68).tone.city).not.toBe(at(0).tone.city);
     // Dusk: the street's own sky again, the moon back up, the sun gone, snowing.
     expect(at(98).tone.sky).toEqual(STREET_SKY);
     expect(at(98).moon).toBe(1);

@@ -1,12 +1,12 @@
-import { circle, hash, type Ctx } from "../../base/draw";
+import { hash, oval, type Ctx } from "../../base/draw";
 import { fieldY, layerGround, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
-import { AQUA, BERRY, EVERGREEN, NAVY, SLATE, SNOW, SNOW_SHADE, TEAL, WHITE } from "./colors";
+import { AQUA, BERRY, EVERGREEN, FLAG, FLAG_JOINT, FLAG_LIGHT, HOLLY_DARK, INK, POOL, POOL_CORE, SHADOW, SNOW, SNOW_SHADE, WHITE } from "./colors";
 import { carriage, RIG_LENGTH } from "./carriage";
-import { countingHouse, HOUSE_W, type HouseFrame, poulterer, terrace, TERRACES, terraceReach } from "./houses";
+import { CH_TOP, countingHouse, HOUSE_W, type HouseFrame, poulterer, terrace, TERRACES, terraceReach } from "./houses";
 import { carolers, lamplighter, lighterReach } from "./people";
 import { drift, sparklePath } from "./shapes";
-import { cobbles, gasLamp, LADDER_BAR, LAMP_BURNER, pigeon, PIGEONS, ruts } from "./street";
+import { cobbles, gasLamp, LADDER_BAR, LAMP_BURNER, pigeon, PIGEONS, pigeonShadow, ruts } from "./street";
 import { HILL_ROWS, toneOf } from "./tone";
 
 // The street around the tower, back to front: snowy cobbles, the two townhouses framing the
@@ -134,8 +134,23 @@ export function pigeonLift(s: Scene, i: number): number {
 
 /** The carriage, if it's on its pass behind (`back`) or in front. */
 export function rig(ctx: Ctx, s: Scene, back: boolean): void {
-  if (placeCarriage(s) && CART.back === back) carriage(ctx, CART.x, CART.y, CART.U, lineW(s), CART.dist, s.t, back ? -1 : 1);
+  // (Not drawn once the climb has sunk it below the screen: the rig is under RIG_TOP units tall.)
+  if (placeCarriage(s) && CART.back === back && CART.y - RIG_TOP * CART.U < s.cssH) {
+    carriage(ctx, CART.x, CART.y, CART.U, lineW(s), CART.dist, s.t, back ? -1 : 1);
+  }
 }
+
+/**
+ * How far above its feet each part of the street reaches (units at its depth), so a part the
+ * climb has sunk below the screen is not drawn: the carriage (whip and hat), a gas lamp with its
+ * ring of light, the pigeons, the townsfolk (the carolers' notes, the lantern held up).
+ */
+const RIG_TOP = 0.14;
+const LAMP_TOP = 0.45;
+const PIGEON_TOP = 0.06;
+const FOLK_TOP = 0.36;
+/** The farthest pigeon's depth: the highest on the screen. */
+const PIGEON_FAR = Math.max(...PIGEONS.map((p) => p[0]));
 
 /** One frame object handed to every house and figure, refilled per call (no allocations). */
 const F: HouseFrame = { x: 0, y: 0, U: 1, lw: 1, t: 0 };
@@ -159,15 +174,45 @@ export function props(ctx: Ctx, s: Scene): void {
   rig(ctx, s, false);
 }
 
+/** Screen y of the top of the street in the sky's left lane: Scrooge's chimney smoke, so the ornamental flakes keep clear of it. */
+export function streetTop(s: Scene): number {
+  return fieldY(s, HOUSE_Z) - CH_TOP * unit(s, HOUSE_Z);
+}
+
 /** Screen x of the left and right gas lamps. */
 function lampX(s: Scene, side: -1 | 1): number {
   return s.cssW / 2 + side * LAMP_SCREEN_X * s.u;
+}
+
+/**
+ * Warm light lying on the snow as flat shapes: an oval pool round each lamp's foot, and the glow
+ * thrown out in front of the poulterer's shop window and Scrooge's one candle, each a pale warm
+ * oval round a brighter core.
+ */
+function pools(ctx: Ctx, s: Scene): void {
+  const LU = unit(s, LAMP_Z);
+  const ly = fieldY(s, LAMP_Z);
+  const HU = unit(s, HOUSE_Z);
+  const hy = fieldY(s, HOUSE_Z) + HU * 0.016;
+  for (let core = 0; core < 2; core++) {
+    const k = core ? 0.55 : 1;
+    ctx.beginPath();
+    for (const side of [-1, 1] as const) oval(ctx, lampX(s, side), ly + LU * 0.004, LU * 0.12 * k, LU * 0.02 * k);
+    oval(ctx, rowX(s, HOUSE_IN + 0.15, HOUSE_Z), hy, HU * 0.1 * k, HU * 0.018 * k);
+    oval(ctx, rowX(s, -HOUSE_OUT + 0.12, HOUSE_Z), hy, HU * 0.055 * k, HU * 0.012 * k);
+    ctx.fillStyle = core ? POOL_CORE : POOL;
+    ctx.fill();
+  }
 }
 
 /** The townhouses, the gas lamps and the pigeons: everything behind the carriage's lane back. */
 export function street(ctx: Ctx, s: Scene): void {
   const lw = lineW(s);
   const t = s.t;
+  const LU = unit(s, LAMP_Z);
+  const ly = fieldY(s, LAMP_Z);
+  const lamps = ly - LAMP_TOP * LU < s.cssH;
+  if (lamps) pools(ctx, s);
 
   // The townhouses, standing a little behind the tower's line.
   {
@@ -190,18 +235,22 @@ export function street(ctx: Ctx, s: Scene): void {
     drift(ctx, rowX(s, 0.49, z), y + U * 0.006, U * 0.12, U * 0.024);
   }
 
+  if (!lamps) return;
   // Gas lamps; the lamplighter reaches up to the left one now and then.
-  const LU = unit(s, LAMP_Z);
-  const ly = fieldY(s, LAMP_Z);
   const rightX = lampX(s, 1);
   const leftX = lampX(s, -1);
-  gasLamp(ctx, rightX, ly, LU, t, 2.1, 0);
+  gasLamp(ctx, rightX, ly, LU, lw, t, 2.1, 0);
   drift(ctx, rightX, ly + LU * 0.004, LU * 0.05, LU * 0.014);
   const reach = lighterReach(t);
-  gasLamp(ctx, leftX, ly, LU, t, 0.4, reach * reach * reach * reach);
+  gasLamp(ctx, leftX, ly, LU, lw, t, 0.4, reach * reach * reach * reach);
   drift(ctx, leftX, ly + LU * 0.004, LU * 0.05, LU * 0.014);
 
-  // Pigeons on the cobbles in front of the tower; they flutter up as the carriage nears.
+  // Pigeons on the cobbles in front of the tower, their shadows first; they flutter up as the carriage nears.
+  if (fieldY(s, PIGEON_FAR) - PIGEON_TOP * unit(s, PIGEON_FAR) > s.cssH) return;
+  ctx.beginPath();
+  for (const [z, dx] of PIGEONS) pigeonShadow(ctx, rowX(s, dx, z), fieldY(s, z), unit(s, z));
+  ctx.fillStyle = SHADOW;
+  ctx.fill();
   for (let i = 0; i < PIGEONS.length; i++) {
     const [z, dx, dir, phase] = PIGEONS[i]!;
     pigeon(ctx, rowX(s, dx, z), fieldY(s, z), unit(s, z), lw * 0.85, dir, t, phase, pigeonLift(s, i));
@@ -219,6 +268,7 @@ export function townsfolk(ctx: Ctx, s: Scene): void {
   const fz = FOLK_Z;
   const FU = unit(s, fz) * FOLK_SCALE;
   const fy = fieldY(s, fz);
+  if (fy - FOLK_TOP * FU > s.cssH && ly - LAMP_TOP * LU > s.cssH) return;
   lamplighter(ctx, at(rowX(s, -0.236, fz), fy, FU, lw, t), leftX + LU * 0.004, burnerY + LU * 0.03, leftX + LU * 0.016, ly - LADDER_BAR * LU);
   drift(ctx, rowX(s, -0.24, fz), fy + FU * 0.004, FU * 0.08, FU * 0.016);
   carolers(ctx, at(rowX(s, 0.182, fz), fy, FU, lw, t));
@@ -282,15 +332,18 @@ const SPRIGS = [
 
 /** How far the base band's grass tips reach above its top (u: src/base/world.ts's tiles). */
 const GRASS_TIPS = 0.026;
-/** The pavement: a slate ground and its cobbles a shade lighter. */
-const COBBLES_INK = TEAL;
-const PAVEMENT = SLATE;
+/** The pavement: a course of long kerbstones, then rows of flags in a running bond (u). */
+const KERB_H = 0.03;
+const KERB_W = 0.17;
+const FLAG_H = 0.055;
+const FLAG_W = 0.12;
 
 /**
  * The near edge we look over: a bank of snow along the kerb, its top edge a row of round
- * scallops, a band of aqua shade under its lip with icicles near the sides, and below it the
- * slate pavement printed with rows of round cobbles (it covers the base's band and tiles). Holly pokes
- * out of the snow at either side. Drops away with the base band as you climb.
+ * scallops, a band of aqua shade under its lip with icicles near the sides; below it a course of
+ * pale kerbstones and the slate flags of the pavement in a running bond, inked like the street
+ * (it covers the base's band and tiles). Holly pokes out of the snow at either side. Drops away
+ * with the base band as you climb.
  */
 export function foreground(ctx: Ctx, s: Scene): void {
   const u = s.u;
@@ -300,23 +353,32 @@ export function foreground(ctx: Ctx, s: Scene): void {
   const bank = u * 0.03;
   const lip = top + bank;
   const kerb = lip + u * 0.012;
+  const ink = Math.max(1, u * 0.0034);
 
-  // The pavement, from just under the snow to the bottom of the screen, and its cobbles: rows of
-  // round stones in a staggered repeat, like a printed pattern.
-  ctx.fillStyle = PAVEMENT;
+  // The pavement, from just under the snow to the bottom of the screen: the kerbstones, then the flags.
+  ctx.fillStyle = FLAG;
   ctx.fillRect(0, kerb - 1, W, s.cssH - kerb + 1);
-  const rowH = u * 0.036;
-  const gap = u * 0.042;
-  const r = u * 0.014;
+  const kw = KERB_W * u;
+  const kh = KERB_H * u;
   ctx.beginPath();
-  for (let row = 0, y = kerb + u * 0.03; y - r < s.cssH; row++, y += rowH) {
-    const off = row % 2 ? gap / 2 : 0;
-    for (let x = (W / 2) % gap - gap + off; x - r < W; x += gap) circle(ctx, x, y, r);
-  }
-  ctx.fillStyle = COBBLES_INK;
-  ctx.globalAlpha = 0.24;
+  for (let x = (W / 2) % kw - kw; x < W; x += kw) ctx.rect(x + ink, kerb, kw - ink * 2, kh);
+  ctx.fillStyle = FLAG_LIGHT;
   ctx.fill();
-  ctx.globalAlpha = 1;
+  const fh = FLAG_H * u;
+  const fw = FLAG_W * u;
+  ctx.beginPath();
+  for (let row = 0, y = kerb + kh; y < s.cssH; row++, y += fh) {
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    for (let x = (W / 2) % fw - fw + (row % 2 ? fw / 2 : 0); x < W; x += fw) {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + fh);
+    }
+  }
+  ctx.strokeStyle = FLAG_JOINT;
+  ctx.lineWidth = ink;
+  ctx.lineCap = "butt";
+  ctx.stroke();
 
   // Icicles under the lip, near the sides.
   ctx.beginPath();
@@ -330,34 +392,39 @@ export function foreground(ctx: Ctx, s: Scene): void {
   ctx.fillStyle = AQUA;
   ctx.fill();
 
-  // The snow bank: a scalloped top, the lip's shade band under it.
+  // The snow bank: a scalloped top, the lip's shade band under it, inked along its top.
   // (The scallops' notches stand above the base band's grass tips, so none show between them.)
   const step = u * 0.06;
   const crest = top - u * GRASS_TIPS;
   const n = Math.ceil(W / step) + 1;
   const x0 = (W / 2) % step - step;
+  const scallops = (): void => {
+    ctx.lineTo(x0, crest);
+    for (let i = 0; i <= n; i++) {
+      const x = x0 + i * step;
+      ctx.arc(x + step / 2, crest, step / 2, Math.PI, 0);
+    }
+  };
   ctx.beginPath();
   ctx.moveTo(x0, kerb);
-  ctx.lineTo(x0, crest);
-  for (let i = 0; i <= n; i++) {
-    const x = x0 + i * step;
-    ctx.arc(x + step / 2, crest, step / 2, Math.PI, 0);
-  }
+  scallops();
   ctx.lineTo(x0 + (n + 1) * step, kerb);
   ctx.closePath();
   ctx.fillStyle = SNOW_SHADE;
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(x0, lip);
-  ctx.lineTo(x0, crest);
-  for (let i = 0; i <= n; i++) {
-    const x = x0 + i * step;
-    ctx.arc(x + step / 2, crest, step / 2, Math.PI, 0);
-  }
+  scallops();
   ctx.lineTo(x0 + (n + 1) * step, lip);
   ctx.closePath();
   ctx.fillStyle = SNOW;
   ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x0, crest);
+  scallops();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = ink;
+  ctx.stroke();
 
   // Holly sprigs: three pointed leaves and a cluster of berries, planted in the bank.
   for (const [fx, lean] of SPRIGS) {
@@ -379,6 +446,20 @@ export function foreground(ctx: Ctx, s: Scene): void {
     }
     ctx.fillStyle = EVERGREEN;
     ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = ink;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    // A vein down each leaf.
+    ctx.beginPath();
+    for (let k = -1; k <= 1; k++) {
+      const a = -Math.PI / 2 + k * 0.75 + lean * 0.15;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * r * 1.3, y + Math.sin(a) * r * 1.3);
+    }
+    ctx.strokeStyle = HOLLY_DARK;
+    ctx.lineWidth = ink * 0.8;
+    ctx.stroke();
     ctx.beginPath();
     for (let k = 0; k < 3; k++) {
       const bx = x + (k - 1) * r * 0.32;
@@ -388,9 +469,12 @@ export function foreground(ctx: Ctx, s: Scene): void {
     }
     ctx.fillStyle = BERRY;
     ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = ink;
+    ctx.stroke();
   }
 
-  // A navy line along the kerb's edge.
-  ctx.fillStyle = NAVY;
-  ctx.fillRect(0, kerb - u * 0.004, W, u * 0.004);
+  // The ink line along the kerb's edge.
+  ctx.fillStyle = INK;
+  ctx.fillRect(0, kerb - ink, W, ink);
 }

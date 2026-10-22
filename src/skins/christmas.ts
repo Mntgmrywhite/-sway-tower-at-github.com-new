@@ -13,7 +13,7 @@ import {
   BAR_RED,
   BAR_TEAL,
   CREAM,
-  FAR,
+  CITY,
   NAVY,
   SKY_GLOW,
   SKY_MID,
@@ -24,8 +24,8 @@ import {
   STUCCO_SHADE,
   TEAL,
 } from "./christmas/colors";
-import { far } from "./christmas/far";
-import { foreground, ground } from "./christmas/ground";
+import { far, laneTop } from "./christmas/far";
+import { foreground, ground, streetTop } from "./christmas/ground";
 import { hills } from "./christmas/hills";
 import {
   bell,
@@ -41,26 +41,32 @@ import {
   topHat,
   wreath,
 } from "./christmas/icons";
-import { bodies, pigeonFlock, skyFill, snow, stars } from "./christmas/sky";
+import { bodies, ornaments, pigeonFlock, skyFill, snow, stars } from "./christmas/sky";
 import { toneOf } from "./christmas/tone";
 import type { CartoonSkin, Scene } from "./skin";
 
 // Christmas, after Dickens' A Christmas Carol (1843), drawn as a mid-century modern Christmas
-// card: snowy Victorian London at dusk in a handful of flat inks (deep teal, slate navy,
-// cranberry, dusty pink, mustard, cream, snow white and an evergreen), printed without outlines
-// or soft gradients. The sky hangs in flat bands from deep teal down to a pink and mustard glow,
-// with a pale flat moon, atomic starbursts and geometric snow. On the horizon, London cut from
-// paper: rooftops bristling with chimney pots on a range of snowy hills, a great dome and a
-// church steeple whose bell rings out, strips of fog drifting across their feet; in front of
-// them rows of snowy hills with stylized firs in the side lanes, which spread apart as the
-// tower climbs. Around the tower: Scrooge & Marley's counting house (Marley's face shimmers in
-// the door knocker) and the poulterer's with its prize goose, grids of candlelit windows and
-// wreaths, gas lamps, the lamplighter at work, carolers singing by lantern light, pigeons on the
-// snowy cobbles and a carriage loping round and round the tower. A scalloped snowbank over the
-// slate pavement in front. The middle of the scene, behind the tower, is kept open and quiet.
-// Climbing, the street falls away into the night; past that the story loops forever
-// (christmas/tone.ts): the night lifts into a golden Christmas morning, a bright winter day with
-// cut-paper clouds drifting down the right lane, a rosy dusk like the street's, and night again.
+// card (a 1950s picture book after Mary Blair, Charley Harper and the UPA studio): snowy Victorian
+// London at dusk in a handful of rich flat inks (slate navy, deep teal, cranberry, rose, mustard,
+// cream, snow white and an evergreen), no soft gradients. The sky hangs in flat bands from a
+// blue-black teal down to a rose afterglow and a mustard glow over the city, with a pale flat
+// moon, atomic starbursts, big ornamental snowflakes drifting down the left lane and geometric
+// snow. Far off, London is cut from paper in rows that pale with distance (christmas/far.ts):
+// snowy hills climbing high at the sides with stylized firs on their crests, a hazy back row of
+// spires, a middle row with a great domed cathedral and a church whose bell rings out, a clock
+// tower and a column with a gilded urn out in the lanes, a front row of snow-capped gables
+// bristling with chimney pots, candlelit windows by the hundred and strips of fog at their feet;
+// the rows spread apart as the tower climbs. Between them and the street, rows of snowy hills cut
+// in two tones with groves of firs and a fence line in the lanes (christmas/hills.ts). Around the
+// tower, every near thing drawn round with a fine navy ink line: Scrooge & Marley's sooty counting
+// house (Marley's face shimmers in the door knocker) and the poulterer's, dressed for Christmas
+// with a garland, holly in its window boxes and its prize goose; gas lamps pooling warm light on
+// the snow, the lamplighter at work, carolers singing by lantern light, pigeons on the cobbles
+// and a carriage loping round and round the tower. A scalloped snowbank over a slate pavement in
+// front. The middle of the scene, behind the tower, is kept low, fogged and quiet. Climbing, the
+// street falls away into the night; past that the story loops forever (christmas/tone.ts): the
+// night lifts into a golden Christmas morning, a bright winter day with cut-paper clouds drifting
+// down the right lane, a rosy dusk like the street's, and night again.
 //
 // The card is printed whole: the skin paints everything behind the tower in one pass
 // (`backdrop`, in the ground hook), back to front, so the base world's sky, puffy clouds and
@@ -69,6 +75,7 @@ import type { CartoonSkin, Scene } from "./skin";
 function backdrop(ctx: Ctx, s: Scene): void {
   skyFill(ctx, s, toneOf(s));
   stars(ctx, s);
+  ornaments(ctx, s, Math.min(laneTop(s), streetTop(s)));
   pigeonFlock(ctx, s);
   bodies(ctx, s);
   far(ctx, s);
@@ -94,7 +101,7 @@ export const christmas: CartoonSkin = {
     cloudShadow: STUCCO_SHADE,
     cloudBase: SNOW_SHADE,
     cloudLight: SNOW,
-    far: FAR,
+    far: CITY,
     fieldFar: SNOW,
     fieldNear: SNOW_SHADE,
     grass: SNOW,

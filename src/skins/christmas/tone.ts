@@ -3,12 +3,11 @@ import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
 import {
   AQUA,
+  CITY,
+  CITY_LIGHT,
+  CITY_MID,
+  CITY_SNOW,
   CREAM,
-  FAR,
-  FAR_BACK,
-  FAR_BACK_SNOW,
-  FAR_LIGHT,
-  FAR_SNOW,
   FIR,
   FOG,
   MUSTARD,
@@ -93,8 +92,16 @@ function bandColors(sky: Sky): string[] {
 // ---------------------------------------------------------------- the land's rows
 
 /**
+ * London stands on the horizon in three rows that spread apart as you climb (depths on the field,
+ * as base/world.ts's fieldY; the tower stands at 3): the back row of spires and the snowy hills
+ * on the horizon itself, the middle row of rooftops at MID_Z, the front row at FRONT_Z.
+ */
+export const MID_Z = 160;
+export const FRONT_Z = 60;
+
+/**
  * The snowy hills between the street and the city, near to far: each row's depth on the field
- * (z, as base/world.ts's fieldY; the tower stands at 3) and how far it fades into the haze.
+ * and how far it fades into the haze. The farthest lies just in front of the city's front row.
  */
 export const HILL_ROWS = [
   { z: 4.6, haze: 0 },
@@ -102,10 +109,7 @@ export const HILL_ROWS = [
   { z: 11, haze: 0.16 },
   { z: 17, haze: 0.24 },
   { z: 27, haze: 0.32 },
-  { z: 45, haze: 0.4 },
-  { z: 75, haze: 0.48 },
-  { z: 130, haze: 0.56 },
-  { z: 230, haze: 0.64 },
+  { z: 42, haze: 0.4 },
 ] as const;
 
 // ---------------------------------------------------------------- the light
@@ -119,15 +123,16 @@ interface Key {
   sparkles: number;
   /** Snowfall: 1 as on the street, 0 clear. */
   snow: number;
-  /** How far the skyline and the pigeons have turned from dusk colors to daylight. */
+  /** How far the city and the pigeons have turned from dusk colors to daylight. */
   day: number;
-  /** How dark the night lies on the snow (1 deep night, 0 dusk or day). */
+  /** How dark the night lies on the snow and the city (1 deep night, 0 dusk or day). */
   night: number;
 }
 
 const DUSK_SKY: Sky = [SKY_TOP, SKY_MID, SKY_TURN, SKY_LOW, SKY_GLOW];
 const NIGHT_SKY: Sky = [NIGHT_TOP, NIGHT_MID, NIGHT_TURN, NIGHT_LOW, NIGHT_GLOW];
-const DAY_SKY: Sky = [mix(TEAL, AQUA, 0.35), mix(TEAL, AQUA, 0.62), AQUA, mix(AQUA, SNOW, 0.4), mix(AQUA, SNOW, 0.68)];
+/** The bright winter day: a deep turquoise overhead down to a frosty aqua and a cream haze on the horizon (never washed out). */
+const DAY_SKY: Sky = [mix(TEAL_DEEP, TEAL, 0.7), mix(TEAL, AQUA, 0.3), mix(TEAL, AQUA, 0.62), mix(AQUA, SNOW, 0.2), mix(AQUA, CREAM, 0.6)];
 
 const NIGHT: Omit<Key, "at"> = { sky: NIGHT_SKY, stars: 1, sparkles: 1, snow: 1, day: 0, night: 1 };
 
@@ -137,7 +142,7 @@ const KEYS: Key[] = [
   // The darkness lifting: teal coming back, a rose glow low down, the snow easing.
   {
     at: 30,
-    sky: [mix(NAVY, TEAL_DEEP, 0.6), TEAL_DEEP, mix(TEAL_DEEP, TEAL, 0.6), mix(ROSE, TEAL, 0.15), ROSE],
+    sky: [mix(NAVY, TEAL_DEEP, 0.55), TEAL_DEEP, mix(TEAL_DEEP, TEAL, 0.6), mix(ROSE, TEAL, 0.2), ROSE],
     stars: 0.4,
     sparkles: 0.2,
     snow: 0.5,
@@ -156,7 +161,7 @@ const KEYS: Key[] = [
   },
   {
     at: 52,
-    sky: [mix(TEAL, AQUA, 0.25), mix(TEAL, AQUA, 0.55), AQUA, mix(CREAM, MUSTARD, 0.3), mix(CREAM, MUSTARD, 0.15)],
+    sky: [mix(TEAL, AQUA, 0.22), mix(TEAL, AQUA, 0.52), AQUA, mix(CREAM, MUSTARD, 0.3), mix(CREAM, MUSTARD, 0.15)],
     stars: 0,
     sparkles: 0,
     snow: 0,
@@ -169,7 +174,7 @@ const KEYS: Key[] = [
   // The afternoon warming, a few flakes again.
   {
     at: 86,
-    sky: [mix(TEAL, AQUA, 0.22), mix(TEAL, AQUA, 0.48), mix(AQUA, ROSE, 0.35), mix(ROSE, CREAM, 0.25), mix(CREAM, ROSE, 0.4)],
+    sky: [mix(TEAL, AQUA, 0.2), mix(TEAL, AQUA, 0.45), mix(AQUA, ROSE, 0.35), mix(ROSE, CREAM, 0.25), mix(CREAM, ROSE, 0.4)],
     stars: 0,
     sparkles: 0,
     snow: 0.35,
@@ -195,22 +200,26 @@ const SUN_WARM = [70, 86] as const;
 const SUN_BODY = [mix(CREAM, MUSTARD, 0.3), MUSTARD] as const;
 const SUN_SHADE = [mix(MUSTARD, CREAM, 0.25), mix(MUSTARD, ROSE, 0.5)] as const;
 
-/** Snow under the night: moonlit teal, its shade deeper, and the firs on it. */
-const SNOW_NIGHT = mix(TEAL, SNOW, 0.3);
-const SNOW_NIGHT_SHADE = mix(TEAL_DEEP, AQUA, 0.3);
-const FIR_NIGHT = mix(TEAL_DEEP, NAVY, 0.25);
-/** The back row's windows are a little fainter than the landmarks' lights. */
-const WINDOW_ALPHA = 0.7;
-/** The skyline under the night: deeper, nearer the sky's own color. */
-const FAR_NIGHT = mix(NAVY, TEAL_DEEP, 0.55);
-/** Faded daylight colors for the skyline and the pigeons. */
-const FAR_DAY = mix(TEAL, AQUA, 0.45);
-const FLYER = mix(FAR, SKY_TOP, 0.35);
+/** Snow under the night: moonlit aqua-teal, its shade deeper, and the firs on it. */
+const SNOW_NIGHT = mix(AQUA, TEAL, 0.38);
+const SNOW_NIGHT_SHADE = mix(TEAL, TEAL_DEEP, 0.3);
+const FIR_NIGHT = mix(TEAL_DEEP, NAVY, 0.3);
+/** The back row's windows are fainter than the front rows' candlelight. */
+const BACK_WINDOW_ALPHA = 0.55;
+/** The city under the night: deep navy, a little lighter than the night sky's glow. */
+const CITY_NIGHT = mix(NAVY, TEAL_DEEP, 0.3);
+/** The city by day: a faded teal-grey, its snow white, its windows pale. */
+const CITY_DAY = mix(TEAL_DEEP, TEAL, 0.45);
+const FLYER = mix(CITY_MID, SKY_TOP, 0.35);
 /**
  * The pigeons by day. They cross at the height of the tower's top, so against the bright sky they
  * stand out no more than they do at dusk on the street.
  */
 const FLYER_DAY = mix(TEAL, AQUA, 0.3);
+/** The city's gas lamps are out once the day is this far come (a factor on `day`). */
+const LAMPS_OUT = 1.5;
+/** How quickly the city's haze turns from the low glow to the cool sky as the day comes (a factor on `day`). */
+const DAY_HAZE = 1.6;
 /** Up the climb the pigeons fly (37% down the screen) across the sky's second band. */
 const FLOCK_BAND = 1;
 
@@ -240,20 +249,34 @@ export interface Tone {
   stars: number;
   sparkles: number;
   snow: number;
-  /** Skyline silhouettes: front landmarks, the hazy back row, their lights and snow. */
-  far: string;
-  farBack: string;
-  farLight: string;
-  /** The back row's lit windows (farLight, a little faded). */
-  farWindow: string;
-  farSnow: string;
-  farBackSnow: string;
-  /** The strips of fog across the city's feet. */
+  /** How dark the night lies (0 dusk or day, 1 deep night): more of the city's windows are lit. */
+  night: number;
+  /** How brightly the city's gas lamps burn: lit from dusk to dawn, out by day. */
+  lamps: number;
+  /** The snowy hills behind the city: the far range, the near range lit and in shade, their firs. */
+  ridge: string;
+  ridgeNear: string;
+  ridgeShade: string;
+  ridgeFir: string;
+  /** The city's rows, back to front. */
+  cityBack: string;
+  cityMid: string;
+  city: string;
+  /** The cathedral and the church in the middle row, a shade hazier than its rooftops, and their shaded sides. */
+  landmark: string;
+  landmarkShade: string;
+  /** Candlelight in the front rows' windows, and the back row's fainter windows. */
+  cityLight: string;
+  cityWindow: string;
+  /** Snow on the city's roofs (the back row's are too far to see). */
+  citySnow: string;
+  /** The strips of fog across the city's feet: flat and opaque, like cut paper. */
   fog: string;
   /** The street's snow under this light. */
   street: string;
-  /** Each row of snowy hills (HILL_ROWS, near to far: shaded and lit by turns), the firs on it and the snow on their tips. */
+  /** Each row of snowy hills (HILL_ROWS, near to far: shaded and lit by turns), its shade plane, the firs on it and the snow on their tips. */
   hills: readonly string[];
+  hillShades: readonly string[];
   firs: readonly string[];
   caps: readonly string[];
   /** The pigeon flock against the sky. */
@@ -288,46 +311,71 @@ function keyAt(p: number): Omit<Key, "at"> {
 /** The street at dusk, as the first pass starts. */
 const DUSK: Omit<Key, "at"> = { sky: DUSK_SKY, stars: 1, sparkles: 0, snow: 1, day: 0, night: 0 };
 
+/** At the start a few of the big starbursts already twinkle over the street. */
+const DUSK_SPARKLES = 0.55;
+
 /** The first pass: the dusk deepening into the night as you climb, snowing all the way. */
 function firstPass(lvl: number): Omit<Key, "at"> {
   const k = blend(DUSK, NIGHT, smooth(0, NIGHTFALL, lvl));
   // The big stars come out as the night falls.
-  k.sparkles = clamp01((lvl / NIGHTFALL - 0.2) / 0.5);
+  k.sparkles = DUSK_SPARKLES + (1 - DUSK_SPARKLES) * clamp01((lvl / NIGHTFALL - 0.2) / 0.5);
   return k;
 }
 
 /** The light of a stage, worked out into everything the layers paint. */
 function toneOfKey(k: Omit<Key, "at">, p: number): Tone {
-  const farDay = mix(FAR_DAY, k.sky[2], 0.15);
-  // At night the skyline sinks toward the night; by day the windows are dark and the belfry is
-  // just a gap in the stone.
-  const farDusk = mix(FAR, FAR_NIGHT, k.night);
-  const farLight = mix(FAR_LIGHT, mix(farDay, WHITE, 0.3), k.day);
+  const low = k.sky[3];
+  const glow = k.sky[4];
   const warm = clamp01(1 - smooth(SUN_PALE[0], SUN_PALE[1], p) + smooth(SUN_WARM[0], SUN_WARM[1], p));
   // Snow under this light: lit by the glow low in the sky, bluer and darker as the night lies on it.
-  const glow = k.sky[4];
   const lit = mix(mix(SNOW, glow, 0.2), SNOW_NIGHT, k.night);
-  const shade = mix(mix(SNOW_SHADE, glow, 0.12), SNOW_NIGHT_SHADE, k.night);
+  const shade = mix(mix(SNOW_SHADE, TEAL, 0.1), SNOW_NIGHT_SHADE, k.night);
   const fir = mix(mix(FIR, glow, 0.1), FIR_NIGHT, k.night);
-  const hills = HILL_ROWS.map((r, i) => mix(i % 2 ? lit : shade, glow, r.haze));
+  // The lit rows pale into the warm glow with distance, the shaded rows into a cool frost (the
+  // night's glow by night), so the field reads as clean peach and aqua snow, never khaki.
+  const frost = mix(mix(SNOW, AQUA, 0.3), glow, k.night);
+  const hills = HILL_ROWS.map((r, i) => (i % 2 ? mix(lit, glow, r.haze) : mix(shade, frost, r.haze)));
+  // The city: plum-navy at dusk, sinking toward the night, deep teal by day; each row further
+  // back a little further into the haze: the low sky at dusk and night, by day the cool band
+  // above it, so the teal city never goes khaki against a gold morning glow. By day its windows
+  // are dark and just a pale glint.
+  const city = mix(mix(CITY, CITY_NIGHT, k.night), CITY_DAY, k.day);
+  const haze = mix(low, k.sky[2], clamp01(k.day * DAY_HAZE));
+  const cityMid = mix(city, haze, 0.3);
+  const cityBack = mix(city, haze, 0.55);
+  const cityLight = mix(CITY_LIGHT, mix(CITY_DAY, WHITE, 0.35), k.day);
+  const citySnow = mix(mix(CITY_SNOW, mix(SNOW_NIGHT, low, 0.2), k.night), mix(CITY_DAY, WHITE, 0.6), k.day);
+  // The hills behind: snow hazed by the low sky, the near range lit with a teal shade plane.
+  const ridgeNear = mix(lit, low, 0.2);
   return {
     sky: k.sky,
     bands: bandColors(k.sky),
     stars: k.stars,
     sparkles: k.sparkles,
     snow: k.snow,
-    far: mix(farDusk, farDay, k.day),
-    farBack: mix(mix(FAR_BACK, mix(FAR_NIGHT, glow, 0.35), k.night), mix(farDay, glow, 0.35), k.day),
-    farLight,
-    farWindow: alpha(farLight, WINDOW_ALPHA),
-    farSnow: mix(mix(FAR_SNOW, mix(FAR_NIGHT, SNOW, 0.35), k.night), mix(farDay, WHITE, 0.55), k.day),
-    farBackSnow: mix(mix(FAR_BACK_SNOW, mix(FAR_NIGHT, glow, 0.5), k.night), mix(farDay, WHITE, 0.45), k.day),
-    fog: alpha(mix(mix(FOG, glow, 0.3), NIGHT_MID, 0.45 * k.night), 0.42),
-    street: lit,
+    night: k.night,
+    lamps: 1 - clamp01(k.day * LAMPS_OUT),
+    ridge: mix(lit, low, 0.45),
+    ridgeNear,
+    ridgeShade: mix(ridgeNear, mix(TEAL, NAVY, 0.4 * k.night), 0.3),
+    ridgeFir: mix(fir, low, 0.32),
+    cityBack,
+    cityMid,
+    city,
+    landmark: mix(city, haze, 0.4),
+    landmarkShade: mix(city, haze, 0.22),
+    cityLight,
+    cityWindow: alpha(mix(cityLight, cityBack, 0.25), BACK_WINDOW_ALPHA),
+    citySnow,
+    fog: mix(mix(FOG, glow, 0.35), mix(NIGHT_MID, low, 0.4), 0.55 * k.night),
+    // The street's snow is a cool white, so the lamplight pooled on it reads warm.
+    street: mix(mix(SNOW, AQUA, 0.14), SNOW_NIGHT, k.night),
     hills,
-    firs: HILL_ROWS.map((r, i) => mix(fir, hills[i]!, 0.15 + r.haze)),
+    // Shadow on the snow is cool: an aqua plane on the lit rows, a deeper teal one on the shaded.
+    hillShades: hills.map((c, i) => mix(i % 2 ? mix(shade, frost, HILL_ROWS[i]!.haze) : c, mix(TEAL_DEEP, NAVY, k.night), i % 2 ? 0.08 : 0.2)),
+    firs: HILL_ROWS.map((r, i) => mix(fir, hills[i]!, 0.12 + r.haze)),
     caps: HILL_ROWS.map((r) => mix(lit, glow, r.haze)),
-    // The pigeons follow the sky's brightness where they fly rather than the skyline's daylight,
+    // The pigeons follow the sky's brightness where they fly rather than the city's daylight,
     // which lags the dawn: so they never stand out more than they do by day.
     flyer: mix(FLYER, FLYER_DAY, clamp01((flockGlow(k.sky) - NIGHT_FLOCK) / (DAY_FLOCK - NIGHT_FLOCK))),
     sunBody: mix(SUN_BODY[0], SUN_BODY[1], warm),

@@ -13,15 +13,16 @@ import {
   LAMP_CORE,
   MANE,
   NAVY,
+  SHADOW,
   SKIN,
   SNOW,
   TEAL,
   WHEEL,
 } from "./colors";
-import { glow, snowCap } from "./shapes";
+import { glow, inked, INKW, puff, puffOval, snowCap } from "./shapes";
 
 // A horse-drawn carriage loping round the street, cut from flat paper like the rest of the card
-// (flat shapes, no outlines): a chestnut horse in a cranberry collar hung with brass bells,
+// (flat shapes, drawn round with the street's fine navy ink line): a chestnut horse in a cranberry collar hung with brass bells,
 // pulling a deep teal coach with a lit window, a coach lamp and big mustard wheels, a coachman
 // in a caped greatcoat and top hat up on the box, the reins running from his hands
 // down to the horse's bit and one whip held up over the horse (carriage.test.ts). Modelled
@@ -41,52 +42,57 @@ export const RIG_LENGTH = MODEL_LENGTH * SCALE;
 /** Gait phase per unit travelled: a stride every 0.11 units, about half the rig's length. */
 const STRIDE = 55;
 
-/** A spoked wheel at (x, y up), radius r, turned by `a` radians. */
-function wheel(ctx: Ctx, x: number, y: number, r: number, a: number, lw: number): void {
+/** The coach's two spoked wheels: [x, y up and radius, turn rate], the big rear one first. */
+const WHEELS = [
+  [0.03, 0.033, 1],
+  [0.098, 0.027, 1.22],
+] as const;
+
+/** Both wheels of the coach whose rear is at x = cx, turned by `a` radians: inked rims, spokes, hubs. */
+function wheels(ctx: Ctx, cx: number, a: number, lw: number): void {
   ctx.beginPath();
-  circle(ctx, x, Y(y), r);
-  ctx.moveTo(x + r * 0.78, Y(y));
-  ctx.arc(x, Y(y), r * 0.78, 0, Math.PI * 2, true);
+  for (const [x, r] of WHEELS) {
+    circle(ctx, cx + x, Y(r), r);
+    ctx.moveTo(cx + x + r * 0.78, Y(r));
+    ctx.arc(cx + x, Y(r), r * 0.78, 0, Math.PI * 2, true);
+  }
   ctx.fillStyle = WHEEL;
   ctx.fill("evenodd");
+  inked(ctx, lw * INKW);
   ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const s = a + (i * Math.PI) / 3;
-    ctx.moveTo(x + Math.cos(s) * r * 0.2, Y(y) + Math.sin(s) * r * 0.2);
-    ctx.lineTo(x + Math.cos(s) * r * 0.8, Y(y) + Math.sin(s) * r * 0.8);
+  for (const [x, r, k] of WHEELS) {
+    for (let i = 0; i < 6; i++) {
+      const s = a * k + (i * Math.PI) / 3;
+      ctx.moveTo(cx + x + Math.cos(s) * r * 0.2, Y(r) + Math.sin(s) * r * 0.2);
+      ctx.lineTo(cx + x + Math.cos(s) * r * 0.8, Y(r) + Math.sin(s) * r * 0.8);
+    }
   }
   ctx.strokeStyle = WHEEL;
   ctx.lineWidth = lw * 1.2;
   ctx.lineCap = "butt";
   ctx.stroke();
   ctx.beginPath();
-  circle(ctx, x, Y(y), r * 0.24);
+  for (const [x, r] of WHEELS) puff(ctx, cx + x, Y(r), r * 0.24);
   ctx.fillStyle = NAVY;
   ctx.fill();
 }
 
+/** Where a leg's hoof lands, refilled by legPath, and a pair's two hooves (no allocations). */
+const HOOF = { x: 0, y: 0 };
+const HOOVES = new Float64Array(4);
+
 /**
- * A leg from the hip (x, y up), `len` long, ending in a hoof: swung `k` (-1 back .. 1 forward),
- * the hoof lifted by `up` (0..1) as it swings through, the knee bending.
+ * A leg from the hip (x, y up), `len` long, as a subpath: swung `k` (-1 back .. 1 forward), the
+ * hoof lifted by `up` (0..1) as it swings through, the knee bending. Sets HOOF.
  */
-function leg(ctx: Ctx, x: number, y: number, len: number, k: number, up: number, color: string): void {
+function legPath(ctx: Ctx, x: number, y: number, len: number, k: number, up: number): void {
   const kx = x + k * len * 0.25 + up * len * 0.1;
   const ky = y - len * 0.5;
-  const fx = x + k * len * 0.42;
-  const fy = Math.max(0.006, y - len + up * len * 0.22);
-  ctx.beginPath();
+  HOOF.x = x + k * len * 0.42;
+  HOOF.y = Math.max(0.006, y - len + up * len * 0.22);
   ctx.moveTo(x, Y(y));
   ctx.lineTo(kx, Y(ky));
-  ctx.lineTo(fx, Y(fy));
-  ctx.strokeStyle = color;
-  ctx.lineWidth = len * 0.19;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.stroke();
-  ctx.beginPath();
-  oval(ctx, fx + 0.002, Y(fy - 0.002), 0.0064, 0.0044);
-  ctx.fillStyle = NAVY;
-  ctx.fill();
+  ctx.lineTo(HOOF.x, Y(HOOF.y));
 }
 
 /**
@@ -120,7 +126,7 @@ function rocked(p: { x: number; y: number }, x: number, y: number, px: number, p
 }
 
 /** The horse, its hindquarters at x = hx, loping with gait phase `g` (one stride per 2π). */
-function horse(ctx: Ctx, hx: number, g: number, t: number): void {
+function horse(ctx: Ctx, hx: number, g: number, t: number, ink: number): void {
   // One lift per stride as it gathers its hind legs under it, the front rising as the forelegs reach.
   const bob = (0.5 + 0.5 * Math.sin(g - TAU * 0.3)) * 0.004;
   const by = 0.066 + bob;
@@ -129,14 +135,30 @@ function horse(ctx: Ctx, hx: number, g: number, t: number): void {
   const px = hx + ROCK_X;
   /** Height of the hip or shoulder at x, as the body rocks about px. */
   const hip = (x: number, y: number) => y + (x - px) * tilt;
-  /** A leg's swing at its phase: forward and back, the hoof off the ground on the way forward. */
-  const step = (x: number, y: number, len: number, phase: number, color: string) => {
-    const a = g - TAU * phase;
-    leg(ctx, x, hip(x, y), len, Math.sin(a), Math.max(0, Math.cos(a)), color);
+  /**
+   * A pair of legs (hind and fore, at their phases), inked under and filled in `color`, their
+   * hooves in navy: forward and back, each hoof off the ground on the way forward.
+   */
+  const pair = (y: number, len: number, hind: number, fore: number, x0: number, x1: number, color: string) => {
+    ctx.beginPath();
+    for (let i = 0; i < 2; i++) {
+      const x = i ? x1 : x0;
+      const a = g - TAU * (i ? fore : hind);
+      legPath(ctx, x, hip(x, y), len, Math.sin(a), Math.max(0, Math.cos(a)));
+      HOOVES[i * 2] = HOOF.x;
+      HOOVES[i * 2 + 1] = HOOF.y;
+    }
+    inked(ctx, len * 0.19 + ink * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = len * 0.19;
+    ctx.stroke();
+    ctx.beginPath();
+    for (let i = 0; i < 4; i += 2) puffOval(ctx, HOOVES[i]! + 0.002, Y(HOOVES[i + 1]! - 0.002), 0.0064, 0.0044);
+    ctx.fillStyle = NAVY;
+    ctx.fill();
   };
   // Far legs (shaded), then the body, then near legs.
-  step(hx + 0.012, by - 0.01, 0.058, LOPE.farHind, HORSE_SHADE);
-  step(hx + 0.066, by - 0.01, 0.058, LOPE.farFore, HORSE_SHADE);
+  pair(by - 0.01, 0.058, LOPE.farHind, LOPE.farFore, hx + 0.012, hx + 0.066, HORSE_SHADE);
   ctx.save();
   ctx.translate(px, Y(by));
   ctx.rotate(-rock);
@@ -165,14 +187,20 @@ function horse(ctx: Ctx, hx: number, g: number, t: number): void {
   ctx.lineTo(hx + 0.02, Y(by - 0.016));
   ctx.quadraticCurveTo(hx - 0.002, Y(by - 0.014), hx, Y(by + 0.012));
   ctx.closePath();
+  // Inked under the fill (the outline shows only outside the body).
+  inked(ctx, ink * 2);
   ctx.fillStyle = HORSE;
   ctx.fill();
-  // Belly shade
-  ctx.save();
-  ctx.clip();
+  // Belly shade: a flat crescent along the underside.
+  ctx.beginPath();
+  ctx.moveTo(hx + 0.004, Y(by - 0.004));
+  ctx.quadraticCurveTo(hx + 0.006, Y(by - 0.013), hx + 0.02, Y(by - 0.0155));
+  ctx.lineTo(hx + 0.05, Y(by - 0.0155));
+  ctx.quadraticCurveTo(hx + 0.068, Y(by - 0.017), hx + 0.079, Y(by - 0.006));
+  ctx.quadraticCurveTo(hx + 0.045, Y(by - 0.009), hx + 0.004, Y(by - 0.004));
+  ctx.closePath();
   ctx.fillStyle = HORSE_SHADE;
-  ctx.fillRect(hx - 0.01, Y(by - 0.004), 0.1, 0.02);
-  ctx.restore();
+  ctx.fill();
   // Mane along the neck, ear, blinker, eye, nostril
   ctx.beginPath();
   ctx.moveTo(hx + 0.07, Y(by + 0.03));
@@ -191,7 +219,7 @@ function horse(ctx: Ctx, hx: number, g: number, t: number): void {
   ctx.fillStyle = NAVY;
   ctx.fill();
   ctx.beginPath();
-  circle(ctx, hx + 0.119, Y(by + 0.025), 0.0018);
+  puff(ctx, hx + 0.119, Y(by + 0.025), 0.0018);
   ctx.fillStyle = NAVY;
   ctx.fill();
   // Collar with brass bells, and the harness strap
@@ -208,7 +236,7 @@ function horse(ctx: Ctx, hx: number, g: number, t: number): void {
   ctx.stroke();
   const jingle = Math.sin(t * 16) * 0.0015;
   ctx.beginPath();
-  for (let i = 0; i < 3; i++) circle(ctx, hx + 0.079 + jingle, Y(by + 0.022 - i * 0.012), 0.0038);
+  for (let i = 0; i < 3; i++) puff(ctx, hx + 0.079 + jingle, Y(by + 0.022 - i * 0.012), 0.0038);
   ctx.fillStyle = BRASS;
   ctx.fill();
   // Snow on its back
@@ -221,12 +249,12 @@ function horse(ctx: Ctx, hx: number, g: number, t: number): void {
   rocked(REINS.collar, hx + 0.075, by + 0.03, px, by, rock);
   rocked(REINS.bit, hx + 0.113, by + 0.023, px, by, rock);
   // Near legs
-  step(hx + 0.018, by - 0.008, 0.06, LOPE.nearHind, HORSE);
-  step(hx + 0.072, by - 0.008, 0.06, LOPE.nearFore, HORSE);
+  pair(by - 0.008, 0.06, LOPE.nearHind, LOPE.nearFore, hx + 0.018, hx + 0.072, HORSE);
 }
 
 /** The coach, the box seat and the coachman, its rear at x = cx. */
 function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: number): void {
+  const ink = lw * INKW;
   // The shafts to the horse, behind the body (the far wheels hide behind the near ones).
   ctx.beginPath();
   ctx.moveTo(cx + 0.11, Y(0.052 + bob));
@@ -241,15 +269,25 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
   roundRectPath(ctx, cx + 0.004, -(b + 0.07), 0.108, 0.07, 0.012);
   ctx.fillStyle = CARRIAGE;
   ctx.fill();
-  ctx.save();
-  ctx.clip();
+  inked(ctx, ink);
+  // A lighter band along its roof, following the rounded corners.
+  const r = 0.012;
+  const x0 = cx + 0.004 + ink * 0.5;
+  const x1 = cx + 0.112 - ink * 0.5;
+  const top = Y(b + 0.07) + ink * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(x0, top + r);
+  ctx.arcTo(x0, top, x0 + r, top, r - ink * 0.5);
+  ctx.arcTo(x1, top, x1, top + r, r - ink * 0.5);
+  ctx.lineTo(x1, top + r);
+  ctx.closePath();
   ctx.fillStyle = CARRIAGE_LIGHT;
-  ctx.fillRect(cx, Y(b + 0.07), 0.12, 0.012);
-  ctx.restore();
+  ctx.fill();
   ctx.beginPath();
   roundRectPath(ctx, cx + 0.03, -(b + 0.06), 0.044, 0.03, 0.006);
   ctx.fillStyle = LAMP;
   ctx.fill();
+  inked(ctx, ink);
   ctx.beginPath();
   ctx.moveTo(cx + 0.052, Y(b + 0.06));
   ctx.lineTo(cx + 0.052, Y(b + 0.03));
@@ -261,11 +299,16 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
   ctx.strokeStyle = BRASS;
   ctx.lineWidth = lw * 0.6;
   ctx.stroke();
+  // The coach lamp's light at the front corner, under the coachman (so he stays crisp in it).
+  const lx = cx + 0.104;
+  const ly = b + 0.034;
+  glow(ctx, lx, Y(ly), 0.05, 0.9);
   // Box seat in front, and the coachman on it
   ctx.beginPath();
   roundRectPath(ctx, cx + 0.104, -(b + 0.05), 0.03, 0.022, 0.004);
   ctx.fillStyle = CARRIAGE;
   ctx.fill();
+  inked(ctx, ink);
   const sy = b + 0.05;
   // Caped greatcoat
   ctx.beginPath();
@@ -276,6 +319,7 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
   ctx.closePath();
   ctx.fillStyle = COAT_NAVY;
   ctx.fill();
+  inked(ctx, ink);
   ctx.beginPath();
   ctx.moveTo(cx + 0.104, Y(sy + 0.012));
   ctx.quadraticCurveTo(cx + 0.118, Y(sy + 0.036), cx + 0.134, Y(sy + 0.012));
@@ -289,8 +333,9 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
   circle(ctx, cx + 0.12, Y(hy), 0.011);
   ctx.fillStyle = SKIN;
   ctx.fill();
+  inked(ctx, ink);
   ctx.beginPath();
-  circle(ctx, cx + 0.125, Y(hy + 0.002), 0.0016);
+  puff(ctx, cx + 0.125, Y(hy + 0.002), 0.0016);
   ctx.fillStyle = NAVY;
   ctx.fill();
   ctx.beginPath();
@@ -317,21 +362,17 @@ function coach(ctx: Ctx, cx: number, a: number, lw: number, t: number, bob: numb
   ctx.lineWidth = lw * 0.6;
   ctx.lineCap = "round";
   ctx.stroke();
-  // Snow on the roof, the coach lamp glowing at the front corner
+  // Snow on the roof, and the coach lamp at the front corner
   ctx.beginPath();
   snowCap(ctx, cx + 0.002, cx + 0.098, Y(b + 0.07), 0.01);
   ctx.fillStyle = SNOW;
   ctx.fill();
-  const lx = cx + 0.104;
-  const ly = b + 0.034;
-  glow(ctx, lx, Y(ly), 0.05, 0.9);
   ctx.beginPath();
   roundRectPath(ctx, lx - 0.006, -(ly + 0.009), 0.012, 0.016, 0.003);
   ctx.fillStyle = LAMP_CORE;
   ctx.fill();
   // Near wheels
-  wheel(ctx, cx + 0.03, 0.033, 0.033, a, lw);
-  wheel(ctx, cx + 0.098, 0.027, 0.027, a * 1.22, lw);
+  wheels(ctx, cx, a, lw);
 }
 
 /**
@@ -368,10 +409,10 @@ export function carriage(ctx: Ctx, x: number, y: number, U: number, lwPx: number
   // Soft shadow on the snow
   ctx.beginPath();
   oval(ctx, MODEL_LENGTH * 0.5, 0, MODEL_LENGTH * 0.52, 0.008);
-  ctx.fillStyle = "rgba(47, 128, 130, 0.18)";
+  ctx.fillStyle = SHADOW;
   ctx.fill();
   coach(ctx, 0, dist / (0.033 * SCALE), lw, t, bob);
-  horse(ctx, 0.155, g, t);
+  horse(ctx, 0.155, g, t, lw * INKW);
   reins(ctx, lw);
   ctx.restore();
 }
