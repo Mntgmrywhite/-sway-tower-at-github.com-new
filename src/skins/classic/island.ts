@@ -43,21 +43,22 @@ import { capPath, strata, undersidePath, type Band } from "./shapes";
 // the cloud bank in front. It does not bob: the tower stands on rock. A kite on a long string is
 // tied to a stake at the left edge, a bluebird perched on top of it; on the right a rope bridge
 // crosses to a little islet with a birdhouse. Everything here is near: flat two-tone fills and
-// one ink weight.
+// one ink weight. The island's tables below are shared with the cameo every skin floats in its
+// sky (../cameo.ts), so the two stay one design.
 
 /** Island proportions, in u. */
-const CAP_HW = 0.33;
+export const CAP_HW = 0.33;
 export const CAP_H = 0.034;
 export const UNDER_HW = 0.31;
 export const UNDER_D = 0.18;
 /** How far the grass sits below the floor line (the plinth stands proud of it). */
 export const GRASS_DROP = 0.016;
-const PLINTH_H = 0.028;
+export const PLINTH_H = 0.028;
 
 export const BANDS: Band[] = STRATA.map((b, i) => ({ ...b, at: [0, 0.2, 0.42, 0.63, 0.82][i]! }));
 
 /** Roots: anchor (x in half widths, y in depths, inside the underside), length (u), bend (u), fork. */
-const ROOTS = [
+export const ROOTS = [
   { x: -0.7, y: 0.42, len: 0.085, bend: -0.014, fork: true },
   { x: -0.4, y: 0.78, len: 0.05, bend: 0.01, fork: false },
   { x: -0.06, y: 0.97, len: 0.045, bend: -0.008, fork: false },
@@ -66,14 +67,14 @@ const ROOTS = [
 ] as const;
 
 /** Vines over the lip: x (half widths of the cap), length (u). */
-const VINES = [
+export const VINES = [
   { x: -0.72, len: 0.075 },
   { x: -0.52, len: 0.1 },
   { x: 0.7, len: 0.065 },
 ] as const;
 
 /** Pebbles in the strata: x (half widths), y (depths), size (u). */
-const PEBBLES = [
+export const PEBBLES = [
   { x: -0.55, y: 0.3, r: 0.009 },
   { x: 0.4, y: 0.27, r: 0.008 },
   { x: -0.18, y: 0.56, r: 0.01 },
@@ -317,7 +318,7 @@ export function vines(ctx: Ctx, s: Scene, cx: number, y: number, lw: number): vo
 
 
 /** Crystals in the bedrock: x offset (u), length (u), lean (radians from straight up). */
-const CRYSTALS = [
+export const CRYSTALS = [
   [-0.014, 0.022, -0.55],
   [0, 0.032, -0.05],
   [0.014, 0.02, 0.5],
@@ -481,8 +482,8 @@ export function waterfall(ctx: Ctx, s: Scene): void {
 }
 
 /** Grass tufts and daisies along the cap's top, clear of the plinth: x (u from the center line). */
-const TUFTS = [-0.325, -0.28, -0.24, 0.235, 0.27, 0.315] as const;
-const DAISIES = [
+export const TUFTS = [-0.325, -0.28, -0.24, 0.235, 0.27, 0.315] as const;
+export const DAISIES = [
   [-0.258, 1],
   [-0.316, 0.8],
   [0.248, 0.9],
@@ -726,7 +727,7 @@ function leaves(ctx: Ctx, x: number, y: number, r: number, cs: readonly (readonl
   ctx.fill();
 }
 
-const CROWN = [
+export const CROWN = [
   [-0.62, 0.1, 0.72],
   [0.6, 0.12, 0.7],
   [0, -0.35, 1],
