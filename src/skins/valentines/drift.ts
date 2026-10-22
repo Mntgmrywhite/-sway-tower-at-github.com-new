@@ -5,9 +5,10 @@ import type { Scene } from "../skin";
 import { cloud, heartPath, LONG_CLOUD, petalPath, TALL_CLOUD, type CloudShape } from "./shapes";
 import { DAY_FROM, LOOP, LOOP_DAWN, LOOP_START, type Tone } from "./tone";
 
-// What drifts past as you climb, in the lane down the right of the screen: a flurry of rose
-// petals as the cloud sea gathers below you, a bunch of heart balloons let go, rising on their
-// strings, little stylized clouds (shell lines and a curl, shapes.ts), a paper plane folded
+// What drifts past as you climb, in the lane down the right of the screen: a hot-air balloon
+// with a heart for an envelope, a flurry of rose petals as the cloud sea gathers below you, a bunch
+// of heart balloons let go, rising on their strings, a second hot-air balloon in gold, little
+// stylized clouds (shell lines and a curl, shapes.ts), a paper plane folded
 // from a love letter gliding in lazy loops, a pair of doves wheeling together, more petals and
 // balloons into the night. When the story loops (tone.ts), its dawn brings pink-lit clouds and
 // the doves again, and from the afternoon on the lane runs the first day's story once more.
@@ -22,10 +23,10 @@ import { DAY_FROM, LOOP, LOOP_DAWN, LOOP_START, type Tone } from "./tone";
 // there again at the loop's dawn. One of them is up at every height, so nothing drifts on the
 // left at all: nothing ever passes over the sun or the moon (the owner's rule, drift.test.ts).
 // And nothing here ever slides across a prop: the lane is painted before the far layer and the
-// land (valentines.ts), so what comes down it sinks behind the lattice tower, the wheel and the
-// boulevard into the cloud sea (drift.test.ts).
+// land (valentines.ts), so what comes down it sinks behind the lattice tower, the wheel, the
+// rooftops and the boulevard into the cloud sea (drift.test.ts).
 
-type Kind = "cloud" | "petals" | "balloons" | "plane" | "doves";
+type Kind = "cloud" | "petals" | "balloons" | "plane" | "doves" | "montgolfier";
 
 export interface Drifter {
   kind: Kind;
@@ -50,13 +51,14 @@ type Spec = readonly [kind: Kind, at: number, x?: number];
 // at the bottom around level (at + 235) / 8 (on a tall phone). The opening's sky holds the sun
 // and, in the right lane over the wheel, a pair of doves wheeling (ambient, there from the
 // start; they drop behind the wheel in the first few levels); everything else starts above the
-// screen, high enough to reach the boulevard and the wheel only once the cloud sea has covered
-// the land.
+// screen (the first hot-air balloon just out of sight at the start, over the title), high enough
+// to reach the rooftops and the wheel only once the cloud sea has covered the land.
 const DAY: Spec[] = [
   ["doves", 170, 0.4],
-  ["petals", 380],
+  ["montgolfier", 352, 0.378],
+  ["petals", 410],
   ["balloons", 450, 0.385],
-  ["cloud", 520],
+  ["montgolfier", 520, 0.378],
   ["plane", 590, 0.39],
   ["doves", 655, 0.4],
   ["petals", 720],
@@ -149,6 +151,7 @@ export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, d: Drifter): void {
   else if (d.kind === "petals") petals(ctx, s, tone, x, y, k, d.phase);
   else if (d.kind === "balloons") balloons(ctx, s, tone, x, y, d.phase);
   else if (d.kind === "plane") plane(ctx, s, tone, x, y, d.phase);
+  else if (d.kind === "montgolfier") montgolfier(ctx, s, tone, x, y, d.phase, Math.round(d.at / 10) % 2 === 1);
   else doves(ctx, s, tone, x, y, d.phase);
 }
 
@@ -229,6 +232,74 @@ function balloons(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number, phase: n
     }
     ctx.fill();
   }
+}
+
+// ---------------------------------------------------------------- the hot-air balloon
+
+/** The hot-air balloon's envelope: its size (u, the heart's height). */
+const ENVELOPE = 0.088;
+
+/**
+ * A hot-air balloon of our own, Paris's own invention: its envelope a big heart, rose with a cream
+ * heart and a rose one inside it like the bands of a cockade (every other one gold with rose and
+ * gold), lit on its upper left; ropes from its foot down to a wicker basket. It rises and sinks a
+ * little in place and leans with the air; at night its burner glows under the envelope. (Which
+ * one comes by is fixed by its height, so every turn of the loop sends the same.)
+ */
+function montgolfier(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number, phase: number, gold: boolean): void {
+  const u = s.u;
+  const g = u * ENVELOPE;
+  const cy = y + Math.sin(s.t * 0.35 + phase) * u * 0.008;
+  const lean = Math.sin(s.t * 0.22 + phase) * 0.05;
+  ctx.save();
+  ctx.translate(x, cy);
+  ctx.rotate(lean);
+  // The ropes and the basket under the heart's point.
+  const by = g * 0.66;
+  ctx.strokeStyle = tone.wire;
+  ctx.lineWidth = Math.max(0.7, u * 0.0018);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (const k of [-1, 1]) {
+    ctx.moveTo(k * g * 0.16, g * 0.3);
+    ctx.lineTo(k * g * 0.08, by);
+  }
+  ctx.stroke();
+  ctx.fillStyle = tone.basket;
+  ctx.beginPath();
+  ctx.rect(-g * 0.1, by, g * 0.2, g * 0.13);
+  ctx.fill();
+  ctx.fillStyle = tone.wire;
+  ctx.beginPath();
+  ctx.rect(-g * 0.11, by, g * 0.22, Math.max(0.8, g * 0.03));
+  ctx.fill();
+  if (tone.lights > 0.02) {
+    ctx.globalAlpha = tone.lights;
+    ctx.fillStyle = tone.burner;
+    ctx.beginPath();
+    circle(ctx, 0, g * 0.47, g * 0.05);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  // The envelope: rose, a cream heart in it, a rose heart in that (or gold, rose, gold); its sheen.
+  const outer = gold ? tone.envelopeGold : tone.balloon;
+  ctx.fillStyle = outer;
+  ctx.beginPath();
+  heartPath(ctx, 0, 0, g);
+  ctx.fill();
+  ctx.fillStyle = gold ? tone.balloon : tone.envelope;
+  ctx.beginPath();
+  heartPath(ctx, 0, g * 0.03, g * 0.64);
+  ctx.fill();
+  ctx.fillStyle = outer;
+  ctx.beginPath();
+  heartPath(ctx, 0, g * 0.05, g * 0.34);
+  ctx.fill();
+  ctx.fillStyle = tone.balloonLit;
+  ctx.beginPath();
+  oval(ctx, -g * 0.24, -g * 0.24, g * 0.07, g * 0.11, -0.5);
+  ctx.fill();
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------- the paper plane

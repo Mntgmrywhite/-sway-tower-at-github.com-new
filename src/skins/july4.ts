@@ -1,104 +1,110 @@
 import type { Ctx } from "../base/draw";
 import type { CartoonSkin, Scene } from "./skin";
+import { barbecue, sparklerKids } from "./july4/cast";
+import { crowd, strollers } from "./july4/crowd";
+import { banks, laneClouds } from "./july4/clouds";
 import { PALETTE } from "./july4/colors";
 import { drifters } from "./july4/drift";
-import { cloudFloor, farBack, farFront, floorCover, floorTop, landmarkLine, landShows, rayFoot, skyBottom } from "./july4/far";
-import { fireworks } from "./july4/fireworks";
+import { fireworks, townGlow } from "./july4/fireworks";
 import { front } from "./july4/front";
+import { hills } from "./july4/hills";
 import * as icon from "./july4/icons";
+import { island } from "./july4/island";
+import { backLine, frontLine, hillLine, mainLine, mainShows } from "./july4/land";
+import { mainStreet, squareEdge } from "./july4/mainstreet";
 import { parade } from "./july4/parade";
-import { halftone, moon, skyFill, stars, sun } from "./july4/sky";
-import { bandstand, barbecue, hedge, lampPosts, lawn, path, sparklerKids } from "./july4/square";
-import { level, toneOf } from "./july4/tone";
-import { townLine } from "./july4/town";
+import { moon, skyFill, stars, sun } from "./july4/sky";
+import { bandstand, lawn, path } from "./july4/square";
+import { toneOf } from "./july4/tone";
+import { backRow, frontRow } from "./july4/town";
 
-// Independence Day: a small-town Fourth of July, printed like a 1930s WPA screen-print poster
-// and pushed to the poster's boldest: flat inks on cream paper (navy, flag red, cream, flag
-// blue, a poster sky blue and ochre gold, with the summer greens), two or three flat steps per
-// color, every building lit from the left with a flat shadow plane on its right, depth built in
-// layers of atmosphere (each row back one ink paler), and a navy key plate (a thin keyline)
-// round everything up close. A great sunburst of broad rays radiates from behind the town into
-// both lanes and the top corners, cut by a plain panel behind the tower (sky.ts). The tower is
-// stacked on the white bandstand in the town square (its roof long gone, so you can build it
-// higher), fans of bunting along its deck, a red runner down its steps. Behind it, Main Street
-// as a poster town: brick, ochre, cream, sage and blue storefronts with cornices and false
-// fronts, sign boards, striped awnings, pleated fans and swags; a white church with a tall
-// steeple; the sandstone courthouse with its portico, clock tower and gilt dome flying the flag;
-// two rows of rooftops stepping back; big summer trees; the block behind the tower printed
-// faint, so the column stays calm. Beyond the town the country rises round it like a bowl, a
-// paler ink every row back (country.ts): the near hill with the water tower painted with the
-// flag and the park's trees, farm hills plowed in contour stripes of field, wheat and furrows,
-// a blue ridge with a far town and its grain elevator on its shoulder, and a far range of
-// angular mountains; on the right a great tower of WPA cumulus climbs the lane nearly to the
-// top of the screen, a low bank on the left under the sun. As a tower starts, the parade comes
-// through the square in front of the bandstand: the drum major, the color guard, snares, the
-// glockenspiel lyre, sousaphones, the vintage fire truck flying the flag with a load of waving
-// kids, Uncle Sam on stilts tipping his hat at the tower, a girl on a bike with streamers and a
-// dog (every bit of it past the tower within ten seconds: actions.test.ts). The barbecue corner
-// is on the left (the cook flips burgers), two kids wave sparklers on the right, and the street
-// in front is painted up for the Fourth. Climb, and the Fourth's air show comes down the right
-// lane, the big things filling it: a stars-and-stripes hot-air balloon, the bald eagle and
-// swifts over the park, then a barnstormer towing a 4TH banner, a kite, a bunch of party
-// balloons, a parachutist, the eagle huge against the sunburst, a stunt plane looping the loop
-// in red, cream and blue smoke, a blimp (drift.ts). The clouds gather into a poster sea of
-// billows that swallows the town and piles up on the right under the cumulus tower (only the
-// steeple and the courthouse tower stand out of it, skyline silhouettes after dusk, the flag
-// floodlit all night) and sinks to rest low on the screen for good; the afternoon turns to a
-// golden evening, then a dusk whose sunburst is printed as the flag's red and cream stripes,
-// with the first stars and a crescent moon where the sun set; then the night brings the big
-// fireworks show in both lanes, printed Pop Art over big Ben-Day dots and bold off-register
-// stars: rockets streaking up the whole height of the lanes, chrysanthemums, hanging willows,
-// palms, rings, glitter and comic-book starbursts in red, cream, blue and gold, building to a
-// finale with a wall of fountains and Roman candles along the skyline at the sides, its light
-// warming the sky and the cloud sea, and a lancework flag of sparks under the moon
-// (fireworks.ts); the smoke drifts off and the stars have the sky. Then the story loops: the
-// night gives way to a rose dawn with the sun coming back up out of the clouds, and the day
-// comes round again (tone.ts). The left of the sky is the sun's and the moon's: nothing drifts
-// across them, and the fireworks there burst below the moon. Calm by design: the detail lives
-// at the sides and up close, the sky behind the tower is plain bands, and nothing moves behind
-// the tower above its floor line (the parade passes below it).
+// Independence Day: a small town's Fourth of July as a vintage Americana storybook, after
+// mid-century American postcards and the hand-painted backgrounds of classic animation. Soft
+// rounded forms, a fine warm sepia line round everything up close, two-tone painting (a lit top,
+// a shaded underside, a lit rim) and warm July light, in a coordinated palette of vintage red,
+// faded navy, creamy white, golden yellow and lush summer green (colors.ts). A broad, open town,
+// not an enclosed one: the tower is stacked on the white bandstand in the town square, hung with
+// bunting (square.ts); behind it the square's lawn runs back to Main Street, a row of brick and
+// painted storefronts down either side, stepping up to three stories at the screen's sides, with
+// striped awnings, sign boards lettered with plain trades, flower boxes, a great flag hung down a
+// brick front, a dressed balcony, flags from the upper floors and bunting along the cornices,
+// tall elms on the sidewalk, vintage lampposts with patriotic banners, a white picket fence draped
+// with bunting and flower beds with butterflies (mainstreet.ts). Over the rooftops the tree-lined
+// streets beyond with their flagpoles and strings of pennants, the white church's steeple and the
+// courthouse's clock tower and gilt dome (town.ts, landmarks.ts); on the horizon round farm hills
+// after Grant Wood, plowed in contour rows, puffball trees on their crests, a red barn, a
+// farmhouse and a country road where vintage cars and a little band wagon roll by, and kites
+// (hills.ts); fluffy summer clouds in a bright blue sky, banked on the hills (clouds.ts). In
+// front, the picnic lawn along the parade route, behind a bunting-covered picket fence: a gingham
+// blanket and its basket, a lawn chair, a roadside sign, the lemonade stand with balloons (now
+// and then one slips free and floats off), a barrel and a wagon wheel, pinwheels (front.ts). As
+// a tower starts, the parade comes through the square (parade.ts); the cook flips burgers at the
+// barbecue on the left and two kids wave sparklers on the right, one jumping for the balloon
+// that slips free; on the picnic lawn dad claps the band from his lawn chair, mom waves her
+// little flag from the blanket and their little girl bounces beside her, and the girl who keeps
+// the lemonade stand pours a glass now and then (cast.ts); along Main Street the crowd watches
+// the parade go by (a dad with his boy on his shoulders, a lady under a parasol, a girl perched on
+// the fence, a fellow who cheers, an old veteran who salutes the colors) and strollers stop to
+// watch on their way along the shops (crowd.ts). Every one of them is a storybook figure on a rig
+// (rig.ts: a skeleton, two-bone IK, walk, march, stand, hop and sit cycles, each on its own clock;
+// folk.ts paints it, hats.ts dresses it). Over the square a bald eagle circles under the HUD, a
+// hot-air balloon in the flag's colors hangs over the courthouse, and a stunt plane flies loops in
+// a ring of red, white and blue smoke under the sun.
 //
-// The altitude story needs every layer of the backdrop, so Independence Day paints all of it
-// in one pass (`backdrop`, in the ground hook). The celestial and far hooks are empty on
-// purpose: they switch off the base moon and skyline, which the backdrop would only paint over.
-// Back to front: the sky and its sunburst, the halftone, stars, moon and sun; the cumulus and
-// the country; the show; the town and its landmarks; the lane (behind the town while the land
-// shows); the square and the parade; the cloud floor over all of it. Whatever lies wholly where
-// a later layer is solid is left out
-// (the rays and the lobes behind the country, the lane things under the lawn or the cloud sea).
+// Climb, and you rise over the town: the square drops away, then Main Street, and the town
+// opens out row by row, each further row sinking slower, the far hills flattening below you,
+// until the treetops, rooftops and landmarks rest along the bottom of the sky (land.ts). The
+// summer sky comes down the right lane past you (drift.ts) and, around level 50, Sky Islands'
+// floating island with its 25-bar tower, painted as a postcard (island.ts); the cloud banks build
+// into towering cumulus. The afternoon warms, the golden evening sets the sun behind the hills,
+// a warm twilight follows, and the night brings the fireworks blooming above the rooftops in red,
+// white, blue and gold, lighting the clouds and the town, string lights glowing on the pennants
+// (fireworks.ts); then the stars have the sky, a rosy dawn brings the sun back up, and the day
+// comes round again with the morning's air show (tone.ts). The left of the sky is the sun's and
+// the moon's: nothing ever passes across them. Calm by design: the detail and every moving
+// thing live at the sides and below the tower's floor; behind the tower the sky is one soft wash
+// and the town only treetops.
+//
+// Independence Day paints all of its backdrop in one pass (`backdrop`, in the ground hook). The
+// celestial and far hooks are empty on purpose: they switch off the base moon and skyline,
+// which the backdrop would only paint over. The sky's things (the clouds, the lane, the island)
+// are painted before the land, so as you climb they sink behind the hills and the town. Each row
+// is filled down only as far as the next nearer row leaves it showing.
 
 function backdrop(ctx: Ctx, s: Scene): void {
   const tone = toneOf(s);
-  const floor = floorTop(s, level(s));
-  const line = landmarkLine(s);
-  skyFill(ctx, s, tone, line, skyBottom(s, floor), rayFoot(s, floor, line));
-  halftone(ctx, s, tone, line);
+  const u = s.u;
+  const hill = hillLine(s);
+  skyFill(ctx, s, tone, hill + 1);
   stars(ctx, s, tone);
   moon(ctx, s, tone);
-  sun(ctx, s, tone, floor);
-  farBack(ctx, s, tone, floor);
-  const land = landShows(s);
-  // The lane is covered below the lawn's edge while the land shows, and below the cloud floor's solid face.
-  const cover = Math.min(floorCover(s, floor), land ? townLine(s) + s.u * 0.02 : Infinity);
-  // Over the town the lane's slim things keep beyond it, behind its rooftops; once the cloud sea
-  // has covered the land, the air show is the nearest thing in the sky, passing in front of the
-  // show and the landmarks standing out of the sea (none overlaps them as the land goes:
-  // drift.test.ts), so a big thing goes by whole, never cut up by the clock tower.
-  if (land) drifters(ctx, s, tone, cover);
-  fireworks(ctx, s, tone, floor);
-  farFront(ctx, s, tone, floor);
-  if (!land) drifters(ctx, s, tone, cover);
-  if (land && s.horizonY < s.cssH) {
-    lawn(ctx, s, tone);
-    hedge(ctx, s, tone);
-    lampPosts(ctx, s, tone);
+  sun(ctx, s, tone);
+  banks(ctx, s, tone);
+  laneClouds(ctx, s, tone);
+  // The sky's things pass behind the country and the town: as you climb they sink behind them.
+  drifters(ctx, s, tone);
+  island(ctx, s, tone, july4.bars);
+  const back = backLine(s);
+  const near = frontLine(s);
+  const main = mainShows(s);
+  hills(ctx, s, tone, hill, back + u * 0.02);
+  fireworks(ctx, s, tone);
+  backRow(ctx, s, tone, near + u * 0.02);
+  // While Main Street shows, the trim along its foot and the square's lawn cover everything below its line.
+  frontRow(ctx, s, tone, main ? Math.min(s.cssH, mainLine(s) + u * 0.012) : s.cssH);
+  townGlow(ctx, s, tone);
+  if (main) {
+    mainStreet(ctx, s, tone);
+    lawn(ctx, s);
+    strollers(ctx, s);
+    squareEdge(ctx, s, tone);
+    crowd(ctx, s);
     path(ctx, s);
     barbecue(ctx, s);
     sparklerKids(ctx, s);
     bandstand(ctx, s);
     parade(ctx, s);
   }
-  if (floor < s.cssH + s.u * 0.15) cloudFloor(ctx, s, tone, floor);
 }
 
 function none(): void {}
@@ -109,9 +115,9 @@ export const july4: CartoonSkin = {
   dates: [{ from: [6, 28], to: [7, 7] }],
   fonts: ["Rye"],
   palette: PALETTE,
-  // Our own Fourth of July symbols. Red, blue, gold and white go round (warm and cool by
-  // turns, so every seam reads), a step brighter than the poster's inks, so the tower stands
-  // out of the print against the day sky, the sunset and the night of the show.
+  // Our own Fourth of July symbols. Red, blue, gold and white go round (warm and cool by turns,
+  // so every seam reads), bright enough that the tower stands out of the painted town against
+  // the day sky, the sunset and the night of the show.
   bars: [
     { color: "#e8393f", icon: icon.star },
     { color: "#2f58d6", icon: icon.firework },

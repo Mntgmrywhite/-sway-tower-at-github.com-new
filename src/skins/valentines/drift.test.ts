@@ -12,9 +12,9 @@ import { level, LOOP, LOOP_START, toneOf } from "./tone";
 // turns of the story's loop, on a tall and a short phone: nothing enters the tower's column or
 // touches a side of the screen, and nothing overlaps. And the owner's rule: nothing ever passes
 // over the sun or the moon, at any height, on any screen, zoomed out or not: no cloud, no
-// petal, no balloon, no plane, no dove. Nor across any prop: the lane is painted behind the
-// scenery, so what comes down it sinks behind the fair's wheel, the boulevard and the cloud
-// bank into the cloud sea.
+// petal, no balloon (heart or hot-air), no plane, no dove. Nor across any prop: the lane is
+// painted behind the scenery, so what comes down it sinks behind the wheel, the lattice tower,
+// the boulevard, Paris's rooftops and the cloud bank into the cloud sea.
 
 const TOP = LOOP_START + LOOP * 2 + 12;
 const LEVELS = Array.from({ length: Math.ceil(TOP / 2) + 1 }, (_, i) => i * 2);
@@ -53,7 +53,7 @@ describe("valentine's drifters", () => {
       });
     }
     // Every kind of drifter was on screen at some point on the way up.
-    expect([...kinds].sort()).toEqual(["balloons", "cloud", "doves", "petals", "plane"]);
+    expect([...kinds].sort()).toEqual(["balloons", "cloud", "doves", "montgolfier", "petals", "plane"]);
   }, 120_000);
 });
 

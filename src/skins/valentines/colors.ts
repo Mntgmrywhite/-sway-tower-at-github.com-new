@@ -55,6 +55,18 @@ export const ROADWAY = "#d9c2b0";
 /** The far hill on the horizon, and the shade on the basilica. */
 export const FAR_HILL = "#b99cc9";
 export const BASILICA_SHADE = "#d9c3cc";
+/** Green copper: the domes of Paris above the clouds that are not gilded (skyline.ts). */
+export const COPPER: Shades = { light: "#b9e0c4", body: "#6fae94", shade: "#477e70" };
+/**
+ * Floodlit at night: the lattice tower in warm gold, the gilded domes brighter gold, the stone of
+ * the domes' drums and fronts cream, the white basilica a rosy white, the copper domes a pale
+ * glowing green. (Tones mix the far, night-darkened colors toward these as the lights come on.)
+ */
+export const FLOOD_BRONZE: Shades = { light: "#ffd79a", body: "#e8a05e", shade: "#a86040" };
+export const FLOOD_GILT: Shades = { light: "#fff1b8", body: "#ffcf62", shade: "#d98f3a" };
+export const FLOOD_STONE: Shades = { light: "#fff0d2", body: "#f0cf98", shade: "#b98466" };
+export const FLOOD_WHITE: Shades = { light: "#ffffff", body: "#fff0f2", shade: "#d9b4c8" };
+export const FLOOD_COPPER: Shades = { light: "#d8ffe6", body: "#93dcb8", shade: "#5a9c86" };
 /** The Ferris wheel's teal ironwork (and lit hub), its rose gondolas. */
 export const WHEEL_IRON = "#2f7d72";
 export const WHEEL_HUB = "#3f9284";

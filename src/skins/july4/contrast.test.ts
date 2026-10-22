@@ -2,10 +2,17 @@ import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { july4 } from "../july4";
 import type { Scene } from "../skin";
-import { floorTop, landmarkLine, rayFoot, skyBottom } from "./far";
-import { halftone, skyFill, stars } from "./sky";
-import { context, sceneAt, SIZES, zoomedScene } from "./test-scene";
-import { level, LOOP, LOOP_START, toneOf } from "./tone";
+import { banks, laneClouds } from "./clouds";
+import { drifters } from "./drift";
+import { fireworks } from "./fireworks";
+import { hills } from "./hills";
+import { island } from "./island";
+import { backLine, frontLine, hillLine, mainShows } from "./land";
+import { mainStreet } from "./mainstreet";
+import { moon, skyFill, stars, sun } from "./sky";
+import { context, mask, sceneAt, SIZES, zoomedScene } from "./test-scene";
+import { LOOP, LOOP_START, toneOf } from "./tone";
+import { backRow, frontRow } from "./town";
 
 // The owner's layering rule: the band behind the tower stays quieter and lower in contrast than
 // the edges, so play stays readable. On the backdrop alone (no tower, no foreground), from the top
@@ -21,7 +28,9 @@ import { level, LOOP, LOOP_START, toneOf } from "./tone";
 // the mean gradient magnitude of relative luminance.
 //
 // Where both are near-flat sky (the sides' local contrast under FLAT), the center need only not
-// exceed the sides.
+// exceed the sides. The same holds again over the land's rows alone (from where the land first
+// stands behind the tower down to its floor): over the whole height the sky's calm would dilute a
+// busy band of town behind the tower (storefronts across the column would pass otherwise).
 
 const CALMER = 0.8;
 const TILE = 12;
@@ -44,18 +53,18 @@ interface Measure {
   whole: number;
 }
 
-/** The measures of columns x0..x1 (exclusive), rows 0..rows, of a luminance map W wide. */
-function measure(L: Float64Array, W: number, rows: number, x0: number, x1: number): Measure {
+/** The measures of columns x0..x1 (exclusive), rows y0..rows (exclusive), of a luminance map W wide. */
+function measure(L: Float64Array, W: number, rows: number, x0: number, x1: number, y0 = 0): Measure {
   let sum = 0;
   let sum2 = 0;
   let edge = 0;
   let edges = 0;
-  for (let y = 0; y < rows; y++) {
+  for (let y = y0; y < rows; y++) {
     for (let x = x0; x < x1; x++) {
       const v = L[y * W + x]!;
       sum += v;
       sum2 += v * v;
-      if (x > x0 && x < x1 - 1 && y > 0 && y < rows - 1) {
+      if (x > x0 && x < x1 - 1 && y > y0 && y < rows - 1) {
         const gx = (L[y * W + x + 1]! - L[y * W + x - 1]!) / 2;
         const gy = (L[(y + 1) * W + x]! - L[(y - 1) * W + x]!) / 2;
         edge += Math.hypot(gx, gy);
@@ -63,11 +72,11 @@ function measure(L: Float64Array, W: number, rows: number, x0: number, x1: numbe
       }
     }
   }
-  const n = rows * (x1 - x0);
+  const n = (rows - y0) * (x1 - x0);
   const mean = sum / n;
   let local = 0;
   let tiles = 0;
-  for (let ty = 0; ty + TILE <= rows; ty += TILE) {
+  for (let ty = y0; ty + TILE <= rows; ty += TILE) {
     for (let tx = x0; tx + TILE <= x1; tx += TILE) {
       let s1 = 0;
       let s2 = 0;
@@ -86,8 +95,31 @@ function measure(L: Float64Array, W: number, rows: number, x0: number, x1: numbe
   return { local: local / tiles, edge: edge / edges, whole: Math.sqrt(Math.max(0, sum2 / n - mean * mean)) };
 }
 
+/** Where the land first stands behind the tower (px): the hills, the town's rows, Main Street. */
+function landTop(s: Scene): number {
+  const tone = toneOf(s);
+  const x0 = Math.floor(s.baseX);
+  const w = Math.ceil(s.baseW);
+  const W = Math.round(s.cssW);
+  const land = mask(s.cssW, s.cssH, (c) => {
+    hills(c, s, tone, hillLine(s), backLine(s) + s.u * 0.02);
+    backRow(c, s, tone, frontLine(s) + s.u * 0.02);
+    frontRow(c, s, tone, s.cssH);
+    if (mainShows(s)) mainStreet(c, s, tone);
+  });
+  for (let y = 0; y < Math.floor(s.cssH); y++) for (let x = x0; x < x0 + w; x++) if (land[y * W + x]) return y;
+  return Math.floor(s.cssH);
+}
+
+interface Lanes {
+  center: Measure;
+  sides: Measure;
+  /** The same over the land's rows alone, from where it first stands behind the tower down to the floor (null where that band is too thin to measure). */
+  land: { center: Measure; sides: Measure } | null;
+}
+
 /** The tower's column and the two side lanes of the backdrop with `lvl` bars placed, at time t. */
-function lanes(W: number, H: number, lvl: number, t: number): { center: Measure; sides: Measure } {
+function lanes(W: number, H: number, lvl: number, t: number): Lanes {
   const s = sceneAt(W, H, lvl, t);
   const ctx = context(W, H);
   kitFor(july4).world(ctx, s);
@@ -98,39 +130,51 @@ function lanes(W: number, H: number, lvl: number, t: number): { center: Measure;
   const w = Math.round(s.baseW);
   const x0 = Math.round(s.baseX);
   const side = Math.min(w, x0);
-  const center = measure(L, W, rows, x0, x0 + w);
-  const left = measure(L, W, rows, 0, side);
-  const right = measure(L, W, rows, W - side, W);
-  const sides = { local: (left.local + right.local) / 2, edge: (left.edge + right.edge) / 2, whole: (left.whole + right.whole) / 2 };
-  return { center, sides };
+  const both = (y0: number) => {
+    const center = measure(L, W, rows, x0, x0 + w, y0);
+    const left = measure(L, W, rows, 0, side, y0);
+    const right = measure(L, W, rows, W - side, W, y0);
+    return { center, sides: { local: (left.local + right.local) / 2, edge: (left.edge + right.edge) / 2, whole: (left.whole + right.whole) / 2 } };
+  };
+  const top = landTop(s);
+  return { ...both(0), land: rows - top >= TILE * 3 ? both(top) : null };
 }
 
 describe("independence day center calm", () => {
   it.each(SIZES)("%ix%i: behind the tower the backdrop is calmer than in the side lanes, at every height", (W, H) => {
     const samples = LEVELS.flatMap((lvl) => MOMENTS.map((t) => ({ at: `level ${lvl}, t ${t}`, ...lanes(W, H, lvl, t) })));
-    const rows = samples.map(({ at, center, sides }) => {
+    const rows = samples.map(({ at, center, sides, land }) => {
       const flat = sides.local < FLAT ? "   (flat sky)" : "";
+      const ground = land ? `   land local ${(land.center.local / land.sides.local).toFixed(2)} edge ${(land.center.edge / land.sides.edge).toFixed(2)}` : "";
       return (
         `${at.padEnd(18)} local ${center.local.toFixed(4)} / ${sides.local.toFixed(4)} = ${(center.local / sides.local).toFixed(2)}` +
         `   edge ${center.edge.toFixed(4)} / ${sides.edge.toFixed(4)} = ${(center.edge / sides.edge).toFixed(2)}` +
-        `   whole ${center.whole.toFixed(4)} / ${sides.whole.toFixed(4)}${flat}`
+        `   whole ${center.whole.toFixed(4)} / ${sides.whole.toFixed(4)}${flat}${ground}`
       );
     });
     console.log(`independence day center calm, ${W}x${H} (center / sides):\n${rows.join("\n")}`);
-    for (const { at, center, sides } of samples) {
+    let lands = 0;
+    for (const { at, center, sides, land } of samples) {
       const limit = sides.local < FLAT ? 1 : CALMER;
       expect(center.local, `${at}: local contrast, center against the sides`).toBeLessThanOrEqual(limit * sides.local);
       expect(center.edge, `${at}: edge strength, center against the sides`).toBeLessThanOrEqual(limit * sides.edge);
+      // And over the land alone (behind the tower only treetops and the lawn, the town's detail at
+      // the sides): a busy band behind the tower would hide in the sky's calm above it otherwise.
+      if (!land) continue;
+      lands++;
+      expect(land.center.local, `${at}: the land's local contrast, center against the sides`).toBeLessThanOrEqual(CALMER * land.sides.local);
+      expect(land.center.edge, `${at}: the land's edge strength, center against the sides`).toBeLessThanOrEqual(CALMER * land.sides.edge);
     }
+    expect(lands, "samples with land behind the tower").toBeGreaterThan(10);
   }, 60_000);
 });
 
 describe("independence day's sky behind the tower", () => {
-  // The poster sky is flat bands, and what is printed over them (the sunburst's rays, the show
-  // night's halftone dots, the stars) keeps to the lanes: from the top of the screen down to the
-  // line the town (later the cloud sea) stands on, every row of the sky is one flat ink across
-  // the tower's column. (The calm test above compares the column with lanes full of props, so a
-  // fan of rays across the column would still pass it.)
+  // The storybook sky is one soft wash, and everything in it (the stars, the sun and the moon,
+  // the cloud banks, the lane's clouds and things, the floating island, the show) keeps to the
+  // lanes: from the top of the screen down to where the land first stands behind the tower,
+  // every row of the sky is one color across the tower's column. (The calm test above compares
+  // the column with lanes full of props, so a cloud straying across the column would still pass it.)
   const VIEWS = [
     [390, 844, 1],
     [375, 667, 1],
@@ -140,23 +184,46 @@ describe("independence day's sky behind the tower", () => {
   /** Every level up the first day and one turn of the loop, and the moments the stars twinkle at. */
   const STEPS = Array.from({ length: Math.ceil((LOOP_START + LOOP) / 3) + 1 }, (_, i) => i * 3);
 
-  it.each(VIEWS)("%ix%i at zoom %s: the sky across the column is plain bands", (W0, H0, z) => {
+  it.each(VIEWS)("%ix%i at zoom %s: the sky across the column is one wash", (W0, H0, z) => {
     const view = (lvl: number, t: number): Scene => (z === 1 ? sceneAt(W0, H0, lvl, t) : zoomedScene(W0, H0, z, lvl, t));
     const probe = view(0, 0);
     const ctx = context(probe.cssW, probe.cssH);
+    let checked = 0;
     for (const lvl of STEPS) {
       const s = view(lvl, (lvl * 0.71) % 9);
       const tone = toneOf(s);
-      const line = landmarkLine(s);
-      ctx.clearRect(0, 0, s.cssW, s.cssH);
-      const floor = floorTop(s, level(s));
-      skyFill(ctx, s, tone, line, skyBottom(s, floor), rayFoot(s, floor, line));
-      halftone(ctx, s, tone, line);
-      stars(ctx, s, tone);
       const x0 = Math.floor(s.baseX);
       const w = Math.ceil(s.baseW);
-      const rows = Math.min(Math.floor(line), Math.floor(s.cssH));
+      // Where the land first stands behind the tower: the hills, the town's rows, Main Street.
+      const land = mask(s.cssW, s.cssH, (c) => {
+        hills(c, s, tone, hillLine(s), backLine(s) + s.u * 0.02);
+        backRow(c, s, tone, frontLine(s) + s.u * 0.02);
+        frontRow(c, s, tone, s.cssH);
+        if (mainShows(s)) mainStreet(c, s, tone);
+      });
+      const W = Math.round(s.cssW);
+      let rows = Math.floor(s.cssH);
+      for (let y = 0; y < rows; y++) {
+        for (let x = x0; x < x0 + w; x++) {
+          if (land[y * W + x]) {
+            rows = y;
+            break;
+          }
+        }
+      }
+      ctx.clearRect(0, 0, s.cssW, s.cssH);
+      skyFill(ctx, s, tone, s.cssH);
+      stars(ctx, s, tone);
+      moon(ctx, s, tone);
+      sun(ctx, s, tone);
+      banks(ctx, s, tone);
+      laneClouds(ctx, s, tone);
+      drifters(ctx, s, tone);
+      island(ctx, s, tone, july4.bars);
+      fireworks(ctx, s, tone);
+      rows = Math.min(rows - 1, Math.floor(s.cssH));
       if (rows <= 0) continue;
+      checked++;
       const d = ctx.getImageData(x0, 0, w, rows).data;
       let busy = 0;
       for (let y = 0; y < rows; y++) {
@@ -166,45 +233,8 @@ describe("independence day's sky behind the tower", () => {
           if (Math.abs(d[i]! - d[r0]!) + Math.abs(d[i + 1]! - d[r0 + 1]!) + Math.abs(d[i + 2]! - d[r0 + 2]!) > 3) busy++;
         }
       }
-      expect(busy, `level ${lvl}: pixels across the column that differ from their row's band`).toBe(0);
+      expect(busy, `level ${lvl}: pixels across the column that differ from their row's wash`).toBe(0);
     }
-  }, 60_000);
-});
-
-describe("independence day's cloud sea behind the tower", () => {
-  // Below its scalloped top edge the cloud sea is one plain ink across the tower's column: its
-  // rows of billows keep to the lanes. (The calm test above averages the column over the whole
-  // screen, where the plain sky outweighs a band of busy cloud behind the tower.) Checked on the
-  // whole backdrop, so nothing else drawn there may show either.
-  const VIEWS = [
-    [390, 844, 1],
-    [375, 667, 1],
-    [834, 1194, 1],
-    [390, 844, 0.6],
-  ] as const;
-  /** The floor's top edge (its lobes, their caps and the shade under them) reaches this far (u) under its top. */
-  const EDGE = 0.1;
-  const STEPS = Array.from({ length: Math.ceil((LOOP_START + LOOP) / 3) + 1 }, (_, i) => i * 3);
-
-  it.each(VIEWS)("%ix%i at zoom %s: the cloud sea across the column is one ink", (W0, H0, z) => {
-    const view = (lvl: number, t: number): Scene => (z === 1 ? sceneAt(W0, H0, lvl, t) : zoomedScene(W0, H0, z, lvl, t));
-    const probe = view(0, 0);
-    const ctx = context(probe.cssW, probe.cssH);
-    let checked = 0;
-    for (const lvl of STEPS) {
-      const s = view(lvl, (lvl * 0.71) % 9);
-      const y0 = Math.ceil(floorTop(s, level(s)) + s.u * EDGE);
-      if (y0 >= s.cssH) continue;
-      ctx.clearRect(0, 0, s.cssW, s.cssH);
-      kitFor(july4).world(ctx, s);
-      const x0 = Math.floor(s.baseX);
-      const w = Math.ceil(s.baseW);
-      const d = ctx.getImageData(x0, y0, w, Math.floor(s.cssH) - y0).data;
-      let busy = 0;
-      for (let i = 4; i < d.length; i += 4) if (Math.abs(d[i]! - d[0]!) + Math.abs(d[i + 1]! - d[1]!) + Math.abs(d[i + 2]! - d[2]!) > 3) busy++;
-      expect(busy, `level ${lvl}: pixels of the cloud sea across the column that differ from its face`).toBe(0);
-      checked++;
-    }
-    expect(checked, "levels with the cloud sea on screen").toBeGreaterThan(20);
-  }, 60_000);
+    expect(checked, "levels checked").toBeGreaterThan(50);
+  }, 120_000);
 });

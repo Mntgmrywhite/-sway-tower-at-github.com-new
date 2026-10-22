@@ -1,37 +1,44 @@
-import { circle, hash, type Ctx } from "../../base/draw";
+import { circle, hash, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { FIREWORK, FIREWORK_LIGHT } from "./colors";
-import { dot, speck, starPath } from "./shapes";
-import { landmarkLine, pileAt, stackTop } from "./far";
+import { bankTop } from "./clouds";
+import { hillsTop } from "./hills";
+import { FIREWORK, FIREWORK_LIGHT, SMOKE_LIT } from "./colors";
+import { backLine, frontLine, hillLine } from "./land";
 import { POLE_TOP, STEEPLE_REACH } from "./landmarks";
-import { moonAt } from "./sky";
+import { islandSpan } from "./island";
+import { moonAt, MOON_REACH } from "./sky";
+import { dot, speck, starPath } from "./shapes";
 import type { Tone } from "./tone";
+import { POLE_H } from "./town";
 
-// The fireworks show, once night has fallen on the climb (tone.ts), printed like a poster's
-// night: flat bursts of red, cream, blue and gold, each over a flat disc of its own ink. Rockets
-// streak up the whole height of the two side lanes on gold trails from behind the cloud sea and
-// burst in six designs of our own: chrysanthemums (broad tapered rays out to round heads, an inner
-// ring of short rays and little stars round the heart), gold willows whose trails hang down
-// three times as far as they spread, palms (a glowing trunk, thick fronds arching out and down),
-// tricolor rings (red dots round cream stars round blue dots), glitter shells (a cloud of
-// twinkling sparks) and the Pop Art shell (a comic-book starburst). Launchers join in one by one
-// as the show builds; at the finale a second rank fires fast, the shells grow to fill both
-// lanes, their light warms the sky and the cloud sea, a wall of fountains and Roman candles
-// along the skyline at the sides throws gold sprays and colored stars up from behind the cloud
-// sea (up to the landmarks' tops, so it never meets a burst), and a lancework flag of sparks
-// burns under the moon (lancework() below). Deterministic from the scene's clock and hash():
-// shell n of a launcher goes up at its phase plus n periods. A launcher's period never changes
-// with the height (the finale's pace comes from its own fast launchers), so climbing never jolts
-// a shell in the air to another age: it only fades launchers in and out and grows the bursts. As
-// long as you stay in the night, the show goes on. The show is drawn in front of the far clouds
-// and behind the landmarks and the lane (july4.ts).
+// The fireworks, once night has fallen on the climb (tone.ts): elegant shells of red, white, blue
+// and gold blooming above the rooftops in the two side lanes, softly lighting the sky round them
+// and the town below without overwhelming the scene. Rockets climb on fine gold trails from
+// behind the treetops and burst in six designs of our own: peonies (a sphere of glowing stars
+// with short tails, turning from one color to another as they fade), chrysanthemums (fine
+// trails streaming out to bright heads), gold willows whose trails hang down three times as far
+// as they spread, palms (a few heavy gold fronds arching out and down), rings (a circle of stars
+// round a heart of another color) and crackling glitter. Each bloom opens with a soft glow that
+// fades as its stars spread, and leaves a puff of smoke lit by its last light; the blooms of a
+// lane, added up, cast one soft glow of light over its rooftops (townGlow). The stars' trails are
+// tapered ribbons laid as fills. Launchers join in one by one as the show builds; at the finale a
+// second rank fires fast and the shells grow, their light warms the clouds and the low sky
+// (tone.ts), a wall of fountains and Roman candles throws gold and colored stars up from behind
+// the treetops at the sides (up to the landmarks' tops, so it never meets a burst), and a
+// lancework flag of sparks burns under the moon (lancework() below). Deterministic from the
+// scene's clock and hash(): shell n of a launcher goes up at its phase plus n periods. A
+// launcher's period never changes with the height (the finale's pace comes from its own fast
+// launchers), so climbing never jolts a shell in the air to another age. As long as you stay in
+// the night, the show goes on. The show is drawn behind the town (rockets rise from behind the
+// treetops) and in front of the far hills and clouds (july4.ts).
 //
 // Where a burst may go (place()): only in a side lane, never across the tower's column, the
-// HUD's corner buttons at the top, the moon (the left lane's bursts stay below it), the steeple and the
-// courthouse's dome and flag standing out of the clouds, and the cumulus piled beside them
-// (each lane's stay above its landmark and its clouds, so none cuts into a burst) or the cloud
-// floor, and never off a side of the screen. A burst's reach is a box (the willows hang tall in
-// a narrow lane); a shell that finds no room big enough shrinks to fit, or waits.
+// HUD's corner buttons at the top, the moon (the left lane's bursts stay below it), the steeple
+// and the courthouse's dome and flag, the flagpoles, the hills and their trees and the clouds
+// banked on them (each lane's stay above its skyline, so none cuts into a burst), Sky Islands'
+// floating island (the right lane's stay above it), and never off a side of the screen.
+// A burst's reach is a box (the willows hang tall in a narrow lane); a shell that finds no room
+// big enough shrinks to fit, or waits.
 
 /** Seconds a rocket climbs, then seconds its burst lasts. */
 export const RISE = 0.75;
@@ -40,33 +47,32 @@ export const BLOOM = 1.9;
 const REACH_SLACK = 0.008;
 /**
  * The HUD's corner buttons end this far down the screen, and its rows of text (score, best,
- * lives, the perfect count) keep to the column: bursts in the lanes stay below the buttons, so
- * the right lane's show climbs nearly to the top of the screen. The lancework flag hangs below
- * the HUD's rows (HUD_BOTTOM).
+ * lives, the perfect count) keep to the column: bursts in the lanes stay below the buttons. The
+ * lancework flag hangs below the HUD's rows (HUD_BOTTOM).
  */
 const HUD_CORNER = 0.15;
 const HUD_BOTTOM = 0.3;
 /** Bursts keep this far (u) in from a side of the screen, from the column and from the moon. */
-const MARGIN = 0.02;
+const MARGIN = 0.012;
 /** Half width of the tower's column (u): nothing of the show crosses it. */
-const COLUMN = 0.26;
-/** Burst radius (u): the smallest a shell shrinks to, and its full size before the finale grows it. */
-const R_MIN = 0.03;
-const R_MAX = 0.11;
+const COLUMN = 0.242;
+/** Burst radius (u): the smallest a shell shrinks to, and its full size before the finale grows it (most shrink to fit a phone's lane). */
+const R_MIN = 0.035;
+const R_MAX = 0.13;
 const FINALE_GROW = 0.25;
 
-export type Style = "mum" | "willow" | "ring" | "glitter" | "pop" | "palm";
+export type Style = "peony" | "mum" | "willow" | "ring" | "glitter" | "palm";
 /** The show's launchers take their designs in turn from SHOW_STYLES, the finale's from FINALE_STYLES, so every design comes round. */
-const SHOW_STYLES: readonly Style[] = ["mum", "willow", "pop", "ring", "palm", "glitter"];
-const FINALE_STYLES: readonly Style[] = ["mum", "pop", "willow", "ring", "palm", "mum", "glitter"];
+const SHOW_STYLES: readonly Style[] = ["mum", "willow", "peony", "ring", "palm", "glitter"];
+const FINALE_STYLES: readonly Style[] = ["peony", "mum", "willow", "ring", "palm", "peony", "glitter"];
 
 /** How far a burst of radius R reaches over its life, in R: either side, up from its center, and down (the willow's and the palm's trails hang furthest). */
 const REACH: Record<Style, readonly [across: number, up: number, down: number]> = {
+  peony: [1.1, 1.04, 1.4],
   mum: [1.12, 1.06, 1.42],
   willow: [1.16, 1.02, 2.9],
   ring: [1.1, 0.95, 1.3],
   glitter: [1.04, 1.0, 1.36],
-  pop: [1.0, 1.0, 1.0],
   palm: [1.24, 1.06, 2.1],
 };
 
@@ -85,8 +91,8 @@ interface Launcher {
 }
 
 /** The show's launchers, three a side at first, more joining as it builds; the last FINALE_ONLY fire only in the finale. */
-const SHOW_N = 12;
-const FINALE_ONLY = 14;
+const SHOW_N = 14;
+const FINALE_ONLY = 10;
 const LAUNCHERS: Launcher[] = Array.from({ length: SHOW_N + FINALE_ONLY }, (_, i) => {
   const h = (n: number) => hash(i * 31 + n + 9000);
   return {
@@ -94,7 +100,7 @@ const LAUNCHERS: Launcher[] = Array.from({ length: SHOW_N + FINALE_ONLY }, (_, i
     fx: 0.2 + h(1) * 0.6,
     fy: 0.1 + h(2) * 0.8,
     style: i < SHOW_N ? SHOW_STYLES[i % SHOW_STYLES.length]! : FINALE_STYLES[(i - SHOW_N) % FINALE_STYLES.length]!,
-    period: i < SHOW_N ? 3.4 + h(4) * 2.2 : 1.3 + h(4) * 0.7,
+    period: i < SHOW_N ? 2.8 + h(4) * 1.8 : 1.6 + h(4) * 0.8,
     phase: h(5) * 6,
     color: Math.floor(h(6) * 4),
     size: i < SHOW_N ? 0.7 + h(7) * 0.3 : 0.85 + h(7) * 0.15,
@@ -107,21 +113,35 @@ const SPOT = { x: 0, y: 0, r: 0 };
 /** The lane's room for bursts: inner and outer edges (px), top and bottom. Scratch, so placing allocates nothing. */
 const ROOM = { inner: 0, outer: 0, top: 0, bottom: 0 };
 
-/** Where the landmark in a lane tops out (px): the steeple's cross on the left, the courthouse flag's pole on the right, or the cumulus beside it. */
-function skyline(s: Scene, tone: Tone, side: -1 | 1): number {
-  return landmarkLine(s) - s.u * Math.max(side > 0 ? POLE_TOP : STEEPLE_REACH, stackTop(s, tone, side));
+/**
+ * Where the land tops out in a lane (px): the steeple's cross on the left, the courthouse flag's
+ * pole on the right, the flagpoles of the front row, the hills and their trees, or the clouds
+ * banked on them.
+ */
+export function skyline(s: Scene, tone: Tone, side: -1 | 1): number {
+  const u = s.u;
+  return Math.min(
+    backLine(s) - u * (side > 0 ? POLE_TOP : STEEPLE_REACH),
+    frontLine(s) - u * (POLE_H + 0.012),
+    hillLine(s) - u * Math.max(bankTop(s, tone, side), hillsTop(s)),
+  );
 }
 
-function room(s: Scene, tone: Tone, floor: number, side: -1 | 1): typeof ROOM {
+function room(s: Scene, tone: Tone, side: -1 | 1): typeof ROOM {
   const u = s.u;
   ROOM.inner = s.cssW / 2 + side * u * (COLUMN + MARGIN);
   ROOM.outer = side < 0 ? u * MARGIN : s.cssW - u * MARGIN;
   ROOM.top = s.cssH * HUD_CORNER;
   if (side < 0 && tone.moon > 0) {
     const m = moonAt(s);
-    ROOM.top = Math.max(ROOM.top, m.y + m.r + u * MARGIN);
+    ROOM.top = Math.max(ROOM.top, m.y + m.r * MOON_REACH + u * MARGIN);
   }
-  ROOM.bottom = Math.min(Math.min(s.cssH, floor) - u * MARGIN, skyline(s, tone, side) - u * MARGIN);
+  ROOM.bottom = Math.min(s.cssH, skyline(s, tone, side)) - u * MARGIN;
+  // Sky Islands' floating island comes down the right lane through the show: the bursts there keep above it.
+  if (side > 0) {
+    const isle = islandSpan(s);
+    if (isle) ROOM.bottom = Math.min(ROOM.bottom, isle.t - u * MARGIN);
+  }
   return ROOM;
 }
 
@@ -130,12 +150,11 @@ function room(s: Scene, tone: Tone, floor: number, side: -1 | 1): typeof ROOM {
  * its lane's room, shrunk to fit if the room is tight. Returns false when there is no room at
  * all (the lane is too short on this screen at this height).
  */
-export function place(s: Scene, tone: Tone, floor: number, l: Launcher, R: number): boolean {
+export function place(s: Scene, tone: Tone, l: Launcher, R: number): boolean {
   const u = s.u;
   const [kx, ku, kd] = REACH[l.style];
-  const { inner, outer, top, bottom } = room(s, tone, floor, l.side);
+  const { inner, outer, top, bottom } = room(s, tone, l.side);
   const slack = u * REACH_SLACK;
-  // The biggest radius whose whole reach the room allows, down to R_MIN; none if even that will not fit.
   const r = Math.min(R, (Math.abs(outer - inner) - 2 * slack) / (2 * kx), (bottom - top - 2 * slack) / (ku + kd));
   if (r < R_MIN * u) return false;
   const x0 = Math.min(inner, outer) + r * kx + slack;
@@ -148,33 +167,18 @@ export function place(s: Scene, tone: Tone, floor: number, l: Launcher, R: numbe
   return true;
 }
 
-/** Scratch: the heads of the ring being drawn. */
-const PETALS = 13;
-const HEADS = new Float32Array(PETALS * 2);
-/** Unit directions and speed jitter of the petals, and of the inner heart. */
+/** The stars of a shell: unit directions and speed jitter. */
+const PETALS = 18;
 const DIRS = Array.from({ length: PETALS }, (_, j) => {
-  const a = (j / PETALS) * Math.PI * 2 + hash(j + 9300) * 0.2;
-  return [Math.cos(a), Math.sin(a), 0.8 + hash(j + 9400) * 0.2] as const;
+  const a = (j / PETALS) * Math.PI * 2 + hash(j + 9300) * 0.18;
+  return [Math.cos(a), Math.sin(a), 0.82 + hash(j + 9400) * 0.18] as const;
 });
-const HEART = 8;
-const HEART_DIRS = Array.from({ length: HEART }, (_, j) => {
-  const a = (j / HEART) * Math.PI * 2 + 0.4;
-  return [Math.cos(a), Math.sin(a)] as const;
-});
-/** The Pop Art shell's starburst: how many points. */
-const BURST_POINTS = 12;
 /** Glitter: sparks scattered in the burst's disc, each with its own twinkle. */
-const SPARKS = 22;
+const SPARKS = 26;
 const SPARK = Array.from({ length: SPARKS }, (_, j) => {
   const a = hash(j + 9500) * Math.PI * 2;
   const d = Math.sqrt(hash(j + 9600)) * 0.9;
   return [Math.cos(a) * d, Math.sin(a) * d, hash(j + 9700) * 10] as const;
-});
-/** The pop flash: an eight-point star, unit radius. */
-const FLASH = Array.from({ length: 16 }, (_, i) => {
-  const a = (i / 16) * Math.PI * 2;
-  const r = i % 2 ? 0.4 : 1;
-  return [Math.cos(a) * r, Math.sin(a) * r] as const;
 });
 
 function cubicOut(x: number): number {
@@ -182,200 +186,202 @@ function cubicOut(x: number): number {
   return 1 - k * k * k;
 }
 
-/** The rocket's trail half width (u) and its head's radius, and the sparks it sheds along the trail. */
-const TRAIL_W = 0.0055;
-const ROCKET_HEAD = 0.008;
-const TRAIL_SPARKS = 5;
+/** The rocket's trail width (u) and its head's radius, and the sparks it sheds along the trail. */
+const TRAIL_W = 0.0032;
+const ROCKET_HEAD = 0.0055;
+const TRAIL_SPARKS = 4;
+
+/** Where a star is `k` into the bloom: out along (dx, dy) fast, then sinking `sink` R by the end (scratch). */
+const AT = { x: 0, y: 0 };
+function hang(bx: number, by: number, R: number, dx: number, dy: number, k: number, sink: number): typeof AT {
+  const e = cubicOut(Math.min(1, Math.max(0, k) * 1.7));
+  AT.x = bx + dx * R * e;
+  AT.y = by + dy * R * e * 0.9 + sink * R * k * k;
+  return AT;
+}
+
+/** Scratch: a trail's points along its track. */
+const TRAIL_X = new Float64Array(5);
+const TRAIL_Y = new Float64Array(5);
+
+/**
+ * Adds a star's trail from `k0` to `k1` of the bloom to the current path as a filled ribbon that
+ * tapers from nothing at its tail to `w` wide at its head (a fill costs a fraction of a stroke).
+ */
+function streak(ctx: Ctx, bx: number, by: number, R: number, dx: number, dy: number, k0: number, k1: number, sink: number, w: number): void {
+  const n = 4;
+  for (let i = 0; i <= n; i++) {
+    const p = hang(bx, by, R, dx, dy, Math.max(0, k0 + ((k1 - k0) * i) / n), sink);
+    TRAIL_X[i] = p.x;
+    TRAIL_Y[i] = p.y;
+  }
+  // Out along one side, tail to head, and back along the other.
+  for (let side = 1; side >= -1; side -= 2) {
+    for (let j = 0; j <= n; j++) {
+      const i = side > 0 ? j : n - j;
+      const a = Math.max(0, i - 1);
+      const b = Math.min(n, i + 1);
+      let nx = -(TRAIL_Y[b]! - TRAIL_Y[a]!);
+      let ny = TRAIL_X[b]! - TRAIL_X[a]!;
+      const len = Math.hypot(nx, ny) || 1;
+      nx /= len;
+      ny /= len;
+      const half = (w * 0.5 * i) / n;
+      const x = TRAIL_X[i]! + nx * half * side;
+      const y = TRAIL_Y[i]! + ny * half * side;
+      if (side > 0 && j === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+  }
+  ctx.closePath();
+}
 
 /** Draw one shell `local` seconds after its launch at SPOT (as place() left it), `on` visible, rising from `launchY`. */
 function shell(ctx: Ctx, s: Scene, l: Launcher, seed: number, local: number, on: number, launchY: number): void {
   const u = s.u;
   const { x: bx, y: by, r: R } = SPOT;
-  const c1 = FIREWORK[l.color]!;
-  const c2 = FIREWORK[(l.color + 1 + Math.floor(hash(seed + 2) * 3)) % 4]!;
+  const c1 = l.color;
+  const c2 = (l.color + 1 + Math.floor(hash(seed + 2) * 3)) % 4;
+  ctx.lineCap = "round";
   if (local < RISE) {
-    // The rocket: a bright head streaking up from behind the cloud sea on a tapered gold trail, shedding sparks.
+    // The rocket: a bright head climbing on a fine gold trail from behind the treetops, shedding sparks.
     const k = local / RISE;
     const sx = bx + (hash(seed + 9) - 0.5) * u * 0.05;
     const e = cubicOut(k);
     const hx = sx + (bx - sx) * e;
     const hy = launchY + (by - launchY) * e;
-    const tail = cubicOut(Math.max(0, k - 0.35));
+    const tail = cubicOut(Math.max(0, k - 0.3));
     const tx = sx + (bx - sx) * tail;
     const ty = launchY + (by - launchY) * tail;
-    const w = u * TRAIL_W;
-    ctx.globalAlpha = on;
-    ctx.fillStyle = FIREWORK[3];
+    ctx.globalAlpha = on * 0.8;
+    ctx.strokeStyle = FIREWORK[3];
+    ctx.lineWidth = Math.max(1, u * TRAIL_W);
     ctx.beginPath();
     ctx.moveTo(tx, ty);
-    ctx.lineTo(hx - w, hy);
-    ctx.lineTo(hx + w, hy);
-    ctx.closePath();
-    ctx.fill();
+    ctx.lineTo(hx, hy);
+    ctx.stroke();
+    ctx.globalAlpha = on;
     ctx.fillStyle = FIREWORK_LIGHT[3];
     ctx.beginPath();
     for (let i = 0; i < TRAIL_SPARKS; i++) {
       const f = (i + hash(seed + i * 3 + Math.floor(local * 20))) / TRAIL_SPARKS;
-      speck(ctx, tx + (hx - tx) * f + (hash(seed + i * 7 + Math.floor(local * 24)) - 0.5) * w * 3, ty + (hy - ty) * f, u * 0.0024);
+      speck(ctx, tx + (hx - tx) * f + (hash(seed + i * 7 + Math.floor(local * 24)) - 0.5) * u * 0.008, ty + (hy - ty) * f, u * 0.0018);
     }
-    ctx.fill();
-    ctx.fillStyle = FIREWORK[1];
-    ctx.beginPath();
     dot(ctx, hx, hy, u * ROCKET_HEAD);
     ctx.fill();
     ctx.globalAlpha = 1;
     return;
   }
   const k = (local - RISE) / BLOOM;
-  const fade = on * (k < 0.72 ? 1 : 1 - (k - 0.72) / 0.28);
-  // A flat disc of the burst's ink behind it, swelling and fading: the poster's printed glow.
+  const fade = on * (k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3);
+  ctx.lineCap = "butt";
+  // The bloom's soft glow: two discs of its light swelling and fading behind the stars, lighting the sky round it.
   if (k < 0.6) {
-    ctx.globalAlpha = fade * 0.3 * (1 - k / 0.6);
-    ctx.fillStyle = c1;
+    const gr = R * (0.4 + 0.65 * cubicOut(Math.min(1, k * 2)));
+    const a = fade * (1 - k / 0.6);
+    ctx.fillStyle = FIREWORK[c1]!;
+    ctx.globalAlpha = a * 0.12;
     ctx.beginPath();
-    circle(ctx, bx, by, R * cubicOut(Math.min(1, k * 1.6)) * 0.95);
+    circle(ctx, bx, by, gr);
+    ctx.fill();
+    ctx.fillStyle = FIREWORK_LIGHT[c1]!;
+    ctx.globalAlpha = a * 0.16;
+    ctx.beginPath();
+    circle(ctx, bx, by, gr * 0.55);
+    ctx.fill();
+  }
+  // The smoke it leaves: soft puffs swelling at its heart as it fades, lit by its own last light.
+  if (k > 0.35) {
+    const e = (k - 0.35) / 0.65;
+    ctx.globalAlpha = on * 0.16 * Math.sin(e * Math.PI);
+    ctx.fillStyle = SMOKE_LIT;
+    ctx.beginPath();
+    const sr = R * (0.18 + 0.22 * e);
+    circle(ctx, bx - sr * 0.6, by + R * 0.12 * e, sr);
+    circle(ctx, bx + sr * 0.55, by + R * 0.2 * e, sr * 0.85);
+    circle(ctx, bx, by - sr * 0.4 + R * 0.1 * e, sr * 0.9);
     ctx.fill();
   }
   ctx.globalAlpha = fade;
-  // The pop: a flat cream star at the heart.
-  if (k < 0.14) {
-    const fr = R * 0.55 * (1 - k / 0.14);
-    ctx.fillStyle = FIREWORK[1];
+  // The flash at its heart.
+  if (k < 0.1) {
+    ctx.fillStyle = FIREWORK_LIGHT[1];
     ctx.beginPath();
-    ctx.moveTo(bx + FLASH[0]![0] * fr, by + FLASH[0]![1] * fr);
-    for (let j = 1; j < FLASH.length; j++) ctx.lineTo(bx + FLASH[j]![0] * fr, by + FLASH[j]![1] * fr);
-    ctx.closePath();
+    dot(ctx, bx, by, R * 0.18 * (1 - k / 0.1));
     ctx.fill();
   }
   if (l.style === "glitter") glitter(ctx, s, bx, by, R, k, c1);
-  else if (l.style === "ring") rings(ctx, s, bx, by, R, k);
-  else if (l.style === "pop") pop(ctx, bx, by, R, k, c1, c2);
+  else if (l.style === "ring") ring(ctx, s, bx, by, R, k, c1, c2);
   else if (l.style === "willow") willow(ctx, s, bx, by, R, k);
-  else if (l.style === "palm") palm(ctx, s, bx, by, R, k, l.color);
-  else petals(ctx, s, bx, by, R, k, l.color, c2);
+  else if (l.style === "palm") palm(ctx, s, bx, by, R, k);
+  else if (l.style === "peony") peony(ctx, s, bx, by, R, k, c1, c2);
+  else mum(ctx, s, bx, by, R, k, c1);
   ctx.globalAlpha = 1;
 }
 
-/**
- * A chrysanthemum, printed like a poster: broad flat tapered rays radiating from the heart out
- * to round heads in the main ink, an inner ring of short rays in the second ink, and little
- * five-point stars of it round the heart.
- */
-function petals(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number, color: number, c2: string): void {
+/** A peony: a sphere of glowing stars with short tails, turning from its color to its pair's as they fade, twinkling out. */
+function peony(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number, c1: number, c2: number): void {
   const u = s.u;
-  const e = cubicOut(Math.min(1, k * 1.25));
-  const et = cubicOut(Math.min(1, Math.max(0, k - 0.16) * 1.25));
-  const droop = R * 0.26 * k * k;
-  const droopT = R * 0.26 * Math.max(0, k - 0.2) ** 2;
-  const shrink = k < 0.5 ? 1 : 1 - ((k - 0.5) / 0.5) * 0.75;
-  const pr = Math.max(u * 0.003, R * 0.1 * shrink);
-  for (let j = 0; j < PETALS; j++) {
-    const [dx, dy, sp] = DIRS[j]!;
-    HEADS[j * 2] = bx + dx * sp * R * e;
-    HEADS[j * 2 + 1] = by + dy * sp * R * e + droop;
-  }
-  // Each ray a wedge from its tail (chasing the head out from the heart) to the head's full width.
-  ctx.fillStyle = FIREWORK_LIGHT[color]!;
+  const sink = 0.3;
+  const turned = k > 0.5;
+  const pr = Math.max(u * 0.0026, R * 0.06 * (1 - k * 0.5));
+  ctx.fillStyle = FIREWORK[turned ? c2 : c1]!;
+  ctx.beginPath();
+  const pw = Math.max(1, pr * 1.3);
+  for (const [dx, dy, sp] of DIRS) streak(ctx, bx, by, R * sp, dx, dy, k - 0.12, k, sink, pw);
+  ctx.fill();
+  ctx.fillStyle = FIREWORK_LIGHT[turned ? c2 : c1]!;
   ctx.beginPath();
   for (let j = 0; j < PETALS; j++) {
+    if (k > 0.75 && Math.sin(s.t * 25 + j * 2.3) < 0) continue;
     const [dx, dy, sp] = DIRS[j]!;
-    const hx = HEADS[j * 2]!;
-    const hy = HEADS[j * 2 + 1]!;
-    ctx.moveTo(bx + dx * sp * R * et, by + dy * sp * R * et + droopT);
-    ctx.lineTo(hx - dy * pr, hy + dx * pr);
-    ctx.lineTo(hx + dy * pr, hy - dx * pr);
-    ctx.closePath();
-  }
-  ctx.fill();
-  ctx.fillStyle = FIREWORK[color]!;
-  ctx.beginPath();
-  for (let j = 0; j < PETALS; j++) dot(ctx, HEADS[j * 2]!, HEADS[j * 2 + 1]!, pr);
-  ctx.fill();
-  // The inner ring: short broad rays of the second ink between the long ones, and stars round the heart.
-  const ri = R * e * 0.5;
-  ctx.fillStyle = c2;
-  ctx.beginPath();
-  for (let j = 0; j < HEART; j++) {
-    const [dx, dy] = HEART_DIRS[j]!;
-    const hx = bx + dx * ri;
-    const hy = by + dy * ri + droop * 0.6;
-    ctx.moveTo(bx + dx * ri * 0.3, by + dy * ri * 0.3 + droop * 0.4);
-    ctx.lineTo(hx - dy * pr * 0.8, hy + dx * pr * 0.8);
-    ctx.lineTo(hx + dy * pr * 0.8, hy - dx * pr * 0.8);
-    ctx.closePath();
-    starPath(ctx, hx, hy, pr * 1.25);
+    const p = hang(bx, by, R * sp, dx, dy, k, sink);
+    dot(ctx, p.x, p.y, pr);
   }
   ctx.fill();
 }
 
-/** Where a hanging trail's head is `k` into the bloom: out along (dx, dy) fast, then sinking `sink` R by the end (scratch). */
-const AT = { x: 0, y: 0 };
-function hang(bx: number, by: number, R: number, dx: number, dy: number, k: number, sink: number): typeof AT {
-  const e = cubicOut(Math.min(1, Math.max(0, k) * 1.7));
-  AT.x = bx + dx * R * e;
-  AT.y = by + dy * R * e * 0.85 + sink * R * k * k;
-  return AT;
-}
-
-/** Points along a trail, from its tail to its head (scratch). */
-const TRAIL_PTS = 4;
-const TRAIL = new Float32Array(TRAIL_PTS * 2);
-
-/**
- * A trail hanging out of the heart along (dx, dy) as a filled taper, `w` wide at its head and a
- * point at its tail, through TRAIL_PTS points from `k0` to `k1` of the bloom, as its own subpath
- * (a filled taper costs a fraction of a stroked line). Leaves its head in AT.
- */
-function trail(ctx: Ctx, bx: number, by: number, R: number, dx: number, dy: number, k0: number, k1: number, sink: number, w: number): void {
-  for (let i = 0; i < TRAIL_PTS; i++) {
-    const p = hang(bx, by, R, dx, dy, k0 + ((k1 - k0) * i) / (TRAIL_PTS - 1), sink);
-    TRAIL[i * 2] = p.x;
-    TRAIL[i * 2 + 1] = p.y;
+/** A chrysanthemum: fine trails streaming out from the heart to bright heads, an inner ring of the paler color. */
+function mum(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number, c1: number): void {
+  const u = s.u;
+  const sink = 0.35;
+  const pr = Math.max(u * 0.0024, R * 0.05 * (1 - k * 0.5));
+  ctx.fillStyle = FIREWORK[c1]!;
+  ctx.beginPath();
+  const mw = Math.max(1, R * 0.034);
+  for (const [dx, dy, sp] of DIRS) streak(ctx, bx, by, R * sp, dx, dy, k * 0.45, k, sink, mw);
+  ctx.fill();
+  ctx.fillStyle = FIREWORK_LIGHT[c1]!;
+  ctx.beginPath();
+  for (const [dx, dy, sp] of DIRS) {
+    const p = hang(bx, by, R * sp, dx, dy, k, sink);
+    dot(ctx, p.x, p.y, pr);
+    const q = hang(bx, by, R * sp * 0.48, -dy, dx, k, sink * 0.6);
+    if (k < 0.8) dot(ctx, q.x, q.y, pr * 0.6);
   }
-  ctx.moveTo(TRAIL[0]!, TRAIL[1]!);
-  // Out along one side, widening, and back along the other.
-  for (let side = 1; side >= -1; side -= 2) {
-    for (let n = 1; n < TRAIL_PTS; n++) {
-      const i = side > 0 ? n : TRAIL_PTS - n;
-      const ax = TRAIL[i * 2]! - TRAIL[(i - 1) * 2]!;
-      const ay = TRAIL[i * 2 + 1]! - TRAIL[(i - 1) * 2 + 1]!;
-      const len = Math.hypot(ax, ay) || 1;
-      const half = (w * i) / (TRAIL_PTS - 1) / 2;
-      ctx.lineTo(TRAIL[i * 2]! - (ay / len) * half * side, TRAIL[i * 2 + 1]! + (ax / len) * half * side);
-    }
-  }
-  ctx.closePath();
-  AT.x = TRAIL[(TRAIL_PTS - 1) * 2]!;
-  AT.y = TRAIL[(TRAIL_PTS - 1) * 2 + 1]!;
+  ctx.fill();
 }
 
 /** How far (R) the willow's trails sink by the end, and how much of the bloom a trail's tail lags its head. */
 const WILLOW_SINK = 1.8;
 const WILLOW_LAG = 0.42;
 
-/** A gold willow: sixteen trails thrown out from the heart that hang and sink three times as far as they spread, their tips twinkling out. */
+/** A gold willow: trails thrown out from the heart that hang and sink three times as far as they spread, their tips twinkling out. */
 function willow(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number): void {
   const u = s.u;
-  const pr = Math.max(u * 0.003, R * 0.07 * (1 - k * 0.5));
+  const pr = Math.max(u * 0.0024, R * 0.045 * (1 - k * 0.5));
+  ctx.fillStyle = FIREWORK[3];
+  ctx.beginPath();
+  const ww = Math.max(1, R * 0.036);
+  for (const [dx, dy, sp] of DIRS) streak(ctx, bx, by, R * sp, dx, dy, k - WILLOW_LAG, k, WILLOW_SINK, ww);
+  ctx.fill();
   ctx.fillStyle = FIREWORK_LIGHT[3];
   ctx.beginPath();
   for (let j = 0; j < PETALS; j++) {
+    if (Math.sin(s.t * 23 + j * 2.1) < -0.3) continue;
     const [dx, dy, sp] = DIRS[j]!;
-    trail(ctx, bx, by, R * sp, dx, dy, k - WILLOW_LAG, k, WILLOW_SINK, pr * 1.2);
-    HEADS[j * 2] = AT.x;
-    HEADS[j * 2 + 1] = AT.y;
-  }
-  ctx.fill();
-  ctx.fillStyle = FIREWORK[3];
-  ctx.beginPath();
-  for (let j = 0; j < PETALS; j++) dot(ctx, HEADS[j * 2]!, HEADS[j * 2 + 1]!, pr);
-  ctx.fill();
-  // The tips twinkle out.
-  ctx.fillStyle = FIREWORK[1];
-  ctx.beginPath();
-  for (let j = 0; j < PETALS; j += 2) {
-    if (Math.sin(s.t * 23 + j * 2.1) < 0.2) continue;
-    dot(ctx, HEADS[j * 2]!, HEADS[j * 2 + 1]! + pr * 0.5, pr * 0.5);
+    const p = hang(bx, by, R * sp, dx, dy, k, WILLOW_SINK);
+    dot(ctx, p.x, p.y, pr);
   }
   ctx.fill();
 }
@@ -387,87 +393,65 @@ const FRONDS = Array.from({ length: 7 }, (_, j) => {
 });
 const PALM_SINK = 1.2;
 
-/** A palm: the rising trail left glowing as a trunk under the heart, and seven thick fronds arching up and out and drooping, a gold heart at their root. */
-function palm(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number, color: number): void {
+/** A palm: the rising trail left glowing as a trunk under the heart, and seven heavy gold fronds arching up and out and drooping. */
+function palm(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number): void {
   const u = s.u;
-  // The trunk: the climb's trail, fading down from the heart.
   const tk = Math.max(0, 1 - k * 1.6);
+  ctx.strokeStyle = FIREWORK[3];
   if (tk > 0) {
-    ctx.fillStyle = FIREWORK[3];
+    ctx.globalAlpha *= 0.7;
+    ctx.lineWidth = Math.max(1, R * 0.03 * tk);
     ctx.beginPath();
-    ctx.moveTo(bx - R * 0.07 * tk, by);
-    ctx.lineTo(bx + R * 0.07 * tk, by);
-    ctx.lineTo(bx, by + R * 2 * tk);
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx, by + R * 1.6 * tk);
+    ctx.stroke();
+    ctx.globalAlpha /= 0.7;
   }
-  const w = Math.max(u * 0.004, R * 0.2 * (1 - k * 0.6));
-  ctx.fillStyle = FIREWORK[color]!;
+  ctx.fillStyle = FIREWORK[3];
   ctx.beginPath();
-  for (const [dx, dy] of FRONDS) trail(ctx, bx, by, R, dx, dy, k * 0.35, k, PALM_SINK, w);
+  const fw = Math.max(1.2, R * 0.075 * (1 - k * 0.5));
+  for (const [dx, dy] of FRONDS) streak(ctx, bx, by, R, dx, dy, k * 0.4, k, PALM_SINK, fw);
   ctx.fill();
-  // Each frond's tip, and the heart.
-  ctx.fillStyle = FIREWORK_LIGHT[color]!;
+  ctx.fillStyle = FIREWORK_LIGHT[3];
   ctx.beginPath();
   for (const [dx, dy] of FRONDS) {
     const p = hang(bx, by, R, dx, dy, k, PALM_SINK);
-    dot(ctx, p.x, p.y, Math.max(u * 0.003, R * 0.08));
+    dot(ctx, p.x, p.y, Math.max(u * 0.0026, R * 0.06));
   }
-  dot(ctx, bx, by, R * 0.16 * (1 - k * 0.7));
+  dot(ctx, bx, by, R * 0.1 * (1 - k * 0.7));
   ctx.fill();
 }
 
-/** The Pop Art shell: a comic-book starburst, a jagged flat star of the main ink round a smaller one of the second and a cream heart, swelling and fading. */
-function pop(ctx: Ctx, bx: number, by: number, R: number, k: number, c1: string, c2: string): void {
-  const e = cubicOut(Math.min(1, k * 1.5));
-  const turn = k * 0.4;
-  for (let layer = 0; layer < 3; layer++) {
-    const r = R * e * (layer === 0 ? 0.95 : layer === 1 ? 0.6 : 0.26);
-    ctx.fillStyle = layer === 0 ? c1 : layer === 1 ? c2 : FIREWORK[1];
-    ctx.beginPath();
-    for (let j = 0; j < BURST_POINTS * 2; j++) {
-      const a = (j / (BURST_POINTS * 2)) * Math.PI * 2 + turn * (layer === 1 ? -1 : 1);
-      const rr = j % 2 ? r * 0.6 : r * (j % 4 === 0 ? 1 : 0.84);
-      if (j === 0) ctx.moveTo(bx + Math.cos(a) * rr, by + Math.sin(a) * rr);
-      else ctx.lineTo(bx + Math.cos(a) * rr, by + Math.sin(a) * rr);
-    }
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-/** A tricolor ring shell: three concentric rings drifting down together, red dots outside, cream stars, then blue dots. */
-function rings(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number): void {
+/** A ring: a circle of stars drifting down together round a smaller heart of the second color. */
+function ring(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number, c1: number, c2: number): void {
   const u = s.u;
   const e = cubicOut(Math.min(1, k * 1.3));
   const droop = R * 0.3 * k * k;
-  const shrink = k < 0.5 ? 1 : 1 - ((k - 0.5) / 0.5) * 0.7;
-  const pr = Math.max(u * 0.003, R * 0.09 * shrink);
-  const squash = 0.75;
-  for (let ring = 0; ring < 3; ring++) {
-    const rr = R * e * (1 - ring * 0.3);
-    ctx.fillStyle = FIREWORK[ring === 0 ? 0 : ring === 1 ? 1 : 2];
+  const pr = Math.max(u * 0.0026, R * 0.06 * (k < 0.5 ? 1 : 1 - (k - 0.5) * 1.2));
+  for (let pass = 0; pass < 2; pass++) {
+    const rr = R * e * (pass ? 0.42 : 1);
+    ctx.fillStyle = pass ? FIREWORK_LIGHT[c2]! : FIREWORK[c1]!;
     ctx.beginPath();
-    for (let j = 0; j < PETALS; j++) {
+    for (let j = 0; j < PETALS; j += pass + 1) {
       const [dx, dy] = DIRS[j]!;
       const x = bx + dx * rr;
-      const y = by + dy * rr * squash + droop;
-      if (ring === 1) starPath(ctx, x, y, pr * 1.5);
-      else dot(ctx, x, y, pr * (1 - ring * 0.12));
+      const y = by + dy * rr * 0.78 + droop;
+      if (pass) starPath(ctx, x, y, pr * 1.3);
+      else dot(ctx, x, y, pr);
     }
     ctx.fill();
   }
 }
 
-/** A glitter shell: a cloud of sparks that spread, twinkle and sink. */
-function glitter(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number, c1: string): void {
+/** Crackling glitter: a cloud of sparks that spread, twinkle and sink. */
+function glitter(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: number, c1: number): void {
   const u = s.u;
   const e = cubicOut(Math.min(1, k * 1.5));
   const sink = R * 0.3 * k * k;
-  const pr = Math.max(u * 0.003, R * 0.065);
+  const pr = Math.max(u * 0.0024, R * 0.045);
   const frame = Math.floor(s.t * 20);
   for (let pass = 0; pass < 2; pass++) {
-    ctx.fillStyle = pass ? FIREWORK[1] : c1;
+    ctx.fillStyle = pass ? FIREWORK_LIGHT[1] : FIREWORK[c1]!;
     ctx.beginPath();
     for (let j = 0; j < SPARKS; j++) {
       const [dx, dy, ph] = SPARK[j]!;
@@ -475,7 +459,7 @@ function glitter(ctx: Ctx, s: Scene, bx: number, by: number, R: number, k: numbe
       if ((tw > 0.3) !== (pass === 1)) continue;
       const x = bx + dx * R * e;
       const y = by + dy * R * e + sink * (0.5 + dx * dx);
-      if (pass) starPath(ctx, x, y, pr * 1.2);
+      if (pass) starPath(ctx, x, y, pr * 1.3);
       else dot(ctx, x, y, pr);
     }
     ctx.fill();
@@ -497,9 +481,9 @@ export interface Burst {
 }
 const BURST: Burst = { x: 0, y: 0, across: 0, up: 0, down: 0, side: 1, launchY: 0, wander: 0 };
 
-/** Where rockets and the finale's ground pieces climb from: just under the cloud sea's top at a screen x (it piles up on the right, far.ts). */
-function launchFrom(s: Scene, floor: number, x: number): number {
-  return Math.min(s.cssH, floor - pileAt((x - s.cssW / 2) / s.u) * s.u) + s.u * 0.04;
+/** Where rockets and the finale's ground pieces climb from: behind the front row's treetops (or the screen's bottom). */
+function launchFrom(s: Scene): number {
+  return Math.min(s.cssH, frontLine(s) - s.u * 0.02) + s.u * 0.04;
 }
 
 /**
@@ -507,18 +491,17 @@ function launchFrom(s: Scene, floor: number, x: number): number {
  * age since launch, how visible it is (the show and the finale fade their launchers in), and
  * where it bursts. Shells whose launcher has no room on this screen are skipped.
  */
-function eachShell(s: Scene, tone: Tone, floor: number, cb: (local: number, l: Launcher, seed: number, on: number, b: Burst) => void): void {
+function eachShell(s: Scene, tone: Tone, cb: (local: number, l: Launcher, seed: number, on: number, b: Burst) => void): void {
   const u = s.u;
   if (tone.show <= 0 && tone.finale <= 0) return;
   const lit = tone.show * SHOW_N;
   for (let i = 0; i < LAUNCHERS.length; i++) {
     const l = LAUNCHERS[i]!;
-    // The show's launchers fade in one by one; the finale's fast ones only in the finale.
     const on = i < SHOW_N ? Math.min(1, Math.max(0, lit - i)) : tone.finale;
     if (on <= 0.02) continue;
     const period = l.period;
     const R = u * (R_MIN + (R_MAX - R_MIN) * l.size) * (1 + FINALE_GROW * tone.finale);
-    if (!place(s, tone, floor, l, R)) continue;
+    if (!place(s, tone, l, R)) continue;
     const n0 = Math.floor((s.t - l.phase) / period);
     for (let n = n0 - 1; n <= n0; n++) {
       if (n < 0) continue;
@@ -534,7 +517,7 @@ function eachShell(s: Scene, tone: Tone, floor: number, cb: (local: number, l: L
       BURST.up = SPOT.r * ku + slack;
       BURST.down = SPOT.r * kd + slack;
       BURST.side = l.side;
-      BURST.launchY = launchFrom(s, floor, SPOT.x);
+      BURST.launchY = launchFrom(s);
       BURST.wander = u * 0.025;
       cb(local, l, seed, on, BURST);
     }
@@ -542,8 +525,8 @@ function eachShell(s: Scene, tone: Tone, floor: number, cb: (local: number, l: L
 }
 
 /** For the tests: every burst in the air now, with its reach. */
-export function eachBurst(s: Scene, tone: Tone, floor: number, cb: (b: Burst, local: number) => void): void {
-  eachShell(s, tone, floor, (local, _l, _seed, _on, b) => cb(b, local));
+export function eachBurst(s: Scene, tone: Tone, cb: (b: Burst, local: number) => void): void {
+  eachShell(s, tone, (local, _l, _seed, _on, b) => cb(b, local));
 }
 
 /** Scratch arguments for the per-frame walk, so it allocates no closure. */
@@ -553,13 +536,72 @@ function drawShell(local: number, l: Launcher, seed: number, on: number, b: Burs
 }
 
 /** The show: the finale's wall of fountains and Roman candles, every shell in the air, and the finale's lancework flag. */
-export function fireworks(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
+export function fireworks(ctx: Ctx, s: Scene, tone: Tone): void {
   NOW.ctx = ctx;
   NOW.s = s;
-  groundPieces(ctx, s, tone, floor);
-  eachShell(s, tone, floor, drawShell);
+  groundPieces(ctx, s, tone);
+  eachShell(s, tone, drawShell);
   lancework(ctx, s, tone);
 }
+
+/**
+ * The bursts' light on the town: the shells in bloom in each lane, added up, lay one soft glow of
+ * the brightest one's color over the rooftops and treetops of that lane, strongest as they open.
+ * It keeps to its lane, so it never reaches the tower's column.
+ */
+const LIGHT = { sum: new Float64Array(2), x: new Float64Array(2), best: new Float64Array(2), color: [0, 0], y: new Float64Array(2) };
+export function townGlow(ctx: Ctx, s: Scene, tone: Tone): void {
+  if (tone.show <= 0 && tone.finale <= 0) return;
+  NOW.ctx = ctx;
+  NOW.s = s;
+  for (let i = 0; i < 2; i++) LIGHT.sum[i] = LIGHT.x[i] = LIGHT.best[i] = LIGHT.y[i] = 0;
+  eachShell(s, tone, lightOne);
+  const u = s.u;
+  const cx = s.cssW / 2;
+  for (let i = 0; i < 2; i++) {
+    const sum = LIGHT.sum[i]!;
+    if (sum <= 0.01) continue;
+    const x = LIGHT.x[i]! / sum;
+    const y = LIGHT.y[i]! / sum;
+    const r = Math.min(Math.abs(x - cx) - u * (COLUMN + MARGIN), u * 0.3);
+    if (r <= u * 0.02) continue;
+    // Tinted, not whitened, and feathered out (an even fall-off reads as a bubble round the houses).
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const stops = GLOW_STOPS[LIGHT.color[i]!]!;
+    for (let k = 0; k < GLOW_AT.length; k++) g.addColorStop(GLOW_AT[k]!, stops[k]!);
+    ctx.globalAlpha = Math.min(0.3, 0.11 * sum);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.ellipse(x, y, r, r * 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+function lightOne(local: number, l: Launcher, _seed: number, on: number, b: Burst): void {
+  const s = NOW.s!;
+  if (local < RISE) return;
+  const k = (local - RISE) / BLOOM;
+  if (k > 0.8) return;
+  const w = on * (1 - k / 0.8);
+  const i = b.side > 0 ? 1 : 0;
+  LIGHT.sum[i] = LIGHT.sum[i]! + w;
+  LIGHT.x[i] = LIGHT.x[i]! + w * b.x;
+  LIGHT.y[i] = LIGHT.y[i]! + w * Math.min(s.cssH, Math.max(b.y + b.down, b.launchY - s.u * 0.1));
+  if (w > LIGHT.best[i]!) {
+    LIGHT.best[i] = w;
+    LIGHT.color[i] = l.color;
+  }
+}
+/** The light's fall-off from its middle: where each stop is and how strong, eased out to nothing so it has no edge. */
+const GLOW_AT = [0, 0.3, 0.55, 0.78, 1] as const;
+const GLOW_A = [1, 0.75, 0.38, 0.12, 0] as const;
+/** Each firework color's light at those stops, a little warmer than the burst. */
+const GLOW_STOPS = FIREWORK.map((c, i) => {
+  const lit = mix(c, FIREWORK_LIGHT[i]!, 0.25);
+  const [r, g, b] = [1, 3, 5].map((k) => parseInt(lit.slice(k, k + 2), 16));
+  return GLOW_A.map((a) => `rgba(${r}, ${g}, ${b}, ${a})`);
+});
 
 // ---------------------------------------------------------------- the finale's wall
 
@@ -567,8 +609,8 @@ export function fireworks(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
  * The finale's ground pieces along the skyline at each side, between its landmark and the
  * screen's edge: fountains (gerbs) spraying gold and cream sparks in a sheaf, and Roman candles
  * firing a star of red, cream, blue or gold up the lane every CANDLE_EVERY seconds. They rise
- * from behind the cloud sea's top no higher than the lane's landmark (so they never meet a burst,
- * which keep above it), and fade in and out with the finale.
+ * from behind the treetops no higher than the lane's skyline (so they never meet a burst, which
+ * keep above it), and fade in and out with the finale.
  */
 const PIECES = ["fountain", "candle", "fountain", "candle", "fountain"] as const;
 /** The ground pieces keep this far (u) out from the center: clear of the steeple (left) and the courthouse's dome (right). */
@@ -592,7 +634,7 @@ const PIECE_SLACK = 0.012;
 const PIECE = { x: 0, foot: 0, top: 0, spread: 0 };
 
 /** Calls `cb` with every ground piece on screen (PIECE filled in): its kind and index. Returns nothing when the finale is out. */
-function eachPiece(s: Scene, tone: Tone, floor: number, cb: (kind: "fountain" | "candle", i: number) => void): void {
+function eachPiece(s: Scene, tone: Tone, cb: (kind: "fountain" | "candle", i: number) => void): void {
   if (tone.finale <= 0.02) return;
   const u = s.u;
   const cx = s.cssW / 2;
@@ -602,12 +644,12 @@ function eachPiece(s: Scene, tone: Tone, floor: number, cb: (kind: "fountain" | 
     const n = Math.min(PIECES.length, Math.floor(room / (SLOT * u)));
     if (n < 1) continue;
     const slot = room / n;
-    // No higher than the lane's landmark (a candle's star reaching a hair above its track).
-    const top = landmarkLine(s) - u * (side > 0 ? POLE_TOP : STEEPLE_REACH) + u * PIECE_SLACK;
+    // No higher than the lane's skyline (a candle's star reaching a hair above its track).
+    const top = skyline(s, tone, side) + u * PIECE_SLACK;
     for (let i = 0; i < n; i++) {
       const kind = PIECES[i]!;
       PIECE.x = cx + side * (from + slot * (i + 0.5));
-      PIECE.foot = launchFrom(s, floor, PIECE.x);
+      PIECE.foot = launchFrom(s);
       PIECE.top = Math.max(top, PIECE.foot - (kind === "fountain" ? FOUNTAIN_H : 0.6) * u);
       PIECE.spread = Math.min((PIECE.foot - PIECE.top) * SHEAF, slot / 2 - u * PIECE_SLACK);
       if (PIECE.top < PIECE.foot - u * 0.05) cb(kind, i + (side > 0 ? 7 : 0));
@@ -616,9 +658,9 @@ function eachPiece(s: Scene, tone: Tone, floor: number, cb: (kind: "fountain" | 
 }
 
 /** For the tests: every ground piece burning now, with the box it draws inside (x either side `across`, from `top` down to `foot`). */
-export function eachPieceBox(s: Scene, tone: Tone, floor: number, cb: (box: { x: number; across: number; top: number; foot: number }) => void): void {
+export function eachPieceBox(s: Scene, tone: Tone, cb: (box: { x: number; across: number; top: number; foot: number }) => void): void {
   const slack = s.u * PIECE_SLACK;
-  eachPiece(s, tone, floor, (kind) => cb({ x: PIECE.x, across: (kind === "fountain" ? PIECE.spread : 0) + slack, top: PIECE.top - slack, foot: PIECE.foot + slack }));
+  eachPiece(s, tone, (kind) => cb({ x: PIECE.x, across: (kind === "fountain" ? PIECE.spread : 0) + slack, top: PIECE.top - slack, foot: PIECE.foot + slack }));
 }
 
 /** Scratch arguments for the ground pieces' walk. */
@@ -661,7 +703,7 @@ function drawPiece(kind: "fountain" | "candle", i: number): void {
 }
 
 /** The finale's wall of fountains and Roman candles, at the finale's strength. */
-function groundPieces(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
+function groundPieces(ctx: Ctx, s: Scene, tone: Tone): void {
   if (tone.finale <= 0.02) return;
   WALL.ctx = ctx;
   WALL.s = s;
@@ -671,11 +713,11 @@ function groundPieces(ctx: Ctx, s: Scene, tone: Tone, floor: number): void {
     WALL.pass = pass;
     ctx.fillStyle = pass ? FIREWORK_LIGHT[1] : FIREWORK[3];
     ctx.beginPath();
-    eachPiece(s, tone, floor, drawPiece);
+    eachPiece(s, tone, drawPiece);
     ctx.fill();
   }
   WALL.pass = 2;
-  eachPiece(s, tone, floor, drawPiece);
+  eachPiece(s, tone, drawPiece);
   ctx.globalAlpha = 1;
 }
 
@@ -712,8 +754,8 @@ export function lanceAt(s: Scene, tone: Tone): typeof LANCE {
   const left = u * MARGIN * 2;
   const right = s.cssW / 2 - u * (COLUMN + MARGIN);
   const m = moonAt(s);
-  const top = Math.max(s.cssH * HUD_BOTTOM, m.y + m.r) + u * MARGIN;
-  const bottom = landmarkLine(s) - u * (Math.max(STEEPLE_REACH, stackTop(s, tone, -1)) + MARGIN);
+  const top = Math.max(s.cssH * HUD_BOTTOM, m.y + m.r * MOON_REACH) + u * MARGIN;
+  const bottom = skyline(s, tone, -1) - u * MARGIN;
   const w = Math.min(LANCE_W * u, right - left - u * 0.01, (bottom - top) / LANCE_ASPECT - u * 0.03);
   if (w < u * 0.08) return LANCE;
   LANCE.w = w;

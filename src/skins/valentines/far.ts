@@ -2,7 +2,9 @@ import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { BLOCK_X0, BLOCK_X1, CORNICE } from "./boulevard";
 import { dashes, heartPath, NO_DASH, scallopArc } from "./shapes";
-import { DAY_HIGH, level, smooth, type RowTone, type Tone } from "./tone";
+import { landmarks, landmarksTop, PATH_PAD } from "./skyline";
+import { sunPath } from "./sky";
+import { DAY_HIGH, level, smooth, sunSideShow, type RowTone, type Tone } from "./tone";
 
 // The far layer: Paris across the rooftops, layered deep to a hazy horizon the way the owner's
 // photo shows it, in the warm light of the hour (tone.ts). Back to front: a far hill on the
@@ -24,11 +26,12 @@ import { DAY_HIGH, level, smooth, type RowTone, type Tone } from "./tone";
 // sea has risen to the boulevard's foot, so it only ever goes down into the cloud sea. Above the
 // start, the sea of cloud gathers below you, drawn the Art Nouveau way: rows of scallops, far
 // rows small and near rows big, in the hour's pastels, a fine contour along each row and a shell
-// line in each big scallop. From then on its top is the land's line, which the boulevard
-// (boulevard.ts), the lattice tower and the wheel stand on (`landLine`), and it sinks with them to
-// rest low on the screen, and there it stays for good, a calm sea of cloud with the lit fronts,
-// the tower and the wheel standing out of it, for the sun to set into and rise out of on every
-// turn of the story's loop.
+// line in each big scallop. From then on its top is the land's line, which the lattice tower and
+// the wheel stand on (`landLine`), and it sinks with them to rest low on the screen, and there it
+// stays for good, a calm sea of cloud for the sun to set into and rise out of on every turn of the
+// story's loop. Behind the tower it holds nothing: the boulevard's block went into the evening
+// mist with the city (boulevard.ts), and Paris above the clouds stands in the side lanes (the end
+// of this file, and skyline.ts).
 //
 // Positions are in u from the screen center, heights in u above the land's line.
 
@@ -62,9 +65,9 @@ export function landShows(s: Scene, top: number): boolean {
 }
 
 /**
- * The line the boulevard, the lattice tower and the wheel stand on: the horizon while the land
- * shows, then the cloud floor's line as it sinks to rest (and there it stays, so every turn of
- * the loop looks the same).
+ * The line the boulevard, the lattice tower and the wheel (and above the clouds the lanes'
+ * rooftops and landmarks) stand on: the horizon while the land shows, then the cloud floor's line
+ * as it sinks to rest (and there it stays, so every turn of the loop looks the same).
  */
 export function landLine(s: Scene): number {
   return seaLine(s, level(s)) - s.u * 0.01;
@@ -116,12 +119,20 @@ interface RowSpec {
   seed: number;
 }
 
-/** The three rows, far to near. */
+/**
+ * The three rows of the city, far to near; and (LANE) the rooftops of Paris that stand out of the
+ * cloud sea in the side lanes once it has covered the land, their lower floors under it.
+ */
 const SPECS: readonly RowSpec[] = [
   { base: 0.29, storey: 0.0165, f0: 4, f1: 5, bay: 0.0165, w0: 4, w1: 7, roof: 0.024, detail: 0, seed: 1100 },
   { base: 0.175, storey: 0.0215, f0: 5, f1: 6, bay: 0.021, w0: 4, w1: 7, roof: 0.03, detail: 1, seed: 1200 },
   { base: -CITY_FOOT, storey: 0.03, f0: 6, f1: 7, bay: 0.026, w0: 4, w1: 6, roof: 0.034, detail: 2, seed: 1300 },
+  { base: -0.08, storey: 0.03, f0: 5, f1: 7, bay: 0.026, w0: 4, w1: 6, roof: 0.04, detail: 2, seed: 1400 },
+  { base: 0.0, storey: 0.021, f0: 6, f1: 9, bay: 0.021, w0: 4, w1: 7, roof: 0.03, detail: 0, seed: 1500 },
 ];
+/** The lanes' rooftops: the near row, and a taller one behind it, paler with the distance. */
+const LANE = 3;
+const LANE_BACK = 4;
 
 /** A block: its sides (u from center), the top of its front and the height of its roof over that (u above the land's line), its roof's kind, window bays and floors (none: a gap in the row). */
 interface Block {
@@ -216,14 +227,59 @@ function rowBlocks(spec: RowSpec, row: number): Block[] {
   return out;
 }
 
-const ROWS: readonly (readonly Block[])[] = SPECS.map((spec, i) => rowBlocks(spec, i));
+/** Where the lanes' rooftops begin either side of the center (u): clear of the tower's column. */
+export const LANE_X = 0.27;
+
+/**
+ * The lanes' rooftops: blocks running out from LANE_X either side to the row's span, left to right
+ * (none behind the tower). The innermost block of the left lane shows its shaded side to the gap.
+ */
+function laneBlocks(spec: RowSpec): Block[] {
+  const out: Block[] = [];
+  for (const side of [-1, 1]) {
+    let x = LANE_X;
+    for (let k = 0; x < SPAN; k++) {
+      const h = (n: number) => hash(spec.seed + side * 500 + k * 7 + n);
+      const bays = spec.w0 + Math.floor((spec.w1 - spec.w0 + 1) * h(0) * 0.999);
+      const w = bays * spec.bay;
+      const kindRoll = h(2);
+      const kind = kindRoll < 0.12 ? 1 : kindRoll < 0.3 ? 2 : 0;
+      const floors = spec.f0 + Math.floor((spec.f1 - spec.f0 + 1) * h(1) * 0.999);
+      const x0 = side > 0 ? x : -x - w;
+      out.push({
+        x0,
+        x1: x0 + w,
+        base: spec.base,
+        top: spec.base + floors * spec.storey,
+        roof: spec.roof * (kind === 2 ? 1.7 : 1),
+        kind,
+        bays,
+        floors,
+        stacks: h(3) < 0.25 ? 0 : h(3) < 0.7 ? 1 : 2,
+        side: false,
+        quiet: false,
+        id: spec.seed + side * 500 + k,
+      });
+      x += w;
+    }
+  }
+  out.sort((a, b) => a.x0 - b.x0);
+  for (let i = 0; i + 1 < out.length; i++) {
+    const a = out[i]!;
+    const b = out[i + 1]!;
+    a.side = b.x0 > a.x1 + 1e-9 || b.top + b.roof < a.top + a.roof - 0.004;
+  }
+  return out;
+}
+
+const ROWS: readonly (readonly Block[])[] = SPECS.map((spec, i) => (i >= LANE ? laneBlocks(spec) : rowBlocks(spec, i)));
 
 /**
  * How much faster than the land's line each row drops as the camera climbs (a fraction of its
  * `rise`): the nearer the row, the faster, so as you climb the rooftops of Paris fall away below
  * you, the near ones first, opening the view over the far ones.
  */
-const DROP = [0, 0.025, 0.06] as const;
+const DROP = [0, 0.025, 0.06, 0, 0] as const;
 
 /** The line row k's heights are measured from on screen: the land's line, dropping with the climb. */
 function rowLine(s: Scene, k: number): number {
@@ -233,6 +289,24 @@ function rowLine(s: Scene, k: number): number {
 /** Whether a block stands wholly behind the boulevard's block (whose fronts hide it up to their cornice). */
 function behindBlock(b: Block): boolean {
   return b.x0 >= BLOCK_X0 && b.x1 <= BLOCK_X1;
+}
+
+/**
+ * Up to what height (u above the land's line) the lanes' rows are hidden, so no window, ledge or
+ * balcony under it is drawn: the near row by the cloud sea (its scallops dip to 0.015 u over the
+ * land's line), the back row by the near row in front of it as well (its fronts reach at least
+ * BACK_COVER).
+ */
+const SEA_COVER = 0.02;
+const BACK_COVER = 0.07;
+function laneCover(k: number): number {
+  return k === LANE ? SEA_COVER : k === LANE_BACK ? BACK_COVER : -Infinity;
+}
+
+/** Up to what height (u above the land's line) a block of row k is hidden: the city's behind the boulevard's block up to its cornice; the lanes' (`laneCover`). */
+function coverOf(b: Block, k: number): number {
+  if (k >= LANE) return laneCover(k);
+  return behindBlock(b) ? CORNICE : -Infinity;
 }
 /** Scratch: which of a row's blocks on screen are wholly hidden this frame (1), by index. */
 const HIDDEN = new Uint8Array(128);
@@ -272,7 +346,7 @@ function windowRows(ctx: Ctx, s: Scene, k: number, color: string, quiet: boolean
   for (let i = SEEN.from; i < SEEN.to; i++) {
     const b = blocks[i]!;
     if (HIDDEN[i] || b.quiet !== quiet || b.floors === 0) continue;
-    const hidden = behindBlock(b) ? CORNICE : -Infinity;
+    const hidden = coverOf(b, k);
     for (let f = shops ? 0 : spec.detail > 0 ? 1 : 0; f < (shops ? 1 : b.floors); f++) {
       if (b.base + (f + 1) * spec.storey < hidden) continue;
       const y = hz - (b.base + (f + 1) * spec.storey) * u + fh * (shops ? 0.3 : 0.26) + wh / 2;
@@ -294,7 +368,7 @@ function windowRows(ctx: Ctx, s: Scene, k: number, color: string, quiet: boolean
  * windows (a shade off the stone behind the tower), the balconies, the zinc roofs with a lit
  * slope, the dormers and the chimney stacks with their pots, and the windows lit at dusk.
  */
-function row(ctx: Ctx, s: Scene, k: number, rt: RowTone, lights: number): void {
+function row(ctx: Ctx, s: Scene, k: number, rt: RowTone, lights: number, keep?: (b: Block) => boolean): void {
   const spec = SPECS[k]!;
   const blocks = ROWS[k]!;
   const u = s.u;
@@ -303,8 +377,12 @@ function row(ctx: Ctx, s: Scene, k: number, rt: RowTone, lights: number): void {
   const { from, to } = seen(s, blocks);
   const X = (x: number) => cx + x * u;
   const Y = (h: number) => hz - h * u;
-  // (What the boulevard's block hides wholly is left out: the near row's blocks behind it.)
-  for (let i = from; i < to; i++) HIDDEN[i] = blocks[i]!.floors === 0 || (k === 2 && behindBlock(blocks[i]!)) ? 1 : 0;
+  // (What the boulevard's block hides wholly is left out: the near row's blocks behind it; and
+  // the blocks `keep` leaves out.)
+  for (let i = from; i < to; i++) {
+    const b = blocks[i]!;
+    HIDDEN[i] = b.floors === 0 || (k === 2 && behindBlock(b)) || (keep !== undefined && !keep(b)) ? 1 : 0;
+  }
   // The fronts.
   ctx.fillStyle = rt.stone;
   ctx.beginPath();
@@ -335,7 +413,11 @@ function row(ctx: Ctx, s: Scene, k: number, rt: RowTone, lights: number): void {
     ctx.rect(X(b.x0), Y(b.top), Math.max(1, u * 0.004), Y(b.base) - Y(b.top));
     ctx.rect(X(b.x0), Y(b.top) - u * 0.002, w, u * 0.003);
     if (spec.detail > 0 && !b.quiet) {
-      for (let f = 1; f < b.floors; f++) ctx.rect(X(b.x0), Y(b.base + f * spec.storey) - u * 0.0015, w, Math.max(0.8, u * 0.0022));
+      const cover = laneCover(k);
+      for (let f = 1; f < b.floors; f++) {
+        if (b.base + f * spec.storey < cover) continue;
+        ctx.rect(X(b.x0), Y(b.base + f * spec.storey) - u * 0.0015, w, Math.max(0.8, u * 0.0022));
+      }
     }
   }
   ctx.fill();
@@ -353,7 +435,7 @@ function row(ctx: Ctx, s: Scene, k: number, rt: RowTone, lights: number): void {
       const b = blocks[i]!;
       if (HIDDEN[i] || b.quiet) continue;
       for (const f of [2, b.floors - 1]) {
-        if (f < 1 || f >= b.floors) continue;
+        if (f < 1 || f >= b.floors || b.base + f * spec.storey < laneCover(k)) continue;
         const y = Y(b.base + f * spec.storey);
         ctx.rect(X(b.x0) + u * 0.003, y - u * 0.0075, (b.x1 - b.x0) * u - u * 0.006, Math.max(0.8, u * 0.0028));
       }
@@ -372,7 +454,7 @@ function row(ctx: Ctx, s: Scene, k: number, rt: RowTone, lights: number): void {
       for (let i = from; i < to; i++) {
         const b = blocks[i]!;
         if (HIDDEN[i] || b.quiet !== quiet) continue;
-        litWindows(ctx, s, b, spec, hz, lights);
+        litWindows(ctx, s, b, spec, hz, lights, coverOf(b, k));
       }
       ctx.fill();
     }
@@ -381,12 +463,11 @@ function row(ctx: Ctx, s: Scene, k: number, rt: RowTone, lights: number): void {
 }
 
 /** The windows of a block lit at this point of the dusk, as subpaths: each comes on at its own moment as `lights` goes from 0 to 1, and a third stay dark. */
-function litWindows(ctx: Ctx, s: Scene, b: Block, spec: RowSpec, hz: number, lights: number): void {
+function litWindows(ctx: Ctx, s: Scene, b: Block, spec: RowSpec, hz: number, lights: number, hidden: number): void {
   const u = s.u;
   const cx = s.cssW / 2;
   const bay = spec.bay * u;
   const fh = spec.storey * u;
-  const hidden = behindBlock(b) ? CORNICE : -Infinity;
   for (let f = 0; f < b.floors; f++) {
     if (b.base + (f + 1) * spec.storey < hidden) continue;
     const shop = f === 0 && spec.detail > 0;
@@ -742,6 +823,35 @@ const TOP_HW = 0.006;
 const BEACON = 0.462;
 const TOWER_TIP = 0.482;
 
+/**
+ * Above the clouds the lattice tower and the wheel stand grander (the owner's "big bold"): as the
+ * cloud sea sinks to its rest (from DAY_HIGH to FLOOR_SETTLED) they grow by these factors, the
+ * tower's foot going down into the sea so its legs still fit the lane on a phone, and both move a
+ * little out into the lane, clear of the tower's column.
+ */
+const TOWER_GROW = 1.35;
+const TOWER_SINK = 0.05;
+const TOWER_X_HIGH = 0.395;
+const WHEEL_GROW = 1.2;
+const WHEEL_X_HIGH = 0.362;
+
+/** How far the lattice tower and the wheel have grown, 0 at the start to 1 above the clouds. */
+function grown(s: Scene): number {
+  return smooth(DAY_HIGH, FLOOR_SETTLED, level(s));
+}
+
+/** Scratch for the lattice tower's place, so placing it allocates nothing. */
+const TOWER_AT = { x: 0, hz: 0, u: 0 };
+
+/** Where the lattice tower stands: its axis and its foot's line (px), and how many px a u of its drawing is. */
+function towerAt(s: Scene): typeof TOWER_AT {
+  const g = grown(s);
+  TOWER_AT.u = s.u * (1 + (TOWER_GROW - 1) * g);
+  TOWER_AT.x = s.cssW / 2 + (TOWER_X + (TOWER_X_HIGH - TOWER_X) * g) * s.u;
+  TOWER_AT.hz = landLine(s) + TOWER_SINK * g * s.u;
+  return TOWER_AT;
+}
+
 /** Half the tower's width at a height: each section narrows fast above its foot and slower toward its top (concave, like a hanging chain). */
 function towerHW(h: number): number {
   const ease = (a: number, b: number, k: number) => b + (a - b) * (1 - k) * (1 - k);
@@ -767,9 +877,7 @@ function towerEdge(ctx: Ctx, x: number, hz: number, u: number, h0: number, h1: n
  * along its edges and platforms, and the heart glows: steady, no light show.
  */
 export function latticeTower(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const x = s.cssW / 2 + TOWER_X * u;
-  const hz = landLine(s);
+  const { x, hz, u } = towerAt(s);
   // The silhouette: up the left side, round the top, down the right, less the arch between the legs.
   ctx.fillStyle = tone.bronze;
   ctx.beginPath();
@@ -882,18 +990,22 @@ const AXLE = 0.29;
 export const WHEEL_R = 0.08;
 const GONDOLA = 0.011;
 const SPOKES = 8;
-const RIM_BULBS = 16;
+const RIM_BULBS = 24;
+/** The gondolas' lights at night, by turns round the wheel. */
+const GONDOLA_LIGHTS = ["#ff8fb3", "#ffd36b", "#8ff0c8", "#d2b4ff"] as const;
 const TURN = 0.12;
 
 /** Scratch for the wheel's place, so placing it allocates nothing. */
-const WHEEL = { x: 0, y: 0, r: 0 };
+const WHEEL = { x: 0, y: 0, r: 0, u: 0 };
 
 /** Where the wheel is: its axle and radius. */
 export function wheelAt(s: Scene): typeof WHEEL {
-  const u = s.u;
-  WHEEL.x = s.cssW / 2 + WHEEL_X * u;
+  const g = grown(s);
+  const u = s.u * (1 + (WHEEL_GROW - 1) * g);
+  WHEEL.x = s.cssW / 2 + (WHEEL_X + (WHEEL_X_HIGH - WHEEL_X) * g) * s.u;
   WHEEL.y = landLine(s) - AXLE * u;
   WHEEL.r = WHEEL_R * u;
+  WHEEL.u = u;
   return WHEEL;
 }
 
@@ -904,13 +1016,29 @@ function wheelShows(s: Scene): boolean {
 }
 
 /**
+ * The highest point (screen y, px) of what stands out of the cloud sea between x0 and x1 (px):
+ * the lattice tower (to its mast's tip, across its legs' spread), the wheel (to its top gondola)
+ * and the landmarks on screen (skyline.ts); the land's line where none of them does. The night's
+ * fireworks of hearts go off over it, so no burst goes off behind one of them (fireworks.ts).
+ */
+export function standoutTop(s: Scene, x0: number, x1: number): number {
+  let top = landLine(s);
+  const t = towerAt(s);
+  if (x0 < t.x + LEG_FOOT * t.u && x1 > t.x - LEG_FOOT * t.u) top = Math.min(top, t.hz - TOWER_TIP * t.u);
+  if (wheelShows(s)) {
+    const w = wheelAt(s);
+    if (x0 < w.x + w.r && x1 > w.x - w.r) top = Math.min(top, w.y - w.r - GONDOLA * w.u);
+  }
+  return Math.min(top, landmarksTop(s, x0, x1));
+}
+
+/**
  * The Ferris wheel over the rooftops behind the café: two A-frame legs down to the land's line,
  * the rim and spokes strung with bulbs, and gondolas hanging from the rim, turning slowly round.
  * Flat and faded, far away; its bulbs come on at dusk.
  */
 export function wheel(ctx: Ctx, s: Scene, tone: Tone): void {
-  const u = s.u;
-  const { x, y, r } = wheelAt(s);
+  const { x, y, r, u } = wheelAt(s);
   const foot = landLine(s) + u * 0.01;
   // The legs, the rim and the spokes.
   const lw = Math.max(1, u * 0.0035);
@@ -923,9 +1051,9 @@ export function wheel(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.lineTo(x + r * 0.62, foot);
   ctx.moveTo(x - r * 0.42, y + (foot - y) * 0.6);
   ctx.lineTo(x + r * 0.42, y + (foot - y) * 0.6);
-  const a0 = s.t * TURN;
+  const a0w = s.t * TURN;
   for (let i = 0; i < SPOKES; i++) {
-    const a = a0 + (i * Math.PI * 2) / SPOKES;
+    const a = a0w + (i * Math.PI * 2) / SPOKES;
     ctx.moveTo(x, y);
     ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
   }
@@ -937,7 +1065,7 @@ export function wheel(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.fillStyle = tone.gondola;
   ctx.beginPath();
   for (let i = 0; i < SPOKES; i++) {
-    const a = a0 + (i * Math.PI * 2) / SPOKES;
+    const a = a0w + (i * Math.PI * 2) / SPOKES;
     const gx = x + Math.cos(a) * r;
     const gy = y + Math.sin(a) * r + GONDOLA * u * 0.9;
     const g = GONDOLA * u;
@@ -948,6 +1076,24 @@ export function wheel(ctx: Ctx, s: Scene, tone: Tone): void {
     ctx.closePath();
   }
   ctx.fill();
+  // At dusk the gondolas light up from within, rose, gold, mint and lilac by turns.
+  if (tone.lights > 0.02) {
+    const a0 = ctx.globalAlpha;
+    ctx.globalAlpha = a0 * tone.lights;
+    for (let c = 0; c < GONDOLA_LIGHTS.length; c++) {
+      ctx.fillStyle = GONDOLA_LIGHTS[c]!;
+      ctx.beginPath();
+      for (let i = c; i < SPOKES; i += GONDOLA_LIGHTS.length) {
+        const a = a0w + (i * Math.PI * 2) / SPOKES;
+        const gx = x + Math.cos(a) * r;
+        const gy = y + Math.sin(a) * r + GONDOLA * u * 0.9;
+        const g = GONDOLA * u;
+        ctx.rect(gx - g * 0.4, gy - g * 0.18, g * 0.8, g * 0.42);
+      }
+      ctx.fill();
+    }
+    ctx.globalAlpha = a0;
+  }
   // The hub, and the bulbs along the spokes and the rim, lit at dusk.
   ctx.fillStyle = tone.wheelLit;
   ctx.beginPath();
@@ -957,11 +1103,11 @@ export function wheel(ctx: Ctx, s: Scene, tone: Tone): void {
     const br = Math.max(0.7, u * 0.0022);
     const bulb = (bx: number, by: number) => ctx.rect(bx - br, by - br, br * 2, br * 2);
     for (let i = 0; i < SPOKES; i++) {
-      const a = a0 + (i * Math.PI * 2) / SPOKES;
+      const a = a0w + (i * Math.PI * 2) / SPOKES;
       for (let k = 1; k <= 2; k++) bulb(x + Math.cos(a) * r * (0.32 + k * 0.22), y + Math.sin(a) * r * (0.32 + k * 0.22));
     }
     for (let i = 0; i < RIM_BULBS; i++) {
-      const a = a0 + ((i + 0.5) * Math.PI * 2) / RIM_BULBS;
+      const a = a0w + ((i + 0.5) * Math.PI * 2) / RIM_BULBS;
       bulb(x + Math.cos(a) * r, y + Math.sin(a) * r);
     }
   }
@@ -1061,8 +1207,8 @@ function scallops(ctx: Ctx, s: Scene, k: number, cusp: number, r: number, step: 
  * band from its scallops down to the next row's, so the bands never overlap and every band of a
  * color is one fill. It is solid from a little under its top edge down to the screen's bottom.
  * It stands still: it runs right behind the tower, where nothing moves. It is drawn after
- * everything on the land, so as it gathers it covers all of it (only the boulevard's fronts, the
- * lattice tower and the wheel stand out of it); the railing in front stays in front.
+ * everything on the land, so as it gathers it covers all of it (only Paris above the clouds stands
+ * out of it, in the side lanes); the railing in front stays in front.
  */
 export function cloudFloor(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   const u = s.u;
@@ -1119,19 +1265,69 @@ export function cloudFloor(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   ctx.stroke();
 }
 
+// ---------------------------------------------------------------- Paris above the clouds
+
+/** Scratch for the lanes' filters: the band (px) the sun sweeps, widened by the pad, and the screen's center and u. */
+const PATH_NOW = { x0: 0, x1: 0, cx: 0, u: 0 };
+
+function inSunPath(b: Block): boolean {
+  const p = PATH_NOW;
+  return p.cx + b.x0 * p.u < p.x1 && p.cx + b.x1 * p.u > p.x0;
+}
+function clearOfSun(b: Block): boolean {
+  return !inSunPath(b);
+}
+
+/**
+ * The rooftops of Paris standing out of the cloud sea in the side lanes, their lower floors under
+ * it (none behind the tower): those clear of the sun's path `open` far out of the mist, those in
+ * it `sunSide` far (tone.ts `sunSideShow`: never while the sun is low there).
+ */
+export function laneRoofs(ctx: Ctx, s: Scene, tone: Tone, open: number, sunSide: number, back: boolean): void {
+  const p = sunPath(s);
+  PATH_NOW.x0 = p.x0 - PATH_PAD * s.u;
+  PATH_NOW.x1 = p.x1 + PATH_PAD * s.u;
+  PATH_NOW.cx = s.cssW / 2;
+  PATH_NOW.u = s.u;
+  const k = back ? LANE_BACK : LANE;
+  const rt = tone.rows[back ? 0 : 1]!;
+  if (open > 0.002) {
+    ctx.globalAlpha = open;
+    row(ctx, s, k, rt, tone.lights, clearOfSun);
+  }
+  if (sunSide > 0.002) {
+    ctx.globalAlpha = sunSide;
+    row(ctx, s, k, rt, tone.lights, inSunPath);
+  }
+  ctx.globalAlpha = 1;
+}
+
 /**
  * Everything beyond the boulevard: the far city while the land shows (with the lattice tower and
- * the wheel in it), and once the mist has taken the city, the lattice tower and the wheel alone,
- * standing out of the cloud sea. The boulevard, the canal, the garden and the fountain follow in
- * their own modules; the cloud floor over them all comes last.
+ * the wheel in it); and from when the evening mist begins to take it, Paris above the clouds,
+ * coming out of the mist as the city goes into it: the landmarks in the side lanes (skyline.ts),
+ * the wheel and the lattice tower on the right, and the lanes' rooftops in front of them, all
+ * standing out of the cloud sea and none behind the tower. The boulevard, the canal, the garden
+ * and the fountain follow in their own modules; the cloud floor over them all comes last.
+ * (The lanes' back rooftops and the landmarks go behind the lattice tower and the wheel whether
+ * the last of the city is still drawn round them or not, so nothing changes depth with a jump
+ * when it goes.)
  */
 export function farLayer(ctx: Ctx, s: Scene, tone: Tone, top: number): void {
   const hz = landLine(s);
   if (hz - s.u * 0.02 > s.cssH + TOWER_TIP * s.u) return;
-  if (landShows(s, top) && mist(s) < 1) {
-    city(ctx, s, tone);
-    return;
+  const open = mist(s);
+  const cityShows = landShows(s, top) && open < 1;
+  const sunSide = Math.min(open, sunSideShow(level(s)));
+  if (open > 0) {
+    laneRoofs(ctx, s, tone, open, sunSide, true);
+    landmarks(ctx, s, tone, open, sunSide);
   }
-  latticeTower(ctx, s, tone);
-  if (wheelShows(s)) wheel(ctx, s, tone);
+  if (cityShows) city(ctx, s, tone);
+  if (open <= 0) return;
+  if (!cityShows) {
+    latticeTower(ctx, s, tone);
+    if (wheelShows(s)) wheel(ctx, s, tone);
+  }
+  laneRoofs(ctx, s, tone, open, sunSide, false);
 }

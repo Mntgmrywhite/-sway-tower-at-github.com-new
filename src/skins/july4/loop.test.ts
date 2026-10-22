@@ -2,19 +2,17 @@ import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { july4 } from "../july4";
 import type { Scene } from "../skin";
-import { country } from "./country";
-import { cloudFloor, floorTop, FLOOR_SETTLED, landmarkLine, landShows } from "./far";
+import { backLine, frontLine, hillLine, mainShows, settled } from "./land";
 import { DOME_TOP, poleTop, STEEPLE_TOP } from "./landmarks";
-import { rooftops, townLine, townRow, TOWN_TOP, trees } from "./town";
-import { context, mask, sceneAt, SIZES, zoomedScene } from "./test-scene";
-import { DAY_HIGH, level, LOOP, LOOP_START, storyLevel, toneAtLevel, type Tone } from "./tone";
+import { context, sceneAt, SIZES, zoomedScene } from "./test-scene";
+import { LOOP, LOOP_START, storyLevel, toneAtLevel, type Tone } from "./tone";
 
 // The height story loops forever (tone.ts): from LOOP_START on, everything keyed by height comes
 // round every LOOP levels, the end of the loop flows into its start with no jump, the first
 // pass is the designed day, and the scene can be climbed for ever (to level 2000 here) without
-// throwing or slowing down. The whole frame repeats too, not just the light. The zoomed-out
-// view (up to 1/0.6 times the phone's size at the same u) is covered edge to edge by the
-// skin's own layers at every height.
+// throwing or slowing down. The whole frame repeats too, not just the light: by the loop the town
+// has sunk to its rest along the bottom of the screen. The zoomed-out view (up to 1/0.6 times
+// the phone's size at the same u) is covered edge to edge by the skin's own layers at every height.
 
 function rgb(c: string): [number, number, number] {
   if (c.startsWith("#")) return [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)) as [number, number, number];
@@ -137,92 +135,38 @@ describe("independence day's loop on screen", () => {
     }
   }, 60_000);
 
-  it("the cloud floor settles before the loop starts, with the steeple and the dome standing out of it", () => {
-    expect(FLOOR_SETTLED).toBeLessThanOrEqual(LOOP_START);
+  it("the town comes to rest before the loop starts, the steeple and the dome standing over it", () => {
     for (const [W, H] of SIZES) {
       for (let lvl = LOOP_START; lvl < LOOP_START + LOOP * 2; lvl += 9) {
         const s = sceneAt(W, H, lvl, 0);
-        const top = floorTop(s, level(s));
-        expect(top, `level ${lvl}: the floor's top`).toBeCloseTo(s.cssH - s.u * 0.3, 6);
-        const line = landmarkLine(s);
-        expect(line - s.u * STEEPLE_TOP, `level ${lvl}: the spire above the floor`).toBeLessThan(top - s.u * 0.1);
-        expect(line - s.u * DOME_TOP, `level ${lvl}: the dome above the floor`).toBeLessThan(top - s.u * 0.1);
-        expect(poleTop(s, line).y, `level ${lvl}: the flag on screen`).toBeGreaterThan(s.cssH * 0.3);
+        expect(settled(s), `level ${lvl}: the far rows at rest`).toBe(true);
+        const line = backLine(s);
+        expect(line - s.u * STEEPLE_TOP, `level ${lvl}: the spire over the hills`).toBeLessThan(hillLine(s));
+        expect(line - s.u * DOME_TOP, `level ${lvl}: the dome over the hills`).toBeLessThan(hillLine(s));
+        expect(poleTop(s, line).y, `level ${lvl}: the flag on screen, below the HUD`).toBeGreaterThan(s.cssH * 0.3);
+        expect(mainShows(s), `level ${lvl}: Main Street long gone below`).toBe(false);
       }
     }
   });
 
-  it("gathers over the town, then sinks to its rest, without a jump", () => {
+  it("the town sinks to its rest as you climb, row by row, without a jump", () => {
     for (const [W, H] of SIZES) {
-      const s0 = sceneAt(W, H, 0, 0);
-      let prev = floorTop(s0, 0);
-      let gathering = 0;
-      let sinking = 0;
+      const lines = (s: ReturnType<typeof sceneAt>) => [hillLine(s), backLine(s), frontLine(s)];
+      let prev = lines(sceneAt(W, H, 0, 0));
       for (let lvl = 0.25; lvl < LOOP_START + 4; lvl += 0.25) {
         const s = sceneAt(W, H, lvl, 0);
-        const top = floorTop(s, level(s));
-        if (lvl <= DAY_HIGH) gathering = Math.max(gathering, Math.abs(top - prev));
-        else sinking = Math.max(sinking, Math.abs(top - prev));
-        prev = top;
-      }
-      expect(gathering, `${W}x${H}: the floor's biggest step as it gathers`).toBeLessThan(s0.u * 0.03);
-      // Once it has covered the town it sinks slower than the tower comes down past it (a quarter level is 2 world units).
-      expect(sinking, `${W}x${H}: the floor's biggest step as it sinks to rest`).toBeLessThan(s0.scale * 2);
-      // At the moment the town stops being drawn, the floor's top stands over every storefront, rooftop, tree and the water tower.
-      const s = sceneAt(W, H, DAY_HIGH, 0);
-      expect(floorTop(s, level(s))).toBeLessThan(townLine(s) - s.u * TOWN_TOP);
-    }
-  });
-});
-
-describe("independence day's land under the cloud sea", () => {
-  // The land (the country beyond the town, its rooftops, Main Street and the big trees) stops
-  // being drawn the moment the camera reaches DAY_HIGH: by then the cloud floor, piled up on the
-  // right where the country rises highest, must have covered every pixel of it, or it would
-  // vanish with a pop. Checked pixel by pixel just before that moment, on phones, iPads, a wide
-  // window and zoomed out.
-  const SCREENS = [
-    [390, 844, 1],
-    [375, 667, 1],
-    [834, 1194, 1],
-    [1024, 1366, 1],
-    [1440, 900, 1],
-    [390, 844, 0.6],
-    [375, 667, 0.8],
-  ] as const;
-  it.each(SCREENS)("%ix%i at zoom %s: the floor covers the whole land when the land stops being drawn", (W, H, z) => {
-    const view = (tower: number) => (z === 1 ? sceneAt(W, H, tower, 0) : zoomedScene(W, H, z, tower, 0));
-    // The tower height whose camera stands a hair below DAY_HIGH (the camera's level runs a little ahead of the tower's).
-    let last = DAY_HIGH;
-    while (!landShows(view(last))) last -= 0.01;
-    let checked = 0;
-    for (const tower of [last, last - 0.5, last - 2]) {
-      const s = view(tower);
-      const lvl = level(s);
-      expect(landShows(s), `level ${lvl}: the land still shows`).toBe(true);
-      const tone = toneAtLevel(level(s));
-      const top = floorTop(s, level(s));
-      const land = mask(s.cssW, s.cssH, (ctx) => {
-        country(ctx, s, tone, Math.min(s.cssH, top + s.u * 0.12));
-        rooftops(ctx, s, tone, landmarkLine(s));
-        townRow(ctx, s, tone);
-        trees(ctx, s, tone);
-      }, 0.5);
-      const floor = mask(s.cssW, s.cssH, (ctx) => cloudFloor(ctx, s, tone, top), 0.5);
-      let drawn = 0;
-      let bare = 0;
-      for (let i = 0; i < land.length; i++) {
-        drawn += land[i]!;
-        if (land[i] && !floor[i]) bare++;
-      }
-      if (tower === last) {
-        expect(lvl, "the moment the land stops being drawn").toBeGreaterThan(DAY_HIGH - 0.02);
-        expect(drawn, "the land is drawn").toBeGreaterThan(100);
-        expect(bare, `level ${lvl}: pixels of the land the floor leaves bare`).toBe(0);
-        checked++;
+        const now = lines(s);
+        now.forEach((y, i) => {
+          // Never rising, and never faster than the tower comes down past it (a quarter level is 2 world units).
+          expect(y - prev[i]!, `${W}x${H} level ${lvl}: row ${i} rises`).toBeGreaterThanOrEqual(-1e-9);
+          expect(y - prev[i]!, `${W}x${H} level ${lvl}: row ${i} jumps`).toBeLessThan(s.scale * 2);
+        });
+        // The nearer rows lie lower than the further ones.
+        expect(now[1]!, `level ${lvl}: the neighborhood below the hills' line`).toBeGreaterThan(now[0]!);
+        expect(now[2]!, `level ${lvl}: the tree-lined streets below the neighborhood`).toBeGreaterThan(now[1]!);
+        prev = now;
       }
     }
-    expect(checked).toBe(1);
   });
 });
 
