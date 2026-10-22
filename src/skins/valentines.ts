@@ -5,6 +5,7 @@ import { boulevard, PAVE_DEPTH } from "./valentines/boulevard";
 import { PALETTE } from "./valentines/colors";
 import { drifters } from "./valentines/drift";
 import { cloudFloor, farLayer, floorShows, floorTop, landLine, landShows, skyBottom } from "./valentines/far";
+import { fireworks } from "./valentines/fireworks";
 import { front, railFoot } from "./valentines/front";
 import { fountain, lawnFar, lawnNear, paving, plazaProps, plazaTop, roseBeds } from "./valentines/garden";
 import * as icon from "./valentines/icons";
@@ -38,19 +39,26 @@ import { waterway } from "./valentines/water";
 // bronze lattice tower of our own stands over the city, and the top of a Ferris wheel turns over
 // the rooftops behind the café, lit at dusk. In front, the love-lock railing in Guimard's green
 // ironwork, iron hearts between its rails, over a fish-scale mosaic (front.ts). Climb, and the
-// rooftops fall away below, the near ones first; the evening mist takes the far city and a sea of
-// scalloped pastel cloud gathers below you and covers all but the boulevard's block, the lattice
-// tower and the wheel; the afternoon goes to a rose-and-violet dusk as the sun glides down into
-// the clouds (with the exact height, never in steps) and the windows, the lights and the stained
-// glass come on, then a violet starry night with a crescent moon where the sun set and the block,
-// the tower's lamps and the wheel lit far below; petals, heart balloons, a paper-plane love letter
-// and doves drift down the right-hand lane, far off, and sink behind the tower, the wheel and the
-// boulevard into the cloud sea (never across them). Then the story loops for good: the night
-// gives way to a blush-and-mint dawn and the day comes round again (tone.ts). The left of the sky
-// is the sun's and the moon's: nothing drifts across them, and only the cloud sea ever covers the
-// sun as it sets (sky.test.ts). Calm by design: the detail is in the frame at the edges, in the
-// side lanes of the city and in the garden up close; the band behind the tower stays quieter and
-// lower in contrast (contrast.test.ts), and nothing moves behind the tower.
+// rooftops fall away below, the near ones first; the evening mist takes the far city and the
+// boulevard's block, and a sea of scalloped pastel cloud gathers below you and covers the land.
+// Out of it, in the side lanes and never behind the tower (the owner: "the tower blocks the
+// interesting stuff at higher stacks"; column.test.ts), stands Paris above the clouds: rooftops
+// in two rows, the lattice tower and the Ferris wheel on the right, growing grander as the sea
+// sinks to its rest, a gilded dome on the left, and on a wide screen the whole sweep, a basilica
+// on its hill, an opera house, a Gothic chapel and a pantheon (far.ts, skyline.ts). The afternoon
+// goes to a rose-and-violet dusk as the sun glides down into the clouds (with the exact height,
+// never in steps) and the windows, the lights and the stained glass come on, then a violet starry
+// night with a crescent moon where the sun set: the lattice tower floodlit gold, the domes
+// floodlit, the wheel's gondolas lit, the rooftops' windows aglow, and fireworks of hearts going
+// up in both lanes (fireworks.ts); petals, heart balloons, hot-air balloons with heart envelopes,
+// a paper-plane love letter and doves drift down the right-hand lane, far off, and sink behind
+// the tower, the wheel and the rooftops into the cloud sea (never across them). Then the story
+// loops for good: the night gives way to a blush-and-mint dawn and the day comes round again
+// (tone.ts). The left of the sky is the sun's and the moon's: nothing drifts across them, what
+// stands in the sun's path goes into the mist before the sun comes down to it, and only the cloud
+// sea ever covers the sun as it sets (sky.test.ts). Calm by design: the detail is in the frame at
+// the edges, in the side lanes and in the garden up close; the band behind the tower stays quieter
+// and lower in contrast (contrast.test.ts), and nothing moves behind the tower.
 //
 // The altitude story needs every layer of the backdrop, so Valentine's paints all of it in one
 // pass (`backdrop`, in the ground hook). The celestial and far hooks are empty on purpose: they
@@ -62,8 +70,8 @@ const UNDER_POOL = 0.05;
 
 /**
  * The land: the boulevard on the land's line, the lawn with the canal, the plaza with the
- * fountain. Once the cloud sea has covered the land only the block stands out of it, so the rest
- * (and the café's terrace, whose couple would show their heads over the clouds) is left out.
+ * fountain. Once the cloud sea has covered the land it is all left out (the boulevard's block has
+ * gone into the evening mist by then: boulevard.ts).
  */
 function land(ctx: Ctx, s: Scene): void {
   const u = s.u;
@@ -88,8 +96,9 @@ function land(ctx: Ctx, s: Scene): void {
 
 /**
  * The scenery after the sky: the far layer, the land, the cloud floor. What drifts down the lane
- * (drift.ts) is painted before all of it: far off, it sinks behind the lattice tower, the wheel
- * and the boulevard into the cloud sea, so nothing ever slides across a prop.
+ * (drift.ts) and the night's fireworks (fireworks.ts) are painted before all of it: far off, they
+ * sink behind the lattice tower, the wheel, the rooftops and the boulevard into the cloud sea, so
+ * nothing ever slides across a prop.
  */
 export function scenery(ctx: Ctx, s: Scene): void {
   const tone = toneOf(s);
@@ -99,8 +108,9 @@ export function scenery(ctx: Ctx, s: Scene): void {
   if (floorShows(s, floor)) cloudFloor(ctx, s, tone, floor);
 }
 
-/** Everything the backdrop paints after the sky and what hangs in it: the lane, then the scenery over it. */
+/** Everything the backdrop paints after the sky and what hangs in it: the night's fireworks and the lane, then the scenery over them. */
 export function afterSky(ctx: Ctx, s: Scene): void {
+  fireworks(ctx, s);
   drifters(ctx, s, toneOf(s));
   scenery(ctx, s);
 }

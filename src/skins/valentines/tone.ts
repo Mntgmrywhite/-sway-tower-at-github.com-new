@@ -1,7 +1,7 @@
 import { alpha, mix } from "../../base/draw";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
-import { AWNING, AWNING_CREAM, BALCONY, BASILICA, BASILICA_SHADE, BRONZE, CANAL, CANAL_LIT, CONTOUR, FAR_HILL, GILT, GLASS, GLOW, GONDOLA, KERB, LIMESTONE, PAVEMENT, POT, QUAY, ROADWAY, ROSE_WOOD, ROSE_WOOD_LIT, SAGE_WOOD, SAGE_WOOD_LIT, TOWER_LAMP, TREE, TRUNK, WHEEL_HUB, WHEEL_IRON, ZINC } from "./colors";
+import { AWNING, AWNING_CREAM, BALCONY, BASILICA, BASILICA_SHADE, BRONZE, CANAL, CANAL_LIT, CONTOUR, COPPER, FAR_HILL, FLOOD_BRONZE, FLOOD_COPPER, FLOOD_GILT, FLOOD_STONE, FLOOD_WHITE, GILT, GLASS, GLOW, GONDOLA, KERB, LIMESTONE, PAVEMENT, POT, QUAY, ROADWAY, ROSE_WOOD, ROSE_WOOD_LIT, SAGE_WOOD, SAGE_WOOD_LIT, TOWER_LAMP, TREE, TRUNK, WHEEL_HUB, WHEEL_IRON, ZINC } from "./colors";
 
 // Height tells the story: the light changes with the camera's altitude, in tower levels, the way
 // the hours change on a run of Art Nouveau panels. A golden afternoon over Paris, warm and rich
@@ -9,8 +9,9 @@ import { AWNING, AWNING_CREAM, BALCONY, BASILICA, BASILICA_SHADE, BRONZE, CANAL,
 // blue-grey zinc, the distance lilac); up into the dreamier Rococo pastels of the climb: a rose-
 // and-lavender dusk as the evening mist takes the far city, the cloud sea gathers below you and
 // the sun sinks into it, and the windows, the string lights, the lattice tower's lamps and the
-// stained glass come on; then a violet starry night with a crescent moon where the sun set and
-// the block, the tower and the wheel lit far below. Past that the story loops for as long as you
+// stained glass come on; then a violet starry night with a crescent moon where the sun set,
+// Paris lit far below (the lattice tower and the domes floodlit, the wheel's gondolas and the
+// windows aglow) and fireworks of hearts going up. Past that the story loops for as long as you
 // can climb: the night holds a while, a blush-and-mint dawn brings the sun back up out of the
 // clouds and puts the lights out, and from the golden afternoon on the day runs exactly as the
 // first one did (dusk, the lights, night) into the night again. Every color that changes with
@@ -186,11 +187,28 @@ export interface Tone {
   giltShade: string;
   drum: string;
   drumShade: string;
-  /** The lattice tower's bronze (lit edges, body, shade) and its lamps, lit at dusk. */
+  /** The lattice tower's bronze (lit edges, body, shade; floodlit gold at night) and its lamps, lit at dusk. */
   bronzeLit: string;
   bronze: string;
   bronzeShade: string;
   towerLamp: string;
+  /**
+   * Paris above the clouds (skyline.ts), floodlit warm at night: the domes' gilt (lit, body,
+   * shade), the stone of their drums and fronts (lit, body, shade), the white basilica's stone
+   * (body, shade), green copper (lit, body, shade) and the windows (blue by day, lit at night).
+   */
+  skyGiltLit: string;
+  skyGilt: string;
+  skyGiltShade: string;
+  skyStoneLit: string;
+  skyStone: string;
+  skyStoneShade: string;
+  skyWhite: string;
+  skyWhiteShade: string;
+  copperLit: string;
+  copper: string;
+  copperShade: string;
+  skyWindow: string;
   /** The avenue: its roadway, and its round trees (lit, body, shade) on their trunks. */
   road: string;
   treeLit: string;
@@ -277,6 +295,11 @@ export interface Tone {
   balloonLit: string;
   plane: string;
   letter: string;
+  /** The hot-air balloon's cream bands (gold on every other one), its wicker basket, its burner's glow at night. */
+  envelope: string;
+  envelopeGold: string;
+  basket: string;
+  burner: string;
   /** The little hearts that float up (over the couple, in the lane). */
   heart: string;
   /** The string lights' wire, and their bulbs in three colors (dim by day, lit at dusk); the lamp's glass bud. */
@@ -351,6 +374,10 @@ const DOME = 0.36;
 const TOWER = 0.46;
 const AVENUE = 0.2;
 const WATERWAY = 0.2;
+/** Paris above the clouds, far below. */
+const SKYLINE = 0.3;
+/** How far toward its floodlight what is floodlit at night goes (the lattice tower, the domes). */
+const FLOODLIT = 0.72;
 
 /** What the light does, apart from its colors. */
 export interface Light {
@@ -365,6 +392,7 @@ export interface Light {
 function toneFrom(k: Key, l: Light): Tone {
   const { warm, lights } = l;
   const lit = (c: string, glow: string) => mix(c, glow, lights);
+  const flood = (c: string, glow: string) => mix(c, glow, lights * FLOODLIT);
   const glass = (c: string, glow: string) => lit(fade(c, k, SHOP), glow);
   return {
     sky: k.sky,
@@ -402,10 +430,22 @@ function toneFrom(k: Key, l: Light): Tone {
     giltShade: fade(GILT.shade, k, DOME),
     drum: fade(LIMESTONE.body, k, DOME),
     drumShade: fade(LIMESTONE.shade, k, DOME),
-    bronzeLit: fade(BRONZE.light, k, TOWER),
-    bronze: fade(BRONZE.body, k, TOWER),
-    bronzeShade: fade(BRONZE.shade, k, TOWER),
+    bronzeLit: flood(fade(BRONZE.light, k, TOWER), FLOOD_BRONZE.light),
+    bronze: flood(fade(BRONZE.body, k, TOWER), FLOOD_BRONZE.body),
+    bronzeShade: flood(fade(BRONZE.shade, k, TOWER), FLOOD_BRONZE.shade),
     towerLamp: lit(fade(BRONZE.light, k, TOWER), TOWER_LAMP),
+    skyGiltLit: flood(fade(GILT.light, k, SKYLINE), FLOOD_GILT.light),
+    skyGilt: flood(fade(GILT.body, k, SKYLINE), FLOOD_GILT.body),
+    skyGiltShade: flood(fade(GILT.shade, k, SKYLINE), FLOOD_GILT.shade),
+    skyStoneLit: flood(fade(LIMESTONE.light, k, SKYLINE), FLOOD_STONE.light),
+    skyStone: flood(fade(LIMESTONE.body, k, SKYLINE), FLOOD_STONE.body),
+    skyStoneShade: flood(fade(LIMESTONE.shade, k, SKYLINE), FLOOD_STONE.shade),
+    skyWhite: flood(fade(BASILICA, k, SKYLINE), FLOOD_WHITE.body),
+    skyWhiteShade: flood(fade(BASILICA_SHADE, k, SKYLINE), FLOOD_WHITE.shade),
+    copperLit: flood(fade(COPPER.light, k, SKYLINE), FLOOD_COPPER.light),
+    copper: flood(fade(COPPER.body, k, SKYLINE), FLOOD_COPPER.body),
+    copperShade: flood(fade(COPPER.shade, k, SKYLINE), FLOOD_COPPER.shade),
+    skyWindow: lit(fade(GLASS, k, SKYLINE), GLOW),
     road: fade(ROADWAY, k, AVENUE),
     treeLit: fade(TREE.light, k, AVENUE),
     tree: fade(TREE.body, k, AVENUE),
@@ -474,6 +514,10 @@ function toneFrom(k: Key, l: Light): Tone {
     balloonLit: near("#ffa4bd", k),
     plane: mix(mix("#fffaf0", "#ffe3c8", warm * 0.3), NIGHT_SHADOW, k.dark * 0.3),
     letter: near("#ffb3c6", k),
+    envelope: near("#fff1e0", k),
+    envelopeGold: near("#ffc94a", k),
+    basket: near("#b07a52", k),
+    burner: "#ffc46b",
     heart: near("#ff3b5c", k),
     wire: fade("#5a4660", k, SHOP),
     bulb: lit(fade("#c9b48a", k, SHOP), "#ffd34a"),
@@ -504,6 +548,9 @@ function newLight(): Light {
  */
 const SUN_FROM = DUSK - 6;
 const SUN_TO = DUSK + 14;
+/** At the loop's dawn the sun starts to come up out of the cloud sea this many levels into the dawn; that is SUN_UP levels into the loop's turn. */
+const SUN_RISES = 6;
+const SUN_UP = NIGHT_HOLD + SUN_RISES;
 
 /** What the light does on the first day at a level (its night holds past NIGHT), into `out`. */
 function dayLight(lvl: number, out: Light): Light {
@@ -525,10 +572,39 @@ function dawnLight(e: number, out: Light): Light {
   const x = e - DAWN_FROM;
   out.stars = 1 - smooth(2, 20, x);
   out.moon = 1 - smooth(2, 18, x);
-  out.sunSet = 1 - smooth(6, DAWN_SPAN - 2, x);
+  out.sunSet = 1 - smooth(SUN_RISES, DAWN_SPAN - 2, x);
   out.warm = 1 - smooth(14, DAWN_SPAN, x);
   out.lights = 1 - smooth(6, 24, x);
   return out;
+}
+
+/**
+ * How far what stands out of the cloud sea in the sun's path (the roofs and domes on the left,
+ * far.ts and skyline.ts) is out of the mist at a level, 0 to 1: never while the sun is low there,
+ * so nothing ever stands in front of it. On the first pass it comes out once the sun has set (the
+ * evening mist took the city before the sun began to go down); round the loop the dawn mist takes
+ * it before the sun comes up out of the clouds, it comes out again once the sun is high, and the
+ * evening mist takes it again just as it took the first day's city, before the sun goes down.
+ * Continuous, and periodic past LOOP_START.
+ */
+export function sunSideShow(lvl: number): number {
+  if (lvl < LOOP_START) return smooth(SUN_TO, SUN_TO + 6, lvl);
+  const x = (lvl - LOOP_START) % LOOP;
+  if (x < DAWN_END) return x < DAWN_END / 2 ? 1 - smooth(NIGHT_HOLD + 0.5, SUN_UP - 0.5, x) : smooth(DAWN_END - 8, DAWN_END - 2, x);
+  const e = storyLevel(lvl);
+  return e < (DUSK + SUN_TO) / 2 ? 1 - smooth(DAY_HIGH - 5, DAY_HIGH - 0.5, e) : smooth(SUN_TO, SUN_TO + 6, e);
+}
+
+/**
+ * How many of the fireworks of hearts are going up at a level (fireworks.ts), 0 to 1: a night
+ * thing, from when the stars are out after the sunset until the dawn mist rises, so never while
+ * the sun is in the sky. Continuous, and periodic past LOOP_START.
+ */
+export function fireworksShow(lvl: number): number {
+  if (lvl < LOOP_START) return smooth(SUN_TO + 2, SUN_TO + 10, lvl);
+  const x = (lvl - LOOP_START) % LOOP;
+  if (x < DAWN_END) return x < DAWN_END / 2 ? 1 - smooth(NIGHT_HOLD + 0.5, SUN_UP - 0.5, x) : 0;
+  return smooth(SUN_TO + 2, SUN_TO + 10, storyLevel(lvl));
 }
 
 /** The first day's tone at a level (its night holds past NIGHT). */

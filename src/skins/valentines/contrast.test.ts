@@ -11,8 +11,9 @@ import { LOOP, LOOP_START } from "./tone";
 // the column or as the margin beside it where that is narrower, so they never overlap it): its
 // local RMS contrast and its mean edge strength at most CALMER times the sides' mean. On
 // Valentine's the sides hold the stained-glass frame and its climbing rose, the sun and moon in
-// their halos, the cherub, the café and the canal, the lane's drifters; the column holds the
-// plain sky, the quiet townhouse and the cloud sea's rows.
+// their halos, the cherub, the café and the canal, the lane's drifters, and above the clouds
+// Paris's rooftops and landmarks and the night's fireworks; the column holds the plain sky, the
+// quiet townhouse at the start and the cloud sea's rows.
 //
 // RMS contrast is taken locally: the standard deviation of relative luminance within each TILE x
 // TILE tile, averaged over the strip. (Taken over a whole strip it would mostly measure the sky's

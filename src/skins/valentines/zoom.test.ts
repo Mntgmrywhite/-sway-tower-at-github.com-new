@@ -4,9 +4,11 @@ import { shops } from "./boulevard";
 import { couple } from "./couple";
 import { drawDrifter, eachVisible } from "./drift";
 import { floorTop, latticeTower, wheel } from "./far";
+import { fireworks } from "./fireworks";
 import { floatingIn } from "./cupid";
 import { cherubColumn, cherubShow, plazaProps, pool, roseBeds } from "./garden";
 import { moon, sun } from "./sky";
+import { landmarks, LANDMARKS } from "./skyline";
 import { mask, SIZES, zoomedScene } from "./test-scene";
 import { level, LOOP, LOOP_START, toneOf } from "./tone";
 import { waterway } from "./water";
@@ -16,8 +18,10 @@ import { waterway } from "./water";
 // virtual screen is painted at every height (loop.test.ts), the lanes keep clear of its sides
 // (drift.test.ts), and here: nothing on the land, the plaza or in the sky is cut off by its
 // sides, at the start (with the cherub's whole story, his balloon floating in included) and all
-// the way up through a turn of the loop. (The far city's rows run off the sides on purpose, and
-// the cloud floor spans the screen.)
+// the way up through a turn of the loop: Paris's landmarks standing out of the cloud sea (each
+// drawn whole wherever it is drawn: a narrower screen leaves it out) and the night's fireworks of
+// hearts too. (The far city's rows and the lanes' rooftops run off the sides on purpose, and the
+// cloud floor spans the screen.)
 
 const ZOOMS = [0.6, 0.8] as const;
 const LEVELS = [0, 6, 14, 22, 30, 50, 80, LOOP_START, LOOP_START + 30, LOOP_START + LOOP - 10] as const;
@@ -44,6 +48,8 @@ describe("valentine's zoomed out", () => {
           ["cherub", (ctx) => cherubShow(ctx, s)],
           ["rose beds", (ctx) => roseBeds(ctx, s)],
           ["gifts", (ctx) => plazaProps(ctx, s)],
+          ["fireworks", (ctx) => fireworks(ctx, s)],
+          ...LANDMARKS.map((m) => [m.name, (ctx: CanvasRenderingContext2D) => landmarks(ctx, s, tone, 1, 1, m.name)] as [string, (ctx: CanvasRenderingContext2D) => void]),
         ];
         eachVisible(s, (d) => {
           const copy = { ...d };

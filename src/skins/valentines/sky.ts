@@ -81,6 +81,21 @@ function skyX(s: Scene): number {
   return Math.max(s.u * SUN_R * 1.75, s.cssW / 2 - s.u * SKY_X);
 }
 
+/** Scratch result of `sunPath`. */
+const PATH = { x0: 0, x1: 0 };
+
+/**
+ * The band of the screen (px) the sun's halo sweeps as it sets and rises, at its biggest: what
+ * stands out of the cloud sea there must keep out of its way (far.ts, skyline.ts).
+ */
+export function sunPath(s: Scene): typeof PATH {
+  const x = skyX(s);
+  const r = s.u * SUN_R * (1 + SWELL) * SUN_REACH;
+  PATH.x0 = x - r;
+  PATH.x1 = x + r;
+  return PATH;
+}
+
 /**
  * Where the sun is: by day left of the tower, below the title; at sunset it swells a little and
  * sinks below `floor` (the cloud sea's top) until even its halo is under the sea, or below the

@@ -1,13 +1,15 @@
 import { circle, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { couple } from "./couple";
-import { landLine } from "./far";
+import { landLine, mist } from "./far";
 import { archPath, block, dashes, heartPath, NO_DASH } from "./shapes";
 import type { Tone } from "./tone";
 
 // The boulevard across the lawn: one Haussmann block standing on the land's line (far.ts: the
-// horizon, then the cloud sea once it has gathered), Paris in 1900, with its shops set into the
-// ground floor. Honey limestone fronts with a fine plum contour, every floor's windows tall and
+// horizon), Paris in 1900, with its shops set into the ground floor. It belongs to the land: as
+// the cloud sea comes up it goes into the evening mist with the far city, so above the clouds
+// nothing of it stands behind the tower (the owner: "the tower blocks the interesting stuff at
+// higher stacks"; column.test.ts). Honey limestone fronts with a fine plum contour, every floor's windows tall and
 // framed in lit stone, blue with the sky by day and lit one by one at dusk; a continuous iron
 // balcony along the first floor and the attic, little balconies at the second; a lit cornice;
 // blue-grey zinc mansards with round-headed dormers and chimney stacks with terracotta pots, and
@@ -344,9 +346,11 @@ function houses(ctx: Ctx, s: Scene, tone: Tone, list: readonly House[], L: Look)
     }
   }
   ctx.fill();
+  // (Every alpha here is relative to the one the block is drawn with: it fades into the mist.)
+  const a0 = ctx.globalAlpha;
   if (L === LIVELY && tone.lights < 0.95) {
     ctx.fillStyle = L.roofLit;
-    ctx.globalAlpha = 0.55 * (1 - tone.lights);
+    ctx.globalAlpha = a0 * 0.55 * (1 - tone.lights);
     ctx.beginPath();
     for (const h of list) {
       const n = bays(h, BAYS);
@@ -366,12 +370,12 @@ function houses(ctx: Ctx, s: Scene, tone: Tone, list: readonly House[], L: Look)
       }
     }
     ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = a0;
   }
   // The windows lit at dusk (each its own moment; a few stay dark).
   if (tone.lights > 0.02) {
     ctx.fillStyle = tone.windowLit;
-    ctx.globalAlpha = L.glow;
+    ctx.globalAlpha = a0 * L.glow;
     ctx.beginPath();
     let k = 0;
     for (const h of list) {
@@ -388,7 +392,7 @@ function houses(ctx: Ctx, s: Scene, tone: Tone, list: readonly House[], L: Look)
       }
     }
     ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = a0;
   }
   // The balconies: continuous along the first floor and the attic, little ones at the second
   // floor's windows: their rails, then their balusters as one dashed stroke.
@@ -640,11 +644,12 @@ function carriageArch(ctx: Ctx, s: Scene, tone: Tone): void {
   archPath(ctx, cx - u * 0.026, hz, u * 0.052, u * 0.062);
   ctx.fill();
   ctx.fillStyle = tone.quietEdge;
-  ctx.globalAlpha = 0.35;
+  const a0 = ctx.globalAlpha;
+  ctx.globalAlpha = a0 * 0.35;
   ctx.beginPath();
   ctx.rect(cx - u * 0.001, hz - u * 0.036, u * 0.002, u * 0.036);
   ctx.fill();
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = a0;
 }
 
 // ---------------------------------------------------------------- the florist
@@ -1033,7 +1038,11 @@ const LIVE_HOUSES = HOUSES.filter((h) => !h.quiet);
 const NONE: readonly House[] = [];
 const QUIET_HOUSES = HOUSES.filter((h) => h.quiet);
 
-/** The boulevard: its pavement right across, then the block; only the block while it stands in the cloud sea (`land` false: the sea covers the rest). */
+/**
+ * The boulevard: its pavement right across (while the land shows), then the block, which goes
+ * into the evening mist with the far city as the cloud sea comes up (far.ts `mist`), so above the
+ * clouds nothing of it stands behind the tower.
+ */
 export function boulevard(ctx: Ctx, s: Scene, tone: Tone, land: boolean): void {
   const u = s.u;
   const hz = landLine(s);
@@ -1043,5 +1052,9 @@ export function boulevard(ctx: Ctx, s: Scene, tone: Tone, land: boolean): void {
     ctx.fillStyle = tone.pave2;
     ctx.fillRect(0, hz + PAVE_DEPTH * u - u * 0.008, s.cssW, u * 0.008);
   }
+  const fade = 1 - mist(s);
+  if (fade <= 0) return;
+  ctx.globalAlpha = fade;
   shops(ctx, s, tone, land);
+  ctx.globalAlpha = 1;
 }

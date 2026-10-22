@@ -109,8 +109,9 @@ describe("valentine's looping story", () => {
 
 describe("valentine's loop on screen", () => {
   // Not just the light: past LOOP_START the whole frame comes round every LOOP levels (the cloud
-  // floor has settled at its rest with the boulevard and the wheel standing out of it, the lanes
-  // repeat), so the frame at L and at L + LOOP is the same picture, on both phones and zoomed out.
+  // floor has settled at its rest with Paris above the clouds standing out of it in the side lanes,
+  // what stands in the sun's path comes and goes with the sun, the lanes and the fireworks repeat),
+  // so the frame at L and at L + LOOP is the same picture, on both phones and zoomed out.
   const frame = (s: Scene) => {
     const ctx = context(s.cssW, s.cssH, 0.5);
     const kit = kitFor(valentines);
@@ -138,7 +139,7 @@ describe("valentine's loop on screen", () => {
     }
   }, 60_000);
 
-  it("the cloud floor settles before the loop starts, with the boulevard, the lattice tower and the wheel standing out of it", () => {
+  it("the cloud floor settles before the loop starts, with the lattice tower and the wheel standing out of it", () => {
     expect(FLOOR_SETTLED).toBeLessThanOrEqual(LOOP_START);
     for (const [W, H] of SIZES) {
       for (let lvl = LOOP_START; lvl < LOOP_START + LOOP * 2; lvl += 9) {

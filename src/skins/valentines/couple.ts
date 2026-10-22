@@ -210,13 +210,14 @@ export function couple(ctx: Ctx, s: Scene, tone: Tone): void {
   }
   // Hearts floating up from the reader, fading as they rise.
   const rx = takerX - dir * u * 0.004;
+  const a0 = ctx.globalAlpha;
   for (const h of [p.heart0, p.heart1]) {
     if (h <= 0 || h >= 1) continue;
-    ctx.globalAlpha = 1 - h * h;
+    ctx.globalAlpha = a0 * (1 - h * h);
     ctx.fillStyle = tone.heart;
     ctx.beginPath();
     heartPath(ctx, rx + Math.sin(h * 9) * u * 0.006, foot - u * 0.085 - h * u * 0.06, u * (0.012 + h * 0.008));
     ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = a0;
   }
 }
