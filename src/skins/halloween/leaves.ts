@@ -1,12 +1,13 @@
-import { hash, mix, outlined, type Ctx } from "../../base/draw";
-import { layerGround } from "../../base/world";
+import { hash, mix, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { INK, inkW, LEAVES, spot } from "./common";
+import { INK, LEAVES, spot } from "./common";
+import { moonAt } from "./sky";
 
-// Autumn leaves: a few blowing across the scene on the wind, tumbling and flipping over;
-// more lying scattered on the grass; and heaped piles on the foreground lip at the screen
-// edges. Each leaf is a pointed oval with a midrib, batched per color: one fill, then one
-// stroke in a deep shade of the same color (an ink line would swallow leaves this small).
+// Autumn leaves: a few blowing across the scene on the wind (below the moon: nothing crosses it),
+// tumbling and flipping over, and more lying scattered on the square and the churchyard (the
+// heaped piles are the foreground's: front.ts). Each leaf is a pointed oval with a midrib,
+// batched per color: one fill, then one stroke in a deep shade of the same color (an ink line
+// would swallow leaves this small).
 
 const TAU = Math.PI * 2;
 const EDGES = LEAVES.map((c) => mix(c, INK, 0.38));
@@ -34,19 +35,10 @@ function leafPath(ctx: Ctx, rib: boolean): void {
   }
 }
 
-/** Just the midrib of the leaf in L, as a straight line out through its stem. */
-function ribPath(ctx: Ctx): void {
-  const ca = Math.cos(L.a);
-  const sa = Math.sin(L.a);
-  const h = L.len / 2;
-  ctx.moveTo(L.x + ca * h * 0.8, L.y + sa * h * 0.8);
-  ctx.lineTo(L.x - ca * h * 1.08, L.y - sa * h * 1.08);
-}
-
 // ---------------------------------------------------------------- blowing
 
 /** Leaves on the wind: band (0 high .. 1 low), speed (u/s), start, size (u), color, spin, flutter. */
-const BLOW = Array.from({ length: 11 }, (_, i) => ({
+const BLOW = Array.from({ length: 8 }, (_, i) => ({
   band: hash(i + 700),
   speed: 0.07 + hash(i + 710) * 0.06,
   start: hash(i + 720),
@@ -61,7 +53,9 @@ function blowSpot(s: Scene, i: number): void {
   const b = BLOW[i]!;
   const u = s.u;
   const span = s.cssW + u * 0.2;
-  const top = s.cssH * 0.35;
+  // Below the moon: nothing crosses it.
+  const m = moonAt(s);
+  const top = m.y + m.r * 1.5 + u * 0.05;
   const bottom = Math.min(s.groundY + u * 0.26, s.cssH * 0.83);
   const along = (((b.start * span + s.t * b.speed * u) % span) + span) % span;
   L.x = along - u * 0.1;
@@ -102,7 +96,7 @@ export function blowing(ctx: Ctx, s: Scene): void {
 const FALLEN = (() => {
   const out: { X: number; z: number; a: number; size: number; color: number }[] = [];
   for (let i = 0; out.length < 18 && i < 400; i++) {
-    const z = 1.5 + hash(i + 800) * 6;
+    const z = 1.5 + hash(i + 800) * 3.2;
     const k = 3 / z;
     const sx = (hash(i + 810) - 0.5) * 0.96;
     if (z > 2.85 && Math.abs(sx) < 0.3) continue;
@@ -132,68 +126,4 @@ export function fallen(ctx: Ctx, s: Scene): void {
     ctx.fillStyle = FALLEN_FILL[c]!;
     ctx.fill();
   }
-}
-
-// ---------------------------------------------------------------- piles
-
-/** Leaf piles on the foreground lip, as fractions of the screen width from the left. */
-const PILES = [0.087, 0.913] as const;
-const PILE_LEAVES = 7;
-const PILE = mix(LEAVES[3], INK, 0.12);
-const PILE_EDGE = mix(LEAVES[3], INK, 0.4);
-
-export function piles(ctx: Ctx, s: Scene): void {
-  const u = s.u;
-  const lip = layerGround(s, 1.6) + u * 0.36;
-  if (lip - u * 0.08 > s.cssH) return;
-  const lw = inkW(s);
-  const w = Math.min(u * 0.085, s.cssW * 0.07);
-  const h = u * 0.045;
-  const base = lip + u * 0.014;
-  // The heap: a soft dome of russet leaves, inked as one silhouette.
-  ctx.beginPath();
-  for (const f of PILES) {
-    const x = f * s.cssW;
-    ctx.moveTo(x - w, base);
-    ctx.bezierCurveTo(x - w * 0.9, base - h * 0.9, x - w * 0.35, base - h * 1.15, x + w * 0.05, base - h);
-    ctx.bezierCurveTo(x + w * 0.5, base - h * 0.95, x + w * 0.95, base - h * 0.7, x + w, base);
-    ctx.closePath();
-  }
-  outlined(ctx, PILE, lw, INK);
-  // Bright leaves heaped on top, the top few lifting and settling in the wind, then their
-  // midribs (straight strokes are cheap; outlining every curved leaf is not).
-  for (let c = 0; c < LEAVES.length; c++) {
-    ctx.beginPath();
-    for (let pi = 0; pi < PILES.length; pi++) {
-      for (let i = c; i < PILE_LEAVES; i += LEAVES.length) {
-        pileSpot(s, pi, i, base, w, h);
-        leafPath(ctx, false);
-      }
-    }
-    ctx.fillStyle = LEAVES[c]!;
-    ctx.fill();
-  }
-  ctx.beginPath();
-  for (let pi = 0; pi < PILES.length; pi++) {
-    for (let i = 0; i < PILE_LEAVES; i++) {
-      pileSpot(s, pi, i, base, w, h);
-      ribPath(ctx);
-    }
-  }
-  ctx.strokeStyle = PILE_EDGE;
-  ctx.lineWidth = Math.max(0.7, u * 0.0022);
-  ctx.lineCap = "round";
-  ctx.stroke();
-}
-
-function pileSpot(s: Scene, pi: number, i: number, base: number, w: number, h: number): void {
-  const x = PILES[pi]! * s.cssW;
-  const f = (i + 0.5) / PILE_LEAVES;
-  const across = (f - 0.5) * 1.5;
-  const lift = i % 3 === 1 ? Math.max(0, Math.sin(s.t * 1.3 + pi * 2 + i)) * h * 0.3 : 0;
-  L.x = x + across * w * 0.8;
-  L.y = base - h * (0.45 + 0.5 * (1 - across * across)) * (0.85 + hash(i + pi * 40 + 900) * 0.25) - lift;
-  L.len = s.u * (0.038 + hash(i + pi * 40 + 910) * 0.01);
-  L.a = (hash(i + pi * 40 + 920) - 0.5) * 2.2;
-  L.flip = 1.15;
 }

@@ -1,85 +1,109 @@
-import { mix } from "../../base/draw";
+import { alpha, mix } from "../../base/draw";
 import { fieldY, TOWER_DEPTH } from "../../base/world";
 import type { Palette, Scene } from "../skin";
 
 // Colors and small helpers shared by the Halloween layers.
 //
-// The night is purple and orange: an indigo sky warming to a dusky rose glow behind the mist,
-// a cream harvest moon, faded violet hills and woods in the hollow, lavender mist banks, and
-// down in town the warm orange of porch lights and jack-o'-lanterns.
+// A Main Street Halloween night in a Tim Burton style, all our own designs: a deep indigo sky
+// sinking to purple, a huge flat cream moon, jagged teal-black hills, and a town of spindly,
+// crooked, leaning Victorian storefronts in slate, plum and teal-grey, stitched and striped,
+// inked in near-black. Glow is the only brightness: pumpkin orange and candle gold in the
+// windows, the gas lamps, the jack-o'-lanterns, the string lights and the moon. Bone white and
+// black stripes for the Burton trim; orange and purple bunting.
 
-/** The skin's palette, kept here so every layer reads the same ink and distance colors. */
-export const PALETTE: Palette = {
-  skyTop: "#33267e",
-  skyMid: "#6446b0",
-  skyBottom: "#d98fb4",
-  star: "#fff6dc",
-  moon: "#fff2c9",
-  cloudShadow: "#8a7bcc",
-  cloudBase: "#b2a6e6",
-  cloudLight: "#ded7fa",
-  far: "#5a429e",
-  fieldFar: "#6f9476",
-  fieldNear: "#3d6650",
-  grass: "#b4c94a",
-  grassDark: "#7a8f2c",
-  stone: "#6a6290",
-  stoneLight: "#8279ab",
-  ink: "#2a1f3d",
-};
+/** Ink for everything up close: a purple-black, so the dark facades still read against it. */
+export const INK = "#0e0a16";
 
-export const INK = PALETTE.ink;
+// ---------------------------------------------------------------- the night
 
-/** Flyers against the sky (crows, bats): faded, a shade darker than the sky so they read. */
-export const FLYER = "#3f2f86";
-/** The far hill the Horseman rides along: hazier than the hollow in front of it. */
-export const RIDGE = mix(PALETTE.far, PALETTE.skyBottom, 0.22);
-/** The Headless Horseman: the darkest thing in the distance, so he reads against everything. */
-export const RIDER = mix(PALETTE.far, INK, 0.62);
+export const SKY_TOP = "#1a1545";
+export const SKY_MID = "#35206a";
+export const SKY_LOW = "#5c2a78";
+/** The last of the dusk on the horizon, behind the hollow: a pumpkin ember. */
+export const DUSK_GLOW = "#c8573a";
 
-export const ORANGE = "#ff9a2e";
-export const ORANGE_LIGHT = "#ffc06a";
-export const ORANGE_DARK = "#d8681a";
-export const STEM = "#6f8f2c";
-export const CARVED = "#9a3a10";
-export const CANDLE = "#ffe46b";
-export const CANDLE_HOT = "#fff7c2";
-export const FLAME = "#ffb02e";
-export const FLAME_HOT = "#fff1a0";
+export const MOON = "#f7ecc4";
+export const STAR = "#fff2d0";
 
-export const BONE = "#f6f0dc";
-export const BONE_SHADE = "#d6cbb0";
+/** Faded silhouettes in the distance: the hollow's back hills, the Horseman's hill, the mansion's crag. */
+export const HAZE = "#3a2a66";
+export const HILL_BACK = "#2b2154";
+export const HILL = "#1d1840";
+/** The Headless Horseman: the darkest thing in the distance, so he reads against the moon and the hill. */
+export const RIDER = "#0b0818";
 
-export const STONE = "#aca8cc";
-export const STONE_LIGHT = "#d0cdea";
-export const STONE_SHADE = "#8a85ae";
-export const STONE_CUT = "#6c6792";
+/** Fog: its body and its lit top. */
+export const FOG = "#6f62a6";
+export const FOG_LIGHT = "#9c90cc";
 
-export const MOSS = "#8cc04a";
-export const MOSS_DARK = "#5f9230";
+// ---------------------------------------------------------------- glow
 
-export const DIRT = "#7c5641";
-export const DIRT_LIGHT = "#9c7253";
-export const DIRT_DARK = "#5a3b2e";
-export const HOLE = "#2e1e2a";
+export const ORANGE = "#ff8a1e";
+export const ORANGE_LIGHT = "#ffb04f";
+export const ORANGE_DARK = "#c95a12";
+export const STEM = "#5d7a2c";
+export const CARVED = "#7a2a0c";
+export const CANDLE = "#ffd25e";
+export const CANDLE_HOT = "#fff3b8";
+export const FLAME = "#ffa52e";
+export const FLAME_HOT = "#fff0a0";
 
-export const GRASS = PALETTE.grass;
+/** Window and lamp light, deep to bright. */
+export const LAMP_DEEP = "#ff9f3a";
+export const LAMP = "#ffc95e";
+export const LAMP_CORE = "#fff0c2";
+/** Warm light lying on the cobbles and the grass. */
+export const POOL = alpha("#ffb04f", 0.22);
+export const POOL_CORE = alpha("#ffd27a", 0.22);
+
+// ---------------------------------------------------------------- the town
+
+/** Facades: slate, plum and teal-grey, each with its lit and shaded side (derived in shops.ts). */
+export const SLATE = "#454a6e";
+export const PLUM = "#5a3a6a";
+export const TEALGREY = "#2f5459";
+export const MOSSGREY = "#4f5a3c";
+export const ROOF = "#231c34";
+export const ROOF_LIGHT = "#3a2f52";
+/** Bone white: trims, stripes, stitches. */
+export const BONE = "#efe8d6";
+export const BONE_SHADE = "#c9bfa6";
+/** Wrought iron and the stripes' black. */
+export const IRON = "#16121f";
+export const PURPLE = "#8a4fd0";
+export const PURPLE_DARK = "#5e2f9a";
+
+/** The cobbles of Main Street and the square. */
+export const COBBLE = "#2d2a44";
+export const COBBLE_LIGHT = "#3d3a5c";
+export const COBBLE_SHADE = "#221f36";
+
+// ---------------------------------------------------------------- the churchyard
+
+export const GRASS = "#2f4a3a";
+export const GRASS_LIGHT = "#44634c";
+export const STONE = "#8f93ad";
+export const STONE_LIGHT = "#b7bbd2";
+export const STONE_SHADE = "#676b8a";
+export const STONE_CUT = "#3f4360";
+export const MOSS = "#5f8c4a";
+export const MOSS_DARK = "#3f6a35";
+export const DIRT = "#55382f";
+export const DIRT_LIGHT = "#704c3c";
+export const DIRT_DARK = "#352320";
+export const HOLE = "#120b10";
 
 /** Autumn leaves: orange, red, gold, russet. */
-export const LEAVES = ["#ff8a2a", "#e8483a", "#ffc23a", "#b8602e"] as const;
+export const LEAVES = ["#ff8a2a", "#d8403a", "#f2b23a", "#a8582e"] as const;
 
-/** Window and porch light, deep to bright. */
-export const LAMP_DEEP = "#ffad3b";
-export const LAMP = "#ffd36b";
-export const LAMP_CORE = "#fff3c0";
+// ---------------------------------------------------------------- the trick-or-treaters
 
-/** Skin tones and the kids' costume colors. */
 export const SKIN = "#ffd2ad";
 export const CHEEK = "#ff8f8f";
 export const WITCH = "#9a5fe0";
-export const WITCH_DARK = "#7440b8";
-export const BLACK_SUIT = "#3b3158";
-export const BLACK_SUIT_LIGHT = "#56497e";
+export const WITCH_DARK = "#6c3cb0";
+export const BLACK_SUIT = "#2b2540";
+export const BLACK_SUIT_LIGHT = "#4a4170";
 export const HERO = "#3f7cf0";
 export const HERO_LIGHT = "#7aa6ff";
 export const CAPE = "#e8414f";
@@ -89,6 +113,37 @@ export const PILLOWCASE = "#f4f0e4";
 export const KRAFT = "#d9a066";
 export const PINK = "#ff8fb8";
 export const LEAF_GREEN = "#7cc443";
+
+/**
+ * The skin's palette. With a backdrop of its own it is only partly read: the bars' ink, the
+ * blast's smoke (the cloud colors) and haze (skyMid), and the base band the foreground covers.
+ */
+export const PALETTE: Palette = {
+  skyTop: SKY_TOP,
+  skyMid: SKY_MID,
+  skyBottom: SKY_LOW,
+  star: STAR,
+  moon: MOON,
+  cloudShadow: "#5c5088",
+  cloudBase: "#8a7fb8",
+  cloudLight: "#c4bce6",
+  far: HAZE,
+  fieldFar: COBBLE_LIGHT,
+  fieldNear: COBBLE,
+  grass: GRASS_LIGHT,
+  grassDark: GRASS,
+  stone: COBBLE,
+  stoneLight: COBBLE_LIGHT,
+  ink: INK,
+};
+
+/** A shade of a color toward the ink, and toward the light. */
+export function shade(c: string, k = 0.3): string {
+  return mix(c, INK, k);
+}
+export function light(c: string, k = 0.2): string {
+  return mix(c, "#ffffff", k);
+}
 
 /** Ink width for a prop drawn at perspective scale `k` (1 on the tower's line). */
 export function inkW(s: Scene, k = 1): number {

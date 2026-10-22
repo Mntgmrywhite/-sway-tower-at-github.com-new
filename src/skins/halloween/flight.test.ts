@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
 import { crowFlying } from "./crow";
-import { crowBox, crowPose, CYCLE, cycleTime, LAND, TAKE_OFF } from "./flight";
-import { riderBox } from "./hollow";
-import { batSpot, BATS, crowSpot, CROWS } from "./sky";
-import { column, mask, meets, MIN_ZOOM, sceneAt, SIZES } from "./test-scene";
-import { toneOf } from "./tone";
+import { CIRCLING, crowBox, crowPose, CYCLE, cycleTime, LAND, TAKE_OFF } from "./flight";
+import { balloonBoxes } from "./balloon";
 import { inkW } from "./common";
+import { batSpot, BATS, crowSpot, CROWS } from "./flyers";
+import { riderBox } from "./hollow";
 import { kids } from "./kids";
-import { town } from "./town";
+import { shops } from "./shops";
+import { column, mask, meets, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
+import { toneOf } from "./tone";
 
 // The churchyard crow takes a turn round the moon every half minute and lands again. In its
 // side lane: never in the tower's column above the floor line, never cut off by a screen edge,
-// never over the Headless Horseman, the flock or the bats, on every phone and on Hard mode's
-// zoomed-out view; while the camera climbs it only ever leaves by the bottom, with the churchyard.
-// It only passes the trick-or-treaters and the porch house on its way up and down: it never
-// circles or zigzags over them.
+// never over the Headless Horseman, the flock, the bats or the balloon, on both phones, a tablet
+// and Hard mode's zoomed-out view; while the camera climbs it only ever leaves by the bottom, with
+// the churchyard. It climbs on the tower's side of the trick-or-treaters and the sweet shop (the
+// owner's beat): it only grazes them on its way up and down, and never circles or zigzags over them.
 
 const ZOOMS = [1, 0.8, MIN_ZOOM] as const;
 type Box = { x0: number; y0: number; x1: number; y1: number };
@@ -34,6 +35,7 @@ function flyerBoxes(s: Scene): Box[] {
       out.push({ x0: b.x - b.s, x1: b.x + b.s, y0: b.y - b.s * 0.46, y1: b.y + b.s * 0.46 });
     }
   }
+  out.push(...balloonBoxes(s));
   return out;
 }
 
@@ -48,18 +50,18 @@ function check(s: Scene, climbing: boolean): void {
   if (!climbing) expect(box.y1 < s.cssH, `${at}: below the bottom`).toBe(true);
   const rider = riderBox(s);
   expect(rider !== null && meets(box, rider), `${at}: over the Horseman`).toBe(false);
-  for (const f of flyerBoxes(s)) expect(meets(box, f), `${at}: over the flock or a bat`).toBe(false);
+  for (const f of flyerBoxes(s)) expect(meets(box, f), `${at}: over the flock, a bat or the balloon`).toBe(false);
 }
 
 describe("halloween crow flight", () => {
-  it.each(SIZES.flatMap(([W, H]) => ZOOMS.map((z) => [W, H, z] as const)))(
+  it.each(SCREENS.flatMap(([W, H]) => ZOOMS.map((z) => [W, H, z] as const)))(
     "%ix%i at zoom %s: in its lane, clear of everything, over several cycles",
     (W, H, z) => {
       for (let t = 0; t < CYCLE * 6; t += 1 / 30) check(sceneAt(W, H, 0, t, z), false);
     },
   );
 
-  it.each(SIZES.flatMap(([W, H]) => ZOOMS.map((z) => [W, H, z] as const)))(
+  it.each(SCREENS.flatMap(([W, H]) => ZOOMS.map((z) => [W, H, z] as const)))(
     "%ix%i at zoom %s: as the camera climbs it rides down with the churchyard",
     (W, H, z) => {
       for (let lvl = 0; lvl <= 40; lvl += 2) {
@@ -68,12 +70,13 @@ describe("halloween crow flight", () => {
     },
   );
 
-  it.each(SIZES.flatMap(([W, H]) => [1, MIN_ZOOM].map((z) => [W, H, z] as const)))(
-    "%ix%i at zoom %s: it only passes the kids and the porch houses, briefly, on its way up and down",
+  it.each(SCREENS.flatMap(([W, H]) => [1, MIN_ZOOM].map((z) => [W, H, z] as const)))(
+    "%ix%i at zoom %s: it only passes the kids and the sweet shop, briefly, on its way up and down, never while circling",
     (W, H, z) => {
       const dt = 1 / 20;
       let overKids = 0;
       let overHouse = 0;
+      let circling = 0;
       for (let t = TAKE_OFF; t < LAND; t += dt) {
         const s = sceneAt(W, H, 0, t, z);
         const box = crowBox(s);
@@ -92,7 +95,7 @@ describe("halloween crow flight", () => {
           });
         const crow = near((ctx) => crowFlying(ctx, p.x, p.y, p.size, p.dir, p.lift, p.pitch, p.legs, p.caw, lw));
         const people = near((ctx) => kids(ctx, s));
-        const houses = near((ctx) => town(ctx, s));
+        const houses = near((ctx) => shops(ctx, s));
         let drawn = 0;
         let onKids = 0;
         let onHouse = 0;
@@ -105,16 +108,24 @@ describe("halloween crow flight", () => {
         // A wingtip grazing a porch corner doesn't count; being over it does.
         if (onKids > drawn * 0.04) overKids += dt;
         if (onHouse > drawn * 0.04) overHouse += dt;
-        expect(onHouse / drawn, `t=${t.toFixed(2)}: over a house`).toBeLessThan(0.3);
+        // It climbs beside the shop, never across its front: at most a wing over its eaves.
+        expect(onHouse / drawn, `t=${t.toFixed(2)}: over the shop`).toBeLessThan(0.3);
+        // Round the moon it is clear of them both.
+        if (t > CIRCLING[0] + 0.3 && t < CIRCLING[1] - 0.3) {
+          circling++;
+          expect(onHouse / drawn, `t=${t.toFixed(2)}: circling over the shop`).toBeLessThan(0.04);
+          expect(onKids / drawn, `t=${t.toFixed(2)}: circling over the kids`).toBeLessThan(0.04);
+        }
       }
-      // Up past the kids and back down past them; along the house's side each way.
+      expect(circling, "frames circling the moon").toBeGreaterThan(60);
+      // Up past the kids and back down past them, and along the shop's side: a moment each way.
       expect(overKids, "time over the kids").toBeLessThan(0.9);
-      expect(overHouse, "time over a house").toBeLessThan(0.5);
+      expect(overHouse, "time over the shop").toBeLessThan(0.5);
     },
   );
 
   it("its box holds all of its drawing, which keeps out of the tower's column", () => {
-    const [W, H] = SIZES[0];
+    const [W, H] = SCREENS[0];
     for (let t = TAKE_OFF; t < LAND; t += 0.25) {
       const s = sceneAt(W, H, 0, t);
       const p = crowPose(s);
@@ -139,7 +150,7 @@ describe("halloween crow flight", () => {
   });
 
   it("flies smoothly: no jumps from the stone, in the air, or back onto it", () => {
-    const [W, H] = SIZES[0];
+    const [W, H] = SCREENS[0];
     let last: { x: number; y: number; size: number } | null = null;
     let flying = 0;
     const dt = 1 / 60;

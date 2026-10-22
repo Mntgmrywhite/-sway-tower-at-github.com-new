@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CYCLE } from "./flight";
 import { RIDE_LOOP, riderAt, riderBox } from "./hollow";
 import { horseman } from "./horseman";
-import { mask, sceneAt, SIZES } from "./test-scene";
+import { mask, sceneAt, SCREENS } from "./test-scene";
 
 // The Headless Horseman's ride: out of the mist, past the moon and into the covered bridge, then
 // turned round, charging back up the hill (faster, the pumpkin thrust up high) and into the mist.
@@ -11,7 +11,7 @@ import { mask, sceneAt, SIZES } from "./test-scene";
 
 const DT = 1 / 60;
 
-describe.each(SIZES)("halloween Horseman, %ix%i", (W, H) => {
+describe.each(SCREENS)("halloween Horseman, %ix%i", (W, H) => {
   const at = (t: number) => sceneAt(W, H, 0, t);
 
   it("his box holds all of his drawing, riding out and charging back", () => {

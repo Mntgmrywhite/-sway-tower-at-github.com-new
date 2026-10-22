@@ -1,101 +1,136 @@
 import { alpha, ink, oval, type Ctx } from "../../base/draw";
 import { CANDLE, CANDLE_HOT, CARVED, INK, MOSS, ORANGE, ORANGE_DARK, ORANGE_LIGHT, STEM } from "./common";
-import { SHADOW } from "./dirt";
 
-// The jack-o'-lantern: a flat orange pumpkin with ribs, a light top and shaded bottom, an ink
-// outline, and a carved face lit from inside by a flickering candle.
+// The giant jack-o'-lantern, our own: a tall, slightly lopsided pumpkin with deep ribs, a light
+// top and a shaded bottom, an ink outline, a curly stem whose vine winds into spirals, and a
+// crooked carved face (slanted eyes, a nose, a wide jagged grin) lit from inside by a flickering
+// candle. Every feature of the face is its own closed subpath, so none ever join up.
 
-/** Warm light spilling on the grass around the pumpkin. */
-const POOL = alpha(CANDLE, 0.17);
+/** Warm light spilling round the pumpkin. */
+const POOL = alpha(CANDLE, 0.2);
 
-/** Carved face as closed subpaths: two eyes, a nose, a jagged grin. Nothing joins up. */
+/** Carved face as closed subpaths: two slanted eyes, a nose, a wide jagged grin. */
 function face(ctx: Ctx, px: number, py: number, pr: number): void {
   ctx.beginPath();
+  // Eyes, slanted up at the outer corners: a mischievous look.
   for (let side = -1; side <= 1; side += 2) {
-    ctx.moveTo(px + side * pr * 0.6, py - pr * 0.04);
-    ctx.lineTo(px + side * pr * 0.16, py - pr * 0.04);
-    ctx.lineTo(px + side * pr * 0.42, py - pr * 0.46);
+    ctx.moveTo(px + side * pr * 0.66, py - pr * 0.2);
+    ctx.lineTo(px + side * pr * 0.14, py - pr * 0.02);
+    ctx.lineTo(px + side * pr * 0.34, py - pr * 0.5);
     ctx.closePath();
   }
   ctx.moveTo(px, py + pr * 0.04);
-  ctx.lineTo(px - pr * 0.11, py + pr * 0.22);
-  ctx.lineTo(px + pr * 0.11, py + pr * 0.22);
+  ctx.lineTo(px - pr * 0.1, py + pr * 0.2);
+  ctx.lineTo(px + pr * 0.1, py + pr * 0.2);
   ctx.closePath();
-  ctx.moveTo(px - pr * 0.68, py + pr * 0.28);
-  const teeth = 6;
+  // The grin: a wide crescent with a jagged row of teeth top and bottom.
+  ctx.moveTo(px - pr * 0.78, py + pr * 0.18);
+  const teeth = 7;
   for (let i = 1; i <= teeth; i++) {
-    ctx.lineTo(px - pr * 0.68 + (pr * 1.36 * i) / teeth, py + pr * (i % 2 ? 0.46 : 0.3));
+    const x = px - pr * 0.78 + (pr * 1.56 * i) / teeth;
+    const sag = Math.sin((i / teeth) * Math.PI) * pr * 0.14;
+    ctx.lineTo(x - (pr * 0.78) / teeth, py + pr * 0.36 + sag);
+    ctx.lineTo(x, py + pr * 0.26 + sag);
   }
-  ctx.quadraticCurveTo(px + pr * 0.52, py + pr * 0.74, px, py + pr * 0.74);
-  ctx.quadraticCurveTo(px - pr * 0.52, py + pr * 0.74, px - pr * 0.68, py + pr * 0.28);
+  ctx.quadraticCurveTo(px + pr * 0.6, py + pr * 0.82, px, py + pr * 0.8);
+  ctx.quadraticCurveTo(px - pr * 0.6, py + pr * 0.82, px - pr * 0.78, py + pr * 0.18);
   ctx.closePath();
 }
 
-/** A carved pumpkin with a candle inside, sitting on the field with its bottom at `bottom`. */
-export function jackOLantern(ctx: Ctx, t: number, px: number, bottom: number, pr: number, lw: number): void {
-  const py = bottom - pr * 0.95;
+/**
+ * A carved pumpkin with a candle inside, sitting with its bottom at `bottom`, `pr` round (it stands
+ * 2pr tall). `stitched`: a crack across its crown sewn up with big cross-stitches, a Burton seam.
+ */
+export function jackOLantern(ctx: Ctx, t: number, px: number, bottom: number, pr: number, lw: number, pool = true, stitched = false): void {
+  const py = bottom - pr * 0.98;
   const flicker = 0.5 + 0.5 * Math.sin(t * 9) * Math.sin(t * 5.3 + 1);
 
-  // Warm light spilling on the grass, and a contact shadow
-  ctx.fillStyle = POOL;
-  ctx.globalAlpha = 0.7 + 0.3 * flicker;
-  ctx.beginPath();
-  oval(ctx, px, bottom, pr * 1.45, pr * 0.36);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = SHADOW;
-  ctx.beginPath();
-  oval(ctx, px + pr * 0.1, bottom, pr * 1.15, pr * 0.24);
-  ctx.fill();
+  if (pool) {
+    ctx.fillStyle = POOL;
+    ctx.globalAlpha = 0.7 + 0.3 * flicker;
+    ctx.beginPath();
+    oval(ctx, px, bottom, pr * 1.6, pr * 0.36);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
-  // Stem, and a curly vine with a leaf
+  // Stem, and a curly vine winding into a spiral, with a leaf
   ctx.beginPath();
-  ctx.moveTo(px - pr * 0.12, py - pr * 0.8);
-  ctx.quadraticCurveTo(px - pr * 0.1, py - pr * 1.22, px + pr * 0.22, py - pr * 1.34);
-  ctx.lineTo(px + pr * 0.17, py - pr * 0.8);
+  ctx.moveTo(px - pr * 0.14, py - pr * 0.82);
+  ctx.quadraticCurveTo(px - pr * 0.16, py - pr * 1.25, px + pr * 0.16, py - pr * 1.42);
+  ctx.lineTo(px + pr * 0.2, py - pr * 1.3);
+  ctx.quadraticCurveTo(px + pr * 0.04, py - pr * 1.2, px + pr * 0.14, py - pr * 0.82);
   ctx.closePath();
   ctx.fillStyle = STEM;
   ctx.fill();
   ink(ctx, lw, INK);
   ctx.beginPath();
-  ctx.moveTo(px + pr * 0.1, py - pr * 0.9);
-  ctx.bezierCurveTo(px + pr * 0.5, py - pr * 1.25, px + pr * 0.75, py - pr * 0.9, px + pr * 0.55, py - pr * 0.8);
+  ctx.moveTo(px + pr * 0.08, py - pr * 0.92);
+  ctx.bezierCurveTo(px + pr * 0.5, py - pr * 1.3, px + pr * 0.9, py - pr * 1.0, px + pr * 0.72, py - pr * 0.86);
+  ctx.arc(px + pr * 0.66, py - pr * 0.92, pr * 0.08, 0.6, Math.PI * 2.4);
   ink(ctx, Math.max(1, lw * 0.7), INK);
   ctx.beginPath();
-  ctx.moveTo(px - pr * 0.18, py - pr * 0.88);
-  ctx.quadraticCurveTo(px - pr * 0.55, py - pr * 1.25, px - pr * 0.75, py - pr * 1.0);
-  ctx.quadraticCurveTo(px - pr * 0.45, py - pr * 0.82, px - pr * 0.18, py - pr * 0.88);
+  ctx.moveTo(px - pr * 0.18, py - pr * 0.9);
+  ctx.quadraticCurveTo(px - pr * 0.6, py - pr * 1.3, px - pr * 0.82, py - pr * 1.02);
+  ctx.quadraticCurveTo(px - pr * 0.48, py - pr * 0.84, px - pr * 0.18, py - pr * 0.9);
   ctx.closePath();
   ctx.fillStyle = MOSS;
   ctx.fill();
   ink(ctx, Math.max(1, lw * 0.8), INK);
 
-  // Body: flat orange, lit upper left, shaded underneath, with ribs
+  // Body: flat orange, a little lopsided, lit upper left, shaded underneath, with deep ribs
   ctx.beginPath();
-  oval(ctx, px, py, pr * 1.2, pr);
+  oval(ctx, px, py, pr * 1.18, pr, -0.05);
   ctx.fillStyle = ORANGE;
   ctx.fill();
-  ctx.save();
-  ctx.clip();
+  // Shade over the lower half (an arc inside the body, so no clip), and a lit spot on the shoulder.
   ctx.fillStyle = ORANGE_DARK;
   ctx.beginPath();
-  oval(ctx, px + pr * 0.15, py + pr * 0.75, pr * 1.3, pr * 0.5);
+  ctx.ellipse(px, py, pr * 1.12, pr * 0.94, -0.05, 0.1, Math.PI - 0.1);
+  ctx.quadraticCurveTo(px, py + pr * 0.35, px + pr * 1.12 * Math.cos(0.1), py + pr * 0.94 * Math.sin(0.1));
+  ctx.closePath();
   ctx.fill();
   ctx.fillStyle = ORANGE_LIGHT;
   ctx.beginPath();
-  oval(ctx, px - pr * 0.6, py - pr * 0.5, pr * 0.32, pr * 0.2, -0.5);
+  oval(ctx, px - pr * 0.62, py - pr * 0.52, pr * 0.3, pr * 0.18, -0.5);
   ctx.fill();
-  ctx.restore();
   ctx.beginPath();
-  ctx.ellipse(px, py, pr * 0.5, pr * 0.97, 0, Math.PI * 0.62, Math.PI * 1.38);
-  ctx.moveTo(px + pr * 0.5 * Math.cos(-Math.PI * 0.38), py + pr * 0.97 * Math.sin(-Math.PI * 0.38));
-  ctx.ellipse(px, py, pr * 0.5, pr * 0.97, 0, -Math.PI * 0.38, Math.PI * 0.38);
+  for (const k of [0.45, 0.85]) {
+    ctx.moveTo(px + pr * k * Math.cos(Math.PI * 0.62), py + pr * 0.97 * Math.sin(Math.PI * 0.62));
+    ctx.ellipse(px, py, pr * k, pr * 0.97, 0, Math.PI * 0.62, Math.PI * 1.38);
+    ctx.moveTo(px + pr * k * Math.cos(-Math.PI * 0.38), py + pr * 0.97 * Math.sin(-Math.PI * 0.38));
+    ctx.ellipse(px, py, pr * k, pr * 0.97, 0, -Math.PI * 0.38, Math.PI * 0.38);
+  }
   ctx.strokeStyle = ORANGE_DARK;
   ctx.lineWidth = Math.max(1, lw * 0.8);
   ctx.stroke();
   ctx.beginPath();
-  oval(ctx, px, py, pr * 1.2, pr);
+  oval(ctx, px, py, pr * 1.18, pr, -0.05);
   ink(ctx, lw, INK);
+
+  if (stitched) {
+    // A zigzag crack over the crown, and the stitches holding it shut.
+    const pts = [-0.95, -0.42, -0.7, -0.62, -0.45, -0.52, -0.2, -0.78, 0.05, -0.66] as const;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i += 2) {
+      const x = px + pts[i]! * pr;
+      const y = py + pts[i + 1]! * pr;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ink(ctx, Math.max(1, lw * 0.8), CARVED);
+    ctx.beginPath();
+    for (let i = 2; i < pts.length; i += 2) {
+      const x = px + ((pts[i]! + pts[i - 2]!) / 2) * pr;
+      const y = py + ((pts[i + 1]! + pts[i - 1]!) / 2) * pr;
+      const d = pr * 0.1;
+      ctx.moveTo(x - d, y - d);
+      ctx.lineTo(x + d, y + d);
+      ctx.moveTo(x - d, y + d);
+      ctx.lineTo(x + d, y - d);
+    }
+    ink(ctx, Math.max(1, lw * 0.7), INK);
+  }
 
   // The carved face, lit from inside: deep cut, candle-bright core, inked edge.
   face(ctx, px, py, pr);

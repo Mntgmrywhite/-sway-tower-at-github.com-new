@@ -3,33 +3,28 @@ import { fieldY } from "../../base/world";
 import type { Scene } from "../skin";
 import { inkW, spot } from "./common";
 import { crowFlying, crowPerched } from "./crow";
-import { crowPose, PERCH, type CrowPose } from "./flight";
-import { grave } from "./graves";
 import { drawTufts, tuft } from "./dirt";
+import { crowPose, PERCH, type CrowPose } from "./flight";
+import { sheetGhost } from "./ghost";
+import { grave } from "./graves";
 import { kids } from "./kids";
-import { blowing, fallen } from "./leaves";
-import { jackOLantern } from "./pumpkin";
+import { centerpiece } from "./square";
 import { tombstone, type Stone } from "./stones";
-import { town } from "./town";
 
-// The ground around the tower, back to front: the town's porch houses across the street,
-// fallen leaves on the grass, a big jack-o'-lantern glowing behind the tower, two little
-// groups of trick-or-treaters, and in front the old churchyard: weathered tombstones planted
-// in their mounds (a crow keeping watch on one) and open graves where skeleton parts pop up
-// out of the soil at random. Leaves blow across it all on the wind. Every prop stands on a
-// field row (see `spot`), is scaled by its depth and is drawn back to front.
+// The square around the tower, back to front: the giant jack-o'-lantern's flower bed behind the
+// tower on the right, the trick-or-treaters (a huddle on the left, the superhero beside the bed on
+// the right), and in front of the kerb the old churchyard: weathered tombstones planted in their
+// mounds (a crow keeping watch on one) and open graves where skeleton parts pop up out of the soil
+// at random. Every prop stands on a field row (see `spot`), is scaled by its depth and is drawn
+// back to front.
 
 // X is the sideways spot at the tower's depth, in u; z = 3 is the tower's line. Props behind
 // that line keep to the sides, clear of the tower's column; nearer ones sit on the field
-// below the tower's base and above the stone-tile foreground. Sizes are in u at the tower's
-// depth. Sorted back (big z) to front once, here.
+// below the tower's base and above the foreground. Sizes are in u at the tower's depth.
 type Prop =
   | { kind: "stone"; X: number; z: number; w: number; h: number; stone: Stone; seed: number }
   | { kind: "grave"; X: number; z: number; size: number; grave: number }
   | { kind: "tuft"; X: number; z: number; size: number; seed: number };
-
-/** The big jack-o'-lantern behind the tower, right of its column. */
-const PUMPKIN = { X: 0.298 * (3.6 / 3), z: 3.6, size: 0.04 };
 
 // The headstone the crow sits on (PERCH, in flight.ts). It stands below the tower's base inside
 // its column, so the stone is kept squat and the crow small enough that its head stays ~0.02u
@@ -46,11 +41,26 @@ const FRONT: readonly Prop[] = ([
   { kind: "stone", X: 0.206, z: 1.56, w: 0.045, h: 0.06, stone: "slab", seed: 2 },
 ] as Prop[]).sort((a, b) => b.z - a.z);
 
-/** The farthest field row anything stands on: once it has sunk below the screen, so has the rest. */
-const FAR_Z = 8;
+/**
+ * Sheet ghosts on stakes out at the churchyard's sides: X, z, height (u at the tower's depth). Only
+ * where a screen is wide enough to show one whole, clear of the graves (a tablet, a zoomed-out view).
+ */
+const GHOSTS = [
+  { X: -0.35, z: 2.12, h: 0.11, seed: 1 },
+  { X: 0.35, z: 2.12, h: 0.1, seed: 2 },
+] as const;
+/** A ghost's reach either side of its stake, in units of its height (its arms and fluttering hem). */
+const GHOST_REACH = 0.34;
 
-function front(ctx: Ctx, s: Scene): void {
+/** The churchyard in front of the tower: the graves, the headstones (the crow's among them), the ghosts and the tufts. */
+export function churchyard(ctx: Ctx, s: Scene): void {
   const u = s.u;
+  for (const g of GHOSTS) {
+    const { x, y, k } = spot(s, g.X, g.z);
+    const h = g.h * u * k;
+    if (x - h * GHOST_REACH < u * 0.012 || x + h * GHOST_REACH > s.cssW - u * 0.012 || y - h > s.cssH) continue;
+    sheetGhost(ctx, x, y, h, s.t, inkW(s, k), g.seed);
+  }
   for (const prop of FRONT) {
     const { x, y, k } = spot(s, prop.X, prop.z);
     const reach = u * k * 0.16;
@@ -87,24 +97,16 @@ function crow(ctx: Ctx, s: Scene, p: CrowPose, far: boolean): void {
   else crowFlying(ctx, p.x, p.y, p.size, p.dir, p.lift, p.pitch, p.legs, p.caw, lw);
 }
 
-/** Everything standing on the field (the town, the kids, the churchyard and its crow). */
+/** The farthest field row anything here stands on: once it has sunk below the screen, so has the rest. */
+const FAR_Z = 4;
+
+/** Everything standing in the square and the churchyard (the centerpiece, the kids, the graves and their crow). */
 export function graveyard(ctx: Ctx, s: Scene): void {
-  if (fieldY(s, FAR_Z) - s.u * 0.3 > s.cssH) return;
-  town(ctx, s);
-  fallen(ctx, s);
-  {
-    const { x, y, k } = spot(s, PUMPKIN.X, PUMPKIN.z);
-    jackOLantern(ctx, s.t, x, y, PUMPKIN.size * s.u * k, inkW(s, k));
-  }
+  if (fieldY(s, FAR_Z) - s.u * 0.35 > s.cssH) return;
+  centerpiece(ctx, s);
   kids(ctx, s);
   const bird = crowPose(s);
   crow(ctx, s, bird, true);
-  front(ctx, s);
+  churchyard(ctx, s);
   crow(ctx, s, bird, false);
-}
-
-/** The skin's ground layer: everything on the field, then the leaves blowing over it. */
-export function ground(ctx: Ctx, s: Scene): void {
-  graveyard(ctx, s);
-  blowing(ctx, s);
 }

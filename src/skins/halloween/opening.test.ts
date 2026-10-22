@@ -8,7 +8,7 @@ import { riderAt } from "./hollow";
 import { horseman } from "./horseman";
 import { hopAt, KIDS } from "./kids";
 import { moonAt } from "./sky";
-import { mask, sceneAt, SIZES } from "./test-scene";
+import { mask, sceneAt, SCREENS } from "./test-scene";
 
 // The owner's rule: any action happens within the first 10 s of a scene (a fresh tower on the
 // title screen, or a new run), because after that players have climbed past it. Everything a
@@ -53,7 +53,7 @@ function first(test: (t: number) => boolean, to = 60): number {
   return Infinity;
 }
 
-describe.each(SIZES)("halloween opening, %ix%i", (W, H) => {
+describe.each(SCREENS)("halloween opening, %ix%i", (W, H) => {
   const at = (t: number) => sceneAt(W, H, 0, t);
 
   it("the Headless Horseman comes out of the mist, gallops past the moon and is into the bridge by 10 s", () => {

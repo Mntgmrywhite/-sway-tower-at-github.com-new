@@ -12,6 +12,13 @@ export const SIZES = [
   [375, 667],
 ] as const;
 
+/** The phones and a tablet (iPad portrait): the screens the layout, moon and calm tests run on. */
+export const SCREENS = [
+  [390, 844],
+  [375, 667],
+  [834, 1194],
+] as const;
+
 /** How far Hard mode's camera zooms out at most. */
 export const MIN_ZOOM = 0.6;
 
@@ -55,13 +62,13 @@ export function context(W: number, H: number): CanvasRenderingContext2D {
   return createCanvas(Math.round(W), Math.round(H)).getContext("2d") as unknown as CanvasRenderingContext2D;
 }
 
-/** Which pixels a drawing covers (alpha above a faint anti-aliased edge). */
-export function mask(W: number, H: number, draw: (ctx: CanvasRenderingContext2D) => void): Uint8Array {
+/** Which pixels a drawing covers (alpha above a faint anti-aliased edge, or above `min`). */
+export function mask(W: number, H: number, draw: (ctx: CanvasRenderingContext2D) => void, min = 40): Uint8Array {
   const ctx = context(W, H);
   draw(ctx);
   const data = ctx.getImageData(0, 0, Math.round(W), Math.round(H)).data;
   const out = new Uint8Array(data.length / 4);
-  for (let i = 0; i < out.length; i++) out[i] = data[i * 4 + 3]! > 40 ? 1 : 0;
+  for (let i = 0; i < out.length; i++) out[i] = data[i * 4 + 3]! > min ? 1 : 0;
   return out;
 }
 

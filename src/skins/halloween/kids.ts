@@ -28,9 +28,10 @@ import {
 } from "./common";
 
 // Trick-or-treaters in classic homemade costumes, our own chibi designs: a witch, a
-// skeleton, a black cat, a pumpkin and a caped superhero, each clutching a candy bag. They
-// stand in two little groups on the sidewalk either side of the tower, bouncing with
-// excitement now and then, bags swinging, the cape and the cat's tail flicking in the wind.
+// skeleton, a black cat, a pumpkin and a caped superhero, each clutching a candy bag. Four
+// huddle on the square left of the tower and the superhero stands right of it beside the giant
+// jack-o'-lantern, bouncing with excitement now and then, bags swinging, the cape and the cat's
+// tail flicking in the wind.
 // Ink-outlined, flat fills, lit from the upper left.
 //
 // Local units: feet at y = 0, the top of the head at y = -1 (hats and ears go higher), x to
@@ -51,14 +52,16 @@ interface Kid {
 /** Kid height at the tower's depth, in u. */
 const HEIGHT = 0.15;
 
-// Left group (back to front), then the right group. Positions keep every kid between the
-// tower's column and the screen edge, below the houses and above the graves.
+// A huddle of four on the left (two a step farther back, peeking between the others) and the
+// superhero on the right, beside the giant jack-o'-lantern's bed, which stands between the column
+// and him. Positions keep every kid between the tower's column and the screen edge, in front of
+// the corner shops and above the graves. Listed back to front (they are drawn in this order).
 export const KIDS: readonly Kid[] = [
-  { costume: "cat", X: -0.44 * (3.42 / 3), z: 3.42, hand: 1, phase: 0.3 },
-  { costume: "skeleton", X: -0.37 * (3.36 / 3), z: 3.36, hand: 1, phase: 4.0 },
+  { costume: "pumpkin", X: -0.4 * (3.48 / 3), z: 3.48, hand: 1, phase: 1.2 },
+  { costume: "cat", X: -0.445 * (3.4 / 3), z: 3.4, hand: 1, phase: 0.3 },
+  { costume: "hero", X: 0.452 * (3.42 / 3), z: 3.42, hand: -1, phase: 3.3 },
+  { costume: "skeleton", X: -0.35 * (3.36 / 3), z: 3.36, hand: 1, phase: 4.0 },
   { costume: "witch", X: -0.3 * (3.3 / 3), z: 3.3, hand: -1, phase: 2.1 },
-  { costume: "hero", X: 0.44 * (3.42 / 3), z: 3.42, hand: -1, phase: 3.3 },
-  { costume: "pumpkin", X: 0.376 * (3.36 / 3), z: 3.36, hand: 1, phase: 1.2 },
 ];
 
 const SHOE = "#4a3a5e";
@@ -222,7 +225,7 @@ function witch(ctx: Ctx, t: number, k: Kid, swing: number): void {
     ctx.moveTo(X(0.045), Y(y));
     ctx.lineTo(X(0.125), Y(y));
   }
-  ctx.strokeStyle = ORANGE;
+  ctx.strokeStyle = PILLOWCASE;
   ctx.lineWidth = Math.max(0.8, 0.022 * K.h);
   ctx.stroke();
   // Dress with a jagged hem

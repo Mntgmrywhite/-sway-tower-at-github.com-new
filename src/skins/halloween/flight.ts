@@ -4,20 +4,21 @@ import type { Scene } from "../skin";
 import { spot } from "./common";
 import { flyingBox } from "./crow";
 import { moonAt } from "./sky";
-import { houseBox } from "./town";
+import { shopBox } from "./shops";
 
 // The churchyard crow's flight. It keeps watch on its headstone, cawing now and then; once every
 // half minute (earlier or later in it, by hash) it takes off, skims left under the tower's base
-// over the graves, climbs steeply up the lane left of the tower, past the trick-or-treaters and
-// the porch house on the tower's side of them, circles twice round in front of the harvest moon
-// (crossing its face each time), between the HUD and the house's roof, then glides back down the
+// over the graves, climbs steeply up the lane left of the tower, on the tower's side of the
+// trick-or-treaters and the sweet shop (the corner shop on the square, right below the moon, keeps
+// clear of that stretch of the lane: shops.ts CROW_LANE), circles twice round in front of the moon
+// (crossing its face each time), between the HUD and the shop's roof, then glides back down the
 // same side, swoops in under the base, overshoots its stone and turns back onto it, facing the
 // moon again.
 //
 // Its route is laid out in the start view from the scene's own landmarks (the perch, the tower's
-// column, the screen's left edge, the moon, the porch house, the HUD), so it fits every screen: it
+// column, the screen's left edge, the moon, the sweet shop, the HUD), so it fits every screen: it
 // never enters the tower's column above the floor line, never reaches a screen edge, only ever
-// passes the kids and the house (never circles over them), and it is over the moon only after the
+// passes the kids and the shop (never circles over them), and it is over the moon only after the
 // Headless Horseman has passed it, and gone before he charges back across it (his loop is 15 s;
 // the crow's is two of them; a flight is timed in the gap while he is in the bridge). As the camera
 // climbs, the whole flight rides down with the churchyard (it is a near thing) and leaves the view
@@ -65,6 +66,8 @@ const LOOP_Z = [3.2, 3.6, 3.2, 2.9] as const;
 /** Seconds per quarter of the loop, and how many quarters it flies (two whole turns). */
 const QUARTER = 0.6;
 const QUARTERS = 8;
+/** When it circles the moon: from its first waypoint on the loop to its last, seconds into the cycle. */
+export const CIRCLING = [TAKE_OFF + 2.75, TAKE_OFF + 2.75 + QUARTERS * QUARTER] as const;
 /** The trick-or-treaters stand this tall above the floor line (the witch's hat), in u. */
 const KIDS_TALL = 0.23;
 /** The HUD covers the top of the screen down to this fraction of its height. */
@@ -195,7 +198,7 @@ function layout(R: Scene): void {
   const floor = R.groundY;
   const column = R.baseX - u * 0.05;
   const m = moonAt(R);
-  const roof = houseBox(R, -1).y0;
+  const roof = shopBox(R, -1).y0;
   const lane = (z: number, f: number) => {
     const reach = scaleAt(R, z) * FLY_REACH + u * MARGIN;
     const hi = column - reach;
@@ -209,7 +212,7 @@ function layout(R: Scene): void {
   // Just over the trick-or-treaters' heads.
   const overKids = (z: number) => floor - u * KIDS_TALL - half(z);
   // The loop in front of the moon: an oval in the lane, its right side over the moon's face, kept
-  // between the HUD and the porch house's roof (on a short phone the moon sits right between them).
+  // between the HUD and the sweet shop's roof (on a short phone the moon sits right between them).
   const lo = lane(LOOP_Z[0], 0);
   const hi = lane(LOOP_Z[0], 1);
   const lx = (lo + hi) / 2;
@@ -228,7 +231,7 @@ function layout(R: Scene): void {
   way(T0 + 1.1, R.cssW / 2 - u * 0.08, under(2.0), 2.0, 0, CEIL_LOW);
   way(T0 + 1.7, lane(2.4, 1), under(2.4), 2.4, 0.5, CEIL_LOW, -1);
   // Steeply up the tower's side of the lane, beating hard, still facing left (the way it turns
-  // into the loop): over the kids' heads, past the house.
+  // into the loop): over the kids' heads, past the shop.
   way(T0 + 2.2, lane(2.8, 1), overKids(2.8), 2.8, 1, 1, -1);
   // Twice round the oval, crossing the moon each time: right (on the moon), top (farthest),
   // left, bottom (nearest). It comes in and leaves at the right, on the tower's side.
