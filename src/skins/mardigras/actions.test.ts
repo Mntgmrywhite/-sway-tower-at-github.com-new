@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { littleReach, reachAt, TOSS_AT, TOSS_EVERY, tossAt } from "./balcony";
-import { TRAM_AT, TRAM_EVERY, TRAM_STOP, tramAt, WHISTLE_AT, WHISTLE_EVERY, whistleAt } from "./far";
-import { jumperReach, reachAt as ladderReach, seatReach } from "./front";
+import { jumperReach, reachAt as ladderReach, seatReach } from "./crowd";
+import { TRAM_AT, TRAM_EVERY, TRAM_STOP, tramAt, WHISTLE_AT, WHISTLE_EVERY, whistleAt } from "./river";
+import { hatTip, LIFT_EVERY, poleLift, SIP_EVERY, sipAt, TIP_EVERY } from "./onlookers";
 import { FLOAT_AT, FLOAT_HL, headX, LENGTH, PARADE_AT, PERIOD, THROW_COUNT, throwAt, throwFloat, throwKid, throwSeat, throwTarget, UNITS } from "./parade";
 
 // The owner's rules: any action needs to happen within the first 10 seconds, because after that
@@ -15,8 +16,10 @@ import { FLOAT_AT, FLOAT_HL, headX, LENGTH, PARADE_AT, PERIOD, THROW_COUNT, thro
 // kid at the curb and over to the ladder, the jester float's riders throwing beads to both
 // sides, the family on the gallery tossing beads
 // to the kids below (who reach up and catch them), the kids on the parade ladder reaching up,
-// the streetcar rolling in to its stop and back out, and the riverboat blowing its whistle.
-// The rest is ambient: the smoke, the paddlewheel, the little one waving. The lane's drifters,
+// the streetcar rolling in to its stop and back out, the riverboat blowing its whistle, the bead
+// seller at the curb lifting his pole and tipping his hat, and the café regular sipping his
+// coffee. The rest is ambient: the smoke, the paddlewheel, the little one waving, everyone's
+// dancing, glances and blinks, the lady at the curb cheering the floats as they pass. The lane's drifters,
 // the fireworks and the lanterns come with the height you climb to, so they are exempt.
 
 const OPENING = 10;
@@ -193,6 +196,23 @@ describe("mardi gras actions happen in the first 10 seconds, and again", () => {
     expect(tramAt(arrive + 0.5 + TRAM_EVERY).x).toBeCloseTo(tramAt(arrive + 0.5).x, 9);
     // It never crosses into the tower's column.
     for (let t = 0; t < 70; t += FRAME) if (tramAt(t).shown) expect(tramAt(t).x).toBeGreaterThanOrEqual(TRAM_STOP);
+  });
+
+  it("the onlookers' business: the bead seller lifts his pole and tips his hat, the café regular sips; first within ten seconds, then on their rhythms", () => {
+    for (const [name, act, every] of [
+      ["the pole lifted", poleLift, LIFT_EVERY],
+      ["the hat tipped", hatTip, TIP_EVERY],
+      ["a sip", sipAt, SIP_EVERY],
+    ] as const) {
+      const up = first((t) => act(t) > 0.9);
+      expect(up, name).toBeLessThan(OPENING);
+      // Down again, and back up a rhythm later, the same as before.
+      const down = first((t) => act(t) === 0, up);
+      expect(down, `${name}: it ends`).toBeLessThan(up + every);
+      for (let k = 1; k <= 4; k++) expect(act(up + every * k), `${name}, round ${k}`).toBeCloseTo(act(up), 9);
+      // Never a jump: it eases up and down.
+      for (let t = FRAME; t < every * 2; t += FRAME) expect(Math.abs(act(t) - act(t - FRAME)), `${name} at ${t.toFixed(2)}`).toBeLessThan(0.2);
+    }
   });
 
   it("the riverboat blows its whistle early, and again every so often", () => {
