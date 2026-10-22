@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { july4 } from "../july4";
 import type { Scene } from "../skin";
-import { floorTop, landmarkLine, skyBottom } from "./far";
+import { floorTop, landmarkLine, rayFoot, skyBottom } from "./far";
 import { halftone, skyFill, stars } from "./sky";
 import { context, sceneAt, SIZES, zoomedScene } from "./test-scene";
 import { level, LOOP, LOOP_START, toneOf } from "./tone";
@@ -149,7 +149,8 @@ describe("independence day's sky behind the tower", () => {
       const tone = toneOf(s);
       const line = landmarkLine(s);
       ctx.clearRect(0, 0, s.cssW, s.cssH);
-      skyFill(ctx, s, tone, line, skyBottom(s, floorTop(s, level(s))));
+      const floor = floorTop(s, level(s));
+      skyFill(ctx, s, tone, line, skyBottom(s, floor), rayFoot(s, floor, line));
       halftone(ctx, s, tone, line);
       stars(ctx, s, tone);
       const x0 = Math.floor(s.baseX);

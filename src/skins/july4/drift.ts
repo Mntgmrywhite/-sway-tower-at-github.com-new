@@ -2,22 +2,28 @@ import { circle, hash, oval, type Ctx } from "../../base/draw";
 import { layerGround } from "../../base/world";
 import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
-import { BASKET, EAGLE, EAGLE_BEAK, EAGLE_WHITE, PLANE, PLANE_WING } from "./colors";
+import { BASKET, BURNER, BURNER_CORE, EAGLE, EAGLE_BEAK, EAGLE_WHITE, PLANE, PLANE_WING } from "./colors";
 import { birdStroke, dot, starPath } from "./shapes";
 import { LOOP, type Tone } from "./tone";
 
 // What drifts past as you climb, in the lane down the right of the screen: the Fourth's air
-// show over a small town. A few swifts over the park, a bunch of party balloons let go at the
-// start and a bald eagle circling high over the town; then a great hot-air balloon printed with
-// the flag (a blue crown of stars over red and cream gores), a parachutist floating down under
-// a starred red and cream canopy, a stars-and-stripes kite, a yellow
-// barnstormer towing a 4TH banner, a stunt biplane looping the loop in a ring of red, cream and
-// blue smoke, a blimp with the flag's stripes down its side and its gondola lit at dusk, and
-// the show's smoke drifting off through the night. Each thing is anchored at a height in the
-// lane, so it comes down past you as the camera climbs, and it only ever moves in place (the
-// stunt plane round its own loop): nothing crosses the tower's column. Things are spaced so
-// they never overlap. Mid-distance, so flat poster inks and no keyline. When the story loops
-// (tone.ts), the lane comes round with it: the same things, a loop higher.
+// show over a small town. Over the park at the start, a great hot-air balloon printed with the
+// flag (a blue crown of stars over red and cream gores), a bald eagle circling and a few
+// swifts; then, once you climb, the show's big things, each filling the lane: a yellow
+// barnstormer towing a 4TH banner, a stars-and-stripes kite, a bunch of party balloons let go,
+// a parachutist under a starred red and cream canopy, the eagle huge against the sunburst, a
+// stunt biplane looping the loop in a ring of red, cream and blue smoke, a blimp with the
+// flag's stripes down its side and its gondola lit at dusk, and the show's smoke drifting off
+// through the night. Each thing is anchored at a height in the lane, so it comes down past you
+// as the camera climbs, and it only ever moves in place (the stunt plane round its own loop):
+// nothing crosses the tower's column. Things are spaced so they never overlap. Mid-distance, so
+// flat poster inks and no keyline. Over the town the lane is drawn beyond it (behind its
+// rooftops and landmarks, in front of the far clouds and the country), its things slim and
+// clear of the landmarks; once the cloud sea has covered the land it is the nearest thing in the
+// sky, drawn in front of the show and of the steeple and the courthouse's tower standing out of
+// the sea, so a big thing sinking past the clock tower goes by whole (july4.ts), and on into the
+// cloud sea. When the story loops (tone.ts), the lane comes round with it: the same things, a
+// loop higher, the start's three big now (LOOP_OPENING).
 //
 // The left of the sky is the sun's and the moon's (sky.ts): the sun hangs there by day and
 // sets into the cloud floor, the crescent moon comes out in the same place at night, and the
@@ -33,44 +39,67 @@ export interface Drifter {
   at: number;
   /** Center, in u from the screen center (positive: right of it). */
   x: number;
+  /** How big it is drawn (1: the size it hangs at over the town). */
+  size: number;
   phase: number;
 }
 
 /** Parallax depth of the lane (1 moves with the tower). */
 export const LANE_P = 0.7;
 
-/** One authored entry: what, its height in the lane (world units), and its center (u from the screen center). */
-type Spec = readonly [kind: Kind, at: number, x: number];
+/** One authored entry: what, its height in the lane (world units), its center (u from the screen center) and its size. */
+type Spec = readonly [kind: Kind, at: number, x: number, size: number];
 
-// The day's story, by hand. A thing at height `at` comes in at the top of the screen around
-// level (at - 230) / 8 and leaves at the bottom around level (at + 235) / 8 (on a tall phone).
-// The swifts, the balloons and the eagle are on screen at the start, over the park right of the
-// courthouse (its body reaches 0.385 u right of center) and clear of its flag, the eagle low
-// enough to stay below the HUD's rows on a short phone; the hot-air balloon starts just above
-// the screen; everything else comes down to the horizon only once the land is covered. The
-// courthouse's clock tower, dome and flag stand out of the cloud sea at every height after that
-// (far.ts), reaching to 0.37 u right of center (the flag flies toward the column): every lane
-// thing, sway included, keeps right of that, so none ever passes over them (drift.test.ts). On a
-// phone that leaves the lane 0.375..0.495 u.
+// The day's story, by hand. A thing at height `at` comes in at the top of a tall phone around
+// level (at - 350) / 8 and sinks into the cloud sea around level (at + 75) / 8.
+// The swifts, the hot-air balloon and the eagle are on screen at the start, over the park right
+// of the courthouse (its body reaches 0.385 u right of center) and clear of its flag, the eagle
+// low enough to stay below the HUD's rows on a short phone; nothing else may show in the HUD's
+// band at the start, so the next thing waits above the screen. While the land shows, the lane
+// passes the courthouse on its right (a phone leaves it 0.375..0.495 u), so the start's things
+// are slim. Everything from the barnstormer up first reaches the courthouse's height once the
+// land is covered: those are the air show's big things, flying the whole lane (0.26..0.49 u on
+// a phone) and passing in front of the courthouse's tower as they sink into the cloud sea (none
+// overlaps a landmark while the land shows, so none jumps in front as the land goes:
+// drift.test.ts).
 const DAY: Spec[] = [
-  ["birds", 92, 0.444],
-  ["hotair", 128, 0.441],
-  ["eagle", 166, 0.441],
-  ["balloons", 365, 0.442],
-  ["jumper", 432, 0.438],
-  ["kite", 498, 0.44],
-  ["biplane", 562, 0.458],
-  ["stunt", 632, 0.435],
-  ["blimp", 722, 0.436],
-  ["smoke", 812, 0.42],
-  ["smoke", 892, 0.415],
+  ["birds", 58, 0.444, 1],
+  ["hotair", 102, 0.44, 1],
+  ["eagle", 166, 0.44, 1],
+  ["biplane", 368, 0.372, 1.5],
+  ["kite", 418, 0.445, 1.3],
+  ["balloons", 458, 0.38, 1.6],
+  ["jumper", 520, 0.372, 1.5],
+  ["eagle", 585, 0.375, 2],
+  ["stunt", 650, 0.375, 1.5],
+  ["blimp", 726, 0.37, 1.9],
+  ["smoke", 812, 0.39, 1.6],
+  ["smoke", 892, 0.4, 1.6],
+];
+
+/**
+ * In the story's loop the land is long gone, so the start's things come round big, flying the
+ * whole lane like the rest of the show and spread over the climb from the night after the show
+ * to the morning: the hot-air balloon with its burner lit through the night and the dawn (it
+ * comes in as the show ends, so its height is below the turn's own start), the eagle at sunrise,
+ * the swifts in the morning. Heights within a turn; from the barnstormer on, a turn runs as the
+ * first day.
+ */
+const LOOP_OPENING: Spec[] = [
+  ["hotair", -60, 0.4, 1.8],
+  ["eagle", 230, 0.375, 2],
+  ["birds", 300, 0.4, 1.6],
 ];
 
 /** Story heights repeat with the loop: every turn shows the day's things PERIOD higher. */
 const PERIOD = LOOP * BLOCK_HEIGHT;
 
-/** The day's lane, running up from its lowest item. */
-const FIRST: readonly Drifter[] = DAY.map(([kind, at, x], k) => ({ kind, at, x, phase: hash(k * 17 + 8000) * 10 }));
+const drifter = ([kind, at, x, size]: Spec, k: number): Drifter => ({ kind, at, x, size, phase: hash(k * 17 + 8000) * 10 });
+/** The day's lane, running up from its lowest item; and every later turn's. */
+const FIRST: readonly Drifter[] = DAY.map(drifter);
+const LATER: readonly Drifter[] = [...LOOP_OPENING, ...DAY.slice(LOOP_OPENING.length)].map(drifter);
+/** The lowest a turn's things begin (a later turn's balloon comes in below its own first day's start). */
+const LOWEST = Math.min(FIRST[0]!.at, LATER[0]!.at);
 
 /** Scratch copies of the loop's things placed in a turn, reused every call (a frame shows a handful). */
 const POOL: Drifter[] = Array.from({ length: 32 }, () => ({ ...FIRST[0]! }));
@@ -84,9 +113,9 @@ export function eachVisible(s: Scene, draw: (d: Drifter) => void): void {
   const lo = (base - s.cssH - margin) / unit;
   const hi = (base + margin) / unit;
   let pooled = 0;
-  for (let n = Math.max(0, Math.floor(lo / PERIOD)); n * PERIOD + FIRST[0]!.at <= hi; n++) {
+  for (let n = Math.max(0, Math.floor(lo / PERIOD)); n * PERIOD + LOWEST <= hi; n++) {
     const off = PERIOD * n;
-    for (const d of FIRST) {
+    for (const d of n === 0 ? FIRST : LATER) {
       const at = d.at + off;
       if (at < lo) continue;
       if (at > hi) break;
@@ -101,32 +130,52 @@ export function eachVisible(s: Scene, draw: (d: Drifter) => void): void {
 /** Draw one item where it is now. */
 export function drawDrifter(ctx: Ctx, s: Scene, tone: Tone, d: Drifter): void {
   const u = s.u;
-  const y = layerGround(s, LANE_P) - d.at * s.scale * LANE_P;
+  const y0 = layerGround(s, LANE_P) - d.at * s.scale * LANE_P;
   const sway = Math.sin(s.t * 0.13 + d.phase) * u * 0.005;
   const bob = Math.sin(s.t * 0.4 + d.phase) * u * 0.005;
-  const x = s.cssW / 2 + d.x * u + sway;
-  if (d.kind === "balloons") balloons(ctx, s, tone, x, y + bob);
+  const x0 = s.cssW / 2 + d.x * u;
+  // A big thing is drawn about its center at its size: the same drawing, scaled.
+  const k = d.size;
+  const big = k !== 1;
+  if (big) {
+    ctx.save();
+    ctx.translate(x0, y0);
+    ctx.scale(k, k);
+  }
+  const x = (big ? 0 : x0) + sway / k;
+  const y = big ? 0 : y0;
+  const b = bob / k;
+  if (d.kind === "balloons") balloons(ctx, s, tone, x, y + b);
   else if (d.kind === "birds") birds(ctx, s, tone, x, y, d.phase);
   else if (d.kind === "eagle") eagle(ctx, s, x, y, d.phase);
-  else if (d.kind === "hotair") hotAir(ctx, s, tone, x, y + bob);
-  else if (d.kind === "jumper") jumper(ctx, s, tone, x, y + bob, d.phase);
-  else if (d.kind === "biplane") biplane(ctx, s, tone, x, y + bob);
-  else if (d.kind === "stunt") stunt(ctx, s, tone, s.cssW / 2 + d.x * u, y, d.phase);
-  else if (d.kind === "blimp") blimp(ctx, s, tone, x, y + bob * 0.6);
-  else if (d.kind === "kite") kite(ctx, s, tone, x, y + bob);
-  else smoke(ctx, s, tone, x, y + bob * 0.4, d.phase);
+  else if (d.kind === "hotair") hotAir(ctx, s, tone, x, y + b);
+  else if (d.kind === "jumper") jumper(ctx, s, tone, x, y + b, d.phase);
+  else if (d.kind === "biplane") biplane(ctx, s, tone, x, y + b);
+  else if (d.kind === "stunt") stunt(ctx, s, tone, big ? 0 : x0, y, d.phase);
+  else if (d.kind === "blimp") blimp(ctx, s, tone, x, y + b * 0.6);
+  else if (d.kind === "kite") kite(ctx, s, tone, x, y + b);
+  else smoke(ctx, s, tone, x, y + b * 0.4, d.phase);
+  if (big) ctx.restore();
 }
+
+/** How far above its anchor a thing reaches at most (u, at size 1): the hot-air balloon's crown. */
+const REACH_UP = 0.1;
 
 /** Scratch arguments for `drawOne`, so the per-frame loop allocates no closure. */
-const NOW = { ctx: null as Ctx | null, s: null as Scene | null, tone: null as Tone | null };
+const NOW = { ctx: null as Ctx | null, s: null as Scene | null, tone: null as Tone | null, cover: Infinity };
 function drawOne(d: Drifter): void {
-  drawDrifter(NOW.ctx!, NOW.s!, NOW.tone!, d);
+  const s = NOW.s!;
+  // A thing wholly below `cover` is hidden (under the lawn or the solid cloud floor): skip it.
+  if (layerGround(s, LANE_P) - d.at * s.scale * LANE_P - REACH_UP * d.size * s.u > NOW.cover) return;
+  drawDrifter(NOW.ctx!, s, NOW.tone!, d);
 }
 
-export function drifters(ctx: Ctx, s: Scene, tone: Tone): void {
+/** Everything in the lane, but what lies wholly below `cover` (px), which is covered there. */
+export function drifters(ctx: Ctx, s: Scene, tone: Tone, cover = Infinity): void {
   NOW.ctx = ctx;
   NOW.s = s;
   NOW.tone = tone;
+  NOW.cover = cover;
   eachVisible(s, drawOne);
 }
 
@@ -228,11 +277,11 @@ function eagle(ctx: Ctx, s: Scene, x: number, y: number, phase: number): void {
   for (const side of [-1, 1]) {
     ctx.moveTo(0, -span * 0.02);
     ctx.quadraticCurveTo(side * span * 0.5, -span * 0.2, side * span * 0.92, -span * 0.3);
-    for (let f = 0; f < 4; f++) {
-      ctx.lineTo(side * span * (1 - f * 0.04), -span * (0.24 - f * 0.08));
-      ctx.lineTo(side * span * (0.86 - f * 0.03), -span * (0.2 - f * 0.08));
+    for (let f = 0; f < 5; f++) {
+      ctx.lineTo(side * span * (1.02 - f * 0.04), -span * (0.25 - f * 0.085));
+      ctx.lineTo(side * span * (0.86 - f * 0.035), -span * (0.2 - f * 0.085));
     }
-    ctx.quadraticCurveTo(side * span * 0.42, span * 0.12, 0, span * 0.14);
+    ctx.quadraticCurveTo(side * span * 0.42, span * 0.26, 0, span * 0.16);
     ctx.closePath();
   }
   oval(ctx, 0, span * 0.08, span * 0.15, span * 0.1);
@@ -243,7 +292,7 @@ function eagle(ctx: Ctx, s: Scene, x: number, y: number, phase: number): void {
   for (const side of [-1, 1]) {
     ctx.moveTo(0, -span * 0.02);
     ctx.quadraticCurveTo(side * span * 0.5, -span * 0.2, side * span * 0.86, -span * 0.27);
-    ctx.quadraticCurveTo(side * span * 0.5, -span * 0.1, 0, span * 0.05);
+    ctx.quadraticCurveTo(side * span * 0.5, -span * 0.06, 0, span * 0.06);
     ctx.closePath();
   }
   ctx.fill();
@@ -289,7 +338,7 @@ function gore(ctx: Ctx, x: number, top: number, R: number, H: number, k0: number
   ctx.closePath();
 }
 
-/** A great hot-air balloon printed with the flag: a blue crown with a ring of stars over red and cream gores, the ropes, the wicker basket. */
+/** A great hot-air balloon printed with the flag: a blue crown with a ring of stars over red and cream gores, the ropes, the burner's flame, the wicker basket. */
 function hotAir(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number): void {
   const u = s.u;
   const R = BALLOON_R * u;
@@ -340,6 +389,18 @@ function hotAir(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number): void {
   ctx.moveTo(x + R * ENVELOPE[12]!, mouth);
   ctx.lineTo(x + bw, by);
   ctx.stroke();
+  // The burner's flame in the mouth, flickering: a teardrop of flame round a cream core.
+  const fh = u * 0.026 * (0.85 + 0.15 * Math.sin(s.t * 13 + x));
+  for (const [ink, k] of [[BURNER, 1], [BURNER_CORE, 0.55]] as const) {
+    const w = u * 0.006 * k;
+    const fy = by - u * 0.003;
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.moveTo(x, fy - fh * k);
+    ctx.quadraticCurveTo(x + w * 1.4, fy - w, x, fy);
+    ctx.quadraticCurveTo(x - w * 1.4, fy - w, x, fy - fh * k);
+    ctx.fill();
+  }
   ctx.fillStyle = BASKET.body;
   ctx.fillRect(x - bw, by, bw * 2, u * 0.018);
   ctx.fillStyle = BASKET.shade;
@@ -402,19 +463,43 @@ function jumper(ctx: Ctx, s: Scene, tone: Tone, x: number, y: number, phase: num
   starPath(ctx, x - R * 0.2, top + CANOPY_H * u * 0.17, R * 0.09);
   starPath(ctx, x + R * 0.2, top + CANOPY_H * u * 0.17, R * 0.09);
   ctx.fill();
-  // The jumper: a blue jumpsuit, legs together, arms up to the risers, a red helmet.
+  // The jumper: arms up to the risers, a blue jumpsuit lit on its left, legs a little apart and
+  // swinging with the canopy, boots, and a red helmet with a cream goggle band.
+  const sw = swing / u;
+  ctx.strokeStyle = tone.blue;
+  ctx.lineCap = "round";
+  ctx.lineWidth = u * 0.0042;
+  ctx.beginPath();
+  ctx.moveTo(jx - u * 0.004, jy - u * 0.008);
+  ctx.lineTo(jx - u * 0.007, jy - u * 0.02);
+  ctx.moveTo(jx + u * 0.004, jy - u * 0.008);
+  ctx.lineTo(jx + u * 0.007, jy - u * 0.02);
+  ctx.moveTo(jx - u * 0.0025, jy + u * 0.008);
+  ctx.lineTo(jx - u * 0.004 - sw * u * 0.3, jy + u * 0.022);
+  ctx.moveTo(jx + u * 0.0025, jy + u * 0.008);
+  ctx.lineTo(jx + u * 0.005 - sw * u * 0.3, jy + u * 0.021);
+  ctx.stroke();
   ctx.fillStyle = tone.blue;
   ctx.beginPath();
-  ctx.moveTo(jx - u * 0.005, jy - u * 0.012);
-  ctx.lineTo(jx + u * 0.005, jy - u * 0.012);
-  ctx.lineTo(jx + u * 0.004, jy + u * 0.014);
-  ctx.lineTo(jx - u * 0.004, jy + u * 0.014);
+  ctx.moveTo(jx - u * 0.0055, jy - u * 0.011);
+  ctx.lineTo(jx + u * 0.0055, jy - u * 0.011);
+  ctx.lineTo(jx + u * 0.0045, jy + u * 0.01);
+  ctx.lineTo(jx - u * 0.0045, jy + u * 0.01);
   ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = tone.blueShade;
+  ctx.fillRect(jx + u * 0.0012, jy - u * 0.011, u * 0.004, u * 0.021);
+  ctx.fillStyle = tone.bird;
+  ctx.beginPath();
+  dot(ctx, jx - u * 0.004 - sw * u * 0.3, jy + u * 0.023, u * 0.0028);
+  dot(ctx, jx + u * 0.005 - sw * u * 0.3, jy + u * 0.022, u * 0.0028);
   ctx.fill();
   ctx.fillStyle = tone.red;
   ctx.beginPath();
-  dot(ctx, jx, jy - u * 0.017, u * 0.0055);
+  dot(ctx, jx, jy - u * 0.016, u * 0.0058);
   ctx.fill();
+  ctx.fillStyle = tone.white;
+  ctx.fillRect(jx - u * 0.0058, jy - u * 0.0165, u * 0.0116, u * 0.0022);
 }
 
 // ---------------------------------------------------------------- the planes

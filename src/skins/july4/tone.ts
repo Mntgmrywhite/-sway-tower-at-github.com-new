@@ -11,10 +11,14 @@ import {
   CLAPBOARD,
   CLOCK_LIT,
   DOT_INK,
+  FAR_RANGE,
+  FAR_TOWN,
+  FIELD,
   FLAG,
+  FURROW,
   GILT,
+  HEDGEROW,
   HILL,
-  HILL_FAR,
   RAY_CREAM,
   RAY_RED,
   RIDGE,
@@ -32,6 +36,7 @@ import {
   TREE_SHADE,
   TRUNK,
   WINDOW,
+  WHEAT,
   WINDOW_LIT,
   WOODS,
 } from "./colors";
@@ -39,15 +44,15 @@ import { smooth } from "./shapes";
 
 // Height tells the story: the light changes with the camera's altitude, in tower levels, and
 // every hour is a set of flat poster inks (the sky's five bands, the sunburst's rays, the
-// clouds, the town fading row by row into the haze). A bright sunny afternoon over the town
-// square; up into a summer cumulus floor that covers the town, the cumulus towering out of it
-// by day; a golden barbecue evening as the sun sinks into the clouds and the towers settle; a
-// rose-and-violet dusk whose sunburst is printed as the flag's red and cream stripes, with the
-// first stars and the moon, when the first shells go up; the night, when the big fireworks show
-// fills both sides of the sky, printed Pop Art over Ben-Day dots, and builds to its finale,
-// lighting the cloud floor; then the show ends and the stars have the sky, with the smoke
-// drifting off. Past that the story
-// loops for as long as you can climb: the night holds a while, a peach dawn brings the sun back
+// clouds, the town and the country fading row by row into the haze). A bright sunny afternoon
+// over the town square; up into a summer cumulus floor that covers the town, the cumulus
+// towering out of it by day; a golden barbecue evening as the sun sinks into the clouds and the
+// towers settle; a rose-and-violet dusk whose sunburst is printed as the flag's red and cream
+// stripes, with the first stars and the moon, when the first shells go up; the night, when the
+// burst is gone and the big fireworks show fills both sides of the sky, printed Pop Art over
+// Ben-Day dots, and builds to its finale, lighting the cloud floor; then the show ends and the
+// stars have the sky, with the smoke drifting off. Past that the story loops for as long as you
+// can climb: the night holds a while, a peach dawn brings the sun back
 // up out of the clouds, and from the afternoon on the day runs exactly as the first one did
 // (evening, dusk, the show) into the night again. The light is worked out at the camera's exact
 // level whenever it moves (about sixty color mixes, well under a millisecond): a table in
@@ -132,7 +137,7 @@ const PAPER = "#fff8ea";
 const DAY: Omit<Key, "at"> = {
   sky: ["#2a5fab", "#4682c5", "#6ca4d8", "#a0cae6", "#f4e2b6"],
   rays: 0.9,
-  burst: 0.42,
+  burst: 0.58,
   burstInk: PAPER,
   cloud: ["#a9c1da", "#f6eedb", "#fffaf0"],
   haze: "#b5d3e6",
@@ -141,7 +146,7 @@ const DAY: Omit<Key, "at"> = {
 
 const NIGHT_KEY: Omit<Key, "at"> = {
   sky: ["#0f1640", "#141d50", "#19255e", "#1f2e6c", "#2a3b7e"],
-  rays: 0.9,
+  rays: 0,
   burst: 0,
   burstInk: PAPER,
   cloud: ["#28336f", "#45528f", "#6a79b4"],
@@ -200,17 +205,27 @@ const DAWN_KEYS: Key[] = [
 export interface Tone {
   /** The sky's flat bands, top to horizon. */
   sky: [string, string, string, string, string];
-  /** The sunburst's ink over each band: its rays, and the slices between them (the band itself but at dusk). */
+  /** The sunburst's ink over each band: its rays, and the lanes between them (the band itself but at dusk). */
   rays: [string, string, string, string, string];
   gaps: [string, string, string, string, string];
-  /** How far the dusk prints the burst as the flag's red and cream stripes (0..1): the slices between the rays are only drawn while it does. */
+  /** How far the dusk prints the burst as the flag's red and cream stripes (0..1): the lanes between the rays are only printed while it does. */
   stripe: number;
+  /** Whether the burst prints at all (0 in the night, when its rays are the bands' own inks: nothing to draw). */
+  burst: number;
   cloudShade: string;
   cloud: string;
   cloudLight: string;
-  /** The far blue ridge, the hills in front of it and their woods, faded. */
+  /** The country beyond the town, faded row by row: the far range and the ridge (lit faces and shaded), the far town (and its shade), the farm hills' field, wheat and furrows and their hedgerows, the near hill, its woods and the park's trees. */
+  farRange: string;
+  farRangeShade: string;
   ridge: string;
-  hillFar: string;
+  ridgeShade: string;
+  farTown: string;
+  farTownShade: string;
+  field: string;
+  wheat: string;
+  furrow: string;
+  hedgerow: string;
   hill: string;
   treeFar: string;
   woods: string;
@@ -336,10 +351,16 @@ function keyIn(keys: Key[], lvl: number): Key {
 
 /** How far the town's things fade toward the haze, row by row back from Main Street; the center block behind the tower much further. */
 const ROW = 0.14;
-const BACK = 0.3;
-const FAR = 0.48;
-const RIDGE_FADE = 0.6;
+const BACK = 0.24;
+const FAR = 0.34;
+const FARM_FADE = 0.4;
+const TOWN_FADE = 0.5;
+const RIDGE_FADE = 0.56;
+const RANGE_FADE = 0.7;
 const QUIET = 0.5;
+
+/** The lanes between the sunburst's rays print as the flag's cream stripes only once the stripes are this strong (sky.ts). */
+export const STRIPE_LANES = 0.45;
 
 /** What the light does, apart from its colors. */
 interface Light {
@@ -363,7 +384,8 @@ function toneFrom(k: Key, l: Light): Tone {
   // The finale's bursts light the low bands rose and violet.
   const sky: Tone["sky"] = [k.sky[0], k.sky[1], k.sky[2], mix(k.sky[3], "#5e3a86", glow), mix(k.sky[4], "#8a4a86", glow)];
   const ray = (i: number, next: string) => mix(mix(mix(sky[i]!, next, k.rays), k.burstInk, k.burst), RAY_RED, l.stripe * 0.78);
-  const gap = (i: number) => mix(sky[i]!, RAY_CREAM, l.stripe * 0.62);
+  // The lanes print cream only near the stripes' height (their panel's edge would show as a pale bar while they come and go).
+  const gap = (i: number) => mix(sky[i]!, RAY_CREAM, smooth(STRIPE_LANES, 1, l.stripe) * 0.62);
   // The courthouse flag: by day as the far bunting; after dark, lit by its floodlight, it keeps its colors.
   const flagFade = (c: string) => mix(mix(c, k.haze, ROW * 0.6), NIGHT_SHADOW, k.dark * 0.28);
   return {
@@ -371,14 +393,23 @@ function toneFrom(k: Key, l: Light): Tone {
     rays: [ray(0, sky[1]), ray(1, sky[2]), ray(2, sky[3]), ray(3, sky[4]), ray(4, mix(sky[4], PAPER, 0.6 * (1 - k.dark)))],
     gaps: [gap(0), gap(1), gap(2), gap(3), gap(4)],
     stripe: l.stripe,
+    burst: Math.max(k.rays, k.burst, l.stripe),
     cloudShade: k.cloud[0],
     cloud: k.cloud[1],
     cloudLight: k.cloud[2],
+    farRange: fade(FAR_RANGE, k, RANGE_FADE),
+    farRangeShade: fade(mix(FAR_RANGE, SLATE, 0.22), k, RANGE_FADE),
     ridge: fade(RIDGE, k, RIDGE_FADE),
-    hillFar: fade(HILL_FAR, k, FAR),
-    hill: fade(HILL, k, 0.34),
-    treeFar: fade("#4e8f52", k, 0.4),
-    woods: fade(WOODS, k, 0.44),
+    ridgeShade: fade(mix(RIDGE, SLATE, 0.3), k, RIDGE_FADE),
+    farTown: fade(FAR_TOWN, k, TOWN_FADE),
+    farTownShade: fade(mix(FAR_TOWN, SLATE, 0.28), k, TOWN_FADE),
+    field: fade(FIELD, k, FARM_FADE),
+    wheat: fade(WHEAT, k, FARM_FADE),
+    furrow: fade(FURROW, k, FARM_FADE),
+    hedgerow: fade(HEDGEROW, k, FARM_FADE - 0.04),
+    hill: fade(HILL, k, 0.26),
+    treeFar: fade("#4e8f52", k, 0.24),
+    woods: fade(WOODS, k, 0.3),
     steel: fade(STEEL, k, BACK),
     tank: fade(TANK, k, BACK),
     tankDark: fade(shade(TANK), k, BACK),
@@ -387,8 +418,8 @@ function toneFrom(k: Key, l: Light): Tone {
     roofBack: fade(ROOF_WALL, k, BACK),
     roofBackShade: fade(shade(ROOF_WALL), k, BACK),
     roofBackTop: fade(ROOF_TOP, k, BACK),
-    roofFar: fade(mix(ROOF_WALL, HILL_FAR, 0.3), k, FAR),
-    roofFarShade: fade(shade(mix(ROOF_WALL, HILL_FAR, 0.3)), k, FAR),
+    roofFar: fade(mix(ROOF_WALL, HILL, 0.25), k, FAR),
+    roofFarShade: fade(shade(mix(ROOF_WALL, HILL, 0.25)), k, FAR),
     roofFarTop: fade(ROOF_TOP, k, FAR),
     roofWindow: mix(fade(mix(WINDOW, ROOF_WALL, 0.3), k, BACK), WINDOW_LIT, lit * 0.8),
     brick: fade(BRICK, k, ROW),
@@ -444,7 +475,7 @@ function toneFrom(k: Key, l: Light): Tone {
     finale: l.finale,
     // The halftone dots come and go with the show.
     dots: l.show,
-    dot: mix(k.sky[3], DOT_INK, 0.45),
+    dot: mix(k.sky[3], DOT_INK, 0.62),
     smoke: l.smoke,
     towers: l.towers,
     floorCloud: mix(k.cloud[1], "#c98a9c", l.finale * 0.4),
