@@ -1,24 +1,8 @@
 import { alpha, circle, hash, mix, oval, type Ctx } from "../../base/draw";
 import { fieldY, TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
-import {
-  BONE,
-  COBBLE,
-  COBBLE_LIGHT,
-  COBBLE_SHADE,
-  GRASS,
-  GRASS_LIGHT,
-  IRON,
-  LAMP,
-  MOSSGREY,
-  PLUM,
-  POOL,
-  POOL_CORE,
-  SLATE,
-  smooth,
-  TEALGREY,
-} from "./common";
-import { streetShows } from "./lines";
+import { BONE, COBBLE, COBBLE_LIGHT, COBBLE_SHADE, GRASS, GRASS_LIGHT, IRON, LAMP, MOSSGREY, PLUM, POOL, POOL_CORE, SLATE, smooth, TEALGREY } from "./common";
+import { coverTop, OVERLAP, streetShows } from "./lines";
 import { level, type Tone } from "./tone";
 
 // Main Street, running away from the square behind the tower toward the hollow, in one-point
@@ -115,68 +99,95 @@ function wallColor(color: number, z: number, tone: Tone, cache: string[]): strin
 const CACHE: string[] = [];
 let cacheTone: Tone | null = null;
 
-/** One side's wall (side -1 left, 1 right), far to near so the nearer facades overlap the farther. */
-function wall(ctx: Ctx, s: Scene, tone: Tone, side: -1 | 1, k: number): void {
-  const list = WALLS[side < 0 ? 0 : 1]!;
-  const X = STREET_X * side;
-  // Facades of one color in a row share a fill (they hardly overlap, so the order barely matters).
-  let color = "";
-  for (let i = list.length - 1; i >= 0; i--) {
-    const f = list[i]!;
-    const xa = sx(s, X, f.z0);
-    const xb = sx(s, X, f.z1);
-    const ya = fieldY(s, f.z0);
-    const yb = fieldY(s, f.z1);
-    const ua = unit(s, f.z0);
-    const ub = unit(s, f.z1);
-    if (ya - f.h0 * k * ua > s.cssH) continue;
-    const c = wallColor(f.color, (f.z0 + f.z1) / 2, tone, CACHE);
-    if (c !== color) {
-      if (color) ctx.fill();
-      color = c;
-      ctx.fillStyle = c;
-      ctx.beginPath();
+/**
+ * Both walls' facades, a fill per color taking every facade of that color on either side (the two
+ * sides never meet, and on one side the facades hardly overlap, so the order barely matters).
+ */
+function walls(ctx: Ctx, s: Scene, tone: Tone, k: number): void {
+  const total = WALLS[0]!.length + WALLS[1]!.length;
+  let done = 0;
+  while (done < total) {
+    let color = "";
+    for (let sd = 0; sd < 2; sd++) {
+      const list = WALLS[sd]!;
+      const X = STREET_X * (sd ? 1 : -1);
+      const at = sd ? WALLS[0]!.length : 0;
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (DONE[at + i]) continue;
+        const f = list[i]!;
+        const c = wallColor(f.color, (f.z0 + f.z1) / 2, tone, CACHE);
+        if (!color) {
+          color = c;
+          ctx.fillStyle = c;
+          ctx.beginPath();
+        }
+        if (c !== color) continue;
+        DONE[at + i] = 1;
+        done++;
+        facade(ctx, s, f, X, k);
+      }
     }
-    const ta = ya - f.h0 * k * ua;
-    const tb = yb - f.h1 * k * ub;
-    ctx.moveTo(xa, ya + 1);
-    ctx.lineTo(xa, ta);
-    if (f.roof === 1) {
-      // A gable end facing the street: the roof's peak halfway along.
-      const zm = (f.z0 + f.z1) / 2;
-      const hm = ((f.h0 + f.h1) / 2 + 0.12) * k;
-      ctx.lineTo(sx(s, X, zm), fieldY(s, zm) - hm * unit(s, zm));
-    } else if (f.roof === 2) {
-      // A mansard: its slope rises inward, seen edge-on as a stepped top.
-      ctx.lineTo(sx(s, X * 0.9, f.z0), ta - 0.08 * k * ua);
-      ctx.lineTo(sx(s, X * 0.9, f.z1), tb - 0.08 * k * ub);
-    }
-    ctx.lineTo(xb, tb);
-    ctx.lineTo(xb, yb + 1);
-    ctx.closePath();
-    if (f.chimney) {
-      const zc = f.z0 + (f.z1 - f.z0) * f.chimney;
-      const uc = unit(s, zc);
-      const xc = sx(s, X, zc);
-      const yc = fieldY(s, zc) - (f.h0 + 0.12) * k * uc;
-      ctx.rect(xc - 0.02 * uc, yc - 0.12 * k * uc, 0.04 * uc, 0.14 * k * uc);
-    }
+    ctx.fill();
   }
-  if (color) ctx.fill();
+  DONE.fill(0);
 }
+/** Scratch: which facades the walls' fills have taken (left side first, then the right). */
+const DONE = new Uint8Array(WALLS[0]!.length + WALLS[1]!.length);
+
+/** One facade's outline (and its chimney), as subpaths of the current path. */
+function facade(ctx: Ctx, s: Scene, f: Facade, X: number, k: number): void {
+  const xa = sx(s, X, f.z0);
+  const xb = sx(s, X, f.z1);
+  const ya = fieldY(s, f.z0);
+  const yb = fieldY(s, f.z1);
+  const ua = unit(s, f.z0);
+  const ub = unit(s, f.z1);
+  if (ya - f.h0 * k * ua > s.cssH) return;
+  const ta = ya - f.h0 * k * ua;
+  const tb = yb - f.h1 * k * ub;
+  ctx.moveTo(xa, ya + 1);
+  ctx.lineTo(xa, ta);
+  if (f.roof === 1) {
+    // A gable end facing the street: the roof's peak halfway along.
+    const zm = (f.z0 + f.z1) / 2;
+    const hm = ((f.h0 + f.h1) / 2 + 0.12) * k;
+    ctx.lineTo(sx(s, X, zm), fieldY(s, zm) - hm * unit(s, zm));
+  } else if (f.roof === 2) {
+    // A mansard: its slope rises inward, seen edge-on as a stepped top.
+    ctx.lineTo(sx(s, X * 0.9, f.z0), ta - 0.08 * k * ua);
+    ctx.lineTo(sx(s, X * 0.9, f.z1), tb - 0.08 * k * ub);
+  }
+  ctx.lineTo(xb, tb);
+  ctx.lineTo(xb, yb + 1);
+  ctx.closePath();
+  if (f.chimney) {
+    const zc = f.z0 + (f.z1 - f.z0) * f.chimney;
+    const uc = unit(s, zc);
+    const xc = sx(s, X, zc);
+    const yc = fieldY(s, zc) - (f.h0 + 0.12) * k * uc;
+    ctx.rect(xc - 0.02 * uc, yc - 0.12 * k * uc, 0.04 * uc, 0.14 * k * uc);
+  }
+}
+
+/** The walls' windows: dim far off in the fog, lit near. */
+const WINDOW_DIM = alpha(LAMP, 0.32);
+const WINDOW_LIT = alpha(LAMP, 0.75);
+/** Every other course of cobbles, a shade lighter. */
+const COURSE = alpha(COBBLE_LIGHT, 0.5);
 
 /** The windows along both walls, dim through the fog: rows of lit panes in perspective. */
 function wallWindows(ctx: Ctx, s: Scene, k: number): void {
-  for (const side of [-1, 1] as const) {
-    const list = WALLS[side < 0 ? 0 : 1]!;
-    const X = STREET_X * side;
-    for (let pass = 0; pass < 2; pass++) {
-      ctx.beginPath();
-      let any = false;
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.beginPath();
+    let any = false;
+    for (const side of SIDES) {
+      const list = WALLS[side < 0 ? 0 : 1]!;
+      const X = STREET_X * side;
       for (let i = 0; i < list.length; i++) {
         const f = list[i]!;
         const lit = 1 - fogAt(f.z0) / FOG_MAX;
-        if ((pass === 0) !== lit > 0.45 || f.z0 > 24) continue;
+        // (Past z 16 the fog has them: there they would only be slivers of a pixel or two.)
+        if ((pass === 0) !== lit > 0.45 || f.z0 > 16) continue;
         const n = Math.max(1, Math.round((f.z1 - f.z0) / 0.4));
         for (let r = 0; r < f.rows; r++) {
           const h0 = (0.06 + r * 0.1) * k;
@@ -199,12 +210,13 @@ function wallWindows(ctx: Ctx, s: Scene, k: number): void {
           }
         }
       }
-      if (!any) continue;
-      ctx.fillStyle = pass === 0 ? alpha(LAMP, 0.32) : alpha(LAMP, 0.75);
-      ctx.fill();
     }
+    if (!any) continue;
+    ctx.fillStyle = pass === 0 ? WINDOW_DIM : WINDOW_LIT;
+    ctx.fill();
   }
 }
+const SIDES = [-1, 1] as const;
 
 // ---------------------------------------------------------------- the lamps
 
@@ -263,19 +275,45 @@ function lamps(ctx: Ctx, s: Scene, tone: Tone, t: number, fade: number): void {
 
 // ---------------------------------------------------------------- the floor
 
+/** The floor's gradients, kept while the view holds (the start view holds for a dozen bars). */
+const FLOOR = { top: NaN, kerb: NaN, split: NaN, tone: null as Tone | null, far: null as CanvasGradient | null, g: null as CanvasGradient | null, grassKerb: NaN, h: NaN, grass: null as CanvasGradient | null };
+
+/** The screen band Main Street's floor paints opaque this frame (horizon to kerb), or null when it is not drawn. */
+const SPAN: [number, number] = [0, 0];
+export function floorSpan(s: Scene): readonly [number, number] | null {
+  if (!streetShows(level(s))) return null;
+  SPAN[0] = Math.max(0, s.horizonY);
+  SPAN[1] = fieldY(s, KERB_Z);
+  return SPAN[0] < SPAN[1] ? SPAN : null;
+}
+
 /** The cobbled square and street from the horizon to the kerb, and the churchyard's grass in front. */
 function floor(ctx: Ctx, s: Scene, tone: Tone): void {
   const kerb = fieldY(s, KERB_Z);
   const top = Math.max(0, s.horizonY);
   if (top < kerb) {
-    const g = ctx.createLinearGradient(0, top, 0, kerb);
-    g.addColorStop(0, mix(COBBLE_SHADE, tone.fog, 0.42));
-    g.addColorStop(0.35, mix(COBBLE_SHADE, tone.fog, 0.12));
-    g.addColorStop(1, COBBLE);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, top, s.cssW, kerb - top);
+    // Fogged far off, clearing toward the square: two two-stop gradients split at a whole pixel
+    // (the same as one three-stop gradient, at about half the cost).
+    if (FLOOR.top !== top || FLOOR.kerb !== kerb || FLOOR.tone !== tone) {
+      FLOOR.top = top;
+      FLOOR.kerb = kerb;
+      FLOOR.tone = tone;
+      const split = Math.round(top + (kerb - top) * 0.35);
+      const mid = mix(COBBLE_SHADE, tone.fog, 0.12);
+      FLOOR.split = split;
+      FLOOR.far = ctx.createLinearGradient(0, top, 0, split);
+      FLOOR.far.addColorStop(0, mix(COBBLE_SHADE, tone.fog, 0.42));
+      FLOOR.far.addColorStop(1, mid);
+      FLOOR.g = ctx.createLinearGradient(0, split, 0, kerb);
+      FLOOR.g.addColorStop(0, mid);
+      FLOOR.g.addColorStop(1, COBBLE);
+    }
+    ctx.fillStyle = FLOOR.far!;
+    ctx.fillRect(0, top, s.cssW, FLOOR.split - top + OVERLAP);
+    ctx.fillStyle = FLOOR.g!;
+    ctx.fillRect(0, FLOOR.split, s.cssW, kerb - FLOOR.split + OVERLAP);
     // Courses of cobbles in perspective: every other row a shade lighter, near the square only.
-    ctx.fillStyle = alpha(COBBLE_LIGHT, 0.5);
+    ctx.fillStyle = COURSE;
     ctx.beginPath();
     for (let z = KERB_Z, i = 0; z < 9; z *= 1.07, i++) {
       if (i % 2) continue;
@@ -286,13 +324,19 @@ function floor(ctx: Ctx, s: Scene, tone: Tone): void {
     }
     ctx.fill();
   }
-  // The churchyard's grass, from the kerb to the bottom of the screen.
-  if (kerb < s.cssH) {
-    const g = ctx.createLinearGradient(0, kerb, 0, s.cssH);
-    g.addColorStop(0, GRASS);
-    g.addColorStop(1, mix(GRASS, GRASS_LIGHT, 0.5));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, kerb, s.cssW, s.cssH - kerb);
+  // The churchyard's grass, from the kerb down to the near edge, which covers the rest.
+  const floor = Math.min(s.cssH, coverTop(s) + OVERLAP);
+  if (kerb < floor) {
+    if (FLOOR.grassKerb !== kerb || FLOOR.h !== s.cssH) {
+      FLOOR.grassKerb = kerb;
+      FLOOR.h = s.cssH;
+      const g = ctx.createLinearGradient(0, kerb, 0, s.cssH);
+      g.addColorStop(0, GRASS);
+      g.addColorStop(1, mix(GRASS, GRASS_LIGHT, 0.5));
+      FLOOR.grass = g;
+    }
+    ctx.fillStyle = FLOOR.grass!;
+    ctx.fillRect(0, kerb, s.cssW, floor - kerb);
   }
 }
 
@@ -348,11 +392,10 @@ export function street(ctx: Ctx, s: Scene, tone: Tone, k = 1): void {
   if (s.horizonY < s.cssH) {
     // The walls are facades seen from the street: as the camera rises over their roofs they would
     // thin into slivers converging on the far end, so they fade into the fog as soon as it lifts.
-    const walls = 1 - smooth(WALLS_FADE[0], WALLS_FADE[1], s.rise / s.u);
-    if (walls > 0.01) {
-      ctx.globalAlpha = walls;
-      wall(ctx, s, tone, -1, k);
-      wall(ctx, s, tone, 1, k);
+    const shown = 1 - smooth(WALLS_FADE[0], WALLS_FADE[1], s.rise / s.u);
+    if (shown > 0.01) {
+      ctx.globalAlpha = shown;
+      walls(ctx, s, tone, k);
       wallWindows(ctx, s, k);
       ctx.globalAlpha = 1;
     }

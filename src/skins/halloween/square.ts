@@ -1,6 +1,7 @@
-import { alpha, circle, hash, ink, mix, oval, type Ctx } from "../../base/draw";
+import { alpha, circle, hash, ink, oval, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
-import { BONE_SHADE, INK, inkW, IRON, MOSS_DARK, ORANGE, ORANGE_DARK, ORANGE_LIGHT, spot, STEM } from "./common";
+import { BONE_SHADE, INK, inkW, IRON, mixed, MOSS_DARK, ORANGE, ORANGE_DARK, ORANGE_LIGHT, spot } from "./common";
+import { FACE, jackFace } from "./ambient";
 import { jackOLantern } from "./pumpkin";
 
 // The square's centerpiece, behind the tower on the right: a round flower bed of autumn mums
@@ -8,11 +9,17 @@ import { jackOLantern } from "./pumpkin";
 // between them), heaped with a pile of pumpkins (orange, ghost-white and striped green), and on
 // top of the pile the giant jack-o'-lantern grinning out over the square, taller pile and all than
 // the kids beside it (the widest it can stand in the lane between the column and the superhero).
+// It is alive: now and then it blinks and pulls a new face (a grin, a toothy grin, an O of "boo!",
+// a wink, a silly frown), the first time at JACK_FIRST, and it flares up when a floor lands.
 
 /** The centerpiece's spot (X in u at the tower's depth, z), and the bed's half-width (u at the tower's depth). */
 export const CENTERPIECE = { X: 0.322 * (3.85 / 3), z: 3.85, bed: 0.073 };
 /** The giant jack-o'-lantern's radius, in u at the tower's depth: taller than the kids, pile and all. */
 const JACK_R = 0.064;
+/** Its first change of face (an O: "boo!"), then every JACK_EVERY seconds or so; its beat's seed. */
+export const JACK_FIRST = 3.4;
+export const JACK_EVERY = [4, 11] as const;
+export const JACK_SEED = 701;
 
 /** Pumpkins in the pile: x and y of the bottom (in bed half-widths, y up), radius, kind (0 orange, 1 white, 2 striped). */
 const PILE = [
@@ -57,15 +64,7 @@ function pumpkin(ctx: Ctx, x: number, bottom: number, r: number, kind: number, l
   ctx.beginPath();
   oval(ctx, x, y, r * 1.2, r * 0.88);
   ink(ctx, lw, INK);
-  ctx.beginPath();
-  ctx.moveTo(x - r * 0.1, y - r * 0.8);
-  ctx.lineTo(x - r * 0.06, y - r * 1.1);
-  ctx.lineTo(x + r * 0.16, y - r * 1.14);
-  ctx.lineTo(x + r * 0.1, y - r * 0.8);
-  ctx.closePath();
-  ctx.fillStyle = STEM;
-  ctx.fill();
-  ink(ctx, lw * 0.7, INK);
+  // (No stems: in the pile each one's top is hidden under the pumpkins above it and the giant jack-o'-lantern.)
 }
 
 /** Posts round the bed: angles round the ellipse, the back half (sin < 0) drawn before the pile. */
@@ -122,7 +121,7 @@ export function centerpiece(ctx: Ctx, s: Scene): void {
   // The bed: a ring of stone kerb round dark soil, mums in four colors.
   ctx.beginPath();
   oval(ctx, x, y, rx, ry);
-  ctx.fillStyle = mix(BONE_SHADE, INK, 0.25);
+  ctx.fillStyle = mixed(BONE_SHADE, INK, 0.25);
   ctx.fill();
   ink(ctx, lw, INK);
   ctx.beginPath();
@@ -149,7 +148,10 @@ export function centerpiece(ctx: Ctx, s: Scene): void {
 
   // The pile, back to front, then the giant jack-o'-lantern on top.
   for (const [px, py, pr, kind] of PILE) pumpkin(ctx, x + px * rx, y - py * rx - ry * 0.1, pr * rx, kind, lw * 0.85);
-  jackOLantern(ctx, s.t, x, y - rx * PILE_TOP, JACK_R * s.u * k, lw, false, true);
+  const f = jackFace(s.t, JACK_FIRST, JACK_EVERY[0], JACK_EVERY[1], JACK_SEED, FACE.boo);
+  const land = s.sinceLand ?? Infinity;
+  const flare = land < 0.3 ? 0.2 * (1 - land / 0.3) : 0;
+  jackOLantern(ctx, s.t, x, y - rx * PILE_TOP, JACK_R * s.u * k, lw, false, true, f.face, s.still ? 0 : f.blink, flare);
 
   railing(ctx, x, y, rx * 1.1, ry * 1.15, ph, false, lw);
 }

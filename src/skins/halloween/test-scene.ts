@@ -2,6 +2,8 @@ import { createCanvas } from "@napi-rs/canvas";
 import { horizonFor } from "../../base/world";
 import { BASE_WIDTH, BLOCK_HEIGHT, WORLD_WIDTH } from "../../config";
 import type { Scene } from "../skin";
+import { cast } from "./cast";
+import { HILL_STONE_INDEX, ISLE_STONE_INDEX, SLOT } from "./slot";
 
 // Test helpers for the Halloween tests (not a test file itself): the scene the renderer builds
 // at a tower level, also for Hard mode's zoomed-out camera, and pixel masks of drawings.
@@ -62,14 +64,33 @@ export function context(W: number, H: number): CanvasRenderingContext2D {
   return createCanvas(Math.round(W), Math.round(H)).getContext("2d") as unknown as CanvasRenderingContext2D;
 }
 
+/**
+ * The canvases `mask` draws on, one per size, reused (cleared by `reset`, which also resets the
+ * transform, clip and styles): a canvas's pixels are freed only when the garbage collector gets
+ * round to it, and the thousands of masks a test makes would otherwise pile up gigabytes.
+ */
+const MASKS = new Map<string, CanvasRenderingContext2D>();
+
 /** Which pixels a drawing covers (alpha above a faint anti-aliased edge, or above `min`). */
 export function mask(W: number, H: number, draw: (ctx: CanvasRenderingContext2D) => void, min = 40): Uint8Array {
-  const ctx = context(W, H);
+  const key = `${Math.round(W)}x${Math.round(H)}`;
+  let ctx = MASKS.get(key);
+  if (ctx) (ctx as unknown as { reset(): void }).reset();
+  else MASKS.set(key, (ctx = context(W, H)));
   draw(ctx);
   const data = ctx.getImageData(0, 0, Math.round(W), Math.round(H)).data;
   const out = new Uint8Array(data.length / 4);
   for (let i = 0; i < out.length; i++) out[i] = data[i * 4 + 3]! > min ? 1 : 0;
   return out;
+}
+
+/**
+ * Lets the event loop turn. The canvas library frees the pixels a read (getImageData) hands back
+ * only between turns of the event loop, so a test that reads thousands of frames in one go piles up
+ * gigabytes (a worker of six was killed for it): such a test awaits this every few dozen reads.
+ */
+export function breathe(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 /** Whether two boxes overlap. */
@@ -78,4 +99,21 @@ export function meets(
   b: { x0: number; y0: number; x1: number; y1: number },
 ): boolean {
   return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+/** Every stone number the backdrop calls the cast in at (SLOT.stone). */
+const STONES = [0, 1, HILL_STONE_INDEX, HILL_STONE_INDEX + 1, HILL_STONE_INDEX + 2, HILL_STONE_INDEX + 3, ISLE_STONE_INDEX, ISLE_STONE_INDEX + 1];
+
+/** The cast alone (cast.ts): every slot, back to front, as the backdrop and the foreground call it. */
+export function castOnly(ctx: CanvasRenderingContext2D, s: Scene): void {
+  cast(ctx, s, SLOT.deep);
+  cast(ctx, s, SLOT.moon);
+  cast(ctx, s, SLOT.far);
+  cast(ctx, s, SLOT.mid);
+  cast(ctx, s, SLOT.hollow);
+  cast(ctx, s, SLOT.behindNear);
+  cast(ctx, s, SLOT.near);
+  for (const i of STONES) cast(ctx, s, SLOT.stone, i);
+  cast(ctx, s, SLOT.mist);
+  cast(ctx, s, SLOT.front);
 }

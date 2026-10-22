@@ -2,7 +2,8 @@ import { circle, hash, oval, type Ctx } from "../../base/draw";
 import { HORIZON_P } from "../../base/world";
 import type { Scene } from "../skin";
 import { STAR } from "./common";
-import { skyEnd } from "./lines";
+import { coverTop, OVERLAP, skyEnd } from "./lines";
+import { floorSpan } from "./street";
 import { toneOf, type Tone } from "./tone";
 
 // The Halloween sky, painted like the backdrop of a stop-motion set: a deep indigo sinking through
@@ -22,12 +23,14 @@ import { toneOf, type Tone } from "./tone";
 const MOON_R = 0.145;
 
 /** Scratch result of `moonAt`, reused so nothing allocates per frame. */
-const M = { x: 0, y: 0, r: 0, r0: 0 };
+const M = { x: 0, y: 0, r: 0, r0: 0, y0: 0 };
 
 /**
- * Where the moon hangs: left of the tower, below the HUD block (the top 32% of the screen),
- * and 0.28u above the start horizon if that allows, so the Horseman's hill can cross its lower
- * face with the hollow still below. Fixed on screen while you climb.
+ * Where the moon hangs: left of the tower, below the HUD block (the top 32% of the screen), and in
+ * the start view 0.28u above the start horizon if that allows, so the Horseman's hill can cross its
+ * lower face with the hollow still below (y0, r0: that start-view spot and size, which the hill and
+ * the corner shops are laid out by). Fixed on screen while you climb, but as night falls (tone.ts
+ * moonUp) it eases up to just under the HUD, out of the lane below it, and swells; it never jumps.
  */
 export function moonAt(s: Scene, tone: Tone = toneOf(s)): typeof M {
   const u = s.u;
@@ -35,9 +38,15 @@ export function moonAt(s: Scene, tone: Tone = toneOf(s)): typeof M {
   M.r = u * tone.moonR;
   M.x = s.cssW / 2 - u * 0.3;
   const hy0 = s.horizonY - HORIZON_P * s.rise;
-  M.y = Math.max(s.cssH * 0.32 + M.r0 + u * 0.02, hy0 - u * 0.28);
+  M.y0 = Math.max(s.cssH * 0.32 + M.r0 + u * 0.02, hy0 - u * 0.28);
+  // (It rises at most MOON_RISE: on a zoomed-out view the HUD's line is much farther up.)
+  const high = Math.max(s.cssH * MOON_HIGH + M.r + u * 0.01, M.y0 - u * MOON_RISE);
+  M.y = tone.moonUp > 0 ? M.y0 + (Math.min(M.y0, high) - M.y0) * tone.moonUp : M.y0;
   return M;
 }
+/** Eased up, the moon's top stands this far down the screen (and a hair more), having risen at most MOON_RISE (u). */
+const MOON_HIGH = 0.3;
+const MOON_RISE = 0.12;
 
 /** How far out the moon's halo reaches, in radii: nothing in the sky comes nearer than this. */
 export const HALO_REACH = 1.5;
@@ -61,9 +70,19 @@ export function moon(ctx: Ctx, s: Scene, tone: Tone = toneOf(s)): void {
   const { x, y, r } = moonAt(s, tone);
   ctx.fillStyle = tone.halo;
   for (const k of HALO_RINGS) {
+    // Rings, not discs: their middles would only be painted over by the moon (whose edge hides theirs).
     ctx.beginPath();
     circle(ctx, x, y, r * k);
-    ctx.fill();
+    circle(ctx, x, y, r * 0.97);
+    ctx.fill("evenodd");
+  }
+  if (tone.ghostHalo) {
+    // The spiral calm's ghost-green ring of light, between the inner halo rings.
+    ctx.fillStyle = tone.ghostHalo;
+    ctx.beginPath();
+    circle(ctx, x, y, r * 1.36);
+    circle(ctx, x, y, r * 1.06);
+    ctx.fill("evenodd");
   }
   ctx.fillStyle = tone.moon;
   ctx.beginPath();
@@ -130,18 +149,28 @@ export function skyFill(ctx: Ctx, s: Scene, tone: Tone): void {
       SKY.glow.addColorStop(1, tone.glow);
     }
   }
+  // Each gradient stops where the next fill takes over, and nothing is painted under the near
+  // edge (coverTop): a gradient is the dearest fill there is, and the lower one used to run on
+  // down the whole screen under the glow, the land and the flagstones.
+  // (Each fill runs OVERLAP px on under the next one, so no seam shows through, even scaled down.)
+  const floor = Math.min(s.cssH, coverTop(s) + OVERLAP);
   ctx.fillStyle = SKY.upper!;
-  // The two overlap, so the seam never shows through when the frame is drawn scaled.
-  ctx.fillRect(0, 0, s.cssW, split);
-  ctx.fillStyle = SKY.lower!;
-  ctx.fillRect(0, split - 2, s.cssW, s.cssH - split + 2);
-  if (SKY.glow) {
+  ctx.fillRect(0, 0, s.cssW, Math.min(split, floor));
+  const lower = Math.min((SKY.glow ? end - h : end) + OVERLAP, floor);
+  if (lower > split - 2) {
+    ctx.fillStyle = SKY.lower!;
+    ctx.fillRect(0, split - 2, s.cssW, lower - split + 2);
+  }
+  if (SKY.glow && end - h < floor) {
     ctx.fillStyle = SKY.glow;
-    ctx.fillRect(0, end - h, s.cssW, h + 1);
-    if (end + 1 < s.cssH) {
-      ctx.fillStyle = tone.glow;
-      ctx.fillRect(0, end, s.cssW, s.cssH - end);
-    }
+    ctx.fillRect(0, end - h, s.cssW, Math.min(h + OVERLAP, floor - end + h));
+  }
+  // Below its end it runs on in the horizon's color (unless Main Street's floor and the
+  // churchyard's grass cover all of that, as they do while the street shows).
+  const street = floorSpan(s);
+  if (end < floor && !(street && street[0] <= end)) {
+    ctx.fillStyle = SKY.glow ? tone.glow : tone.sky[2];
+    ctx.fillRect(0, end, s.cssW, floor - end);
   }
 }
 
@@ -204,7 +233,7 @@ const SWIRLS = [
 ] as const;
 
 /** Scratch centerline of one swirl: x, y, half-width per point. */
-const SW_N = 44;
+const SW_N = 36;
 const SW = new Float64Array(SW_N * 3);
 
 /**
@@ -217,7 +246,7 @@ export function swirl(ctx: Ctx, x0: number, x1: number, y: number, th: number, h
   const R = Math.min(th * 3.2, Math.abs(x1 - x0) * 0.32);
   const cx = x1 - d * R;
   const cy = y - head * R;
-  const tailN = 16;
+  const tailN = 12;
   for (let i = 0; i < SW_N; i++) {
     let x: number;
     let yy: number;
@@ -241,27 +270,31 @@ export function swirl(ctx: Ctx, x0: number, x1: number, y: number, th: number, h
     SW[i * 3 + 2] = w;
   }
   // Both edges: along one side, back along the other.
-  const edge = (i: number, side: number): [number, number] => {
-    const a = Math.max(0, i - 1);
-    const b = Math.min(SW_N - 1, i + 1);
-    const tx = SW[b * 3]! - SW[a * 3]!;
-    const ty = SW[b * 3 + 1]! - SW[a * 3 + 1]!;
-    const n = Math.hypot(tx, ty) || 1;
-    const w = SW[i * 3 + 2]! * side;
-    return [SW[i * 3]! - (ty / n) * w, SW[i * 3 + 1]! + (tx / n) * w];
-  };
-  const [sx, sy] = edge(0, 1);
-  ctx.moveTo(sx, sy);
+  edge(0, 1);
+  ctx.moveTo(EP.x, EP.y);
   for (let i = 1; i < SW_N; i++) {
-    const [px, py] = edge(i, 1);
-    ctx.lineTo(px, py);
+    edge(i, 1);
+    ctx.lineTo(EP.x, EP.y);
   }
   ctx.arc(SW[(SW_N - 1) * 3]!, SW[(SW_N - 1) * 3 + 1]!, SW[(SW_N - 1) * 3 + 2]!, 0, Math.PI);
   for (let i = SW_N - 1; i >= 0; i--) {
-    const [px, py] = edge(i, -1);
-    ctx.lineTo(px, py);
+    edge(i, -1);
+    ctx.lineTo(EP.x, EP.y);
   }
   ctx.closePath();
+}
+
+/** Scratch point of a swirl's edge. */
+const EP = { x: 0, y: 0 };
+function edge(i: number, side: number): void {
+  const a = Math.max(0, i - 1);
+  const b = Math.min(SW_N - 1, i + 1);
+  const tx = SW[b * 3]! - SW[a * 3]!;
+  const ty = SW[b * 3 + 1]! - SW[a * 3 + 1]!;
+  const n = Math.hypot(tx, ty) || 1;
+  const w = SW[i * 3 + 2]! * side;
+  EP.x = SW[i * 3]! - (ty / n) * w;
+  EP.y = SW[i * 3 + 1]! + (tx / n) * w;
 }
 
 /** The swirls that fit their lane on this screen, clear of the moon's halo, the column and the screen's sides. */

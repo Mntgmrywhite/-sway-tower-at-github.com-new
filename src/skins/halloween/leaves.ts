@@ -10,8 +10,10 @@ import { moonAt } from "./sky";
 // would swallow leaves this small).
 
 const TAU = Math.PI * 2;
-const EDGES = LEAVES.map((c) => mix(c, INK, 0.38));
-const FALLEN_FILL = LEAVES.map((c) => mix(c, INK, 0.1));
+// By night: the leaves on the wind a little dimmed, the ones lying on the grass in its shadow.
+const BLOWN = LEAVES.map((c) => mix(c, INK, 0.22));
+const EDGES = LEAVES.map((c) => mix(c, INK, 0.5));
+const FALLEN_FILL = LEAVES.map((c) => mix(c, INK, 0.42));
 
 /** Scratch geometry of one leaf, so drawing it twice (fill, ink) allocates nothing. */
 const L = { x: 0, y: 0, len: 0, a: 0, flip: 1 };
@@ -80,7 +82,7 @@ export function blowing(ctx: Ctx, s: Scene): void {
       blowSpot(s, i);
       leafPath(ctx, true);
     }
-    ctx.fillStyle = LEAVES[c]!;
+    ctx.fillStyle = BLOWN[c]!;
     ctx.fill();
     ctx.strokeStyle = EDGES[c]!;
     ctx.stroke();

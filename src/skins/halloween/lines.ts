@@ -1,6 +1,8 @@
+import { layerGround } from "../../base/world";
+import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
 import { smooth } from "./common";
-import { level, MIST_GATHER, MIST_SETTLED } from "./tone";
+import { level, LOOP_PERIOD, LOOP_START, MIST_GATHER, MIST_SETTLED, STRETCH } from "./tone";
 
 // The lines the climb is laid out on: where the sky ends, and where the mist floor's top lies as
 // it gathers over the town, covers it, and sinks to rest low on the screen for the loop.
@@ -43,7 +45,62 @@ export function landBottom(s: Scene, lvl = level(s)): number {
   return Math.max(s.horizonY, under) + 1;
 }
 
+/** The near edge (front.ts): its railing stands on this line (y), the grass tips this far (u) over it. */
+export function nearTop(s: Scene): number {
+  return layerGround(s, NEAR_P) + s.u * NEAR_DROP;
+}
+const NEAR_P = 1.6;
+const NEAR_DROP = 0.36;
+export const GRASS_TIPS = 0.026;
+
+/** How far a big fill stopped short of the screen's bottom runs on under the next (px): seams stay shut on a screen drawn scaled down to 0.6. */
+export const OVERLAP = 3;
+
+/**
+ * From here down the near edge paints the whole screen opaque (its flagstones), so nothing behind
+ * it is drawn below this line: a big fill there is wasted time on a phone.
+ */
+export function coverTop(s: Scene): number {
+  return nearTop(s) - s.u * GRASS_TIPS;
+}
+
 /** Whether Main Street (its floor, walls, lamps and kerb) still shows: once the mist has gathered over it, never again. */
 export function streetShows(lvl: number): boolean {
   return lvl < MIST_GATHER[1];
+}
+
+// ---------------------------------------------------------------- the height story's placements
+
+/** Pixels per level of the camera's climb on this screen. */
+export function perLevel(s: Scene): number {
+  return BLOCK_HEIGHT * s.scale;
+}
+
+/**
+ * Screen y of something placed in the height story: at `at` (a fraction of the screen's height) when
+ * the camera is at level L, moving with parallax p (0 fixed, 1 with the tower) as it climbs.
+ */
+export function storyY(s: Scene, L: number, p: number, at: number, lvl = level(s)): number {
+  return at * s.cssH + (lvl - L) * perLevel(s) * p;
+}
+
+/**
+ * The level of the copy of a loop thing (at `f` of the loop) nearest the camera, from the first that
+ * shows (the loop's last stretch, E, shows on the first pass too: its things are there one loop
+ * early). For things on a layer slow enough to be on screen at most once at a time.
+ */
+export function loopCopy(f: number, lvl: number): number {
+  const L0 = LOOP_START + f * LOOP_PERIOD;
+  const k = Math.round((lvl - L0) / LOOP_PERIOD);
+  const first = L0 - LOOP_PERIOD >= STRETCH.E - LOOP_PERIOD * 0.02 ? -1 : 0;
+  return L0 + Math.max(first, k) * LOOP_PERIOD;
+}
+
+/**
+ * How far something in the left lane, below the moon, has come out of the dark (0..1): nothing may
+ * cross the moon, so a thing coming down that lane fades in below its halo instead of passing it.
+ * `top` is the thing's top (screen y); `haloBottom` the moon's halo's lowest point.
+ */
+export function belowMoon(s: Scene, top: number, haloBottom: number): number {
+  return smooth(haloBottom + s.u * 0.01, haloBottom + s.u * 0.08, top);
 }

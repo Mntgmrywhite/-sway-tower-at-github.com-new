@@ -1,41 +1,55 @@
 import { backdrop } from "./halloween/backdrop";
 import { PALETTE } from "./halloween/common";
-import { front } from "./halloween/front";
-import * as icon from "./halloween/icons";
+import { floor, FLOOR_BARS } from "./halloween/floors/floor";
+import { foreground } from "./halloween/front";
 import type { CartoonSkin } from "./skin";
 
-// Halloween: a Main Street Halloween night in a Tim Burton style, all our own designs (never a
-// Disney or Nightmare Before Christmas character, sign or distinctive design). Deep indigo sinking
-// to plum with the last pumpkin ember of the dusk on the horizon, Burton swirls of cloud rolled up
-// into spirals out in the lanes, and a huge flat cream moon low on the left with rings of
-// moonlight round it. Across the hollow (hollow.ts) the Headless Horseman gallops along his hill
-// across the moon's face, down into the old covered bridge at the far end of Main Street, and
-// charges back; on a jagged crag on the right the crooked mansion (mansion.ts) leans one way while
-// its great tower leans the other, up to a clock, a belfry and a witch-hat spire curling into a
-// spiral, every window lit, bats flitting round it and a flock of crows wheeling above. Main Street
-// (street.ts) runs away from the square behind the tower in one-point perspective, its gas lamps
-// and walls of crooked shopfronts lost in drifting bands of fog long before the bridge (the column
-// behind the tower kept quiet). On the square (shops.ts) the corner shops lean in over it, inked
-// in slate and plum: a sweet shop under a sagging gable strung with lights, a curio shop with a
-// mansard, iron cresting and a turret, striped awnings, bunting fans, a stitched patch, shop
-// windows glowing with the wares, jack-o'-lanterns lining the steps (spindly tower-houses stand
-// further out where a screen is wide enough). The giant jack-o'-lantern, its crown cracked and
-// sewn up, grins from a pumpkin pile in a flower bed ringed by a chain railing behind the tower
-// (square.ts), towering over the trick-or-treaters in homemade costumes either side; in front of
-// a black-and-white striped kerb the old churchyard, its open graves where skeleton parts pop up
-// at random and the crow on the RIP stone that takes its turn round the moon (graveyard.ts).
-// Fireflies blink in the lanes, leaves blow on the wind, and in front (front.ts) a wrought-iron
-// railing curling into spirals, cobwebs, hay bales heaped with pumpkins and lanterns. Glow is the
-// only brightness.
+// Halloween: a living Halloween world in a Tim Burton style, all our own designs (never a Disney
+// or Nightmare Before Christmas character, sign or distinctive design), silly-spooky, never gory.
+// Midnight blues, charcoal, muted purples and ghostly greens; glow is the only brightness (lit
+// windows, candles, jack-o'-lanterns, the moon).
 //
-// Height tells the story and loops (tone.ts): dusk deepens into night as you climb, the mist
-// gathers and swallows the town (fog.ts), a jack-o'-lantern hot-air balloon keeps you company in
-// the sky over the moon (balloon.ts), the hollow fades, and the mansion stands out of the mist sea
-// for good; then night, the mist (curling banks of fog drifting past), the witching hour (the moon
-// burns orange, the clock strikes twelve, every window blazes and the bats pour out of the
-// belfry) and night again, forever. Nothing ever crosses the moon but the Horseman and the crow.
+// The tower is the House of a Hundred Rooms (floors/): every bar is a candy-painted storey of a
+// crooked Burton house, its edges and corners the bar's own, its crookedness all in the trim: siding,
+// crooked breathing windows that flicker, go dark and sometimes blink like eyes, shutters, lanterns,
+// and one lit room where something lives (a witch stirring her cauldron, a spellbook turning its
+// pages, a sparking laboratory, a dancing skeleton, an empty rocking chair, a portrait whose eyes
+// move, a crooked clock, a shadow behind the curtains, a ghost, a candelabra, a cat on the sill;
+// the front door on the ground floor). The top floor wears a crooked roof with a smoking chimney.
+// A landing makes the floors under it shudder in their details (shutters rattle, lanterns swing,
+// dust falls, panes blink), never in their place.
 //
-// The skin paints everything behind the tower itself, in one pass (backdrop.ts).
+// Behind it everything is painted in one pass (backdrop.ts). The start view is Main Street on
+// Halloween night: a huge moon over the Headless Horseman's hill (hollow.ts: he gallops across the
+// moon's face into the covered bridge and charges back), a far gothic city on the horizon, the
+// crooked mansion on its crag (mansion.ts: windows going dark, smoking chimneys, a torn pennant,
+// bats and a crow flock), Main Street lost in fog (street.ts), the corner shops (shops.ts: a
+// swinging sign, a rocking birdcage, a smoking chimney, a belvedere), the giant jack-o'-lantern
+// changing faces (square.ts), the trick-or-treaters (kids.ts), the moonlit churchyard with its crow
+// and its open graves where skeleton parts pop up at random (graveyard.ts), and in front the iron
+// railing, cobwebs, hay bales, jack-o'-lanterns and dripping candles (front.ts). Distant lightning
+// flashes now and then (lightning.ts), never with reduce motion; fog drifts at every depth.
+//
+// Height tells the story and loops (tone.ts): over the rooftops (the far village and the hill
+// cemetery as the mist gathers; village.ts), the gothic skyline (the cathedral, crooked roofs, a
+// near spire, a chimney stack; skyline.ts), the storm over the spires (storm clouds, the bell tower,
+// a ledge with a dead tree, lightning revealing a colossus striding behind the spires; storm.ts),
+// the spiral sky and the upside-down isles (a witch's cottage, an upside-down graveyard, a stair
+// to nowhere, a door in the sky, a hanging house, a looping bridge, a floating castle; isles.ts);
+// then the loop: the isles, the witching hour (the moon burns orange, a ring of bats circles it,
+// the mansion's clock strikes twelve and the swarm pours out), the storm, the spirals, forever.
+// The moon eases up and swells as you climb; nothing crosses it but the Horseman, the crow, the
+// ring of bats and the rare great shadow.
+//
+// The cast performs on the stage (cast.ts, cast/, stage.ts): anchors computed from the scenery's
+// own geometry, drawn at the backdrop's slots, back to front: the raven on a chimney, the black cat
+// on a ridge looking up at the moon, spiders on their threads, the rat on the railing, ghosts
+// rising behind gravestones and drifting through the lanes, shadows behind lit curtains, bats out
+// of every belfry, skeletal birds, the sky-eel in the spirals; and rare events, one at a time (a
+// colony of bats bursting out, a witch or a great bat across the moon, a skeleton peeking over a
+// rooftop, a ghostly carriage, glowing eyes in a dark window). Every clock is deterministic and
+// its own, so nothing keeps step; every start-view act comes within 10 s and again and again; the
+// tower's column stays calm. A landing startles the cast and nudges what hangs and turns.
 
 export const halloween: CartoonSkin = {
   id: "halloween",
@@ -43,21 +57,10 @@ export const halloween: CartoonSkin = {
   dates: [{ from: [10, 1], to: [11, 1] }],
   fonts: ["Creepster"],
   palette: PALETTE,
-  // Candy colors; neighbors alternate warm / cool and light / dark so every seam reads.
-  bars: [
-    { color: "#ff9a2e", icon: icon.pumpkin },
-    { color: "#a173e0", icon: icon.witchHat },
-    { color: "#ffd23f", icon: icon.candyCorn },
-    { color: "#5fd7f0", icon: icon.crow },
-    { color: "#ff6fae", icon: icon.bat },
-    { color: "#a6e05a", icon: icon.tombstone },
-    { color: "#f2d7a0", icon: icon.mummy },
-    { color: "#5b8cff", icon: icon.moon },
-    { color: "#f4f0e4", icon: icon.skull },
-    { color: "#ff5a5f", icon: icon.fangs },
-    { color: "#e05ad8", icon: icon.spider },
-    { color: "#3fd6b0", icon: icon.hauntedHouse },
-  ],
+  // The tower's floors (floors/): candy-painted storeys of a crooked Burton house, each with its
+  // lit room; the colors alternate warm / cool and light / dark so every seam reads.
+  bars: [...FLOOR_BARS],
+  bar: floor,
   hud: {
     display: "Creepster, Impact, 'Arial Black', sans-serif",
     title: "#ff9a2e",
@@ -67,5 +70,5 @@ export const halloween: CartoonSkin = {
   },
   ground: backdrop,
   paintsBackdrop: true,
-  foreground: front,
+  foreground,
 };

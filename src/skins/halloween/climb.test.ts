@@ -1,13 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { halloween } from "../halloween";
 import type { Scene } from "../skin";
-import { bridgeAt, hillOnly, hollow, riderAt, riderBox } from "./hollow";
+import { bridgeAt, crestTrees, hillOnly, hollow, riderAt, riderBox } from "./hollow";
 import { horseman } from "./horseman";
 import { mansion, mansionAt } from "./mansion";
 import { street } from "./street";
-import { context, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
+import { breathe, context, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
 import { HOLLOW_FADE, LOOP_PERIOD, LOOP_START, MIST_GATHER, toneOf } from "./tone";
+
+// Free the canvases' pixel reads between tests (see breathe).
+afterEach(breathe);
 
 // The climb holds together at every height, on every screen and zoomed out: the far land moves as
 // one piece and never shows an edge or a gap (the Horseman's hill runs down into the creek, never
@@ -64,9 +67,10 @@ function mask(s: Scene, b: Box, draw: (ctx: CanvasRenderingContext2D) => void, m
 }
 
 describe.each(VIEWS)("halloween climb, %ix%i at zoom %s", (W, H, z) => {
-  it("the Horseman's hill runs down into the creek past the bridge's portal, never ending in a cut edge", () => {
+  it("the Horseman's hill runs down into the creek past the bridge's portal, never ending in a cut edge", async () => {
     let checked = 0;
     for (let lvl = 0; lvl < HOLLOW_FADE[1]; lvl += 3) {
+      await breathe(); // let the pixel reads be freed now and then (see breathe)
       const s = sceneAt(W, H, lvl, 3, z);
       const b = bridgeAt(s);
       if (!b) continue;
@@ -104,9 +108,10 @@ describe.each(VIEWS)("halloween climb, %ix%i at zoom %s", (W, H, z) => {
     }
   });
 
-  it("the Horseman never rides on without his hill: he fades with it", () => {
+  it("the Horseman never rides on without his hill: he fades with it", async () => {
     let seen = 0;
     for (let lvl = HOLLOW_FADE[0] - 4; lvl <= HOLLOW_FADE[1] + 2; lvl += 2) {
+      await breathe(); // let the pixel reads be freed now and then (see breathe)
       for (const t of [1.5, 2.5, 3.5, 10.5, 11.2]) {
         const s = sceneAt(W, H, lvl, t, z);
         const r = { ...riderAt(s) };
@@ -118,7 +123,11 @@ describe.each(VIEWS)("halloween climb, %ix%i at zoom %s", (W, H, z) => {
         // opacity (riderAt's: his ride's fade in and out of the mist, times the hollow's).
         const draw = (ctx: CanvasRenderingContext2D, vis: number) => horseman(ctx, r.x, r.y, r.size, s.t, r.tilt, vis, r.dir, r.charge);
         const him = mask(s, area, (ctx) => draw(ctx, 1), 200);
-        const hill = mask(s, area, (ctx) => hillOnly(ctx, s), 8);
+        // (The hill's trees, swaying, may stand behind him too: they fade with the hill.)
+        const hill = mask(s, area, (ctx) => {
+          hillOnly(ctx, s);
+          crestTrees(ctx, s);
+        }, 8);
         const ref = pixels(s, area, 1, (ctx) => draw(ctx, r.vis));
         const data = pixels(s, area, 2, (ctx) => hollow(ctx, s, toneOf(s)));
         let most = 0;
@@ -135,17 +144,19 @@ describe.each(VIEWS)("halloween climb, %ix%i at zoom %s", (W, H, z) => {
     expect(seen, "he rides while the hollow fades").toBeGreaterThan(5);
   });
 
-  it("nothing of Main Street is left once the mist has gathered over it", () => {
+  it("nothing of Main Street is left once the mist has gathered over it", async () => {
     for (let lvl = MIST_GATHER[1]; lvl < LOOP_START + LOOP_PERIOD; lvl += 5) {
+      await breathe(); // let the pixel reads be freed now and then (see breathe)
       const s = sceneAt(W, H, lvl, 3, z);
       const m = mask(s, box(s, 0, 0, s.cssW, s.cssH), (ctx) => street(ctx, s, toneOf(s)), 0);
       expect(m.reduce((a, b) => a + b, 0), `level ${lvl}: the street drawn`).toBe(0);
     }
   });
 
-  it("the crooked mansion stands out of the mist at every height: never hidden", () => {
+  it("the crooked mansion stands out of the mist at every height: never hidden", async () => {
     const kit = kitFor(halloween);
     for (const lvl of CLIMB) {
+      await breathe(); // let the pixel reads be freed now and then (see breathe)
       const s: Scene = sceneAt(W, H, lvl, 2.7, z);
       const at = { ...mansionAt(s) };
       const area = box(s, at.x0 - 4, at.topY - 4, at.x1 + 4, at.y + s.u * 0.02);

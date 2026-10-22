@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { halloween } from "../halloween";
-import { context, sceneAt, SCREENS } from "./test-scene";
+import { breathe, context, sceneAt, SCREENS } from "./test-scene";
 import { LOOP_PERIOD, LOOP_START } from "./tone";
+
+// Free the canvases' pixel reads between tests (see breathe).
+afterEach(breathe);
 
 // The owner's layering rule: the band behind the tower stays quieter and lower in contrast than
 // the edges, so play stays readable. On the backdrop alone (no tower, no foreground), from the top

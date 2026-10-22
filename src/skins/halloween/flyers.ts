@@ -1,5 +1,6 @@
 import type { Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
+import { batPath } from "./cast/bats";
 import { crowFly } from "./crow";
 import { mansionAt } from "./mansion";
 import { toneOf, type Tone } from "./tone";
@@ -8,34 +9,8 @@ import { toneOf, type Tone } from "./tone";
 // the sky belongs to the moon: nothing crosses it): a small flock of crows wheeling high over the
 // crag, a few bats flitting round the mansion's spire, and in the witching hour a swarm of bats
 // pouring out of its belfry and looping round the lane. Far away, so flat silhouettes in the
-// tone's flyer color, no outline. Everything is a pure function of the scene.
-
-/**
- * One bat, wings spread, as a closed subpath (so many can share a fill). `lift` -1..1 raises
- * or drops the wingtips; the trailing edge is scalloped between the finger bones.
- */
-function batPath(ctx: Ctx, x: number, y: number, s: number, lift: number): void {
-  const L = lift * 0.32;
-  ctx.moveTo(x - s * 0.06, y - s * 0.1);
-  ctx.lineTo(x - s * 0.1, y - s * 0.25);
-  ctx.lineTo(x - s * 0.025, y - s * 0.14);
-  ctx.lineTo(x + s * 0.025, y - s * 0.14);
-  ctx.lineTo(x + s * 0.1, y - s * 0.25);
-  ctx.lineTo(x + s * 0.06, y - s * 0.1);
-  ctx.quadraticCurveTo(x + s * 0.3, y - s * (0.2 + L * 0.6), x + s * 0.55, y - s * (0.24 + L));
-  ctx.quadraticCurveTo(x + s * 0.8, y - s * (0.22 + L * 1.1), x + s, y - s * (0.04 + L * 1.25));
-  ctx.quadraticCurveTo(x + s * 0.84, y + s * (0.02 - L * 0.75), x + s * 0.74, y + s * (0.22 - L * 0.85));
-  ctx.quadraticCurveTo(x + s * 0.6, y + s * (0.08 - L * 0.5), x + s * 0.44, y + s * (0.26 - L * 0.5));
-  ctx.quadraticCurveTo(x + s * 0.3, y + s * (0.1 - L * 0.25), x + s * 0.08, y + s * 0.18);
-  ctx.lineTo(x, y + s * 0.28);
-  ctx.lineTo(x - s * 0.08, y + s * 0.18);
-  ctx.quadraticCurveTo(x - s * 0.3, y + s * (0.1 - L * 0.25), x - s * 0.44, y + s * (0.26 - L * 0.5));
-  ctx.quadraticCurveTo(x - s * 0.6, y + s * (0.08 - L * 0.5), x - s * 0.74, y + s * (0.22 - L * 0.85));
-  ctx.quadraticCurveTo(x - s * 0.84, y + s * (0.02 - L * 0.75), x - s, y - s * (0.04 + L * 1.25));
-  ctx.quadraticCurveTo(x - s * 0.8, y - s * (0.22 + L * 1.1), x - s * 0.55, y - s * (0.24 + L));
-  ctx.quadraticCurveTo(x - s * 0.3, y - s * (0.2 + L * 0.6), x - s * 0.06, y - s * 0.1);
-  ctx.closePath();
-}
+// tone's flyer color, no outline (the bats are the cast's, cast/bats.ts). A floor landing on the
+// tower sends the spire's bats flitting out for a moment. Everything is a pure function of the scene.
 
 /** Keep this far (u) from the tower's column and the screen's right edge. */
 const EDGE = 0.014;
@@ -102,6 +77,9 @@ export const BATS = [
   { ph: 4.2, w: 1.25, rate: 14, size: 0.017, rx: 0.05, ry: 0.04 },
 ] as const;
 
+/** How long the spire's bats flit out when a floor lands (s). */
+const FLIT = 0.6;
+
 export function batSpot(s: Scene, i: number): typeof F {
   const b = BATS[i]!;
   const L = lane(s);
@@ -109,9 +87,12 @@ export function batSpot(s: Scene, i: number): typeof F {
   const u = s.u;
   const th = s.t * b.w + b.ph;
   const half = b.size * u;
-  const x = m.belfryX + Math.sin(th) * b.rx * u;
+  // A floor landing on the tower makes them flit out from the spire for a moment (not with reduce motion).
+  const land = s.sinceLand ?? Infinity;
+  const flit = s.still !== true && land >= 0 && land < FLIT ? Math.sin((Math.PI * land) / FLIT) : 0;
+  const x = m.belfryX + Math.sin(th) * b.rx * u * (1 + flit * 0.8);
   F.x = Math.max(L.x0 + half, Math.min(L.x1 - half, x));
-  F.y = Math.max(L.y0 + half, m.topY + u * 0.02 + Math.sin(th * 2) * b.ry * u);
+  F.y = Math.max(L.y0 + half, m.topY + u * 0.02 + Math.sin(th * 2) * b.ry * u - flit * u * 0.03);
   F.s = half;
   F.lift = Math.sin(s.t * b.rate + i * 1.7);
   return F;

@@ -22,6 +22,8 @@ const DROP = 2.05;
 /** What it fills, in radii: a little above the envelope (the stem) to the basket's foot. */
 const ABOVE = 1.42;
 const BELOW = DROP + 0.5;
+/** The glow round the envelope (radii): the widest thing it paints, which keeps it clear of the column. */
+const GLOW = 1.55;
 const EDGE = 0.016;
 /**
  * It keeps below this fraction of the screen: clear of the corner's button. (The HUD's score, best,
@@ -38,15 +40,18 @@ function band(s: Scene): { y0: number; y1: number; r: number; x0: number; x1: nu
   const m = moonAt(s);
   const y0 = s.cssH * BALLOON_TOP;
   const y1 = m.y - m.r * HALO_REACH - s.u * 0.012;
-  const r = Math.max(0, Math.min(R * s.u, (y1 - y0) / (ABOVE + BELOW)));
-  return { y0, y1, r, x0: s.u * EDGE, x1: s.baseX - s.u * (0.05 + EDGE) };
+  const x0 = s.u * EDGE;
+  const x1 = s.baseX - s.u * (0.05 + EDGE);
+  // (No wider than its glow fits between the screen's edge and the tower's column, with room to drift.)
+  const r = Math.max(0, Math.min(R * s.u, (y1 - y0) / (ABOVE + BELOW), (x1 - x0) / (GLOW * 2.2)));
+  return { y0, y1, r, x0, x1 };
 }
 
 /** Where it is at level `lvl` in the stretch [a, b] (levels), or null while it is out of sight. */
 function at(s: Scene, lvl: number, a: number, b: number): (typeof B & { hover: boolean }) | null {
   if (lvl <= a || lvl >= b) return null;
   const bd = band(s);
-  if (bd.r < s.u * 0.03 || bd.x1 - bd.x0 < bd.r * 2.6) return null;
+  if (bd.r < s.u * 0.03) return null;
   const p = (lvl - a) / (b - a);
   // Its drift and bob keep the same rhythm in every turn of the loop.
   const ph = a === BALLOON_FIRST[0] ? 1.3 : 0.4;
@@ -54,7 +59,8 @@ function at(s: Scene, lvl: number, a: number, b: number): (typeof B & { hover: b
   const hover = bd.y0 + bd.r * ABOVE + (bd.y1 - bd.y0 - bd.r * (ABOVE + BELOW)) * (0.5 + 0.5 * Math.sin(s.t * 0.6 + ph));
   const off = -bd.r * (BELOW + 0.2);
   const k = p < 0.15 ? smooth(0, 0.15, p) : p > 0.85 ? 1 - smooth(0.85, 1, p) : 1;
-  const half = bd.r * 1.2;
+  // (Its glow is the widest thing it paints: that keeps clear of the tower's column too.)
+  const half = bd.r * GLOW;
   const lo = bd.x0 + half;
   const hi = bd.x1 - half;
   B.x = (lo + hi) / 2 + ((hi - lo) / 2) * Math.sin(s.t * 0.13 + ph * 2.1);
@@ -147,7 +153,7 @@ function draw(ctx: Ctx, s: Scene, b: { x: number; y: number; r: number }): void 
   // The envelope's glow, then the envelope: a ribbed pumpkin, lit from the flame inside.
   ctx.fillStyle = alpha(ORANGE_LIGHT, 0.16 + 0.12 * flare);
   ctx.beginPath();
-  circle(ctx, x, y, r * 1.55);
+  circle(ctx, x, y, r * GLOW);
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(x - r * 0.3, y + r * 0.9);

@@ -1,12 +1,13 @@
-import { alpha, circle, hash, mix, type Ctx } from "../../base/draw";
+import { alpha, circle, hash, type Ctx } from "../../base/draw";
 import { HORIZON_P } from "../../base/world";
 import type { Scene } from "../skin";
-import { LAMP, smooth } from "./common";
+import { LAMP, mixed, smooth } from "./common";
 import { CHARGE_RAISE, horseman } from "./horseman";
 import { landBottom } from "./lines";
 import { moonAt } from "./sky";
 import { toneOf, type Tone } from "./tone";
-import { crooked, drawTree, reach, type Tree } from "./trees";
+import { beat } from "./ambient";
+import { crooked, drawTree, reach, windAt, type Tree } from "./trees";
 
 // Beyond the town lies Sleepy Hollow, faded by distance and mist: jagged back hills, and the long
 // hill under the moon where the Headless Horseman gallops past the moon's face and rides down
@@ -23,7 +24,7 @@ const RIDGE_P = 0.06;
 // ---------------------------------------------------------------- the hill
 
 /** Scratch geometry for this frame, so the crest function needs no closures. */
-const G = { cx: 0, u: 0, hy0: 0, drop: 0, top: 0, mx: 0, mr: 0 };
+const G = { cx: 0, u: 0, hy0: 0, drop: 0, top: 0, mx: 0, mr: 0, mr0: 0 };
 
 /** The bridge, in u from the center: left end, length, deck height above the horizon. */
 const BRIDGE_X = 0.0;
@@ -229,12 +230,12 @@ function bridge(ctx: Ctx, s: Scene, tone: Tone): void {
   const eave = deck - u * 0.048;
   const fw = u * 0.046;
   const peak = eave - u * 0.03;
-  const body = mix(tone.hill, "#7a3a4a", 0.32);
-  const dark = mix(tone.hill, "#000000", 0.35);
-  const lattice = mix(body, "#e0b090", 0.18);
+  const body = mixed(tone.hill, "#7a3a4a", 0.32);
+  const dark = mixed(tone.hill, "#000000", 0.35);
+  const lattice = mixed(body, "#e0b090", 0.18);
 
   // Stone piers at either end, standing on the hillsides.
-  ctx.fillStyle = mix(tone.haze, tone.hill, 0.35);
+  ctx.fillStyle = mixed(tone.haze, tone.hill, 0.35);
   ctx.beginPath();
   ctx.moveTo(x1 - u * 0.022, deck);
   ctx.lineTo(x1 + u * 0.008, deck);
@@ -273,7 +274,7 @@ function bridge(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.lineTo(x0 - fw, eave);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = mix(dark, "#000000", 0.4);
+  ctx.fillStyle = mixed(dark, "#000000", 0.4);
   ctx.beginPath();
   const pw = fw * 0.32;
   const pc = x0 - fw * 0.5;
@@ -309,10 +310,26 @@ const LANTERN_GLOW = alpha(LAMP, 0.2);
 // ---------------------------------------------------------------- trees on the crest
 
 /** A spindly crooked tree on the crest just past the moon, toward the bridge, and one far to the left on wide screens. */
-const CREST_TREE: Tree = crooked(12, -0.3, 1.0, 3);
+const CREST_TREE: Tree = crooked(12, -0.3, 1.0, 3, 1, 1);
 const CREST_REACH = reach(CREST_TREE);
 const EDGE_TREE: Tree = crooked(5, 0.2, 0.9, 3);
 const CREST_TREE_H = 0.085;
+/** Its sway (tree units at its top: about ±0.01u) and its reaching limb's beat: first at REACH_FIRST, then every 18-30 s. */
+const SWAY = 0.12;
+export const REACH_FIRST = 6.5;
+const REACH_EVERY = [18, 30] as const;
+
+/**
+ * How far the crest tree's limb is reaching toward the tower now (0..1): it creaks round over 1.5 s,
+ * holds 2 s, and pulls back over 1.5 s.
+ */
+export function reachAt(t: number): number {
+  const b = beat(t, REACH_FIRST, REACH_EVERY[0], REACH_EVERY[1], 61);
+  const a = b.since;
+  if (a >= 5) return 0;
+  const e = (x: number) => x * x * (3 - 2 * x);
+  return a < 1.5 ? e(a / 1.5) : a < 3.5 ? 1 : e(1 - (a - 3.5) / 1.5);
+}
 
 // ---------------------------------------------------------------- layer
 
@@ -326,15 +343,17 @@ function geometry(s: Scene): boolean {
   const m = moonAt(s);
   G.mx = m.x;
   G.mr = m.r;
+  G.mr0 = m.r0;
   // The crest crosses the moon's lower face, but stays well above the hollow.
-  G.top = Math.min(m.y + m.r0 * 0.36, G.hy0 - u * 0.2);
+  // (Laid out by the moon's start-view spot: as it eases up out of the start view, the hill stays put.)
+  G.top = Math.min(m.y0 + m.r0 * 0.36, G.hy0 - u * 0.2);
   return G.top + G.drop - u * 0.2 <= s.cssH;
 }
 
 /** Where the crest tree stands (screen x): its leftmost twig clear of the moon's disc. And its height in px. */
 function crestTree(s: Scene): { x: number; h: number } {
   const h = s.u * CREST_TREE_H;
-  return { x: G.mx + G.mr + s.u * 0.012 - CREST_REACH[0] * h, h };
+  return { x: G.mx + G.mr0 + s.u * 0.012 + SWAY * h - CREST_REACH[0] * h, h };
 }
 
 /** The back hills across the hollow (drawn first, behind the mansion's ridge). */
@@ -354,6 +373,18 @@ export function bridgeAt(s: Scene): { portal: number; road: number; deck: number
   if (!geometry(s)) return null;
   const portal = G.cx + (BRIDGE_X - 0.03) * G.u;
   return { portal, road: crest(portal), deck: deckY() };
+}
+
+/** Just the trees on the Horseman's hill (swaying, reaching): for tests. */
+export function crestTrees(ctx: Ctx, s: Scene, tone: Tone = toneOf(s)): void {
+  if (tone.hollow <= 0.004 || !geometry(s)) return;
+  const u = s.u;
+  const t = crestTree(s);
+  drawTree(ctx, CREST_TREE, t.x, crest(t.x) + u * 0.006, t.h, tone.hill, windAt(s.t, 12, SWAY, reachAt(s.t), 1));
+  if (s.cssW / 2 > u * 0.62) {
+    const ex = G.cx - u * 0.56;
+    drawTree(ctx, EDGE_TREE, ex, crest(ex) + u * 0.006, u * 0.1, tone.hill, windAt(s.t, 5, SWAY, 0, 1));
+  }
 }
 
 /** Just the Horseman's hill and the fence along its road (the moon rises behind them): for tests. */
@@ -376,10 +407,10 @@ export function hollow(ctx: Ctx, s: Scene, tone: Tone): void {
   const u = s.u;
   hill(ctx, s, tone.hill);
   const t = crestTree(s);
-  drawTree(ctx, CREST_TREE, t.x, crest(t.x) + u * 0.006, t.h, tone.hill);
+  drawTree(ctx, CREST_TREE, t.x, crest(t.x) + u * 0.006, t.h, tone.hill, windAt(s.t, 12, SWAY, reachAt(s.t), 1));
   if (s.cssW / 2 > u * 0.62) {
     const ex = G.cx - u * 0.56;
-    drawTree(ctx, EDGE_TREE, ex, crest(ex) + u * 0.006, u * 0.1, tone.hill);
+    drawTree(ctx, EDGE_TREE, ex, crest(ex) + u * 0.006, u * 0.1, tone.hill, windAt(s.t, 5, SWAY, 0, 1));
   }
   fence(ctx, s, tone.hill);
   const r = ride(s);

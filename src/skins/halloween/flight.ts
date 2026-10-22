@@ -5,6 +5,7 @@ import { spot } from "./common";
 import { flyingBox } from "./crow";
 import { moonAt } from "./sky";
 import { shopBox } from "./shops";
+import { MAX_TILT } from "./stones";
 
 // The churchyard crow's flight. It keeps watch on its headstone, cawing now and then; once every
 // half minute (earlier or later in it, by hash) it takes off, skims left under the tower's base
@@ -178,7 +179,7 @@ const FEET = { x: 0, y: 0, size: 0 };
 export function perchFeet(s: Scene): typeof FEET {
   const { x, y, k } = spot(s, PERCH.X, PERCH.z);
   const h = PERCH.h * s.u * k;
-  const tilt = (hash(PERCH.seed) - 0.5) * 0.2;
+  const tilt = (hash(PERCH.seed) - 0.5) * 2 * MAX_TILT;
   FEET.x = x + Math.sin(tilt) * h;
   FEET.y = y - Math.cos(tilt) * h + s.u * 0.002;
   FEET.size = s.u * CROW_SIZE * k;

@@ -1,7 +1,9 @@
-import { circle, hash, type Ctx } from "../../base/draw";
+import { circle, hash, mix, type Ctx } from "../../base/draw";
 import { HORIZON_P } from "../../base/world";
 import type { Scene } from "../skin";
+import { flicker, lightsOut } from "./ambient";
 import { LAMP, LAMP_CORE, LAMP_DEEP, smooth } from "./common";
+import { smoke } from "./smoke";
 import { landBottom, restLine } from "./lines";
 import { clockHours, level, MIST_GATHER, MIST_SETTLED } from "./tone";
 
@@ -9,8 +11,11 @@ import { clockHours, level, MIST_GATHER, MIST_SETTLED } from "./tone";
 // Victorian manor leaning one way under a steep mansard while its great tower leans the other,
 // climbing far up into the sky to an open belfry, a clock and a witch-hat spire that curls over
 // into a spiral at its tip; a lower gabled wing, a thin second tower with a pointed cap, a crooked
-// footbridge between the roofs, thin chimneys, and a stair winding up the crag. A flat dark
-// silhouette (it is far away: no outline) lit only by its windows and its clock.
+// footbridge between the roofs, thin chimneys smoking, a torn pennant fluttering on the thin tower,
+// and a road winding up the crag to its gate (the ghostly carriage's road: cragRoad). A flat dark
+// silhouette (it is far away: no outline) lit only by its windows and its clock; now and then a
+// window goes dark for a few seconds and lights again (the first just after a scene starts), and
+// the lit ones flicker.
 //
 // As you climb, the ridge drops a little (it is far off); once the mist has gathered over the
 // town, the crag and the mansion sink with it to rest low on the screen (MIST_SETTLED) and stand
@@ -194,6 +199,10 @@ const WINDOWS = (() => {
   return out;
 })();
 
+/** Each window's beat for going dark: the first goes out at FIRST_OUT, the others later. */
+export const FIRST_OUT = 2.2;
+const OUT_FIRST = WINDOWS.map((_, i) => (i === 3 ? FIRST_OUT : 6 + hash(i + 4790) * 28));
+
 function windows(ctx: Ctx, t: number, flare: number): void {
   // At midnight every window blazes, with a glow round each.
   if (flare > 0.01) {
@@ -207,11 +216,14 @@ function windows(ctx: Ctx, t: number, flare: number): void {
     ctx.fill();
     ctx.globalAlpha = 1;
   }
-  for (const pass of [0, 1] as const) {
+  for (let pass = 0; pass < 2; pass++) {
     ctx.beginPath();
-    for (const [lean, x, y, w, h, ph] of WINDOWS) {
-      const on = flare > 0.5 || Math.sin(t * 0.21 + ph! * 40) > -0.75;
-      if (!on || (pass === 1 && ph! < 0.5 - flare)) continue;
+    for (let i = 0; i < WINDOWS.length; i++) {
+      const [lean, x, y, w, h, ph] = WINDOWS[i]!;
+      const on = flare > 0.5 || !lightsOut(t, 4800 + i, OUT_FIRST[i]!);
+      if (!on) continue;
+      // The bright pass: the brighter half of the windows, unless one is flickering low.
+      if (pass === 1 && (ph! < 0.5 - flare || flicker(t, 4900 + i) < 1)) continue;
       SHEAR = lean!;
       quad(ctx, x!, y!, x! + w!, y! + h!);
     }
@@ -232,6 +244,36 @@ function windows(ctx: Ctx, t: number, flare: number): void {
   ctx.fill();
   ctx.globalAlpha = 1;
   SHEAR = 0;
+}
+
+/** A torn pennant on a short pole atop the thin tower's cap, fluttering: two ragged tongues. */
+function pennant(ctx: Ctx, t: number, lw: number): void {
+  SHEAR = THIN_LEAN;
+  const x = px(-0.089, 0.262);
+  const y = py(0.262);
+  SHEAR = 0;
+  const u = LU;
+  const top = y - u * 0.034;
+  ctx.beginPath();
+  ctx.moveTo(x, y - u * 0.006);
+  ctx.lineTo(x, top);
+  ctx.lineWidth = Math.max(1, lw * 0.8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, top);
+  const n = 5;
+  const len = u * 0.03;
+  // It streams away from the tower (out toward the screen's side).
+  for (let i = 1; i <= n; i++) {
+    const f = i / n;
+    ctx.lineTo(x + len * f, top + Math.sin(t * 7 - f * 4) * u * 0.003 * f);
+  }
+  ctx.lineTo(x + len * 0.8, top + u * 0.006 + Math.sin(t * 7 - 3.4) * u * 0.002);
+  ctx.lineTo(x + len * 1.02, top + u * 0.011 + Math.sin(t * 7 - 4) * u * 0.003);
+  ctx.lineTo(x + len * 0.55, top + u * 0.009);
+  ctx.lineTo(x, top + u * 0.012);
+  ctx.closePath();
+  ctx.fill();
 }
 
 /** The clock in the tower: a pale glowing face with its ring of hour marks, the hands at the story's time. */
@@ -299,13 +341,62 @@ export function mansion(ctx: Ctx, s: Scene, color: string, ridge = true, hollow 
   LX = at.x;
   LY = at.y;
   LU = s.u;
+  // The chimneys smoke behind it.
+  SHEAR = MAIN_LEAN;
+  smoke(ctx, s.t, px(-0.0205, 0.25), py(0.25), s.u * 0.007, s.u * 0.1, s.u * 0.03, 1.6, 0.2, 7);
+  smoke(ctx, s.t, px(0.031, 0.245), py(0.245), s.u * 0.006, s.u * 0.09, s.u * 0.03, 1.9, 0.18, 11);
+  SHEAR = 0;
   ctx.fillStyle = color;
   ctx.beginPath();
   if (ridge) ridgePath(ctx, s, hollow);
   housePath(ctx);
   ctx.fill();
   ctx.strokeStyle = color;
-  strokes(ctx, Math.max(1, s.u * 0.005));
+  const lw = Math.max(1, s.u * 0.005);
+  strokes(ctx, lw);
+  pennant(ctx, s.t, lw);
+  road(ctx, s, color);
   windows(ctx, s.t, flare);
   clock(ctx, lvl, color);
+}
+
+/** The road up the crag to the gate, in the house's frame (u): foot, bend, gate. */
+const ROAD = [0.104, -0.112, -0.13, -0.075, -0.012, -0.002] as const;
+/** Its color: a shade lighter than the silhouette (kept per silhouette color). */
+let roadFor = "";
+let ROAD_COLOR = "";
+
+/** The road winding up the crag face to the mansion's gate: a pale track and two gateposts. */
+function road(ctx: Ctx, s: Scene, color: string): void {
+  if (roadFor !== color) {
+    roadFor = color;
+    ROAD_COLOR = mix(color, "#8a84b8", 0.22);
+  }
+  ctx.beginPath();
+  ctx.moveTo(px(ROAD[0], ROAD[1]), py(ROAD[1]));
+  ctx.quadraticCurveTo(px(ROAD[2], ROAD[3]), py(ROAD[3]), px(ROAD[4], ROAD[5]), py(ROAD[5]));
+  ctx.strokeStyle = ROAD_COLOR;
+  ctx.lineWidth = Math.max(1, s.u * 0.006);
+  ctx.lineCap = "round";
+  ctx.stroke();
+}
+
+/** Scratch: the crag road on screen (a quadratic from its foot by its bend to the gate), and the house's size factor. */
+const RD = { x0: 0, y0: 0, xm: 0, ym: 0, x1: 0, y1: 0, k: 0 };
+
+/** The road up the crag to the mansion's gate this frame (for the ghostly carriage). */
+export function cragRoad(s: Scene, lvl = level(s)): Readonly<typeof RD> {
+  const at = mansionAt(s, lvl);
+  LX = at.x;
+  LY = at.y;
+  LU = s.u;
+  SHEAR = 0;
+  RD.x0 = px(ROAD[0], ROAD[1]);
+  RD.y0 = py(ROAD[1]);
+  RD.xm = px(ROAD[2], ROAD[3]);
+  RD.ym = py(ROAD[3]);
+  RD.x1 = px(ROAD[4], ROAD[5]);
+  RD.y1 = py(ROAD[5]);
+  RD.k = 0.22;
+  return RD;
 }

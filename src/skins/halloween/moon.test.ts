@@ -1,22 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { halloween } from "../halloween";
 import type { Scene } from "../skin";
+import { skyBack } from "./backdrop";
+import { moonCrossers } from "./cast";
 import { inkW } from "./common";
 import { crowFlying } from "./crow";
 import { crowPose } from "./flight";
 import { hillOnly, riderAt } from "./hollow";
 import { horseman } from "./horseman";
-import { moon, moonAt, skyFill, stars, swirls } from "./sky";
-import { context, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
+import { moonAt } from "./sky";
+import { breathe, context, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
 import { LOOP_PERIOD, LOOP_START, toneOf } from "./tone";
+
+// Free the canvases' pixel reads between tests (see breathe).
+afterEach(breathe);
 
 // The owner's rule: nothing passes over the moon, at any height, size or zoom. The moon rises
 // behind the Horseman's hill (the hill and the fence along his road cover its lower face, as a
-// horizon would), and only two things ever cross its face: the Headless Horseman galloping along
-// that hill, and the churchyard crow's two turns round it. Checked on the whole frame (the
-// backdrop and the foreground): every pixel of the moon's disc is as the sky and the moon alone
-// paint it, except where the hill, the Horseman or the flying crow is drawn.
+// horizon would), and only these ever cross its face: the Headless Horseman galloping along that
+// hill, the churchyard crow's two turns round it, and the cast's moon crossers (the ring of bats
+// circling it, the rare great shadow crossing it: cast.ts moonCrossers). Checked on the whole
+// frame (the backdrop and the foreground): every pixel of the moon's disc is as the sky and the
+// moon alone paint it, except where the hill, the Horseman, the flying crow or a crosser is drawn.
 
 const VIEWS = [...SCREENS.map(([W, H]) => [W, H, 1] as const), [390, 844, MIN_ZOOM] as const, [834, 1194, MIN_ZOOM] as const];
 /** Over the climb and two turns of the loop. */
@@ -41,18 +47,16 @@ function overMoon(W: number, H: number, z: number, lvl: number, t: number): { ch
     kit.world(ctx, s);
     kit.front(ctx, s);
   });
-  const sky = crop((ctx) => {
-    skyFill(ctx, s, tone);
-    stars(ctx, s, tone);
-    swirls(ctx, s, tone, tone.swirl);
-    moon(ctx, s, tone);
-  });
+  // The sky as it is painted up to the moon (its stars, clouds and lightning's wash all behind it).
+  const sky = crop((ctx) => skyBack(ctx, s, tone));
   const r = { ...riderAt(s) };
   const p = { ...crowPose(s) };
   const allowed = crop((ctx) => {
     hillOnly(ctx, s, tone);
     if (r.vis > 0.004) horseman(ctx, r.x, r.y, r.size, s.t, r.tilt, 1, r.dir, r.charge);
     if (!p.perched) crowFlying(ctx, p.x, p.y, p.size, p.dir, p.lift, p.pitch, p.legs, p.caw, inkW(s, 3 / p.z));
+    // The cast's moon crossers: the ring of bats round it, a great shadow crossing it now and then.
+    moonCrossers(ctx, s);
   });
   let changed = 0;
   let disc = 0;
@@ -79,9 +83,11 @@ function overMoon(W: number, H: number, z: number, lvl: number, t: number): { ch
 }
 
 describe("halloween moon", () => {
-  it.each(VIEWS)("%ix%i at zoom %s: nothing but the hill, the Horseman and the crow ever crosses its disc", (W, H, z) => {
+  it.each(VIEWS)("%ix%i at zoom %s: nothing but the hill, the Horseman, the crow and the moon crossers ever crosses its disc", async (W, H, z) => {
     let checked = 0;
     for (const lvl of LEVELS) {
+      // Let the pixel reads be freed now and then (see breathe).
+      if (lvl % 15 === 0) await breathe();
       // A few moments at each height, the first ten seconds' among them (the Horseman and the crow on their turns).
       for (const t of [1.2, 3.4, 6.1, 9.9, 10.7, (lvl * 0.37) % 30]) {
         const { changed, disc } = overMoon(W, H, z, lvl, t);

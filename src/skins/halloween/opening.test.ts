@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
+import { batTripAt, bonebirdAt, catAt, curtainAt, graveGhostAt, RARE_FIRST, rareAt, ratAt, ravenAt, spiderAt } from "./cast/index";
 import { inkW } from "./common";
 import { crowFlying } from "./crow";
 import { crowPose, TAKE_OFF } from "./flight";
@@ -8,6 +9,7 @@ import { riderAt } from "./hollow";
 import { horseman } from "./horseman";
 import { hopAt, KIDS } from "./kids";
 import { moonAt } from "./sky";
+import { ANCHORS } from "./stage";
 import { mask, sceneAt, SCREENS } from "./test-scene";
 
 // The owner's rule: any action happens within the first 10 s of a scene (a fresh tower on the
@@ -18,7 +20,14 @@ import { mask, sceneAt, SCREENS } from "./test-scene";
 // owner asked for: the Horseman's charge back up the hill, which waits in the bridge for the crow
 // to finish round the moon, starts by 10 s and is gone into the mist by ~12 s. Ambient motion (the
 // flock circling the steeple, flicker, blowing leaves) and things keyed to height (the bats) are
-// not actions. All read from the skin's own timing functions.
+// not actions. All read from the skin's own timing functions. The cast of the start view (cast.ts)
+// is held here too: the raven landing on the curio's chimney, the cat looking up at the moon, the
+// spiders dropping, the rat sniffing on the railing, the ghosts rising behind their stones, the
+// shadows behind the curtains, the bats out of the belfry, the caged bird hopping; and the first
+// rare event (the bats bursting out of the belfry) by 15 s. (The scenery's own acts, the jack's
+// faces, a window going dark, the branch reaching, the wax, the first lightning, are held by
+// life.test.ts; the floors' rooms and the front door by floors/rooms.test.ts; the cast drawn whole
+// at its anchors by cast.test.ts.)
 
 const OPENING = 10;
 const DT = 1 / 60;
@@ -206,5 +215,33 @@ describe("halloween opening, the churchyard and the street", () => {
 
   it("every trick-or-treater hops within 10 s", () => {
     for (const k of KIDS) expect(first((t) => hopAt(t, k.phase) > 0.5), k.costume).toBeLessThan(OPENING);
+  });
+});
+
+describe("halloween opening, the cast", () => {
+  /** A stage anchor's id, by name (each performer's clock is seeded by it). */
+  const id = (name: string): number => ANCHORS[name]!.id;
+  const ACTS: [string, (t: number) => boolean][] = [
+    ["the raven lands on the curio's chimney", (t) => ravenAt(t, id("curioChimney"), Infinity).vis === 1 && !ravenAt(t, id("curioChimney"), Infinity).flying],
+    ["the black cat looks up at the moon", (t) => catAt(t, id("curioRidge"), Infinity).look > 0.5],
+    ["the spider drops from the sweet shop's eave", (t) => spiderAt(t, id("sweetEave"), Infinity).drop > 0.5],
+    ["a spider drops on the railing's left web", (t) => spiderAt(t, id("railWebL"), Infinity).drop > 0.5],
+    ["a spider drops on the railing's right web", (t) => spiderAt(t, id("railWebR"), Infinity).drop > 0.5],
+    ["the rat sniffs on the railing", (t) => ratAt(t, id("rail"), Infinity).sniff > 0.5],
+    ["a ghost rises behind the cross", (t) => graveGhostAt(t, id("cross"), Infinity).rise > 0.9],
+    ["a ghost rises behind the slab", (t) => graveGhostAt(t, id("slab"), Infinity).rise > 0.9],
+    ["a shadow behind the sweet shop's curtain", (t) => curtainAt(t, id("sweetGable")).act > 0.5],
+    ["a shadow behind the curio's curtain", (t) => curtainAt(t, id("curioDormer")).act > 0.5],
+    ["bats loop out of the belfry", (t) => batTripAt(t, id("belfry")) !== null],
+    ["the caged bird hops", (t) => bonebirdAt(t, id("cageBird"), Infinity).hop > 0.3],
+  ];
+
+  it.each(ACTS)("%s within 10 s", (_, act) => {
+    expect(first(act)).toBeLessThan(OPENING);
+  });
+
+  it("the first rare event (the bats bursting out of the belfry) comes by 15 s", () => {
+    expect(RARE_FIRST).toBeLessThan(15);
+    expect(first((t) => rareAt(t)?.kind === "scatter")).toBeLessThan(15);
   });
 });

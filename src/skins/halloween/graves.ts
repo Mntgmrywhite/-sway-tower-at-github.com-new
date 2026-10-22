@@ -117,9 +117,10 @@ export function graveState(t: number, g: number): typeof STATE {
 /**
  * An open grave at (x, y): a mound with a dark hole in its top, and whatever is climbing out.
  * The part is clipped to the hole (the soil line) and the hole's front lip is inked over it,
- * so the only cut edge is hidden in the mound.
+ * so the only cut edge is hidden in the mound. `cap` is the most of the part let up (the
+ * churchyard holds a grave's part down while a ghost rises behind the headstone in front of it).
  */
-export function grave(ctx: Ctx, t: number, x: number, y: number, rx: number, g: number, lw: number): void {
+export function grave(ctx: Ctx, t: number, x: number, y: number, rx: number, g: number, lw: number, cap = 1): void {
   const seed = 31 + g * 5;
   mound(ctx, x, y, rx, rx * GRAVE_RY, seed, lw);
   tuft(x + rx * 0.84, y + rx * 0.02, rx * 0.34, seed * 3);
@@ -127,26 +128,34 @@ export function grave(ctx: Ctx, t: number, x: number, y: number, rx: number, g: 
   const { x: hx, y: hy, rx: hrx, ry: hry } = h;
   hole(ctx, hx, hy, hrx, hry, lw);
 
-  const st = graveState(t, g);
-  if (st.up > 0.01) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(hx - rx * 3, hy - rx * 4, rx * 6, rx * 4);
-    oval(ctx, hx, hy, hrx - lw * 0.4, hry - lw * 0.4);
-    ctx.clip();
-    ctx.translate(hx, hy);
-    const tt = t + g * 1.7;
-    if (st.part === HAND) boneHand(ctx, rx * 1.3, st.up, tt, (st.turn + g) % 2 ? 1 : -1, lw);
-    else if (st.part === SKULL) boneSkull(ctx, rx * 0.84, st.up, tt, lw);
-    else if (st.part === FEET) boneFeet(ctx, rx * 1.1, st.up, tt, lw);
-    ctx.restore();
-  }
+  gravePart(ctx, t, x, y, rx, g, lw, cap);
   holeLip(ctx, hx, hy, hrx, hry, lw);
 
-  if (st.burst > 0) {
+  const st = graveState(t, g);
+  // No clods thrown while the part is held down.
+  if (st.burst > 0 && cap > 0.99) {
     ctx.save();
     ctx.translate(hx, hy);
     clods(ctx, rx, st.burst, st.turn * 3 + g, DIRT, lw);
     ctx.restore();
   }
+}
+
+/** The skeleton part coming up out of the grave at (x, y) (see `grave`), clipped to its hole, at most `cap` of the way up. */
+export function gravePart(ctx: Ctx, t: number, x: number, y: number, rx: number, g: number, lw: number, cap = 1): void {
+  const st = graveState(t, g);
+  const up = Math.min(st.up, cap);
+  if (up <= 0.01) return;
+  const { x: hx, y: hy, rx: hrx, ry: hry } = holeFor(x, y, rx);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(hx - rx * 3, hy - rx * 4, rx * 6, rx * 4);
+  oval(ctx, hx, hy, hrx - lw * 0.4, hry - lw * 0.4);
+  ctx.clip();
+  ctx.translate(hx, hy);
+  const tt = t + g * 1.7;
+  if (st.part === HAND) boneHand(ctx, rx * 1.3, up, tt, (st.turn + g) % 2 ? 1 : -1, lw);
+  else if (st.part === SKULL) boneSkull(ctx, rx * 0.84, up, tt, lw);
+  else if (st.part === FEET) boneFeet(ctx, rx * 1.1, up, tt, lw);
+  ctx.restore();
 }

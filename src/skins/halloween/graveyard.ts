@@ -1,14 +1,17 @@
 import type { Ctx } from "../../base/draw";
 import { fieldY } from "../../base/world";
 import type { Scene } from "../skin";
-import { inkW, spot } from "./common";
+import { cast, graveGhostUp } from "./cast";
+import { inkW, smooth, spot } from "./common";
 import { crowFlying, crowPerched } from "./crow";
 import { drawTufts, tuft } from "./dirt";
 import { crowPose, PERCH, type CrowPose } from "./flight";
 import { sheetGhost } from "./ghost";
-import { grave } from "./graves";
+import { grave, gravePart } from "./graves";
 import { kids } from "./kids";
+import { mistTop } from "./lines";
 import { centerpiece } from "./square";
+import { SLOT } from "./slot";
 import { tombstone, type Stone } from "./stones";
 
 // The square around the tower, back to front: the giant jack-o'-lantern's flower bed behind the
@@ -22,8 +25,8 @@ import { tombstone, type Stone } from "./stones";
 // that line keep to the sides, clear of the tower's column; nearer ones sit on the field
 // below the tower's base and above the foreground. Sizes are in u at the tower's depth.
 type Prop =
-  | { kind: "stone"; X: number; z: number; w: number; h: number; stone: Stone; seed: number }
-  | { kind: "grave"; X: number; z: number; size: number; grave: number }
+  | { kind: "stone"; X: number; z: number; w: number; h: number; stone: Stone; seed: number; ghost?: number }
+  | { kind: "grave"; X: number; z: number; size: number; grave: number; under?: number }
   | { kind: "tuft"; X: number; z: number; size: number; seed: number };
 
 // The headstone the crow sits on (PERCH, in flight.ts). It stands below the tower's base inside
@@ -31,15 +34,21 @@ type Prop =
 // below the ground line at the start view (the field rows only drop further below it as you climb).
 
 const FRONT: readonly Prop[] = ([
-  { kind: "grave", X: 0.26, z: 2.1, size: 0.065, grave: 1 },
-  { kind: "grave", X: -0.215, z: 2.0, size: 0.065, grave: 0 },
+  // (`under`: the grave ghost whose headstone stands in front of it: the grave holds its part down while that ghost is up.)
+  { kind: "grave", X: 0.26, z: 2.1, size: 0.065, grave: 1, under: 1 },
+  { kind: "grave", X: -0.215, z: 2.0, size: 0.065, grave: 0, under: 0 },
   { kind: "grave", X: -0.06, z: 1.72, size: 0.06, grave: 2 },
   { kind: "tuft", X: 0.15, z: 1.7, size: 0.021, seed: 47 },
   PERCH,
   { kind: "tuft", X: -0.2, z: 1.62, size: 0.021, seed: 53 },
-  { kind: "stone", X: -0.216, z: 1.58, w: 0.048, h: 0.06, stone: "cross", seed: 5 },
-  { kind: "stone", X: 0.206, z: 1.56, w: 0.045, h: 0.06, stone: "slab", seed: 2 },
+  { kind: "stone", X: -0.216, z: 1.58, w: 0.046, h: 0.078, stone: "cross", seed: 5, ghost: 0 },
+  { kind: "stone", X: 0.206, z: 1.56, w: 0.042, h: 0.084, stone: "slab", seed: 2, ghost: 1 },
 ] as Prop[]).sort((a, b) => b.z - a.z);
+
+/** The headstones a grave ghost rises behind (stage.ts STONE anchors): their props, by stone number. */
+export const GHOST_STONES = FRONT.filter((p) => p.kind === "stone" && p.ghost !== undefined).sort(
+  (a, b) => ((a as { ghost: number }).ghost - (b as { ghost: number }).ghost),
+) as readonly Extract<Prop, { kind: "stone" }>[];
 
 /**
  * Sheet ghosts on stakes out at the churchyard's sides: X, z, height (u at the tower's depth). Only
@@ -68,10 +77,12 @@ export function churchyard(ctx: Ctx, s: Scene): void {
     const lw = inkW(s, k);
     switch (prop.kind) {
       case "stone":
+        // A grave ghost rises behind its stone: the cast is called in just before it.
+        if (prop.ghost !== undefined) cast(ctx, s, SLOT.stone, prop.ghost);
         tombstone(ctx, x, y, prop.w * u * k, prop.h * u * k, prop.stone, prop.seed, lw);
         break;
       case "grave":
-        grave(ctx, s.t, x, y, prop.size * u * k, prop.grave, lw);
+        grave(ctx, s.t, x, y, prop.size * u * k, prop.grave, lw, held(s, prop.under));
         break;
       case "tuft":
         tuft(x, y, prop.size * u * k, prop.seed);
@@ -79,6 +90,20 @@ export function churchyard(ctx: Ctx, s: Scene): void {
     }
   }
   drawTufts(ctx, inkW(s, 1.7));
+}
+
+/** The most of a grave's part let up: none while the ghost rising in front of it (`under`) is up. */
+function held(s: Scene, under: number | undefined): number {
+  return under === undefined ? 1 : 1 - smooth(0, 0.2, graveGhostUp(s, under));
+}
+
+/** Just the skeleton parts coming up out of the open graves, as the churchyard draws them (for the tests). */
+export function graveParts(ctx: Ctx, s: Scene): void {
+  for (const prop of FRONT) {
+    if (prop.kind !== "grave") continue;
+    const { x, y, k } = spot(s, prop.X, prop.z);
+    gravePart(ctx, s.t, x, y, prop.size * s.u * k, prop.grave, inkW(s, k), held(s, prop.under));
+  }
 }
 
 /** In flight the crow is drawn behind the graves (and in front of the kids) when farther than this. */
@@ -102,7 +127,9 @@ const FAR_Z = 4;
 
 /** Everything standing in the square and the churchyard (the centerpiece, the kids, the graves and their crow). */
 export function graveyard(ctx: Ctx, s: Scene): void {
-  if (fieldY(s, FAR_Z) - s.u * 0.35 > s.cssH) return;
+  const top = fieldY(s, FAR_Z) - s.u * 0.35;
+  // Below the screen, or swallowed whole by the mist floor.
+  if (top > s.cssH || top > mistTop(s) + s.u * 0.01) return;
   centerpiece(ctx, s);
   kids(ctx, s);
   const bird = crowPose(s);

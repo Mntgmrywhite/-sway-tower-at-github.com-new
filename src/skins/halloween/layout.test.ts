@@ -1,17 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { TOWER_DEPTH } from "../../base/world";
 import type { Scene } from "../skin";
 import { balloons } from "./balloon";
 import { flyers } from "./flyers";
 import { bandTop, front, frontProps } from "./front";
-import { churchyard } from "./graveyard";
+import { cast, graveGhostUp } from "./cast";
+import { churchyard, graveParts } from "./graveyard";
 import { kids } from "./kids";
 import { mansion } from "./mansion";
 import { shops } from "./shops";
 import { stars, swirls } from "./sky";
+import { SLOT } from "./slot";
 import { CENTERPIECE, centerpiece } from "./square";
-import { column, mask, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
+import { breathe, castOnly, column, mask, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
 import { toneOf } from "./tone";
+
+// Free the canvases' pixel reads between tests (see breathe).
+afterEach(breathe);
 
 // The owner's layout rules for the square and the street, on two phones and a tablet (and the
 // zoomed-out view): no prop is cut off by the screen's edges or by the foreground band, none
@@ -30,10 +35,14 @@ const PROPS: [string, Draw][] = [
   ["the mansion", (ctx, s) => mansion(ctx, s, "#000000", false)],
   ["the hay bales and lanterns", (ctx, s) => frontProps(ctx, s)],
   ["the crows and bats", (ctx, s) => flyers(ctx, s, toneOf(s))],
+  // The cast (cast.ts): the raven, the cat, the spiders, the rat, the grave ghosts, the curtains' shadows, the bats' trips, the caged bird...
+  ["the cast", (ctx, s) => castOnly(ctx, s)],
 ];
 /** Those standing in (or flying over) the side lanes, which keep out of the tower's column above its floor. */
 const LANE: [string, Draw][] = [
-  ...PROPS.filter(([name]) => !["the churchyard", "the hay bales and lanterns"].includes(name)),
+  ...PROPS.filter(([name]) => !["the churchyard", "the hay bales and lanterns", "the cast"].includes(name)),
+  // (Above the floor line: the grave ghosts and the rat are below it; the great shadow over the moon's disc comes at 20 s.)
+  ["the cast", (ctx, s) => castOnly(ctx, s)],
   ["the swirls and stars", (ctx, s) => {
     swirls(ctx, s, toneOf(s), "#000000");
     stars(ctx, s, toneOf(s));
@@ -121,6 +130,41 @@ describe.each(VIEWS)("halloween layout, %ix%i at zoom %s", (W, H, z) => {
       expect(b, `t=${t.toFixed(2)}: the kids and the churchyard`).toBe(0);
     }
   });
+});
+
+describe.each(VIEWS)("halloween churchyard, %ix%i at zoom %s", (W, H, z) => {
+  it("a ghost rising behind its headstone never cuts into a skeleton part coming up out of the grave behind it", async () => {
+    let seen = 0;
+    let parts = 0;
+    let frames = 0;
+    for (let t = 0; t < 150; t += 0.1) {
+      const s = sceneAt(W, H, 0, t, z);
+      if (graveGhostUp(s, 0) < 0.02 && graveGhostUp(s, 1) < 0.02) continue;
+      // The churchyard's band only (from the kerb down), to keep the masks small.
+      const top = Math.floor(s.groundY - s.u * 0.15);
+      const crop = (draw: (ctx: CanvasRenderingContext2D) => void) =>
+        mask(s.cssW, s.cssH - top, (ctx) => {
+          ctx.translate(0, -top);
+          draw(ctx);
+        });
+      const ghosts = crop((ctx) => {
+        cast(ctx, s, SLOT.stone, 0);
+        cast(ctx, s, SLOT.stone, 1);
+      });
+      const bones = crop((ctx) => graveParts(ctx, s));
+      let both = 0;
+      for (let i = 0; i < ghosts.length; i++) {
+        seen += ghosts[i]!;
+        parts += bones[i]!;
+        both += ghosts[i]! & bones[i]!;
+      }
+      expect(both, `t=${t.toFixed(1)}: a grave ghost over a skeleton part`).toBe(0);
+      // Let the canvas's pixel reads be freed now and then (they are let go only between turns of the event loop).
+      if (++frames % 40 === 0) await breathe();
+    }
+    expect(seen, "the grave ghosts drawn").toBeGreaterThan(5000);
+    expect(parts, "skeleton parts up meanwhile in the other grave").toBeGreaterThan(500);
+  }, 120_000);
 });
 
 describe("halloween's giant jack-o'-lantern", () => {

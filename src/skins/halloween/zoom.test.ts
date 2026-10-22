@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { halloween } from "../halloween";
 import { LAND, TAKE_OFF } from "./flight";
@@ -8,14 +8,17 @@ import { graveyard } from "./graveyard";
 import { mansion } from "./mansion";
 import { shops } from "./shops";
 import { moon } from "./sky";
-import { context, mask, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
+import { breathe, castOnly, context, mask, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
 import { LOOP_PERIOD, LOOP_START, toneOf } from "./tone";
+
+// Free the canvases' pixel reads between tests (see breathe).
+afterEach(breathe);
 
 // Hard mode's camera zooms out (down to MIN_ZOOM) when a leaning tower's top would leave the
 // screen: the scene is built for a virtual screen 1/z wider and taller at the same u, then drawn
 // scaled by z. Halloween must fill all of it, from the start to any height, and keep its props
 // whole at its edges (the shops and their outer tower-houses, the square, the churchyard, the
-// mansion, the moon, the flyers and the foreground's hay bales).
+// mansion, the moon, the flyers, the foreground's hay bales and the cast).
 
 const ZOOMS = [1, 0.8, MIN_ZOOM] as const;
 const LEVELS = [0, 4, 10, 18, 30, 50, 75, 95, LOOP_START - 1, LOOP_START + 25, LOOP_START + 50, LOOP_START + 80, 400, 2000];
@@ -38,9 +41,10 @@ function edges(s: ReturnType<typeof sceneAt>, draw: (ctx: CanvasRenderingContext
 }
 
 describe("halloween zoomed out", () => {
-  it.each(SCREENS.flatMap(([W, H]) => ZOOMS.map((z) => [W, H, z] as const)))("%ix%i at zoom %s: every pixel is covered", (W, H, z) => {
+  it.each(SCREENS.flatMap(([W, H]) => ZOOMS.map((z) => [W, H, z] as const)))("%ix%i at zoom %s: every pixel is covered", async (W, H, z) => {
     const kit = kitFor(halloween);
     for (const lvl of LEVELS) {
+      await breathe(); // let the pixel reads be freed now and then (see breathe)
       const s = sceneAt(W, H, lvl, lvl * 0.29, z);
       // Drawn as the renderer does: the virtual screen scaled down by z onto the phone's.
       const ctx = context(W, H);
@@ -85,6 +89,7 @@ describe("halloween zoomed out", () => {
         expect(edges(s, (ctx) => moon(ctx, s)).edge, `t=${t}: the moon on the edge`).toBe(0);
         expect(edges(s, (ctx) => flyers(ctx, s, toneOf(s))).edge, `t=${t}: a crow or a bat on the edge`).toBe(0);
         expect(edges(s, (ctx) => frontProps(ctx, s)).edge, `t=${t}: a hay bale on the edge`).toBe(0);
+        expect(edges(s, (ctx) => castOnly(ctx, s)).edge, `t=${t}: one of the cast on the edge`).toBe(0);
       }
     },
   );

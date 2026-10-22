@@ -1,22 +1,18 @@
-import { hash, mix, type Ctx } from "../../base/draw";
-import { fieldY, layerGround } from "../../base/world";
-import { BLOCK_HEIGHT } from "../../config";
+import { hash, type Ctx } from "../../base/draw";
+import { fieldY } from "../../base/world";
 import type { Scene } from "../skin";
 import { mistTop } from "./lines";
-import { swirl } from "./sky";
-import { smooth } from "./common";
-import { level, LOOP_PERIOD, LOOP_START, MIST_GATHER, MIST_SETTLED, type Tone } from "./tone";
+import { mixed, smooth } from "./common";
+import { level, MIST_GATHER, MIST_SETTLED, type Tone } from "./tone";
 
-// The Sleepy Hollow fog, three ways:
+// The Sleepy Hollow fog, two ways:
 //  - drifting bands lying across the hollow and the far end of Main Street at their own depths
 //    (a mid-depth parallax layer: each sinks with its row of the field as you climb, nearer ones
 //    faster), flat and see-through with a wavy top that curls over here and there, sliding slowly
 //    sideways (each a different way), so the street's far end is lost in them;
 //  - the mist floor: as you climb past the rooftops it gathers below you and swallows the town,
 //    then sinks to rest low on the screen and stays there for good, a sea of mist with rows of
-//    rounded billows out at the sides and a calm flat top behind the tower;
-//  - in the loop's mist, long banks of fog that hang at their own heights in the right-hand lane
-//    and pass by as you climb (the left lane belongs to the moon: nothing passes over it).
+//    rounded billows out at the sides and a calm flat top behind the tower.
 
 // ---------------------------------------------------------------- drifting bands
 
@@ -30,13 +26,15 @@ const BANDS = [
 const WAVE = 0.11;
 
 /** One band: a flat strip whose top rolls in waves, curling over at every third crest. */
-function band(ctx: Ctx, s: Scene, i: number, color: string, light: string, k0: number): void {
+function band(ctx: Ctx, s: Scene, i: number, color: string, light: string, k0: number, under: Span | null): void {
   const b = BANDS[i]!;
   const u = s.u;
   const foot = fieldY(s, b.z) + u * 0.006;
   const k = 3 / b.z;
   const h = b.h * u * Math.max(0.6, Math.min(1.4, k * 2.2));
   if (foot - h * 1.6 > s.cssH || foot < 0) return;
+  // Wholly inside what will be painted over it (its crests reach 1.6 h above its foot, its body 0.6 h below).
+  if (under && foot - h * 1.6 >= under[0] && foot + h * 0.6 <= under[1]) return;
   const wl = WAVE * u;
   const shift = (s.t * b.speed + b.ph) * u;
   const first = Math.floor((-wl * 2 - shift) / wl);
@@ -62,16 +60,22 @@ function band(ctx: Ctx, s: Scene, i: number, color: string, light: string, k0: n
   ctx.globalAlpha = 1;
 }
 
-/** The fog bands lying at depths `from` to `to` (z), farthest first. */
-export function fogBands(ctx: Ctx, s: Scene, tone: Tone, from: number, to: number): void {
+/** A band of the screen (top y, bottom y) that something drawn later paints over, opaque. */
+type Span = readonly [number, number];
+
+/**
+ * The fog bands lying at depths `from` to `to` (z), farthest first. `under`: what will be painted
+ * over them (Main Street's floor, for the far band): a band wholly inside it is not drawn.
+ */
+export function fogBands(ctx: Ctx, s: Scene, tone: Tone, from: number, to: number, under: Span | null = null): void {
   // They sink into the mist floor as it settles (the loop has its own banks).
   const k = tone.fogK * (1 - smooth(MIST_GATHER[1], MIST_SETTLED, level(s)));
   if (k < 0.01) return;
-  const light = mix(tone.fog, "#ffffff", 0.18);
+  const light = mixed(tone.fog, "#ffffff", 0.18);
   for (let i = 0; i < BANDS.length; i++) {
     const z = BANDS[i]!.z;
     if (z < from || z >= to) continue;
-    band(ctx, s, i, tone.fog, light, k);
+    band(ctx, s, i, tone.fog, light, k, under);
   }
 }
 
@@ -114,9 +118,9 @@ export function mistFloor(ctx: Ctx, s: Scene, tone: Tone): void {
   const top = mistTop(s);
   if (top - s.u * RISE * 1.5 > s.cssH) return;
   const u = s.u;
-  const body = mix(tone.fog, tone.sky[2], 0.35);
-  const cap = mix(tone.fog, "#ffffff", 0.16);
-  const deep = mix(body, tone.sky[0], 0.3);
+  const body = mixed(tone.fog, tone.sky[2], 0.35);
+  const cap = mixed(tone.fog, "#ffffff", 0.16);
+  const deep = mixed(body, tone.sky[0], 0.3);
   const step = BILLOW * u;
   ctx.beginPath();
   billows(ctx, s, top, RISE * u, step, 7500, 0);
@@ -149,70 +153,4 @@ export function mistFloor(ctx: Ctx, s: Scene, tone: Tone): void {
   ctx.lineWidth = Math.max(1.5, u * 0.007);
   ctx.lineCap = "round";
   ctx.stroke();
-}
-
-// ---------------------------------------------------------------- the loop's banks
-
-/** How fast the banks pass as you climb: nearly with the tower, they hang close by. */
-const BANK_P = 0.9;
-const BANK_EDGE = 0.014;
-const BANK_MAX_W = 0.3;
-
-/** The banks of one loop: where in the loop (fraction), thickness (u). All in the right-hand lane. */
-export const BANKS = [
-  { at: 0.16, h: 0.06 },
-  { at: 0.21, h: 0.05 },
-  { at: 0.27, h: 0.058 },
-  { at: 0.33, h: 0.052 },
-  { at: 0.39, h: 0.056 },
-].map((b, i) => ({ ...b, lvl: b.at * LOOP_PERIOD, seed: 31 + i * 7 }));
-
-const B = { x0: 0, x1: 0, y0: 0, y1: 0 };
-
-/** Where bank `i` of loop `k` is on screen. */
-export function bankBox(s: Scene, k: number, i: number): typeof B {
-  const b = BANKS[i]!;
-  const u = s.u;
-  const lvl = LOOP_START + k * LOOP_PERIOD + b.lvl;
-  const y = layerGround(s, BANK_P) - lvl * BLOCK_HEIGHT * s.scale * BANK_P;
-  const h = b.h * u;
-  const col1 = s.baseX + s.baseW + u * 0.05;
-  const lo = col1 + u * BANK_EDGE;
-  const hi = s.cssW - u * BANK_EDGE;
-  const w = Math.max(0, Math.min(hi - lo, u * BANK_MAX_W));
-  B.x0 = lo + (i % 2 ? Math.max(0, hi - lo - w) * 0.5 : 0);
-  B.x1 = B.x0 + w;
-  B.y0 = y - h;
-  B.y1 = y;
-  return B;
-}
-
-/** The loop's fog banks within view, while the mist holds. */
-export function fogBanks(ctx: Ctx, s: Scene, tone: Tone): void {
-  if (tone.banks < 0.01) return;
-  const lvl = level(s);
-  if (lvl < LOOP_START - LOOP_PERIOD * 0.25) return;
-  const k0 = Math.floor((lvl - LOOP_START) / LOOP_PERIOD);
-  ctx.globalAlpha = tone.banks;
-  const shade = mix(tone.fog, tone.sky[1], 0.25);
-  const light = mix(tone.fog, "#ffffff", 0.22);
-  for (let k = Math.max(0, k0 - 1); k <= k0 + 1; k++) {
-    for (let i = 0; i < BANKS.length; i++) {
-      const box = bankBox(s, k, i);
-      if (box.y0 > s.cssH || box.y1 < 0 || box.x1 - box.x0 < s.u * 0.08) continue;
-      // A long bank rolling up into a curl at its outer end: shaded underneath, lit along the top.
-      const h = box.y1 - box.y0;
-      const th = h * 0.42;
-      const y = box.y1 - h * 0.62;
-      ctx.beginPath();
-      swirl(ctx, box.x0, box.x1, y + th * 0.18, th, i % 2 ? 1 : -1, 0);
-      ctx.fillStyle = shade;
-      ctx.fill();
-      ctx.beginPath();
-      swirl(ctx, box.x0 + th * 0.3, box.x1 - th * 0.15, y, th * 0.8, i % 2 ? 1 : -1, 0);
-      ctx.fillStyle = light;
-      ctx.fill();
-    }
-  }
-  ctx.globalAlpha = 1;
 }

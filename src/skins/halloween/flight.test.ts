@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
 import { crowFlying } from "./crow";
 import { CIRCLING, crowBox, crowPose, CYCLE, cycleTime, LAND, TAKE_OFF } from "./flight";
@@ -8,8 +8,11 @@ import { batSpot, BATS, crowSpot, CROWS } from "./flyers";
 import { riderBox } from "./hollow";
 import { kids } from "./kids";
 import { shops } from "./shops";
-import { column, mask, meets, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
+import { breathe, column, mask, meets, MIN_ZOOM, sceneAt, SCREENS } from "./test-scene";
 import { toneOf } from "./tone";
+
+// Free the canvases' pixel reads between tests (see breathe).
+afterEach(breathe);
 
 // The churchyard crow takes a turn round the moon every half minute and lands again. In its
 // side lane: never in the tower's column above the floor line, never cut off by a screen edge,

@@ -3,22 +3,26 @@ import { BLOCK_HEIGHT } from "../../config";
 import type { Scene } from "../skin";
 import { DUSK_GLOW, FOG, HAZE, HILL, MOON, SKY_LOW, SKY_MID, SKY_TOP, smooth } from "./common";
 
-// Height tells the story, and loops so a tall tower never runs out of it.
+// Height tells the story, and loops so a tall tower never runs out of it. Levels here are the
+// camera's (level(s)): the start view holds at about 10-13 while the first dozen bars go up.
 //
-// The first pass: dusk on Main Street, the last pumpkin ember of the sunset glowing low behind
-// the hollow, deepening into night as you climb (fully dark by NIGHTFALL), the moon swelling. The
-// town falls away below; the Sleepy Hollow mist gathers and swallows it (MIST_GATHER), so that
-// only the crooked mansion on its crag stands out of it, and the hollow and the Horseman's hill
-// fade into it (HOLLOW_FADE). The mist then sinks to rest low on the screen (MIST_SETTLED),
-// the mansion with it, before the loop begins.
-//
-// Then the night goes round, every LOOP_PERIOD levels from LOOP_START, forever: the moonlit
-// night; the mist (the sky pales to a misty violet, the stars and the moon dim, banks of fog
-// drift past in the right lane); the witching hour (a deep indigo sky full of stars, the moon
-// burning orange, the mansion's clock striking twelve and its bats pouring out of the belfry);
-// and back to the moonlit night, which is where the loop started. Everything that changes with
-// height is read from here, by the camera's level, so the whole story repeats exactly with the
-// loop. Colors are precomputed in half-level steps, so drawing never mixes colors per frame.
+// The first pass climbs out of the village into a gothic sky:
+//  A (to 13)  Main Street at dusk: midnight blue with the last pumpkin ember on the horizon.
+//  B (13-31)  over the rooftops: night falls, the town sinks away and the far village and the hill
+//             cemetery show beyond it before the Sleepy Hollow mist gathers over them all; the moon
+//             eases up out of the way and swells.
+//  C (31-56)  the gothic skyline: full night, cloud ribbons round the moon, crooked spires and
+//             rooftops standing out of the mist in the lanes.
+//  D (56-96)  storm over the spires: storm clouds pile up in both lanes, the moon turns cold, distant
+//             lightning reveals a colossus striding behind the spires; a ring of bats circles the moon.
+//  E (96-120) the spiral sky: the storm winds up into huge Burton spirals and the first floating
+//             isles drift by. E is the loop's last stretch, so the seam into the loop is no seam.
+// Then the loop, every LOOP_PERIOD levels from LOOP_START, forever: the floating isles in a calm
+// night; the witching hour (the moon burns orange and largest, a ring of bats circles it, the
+// mansion's clock strikes twelve and the swarm pours from its belfry); the storm; the spiral calm.
+// Everything that changes with height is read from here, by level, so the whole story repeats
+// exactly with the loop. Colors are precomputed in half-level steps, so drawing never mixes colors
+// per frame.
 
 /** Where the loop starts and how long it is, in levels. */
 export const LOOP_START = 120;
@@ -35,8 +39,10 @@ export function storyLevel(lvl: number): number {
   return LOOP_START + ((((lvl - LOOP_START) % LOOP_PERIOD) + LOOP_PERIOD) % LOOP_PERIOD);
 }
 
+/** Where each stretch of the first pass begins (camera levels). E is the loop's last fifth. */
+export const STRETCH = { B: 13, C: 31, D: 56, E: LOOP_START - 0.2 * LOOP_PERIOD } as const;
 /** By this level the dusk has deepened into night. */
-export const NIGHTFALL = 75;
+export const NIGHTFALL = STRETCH.C;
 /** The mist gathers over the town between these levels... */
 export const MIST_GATHER = [10, 44] as const;
 /** ...and has sunk to rest low on the screen by this one (before the loop). */
@@ -44,36 +50,49 @@ export const MIST_SETTLED = 110;
 /** The hollow and the Horseman fade into the mist between these levels. */
 export const HOLLOW_FADE = [94, 118] as const;
 
-const NIGHT_SKY = ["#100d30", "#231753", "#3d1f62"] as const;
-const NIGHT_GLOW = "#4a2468";
+/** The loop's stretches, as fractions of it. */
+export const LOOP = { isles: 0.2, witching: 0.3, witchingOut: 0.56, storm: 0.64, stormOut: 0.74, spiral: 0.9 } as const;
+/** The mansion's clock strikes twelve here, in the witching hour. */
+export const MIDNIGHT = 0.43;
+
+/** Which stretch a level is in: 0 A Main Street, 1 B rooftops, 2 C skyline, 3 D storm, 4 E and the loop. */
+export function bandOf(lvl: number): 0 | 1 | 2 | 3 | 4 {
+  if (lvl >= STRETCH.E) return 4;
+  if (lvl >= STRETCH.D) return 3;
+  if (lvl >= STRETCH.C) return 2;
+  if (lvl >= STRETCH.B) return 1;
+  return 0;
+}
 
 /** Everything that changes with height, at one level. */
 export interface Tone {
   /** Sky gradient: top, at 60% of the way down, and on the horizon; then the glow on the horizon. */
   sky: [string, string, string];
   glow: string;
-  /** The swirl clouds painted on the sky: a step lighter than it. */
+  /** Cloud ribbons and swirls painted on the sky: their body and their moonlit edge. */
   swirl: string;
+  swirlLit: string;
   /** How tall the horizon's glow stands (0 none .. 1 dusk), as a fraction of its full height. */
   glowK: number;
   /** Star brightness 0..1, and the witching hour's extra stars. */
   starGlow: number;
   extraStars: number;
-  /** The moon: radius (in u), disc, seas, craters, lit rim, halo. */
+  /** The moon: radius (in u), how far it has eased up out of the start view (0..1), disc, seas, craters, lit rim, halo. */
   moonR: number;
+  moonUp: number;
   moon: string;
   moonSea: string;
   moonCrater: string;
   moonRim: string;
   halo: string;
-  /** Far silhouettes: the back hills (hazy), the near hill and the crag (dark). */
+  /** A ghost-green ring in its halo (the spiral calm), as an rgba string, or "" for none. */
+  ghostHalo: string;
+  /** Far silhouettes: the back hills and the far skyline (hazy), the near hill and the crag (dark). */
   haze: string;
   hill: string;
   /** Fog: its color and how thick the fog bands lie (0..1). */
   fog: string;
   fogK: number;
-  /** The mist's banks drifting past in the lane (0 none .. 1 thick). */
-  banks: number;
   /** Flyers against the sky: a shade darker than it. */
   flyer: string;
   /** How many of the flock circle over the mansion (a fraction fades the last one in). */
@@ -83,171 +102,356 @@ export interface Tone {
   swarm: number;
   /** The hollow (hill, Horseman, bridge, back hills): opacity. 1 at the start, 0 in the loop. */
   hollow: number;
+  /** Storm clouds piled in the lanes (0..1), the huge spirals they wind into (0..1), the ribbons round the moon (0..1). */
+  storm: number;
+  spiral: number;
+  ribbons: number;
+  /** The ring of bats round the moon (0..1). */
+  ring: number;
+  /** Chance a lightning slot fires (lightning.ts). */
+  bolt: number;
 }
 
-// ---------------------------------------------------------------- the first pass
+// ---------------------------------------------------------------- the moods
 
-const MOON_R = 0.145;
-const MOON_GROW = 0.02;
-const CREAM = {
-  moon: MOON,
-  moonSea: mix(MOON, "#d9b98a", 0.32),
-  moonCrater: mix(MOON, "#c9a07a", 0.38),
-  moonRim: mix(MOON, "#ffffff", 0.65),
+/** A mood's colors and amounts; tones blend between moods. */
+interface Mood {
+  sky0: string;
+  sky1: string;
+  sky2: string;
+  glow: string;
+  glowK: number;
+  swirl: string;
+  swirlLit: string;
+  starGlow: number;
+  moon: string;
+  sea: string;
+  crater: string;
+  rim: string;
+  haloColor: string;
+  haloA: number;
+  ghost: number;
+  haze: string;
+  hill: string;
+  fog: string;
+  flyer: string;
+  storm: number;
+  spiral: number;
+  ribbons: number;
+  bolt: number;
+}
+
+const CREAM = { moon: MOON, sea: mix(MOON, "#d9b98a", 0.32), crater: mix(MOON, "#c9a07a", 0.38), rim: mix(MOON, "#ffffff", 0.65) };
+const COLD = { moon: "#e6e0fa", sea: mix("#e6e0fa", "#a9a2d0", 0.36), crater: mix("#e6e0fa", "#9890c4", 0.42), rim: "#ffffff" };
+const HARVEST = { moon: "#ffaa48", sea: "#f08a3a", crater: "#e27a34", rim: "#ffe0a0" };
+
+const DUSK: Mood = {
+  sky0: SKY_TOP,
+  sky1: SKY_MID,
+  sky2: SKY_LOW,
+  glow: DUSK_GLOW,
+  glowK: 1,
+  swirl: "#2b3168",
+  swirlLit: "#59599a",
+  starGlow: 0.6,
+  ...CREAM,
+  haloColor: "#fff1c8",
+  haloA: 0.07,
+  ghost: 0,
+  haze: HAZE,
+  hill: HILL,
+  fog: FOG,
+  flyer: "#0c0b22",
+  storm: 0,
+  spiral: 0,
+  ribbons: 1,
+  bolt: 0.25,
+};
+const NIGHT: Mood = {
+  ...DUSK,
+  sky0: "#070a1c",
+  sky1: "#111634",
+  sky2: "#221c46",
+  glow: "#3a2152",
+  glowK: 0.3,
+  swirl: "#1e2352",
+  swirlLit: "#4d4f8e",
+  starGlow: 1,
+  haloA: 0.1,
+  haze: "#1f1e44",
+  hill: "#0f1029",
+  fog: "#46507a",
+  flyer: "#05040f",
+  bolt: 0.4,
+};
+const STORM: Mood = {
+  ...NIGHT,
+  sky0: "#080a19",
+  sky1: "#141832",
+  sky2: "#2a2a4c",
+  glow: "#302a52",
+  glowK: 0.45,
+  swirl: "#1a1d3c",
+  swirlLit: "#8e88c8",
+  starGlow: 0.35,
+  ...COLD,
+  haloColor: "#d8d4f4",
+  haloA: 0.1,
+  haze: "#1c1c3e",
+  fog: "#4a5076",
+  storm: 1,
+  ribbons: 0,
+  bolt: 0.77,
+};
+const WIND: Mood = { ...STORM, storm: 0.45, spiral: 0.8, ribbons: 0.3, bolt: 0.4, starGlow: 0.6, ghost: 0.5 };
+const SPIRAL: Mood = {
+  ...NIGHT,
+  sky0: "#091024",
+  sky1: "#152448",
+  sky2: "#22305a",
+  glow: "#24485a",
+  glowK: 0.4,
+  swirl: "#1c2a52",
+  swirlLit: "#6f86b8",
+  starGlow: 0.9,
+  haloA: 0.11,
+  ghost: 1,
+  haze: "#1a2244",
+  fog: "#46587e",
+  spiral: 1,
+  ribbons: 0.5,
+  bolt: 0.25,
+};
+const ISLES: Mood = {
+  ...NIGHT,
+  sky0: "#0a0e24",
+  sky1: "#161e48",
+  sky2: "#29255a",
+  glow: "#352a62",
+  glowK: 0.4,
+  swirl: "#1d2452",
+  swirlLit: "#54579a",
+  ghost: 0.3,
+  spiral: 0.4,
+  ribbons: 0.9,
+  bolt: 0.25,
+};
+const WITCHING: Mood = {
+  ...ISLES,
+  sky0: "#0b0a2a",
+  sky1: "#1c1450",
+  sky2: "#4a1a5c",
+  glow: "#7a2a50",
+  glowK: 0.55,
+  swirl: "#2a1d5c",
+  swirlLit: "#8a5a9a",
+  ...HARVEST,
+  haloColor: "#ffaa48",
+  haloA: 0.13,
+  ghost: 0,
+  haze: "#1e1446",
+  hill: "#0d0a24",
+  fog: "#3c2c6c",
+  flyer: "#07051a",
+  spiral: 0.15,
+  ribbons: 1,
 };
 
-function firstPass(lvl: number): Tone {
-  const a = smooth(0, NIGHTFALL, lvl);
-  const dusk = 1 - smooth(0, 60, lvl);
-  return {
-    sky: [mix(SKY_TOP, NIGHT_SKY[0], a), mix(SKY_MID, NIGHT_SKY[1], a), mix(SKY_LOW, NIGHT_SKY[2], a)],
-    glow: mix(DUSK_GLOW, NIGHT_GLOW, a),
-    swirl: mix(mix(SKY_MID, "#7a5cb8", 0.45), mix(NIGHT_SKY[1], "#4a3a86", 0.6), a),
-    glowK: 0.25 + 0.75 * dusk,
-    starGlow: 0.55 + 0.45 * a,
-    extraStars: 0,
-    moonR: MOON_R + MOON_GROW * a,
-    ...CREAM,
-    halo: alpha("#fff1c8", 0.07 + 0.03 * a),
-    haze: mix(HAZE, "#251a4c", a),
-    hill: mix(HILL, "#130f2c", a),
-    fog: mix(FOG, "#4f4688", a),
-    fogK: 0.55 + 0.45 * smooth(20, 80, lvl),
-    banks: 0,
-    flyer: mix("#1a1238", "#0c0920", a),
-    crows: 3 + Math.floor(a * 2.99),
-    bats: 0.7 + 0.3 * a,
-    swarm: 0,
-    hollow: 1 - smooth(HOLLOW_FADE[0], HOLLOW_FADE[1], lvl),
-  };
+function blend(a: Mood, b: Mood, k: number): Mood {
+  if (k <= 0) return a;
+  if (k >= 1) return b;
+  const out = { ...a } as Record<string, string | number>;
+  for (const key of Object.keys(a) as (keyof Mood)[]) {
+    const x = a[key];
+    const y = b[key];
+    out[key] = typeof x === "number" ? x + ((y as number) - x) * k : mix(x, y as string, k);
+  }
+  return out as unknown as Mood;
 }
 
-// ---------------------------------------------------------------- the loop
-
-/** Keyframes [loop fraction, value], eased between; the first and last values match. */
+/** Keyframes [position, value], eased between. */
 type Keys<T> = readonly (readonly [number, T])[];
 
-function at<T>(keys: Keys<T>, f: number, blend: (a: T, b: T, k: number) => T): T {
+function at<T>(keys: Keys<T>, f: number, mixer: (a: T, b: T, k: number) => T): T {
+  if (f <= keys[0]![0]) return keys[0]![1];
   for (let i = 1; i < keys.length; i++) {
     const [fb, b] = keys[i]!;
     if (f > fb) continue;
     const [fa, a] = keys[i - 1]!;
-    return blend(a, b, smooth(fa, fb, f));
+    return mixer(a, b, smooth(fa, fb, f));
   }
   return keys[keys.length - 1]![1];
 }
 const num = (a: number, b: number, k: number) => a + (b - a) * k;
-const col = (a: string, b: string, k: number) => mix(a, b, k);
 
-// Where each stage of the loop holds, as fractions of it.
-const MIST_IN = 0.1;
-const MIST = 0.24;
-const MIST_OUT = 0.4;
-const WITCHING = 0.54;
-const WITCHING_OUT = 0.76;
-const NIGHT_AGAIN = 0.9;
-/** The mansion's clock strikes twelve here, in the witching hour. */
-export const MIDNIGHT = 0.65;
+// ---------------------------------------------------------------- the loop
 
-const NIGHT = firstPass(LOOP_START);
-
-/** Hold `night` at both ends and `mist` / `witching` in their stages. */
-function stages<T>(night: T, mist: T, witching: T): Keys<T> {
-  return [
-    [0, night],
-    [MIST_IN, night],
-    [MIST, mist],
-    [MIST_OUT, mist],
-    [WITCHING, witching],
-    [WITCHING_OUT, witching],
-    [NIGHT_AGAIN, night],
-    [1, night],
-  ];
-}
-
-const SKY_TOP_K = stages(NIGHT.sky[0], "#2a2660", "#0b0a2a");
-const SKY_MID_K = stages(NIGHT.sky[1], "#433b7c", "#1c1450");
-const SKY_LOW_K = stages(NIGHT.sky[2], "#6a5f9c", "#4a1a5c");
-const GLOW_K = stages(NIGHT.glow, "#8478b0", "#7a2a50");
-const GLOW_H = stages(NIGHT.glowK, 0.6, 0.55);
-const SWIRL_K = stages(NIGHT.swirl, "#6a62a0", "#3a2470");
-const STAR_GLOW = stages(1, 0.2, 1);
-const EXTRA_STARS: Keys<number> = [
+const L = LOOP;
+const LOOP_MOODS: Keys<Mood> = [
+  [0, ISLES],
+  [L.isles, ISLES],
+  [L.witching, WITCHING],
+  [L.witchingOut, WITCHING],
+  [L.storm, STORM],
+  [L.stormOut, STORM],
+  [0.82, WIND],
+  [L.spiral, SPIRAL],
+  [1, ISLES],
+];
+const LOOP_MOON_R: Keys<number> = [
+  [0, 0.165],
+  [L.isles, 0.165],
+  [L.witching, 0.175],
+  [L.witchingOut, 0.175],
+  [L.storm, 0.165],
+  [1, 0.165],
+];
+const LOOP_RING: Keys<number> = [
   [0, 0],
-  [MIST_OUT + 0.06, 0],
-  [WITCHING, 1],
-  [WITCHING_OUT, 1],
-  [NIGHT_AGAIN - 0.04, 0],
+  [L.isles + 0.02, 0],
+  [L.witching, 1],
+  [L.witchingOut, 1],
+  [L.witchingOut + 0.04, 0],
   [1, 0],
 ];
-
-const HARVEST = { moon: "#ffaa48", moonSea: "#f08a3a", moonCrater: "#e27a34", moonRim: "#ffe0a0" };
-const MISTY = "#d8d2ee";
-const MOON_BODY = stages(NIGHT.moon, mix(NIGHT.moon, MISTY, 0.45), HARVEST.moon);
-const MOON_SEA = stages(NIGHT.moonSea, mix(NIGHT.moonSea, MISTY, 0.45), HARVEST.moonSea);
-const MOON_CRATER = stages(NIGHT.moonCrater, mix(NIGHT.moonCrater, MISTY, 0.45), HARVEST.moonCrater);
-const MOON_RIM = stages(NIGHT.moonRim, mix(NIGHT.moonRim, MISTY, 0.45), HARVEST.moonRim);
-const HALO_COLOR = stages("#fff1c8", "#e6e0fa", "#ffaa48");
-const HALO_ALPHA = stages(0.1, 0.16, 0.13);
-
-const HAZE_K = stages(NIGHT.haze, "#4a4280", "#1e1446");
-const HILL_K = stages(NIGHT.hill, "#2a2560", "#0d0a24");
-const FOG_K = stages(NIGHT.fog, "#7d72b0", "#3c2c6c");
-const FOG_THICK = stages(1, 1, 0.8);
-const BANKS = stages(0, 1, 0);
-const FLYER_K = stages(NIGHT.flyer, "#2c2560", "#07051a");
-const CROWS = stages(5, 3, 4);
-// The witching hour's swarm pours out of the belfry once the bats round the towers have roosted.
-const BATS: Keys<number> = [
+const LOOP_SWARM: Keys<number> = [
+  [0, 0],
+  [MIDNIGHT - 0.03, 0],
+  [MIDNIGHT + 0.02, 1],
+  [L.witchingOut - 0.02, 1],
+  [L.witchingOut + 0.03, 0],
+  [1, 0],
+];
+// The bats round the spire roost before the swarm pours out of the belfry, and come back after it.
+const LOOP_BATS: Keys<number> = [
   [0, 1],
-  [MIST_IN, 1],
-  [MIST, 0.4],
-  [MIST_OUT, 0.4],
-  [WITCHING - 0.06, 0],
-  [WITCHING_OUT + 0.06, 0],
-  [NIGHT_AGAIN, 1],
+  [L.isles, 1],
+  [MIDNIGHT - 0.06, 0],
+  [L.witchingOut + 0.04, 0],
+  [L.storm, 1],
   [1, 1],
 ];
-const SWARM: Keys<number> = [
+const LOOP_EXTRA: Keys<number> = [
   [0, 0],
-  [MIDNIGHT - 0.04, 0],
-  [MIDNIGHT + 0.02, 1],
-  [WITCHING_OUT, 1],
-  [WITCHING_OUT + 0.06, 0],
+  [L.isles + 0.02, 0],
+  [L.witching, 1],
+  [L.witchingOut, 1],
+  [L.witchingOut + 0.05, 0],
   [1, 0],
 ];
 
-function loopTone(f: number): Tone {
-  const haloA = at(HALO_ALPHA, f, num);
+function toneFrom(m: Mood, n: { moonR: number; moonUp: number; extra: number; fogK: number; crows: number; bats: number; swarm: number; ring: number; hollow: number }): Tone {
   return {
-    sky: [at(SKY_TOP_K, f, col), at(SKY_MID_K, f, col), at(SKY_LOW_K, f, col)],
-    glow: at(GLOW_K, f, col),
-    swirl: at(SWIRL_K, f, col),
-    glowK: at(GLOW_H, f, num),
-    starGlow: at(STAR_GLOW, f, num),
-    extraStars: at(EXTRA_STARS, f, num),
-    moonR: NIGHT.moonR,
-    moon: at(MOON_BODY, f, col),
-    moonSea: at(MOON_SEA, f, col),
-    moonCrater: at(MOON_CRATER, f, col),
-    moonRim: at(MOON_RIM, f, col),
-    halo: alpha(at(HALO_COLOR, f, col), Math.round(haloA * 1000) / 1000),
-    haze: at(HAZE_K, f, col),
-    hill: at(HILL_K, f, col),
-    fog: at(FOG_K, f, col),
-    fogK: at(FOG_THICK, f, num),
-    banks: at(BANKS, f, num),
-    flyer: at(FLYER_K, f, col),
-    crows: at(CROWS, f, num),
-    bats: at(BATS, f, num),
-    swarm: at(SWARM, f, num),
-    hollow: 0,
+    sky: [m.sky0, m.sky1, m.sky2],
+    glow: m.glow,
+    swirl: m.swirl,
+    swirlLit: m.swirlLit,
+    glowK: m.glowK,
+    starGlow: m.starGlow,
+    extraStars: n.extra,
+    moonR: n.moonR,
+    moonUp: n.moonUp,
+    moon: m.moon,
+    moonSea: m.sea,
+    moonCrater: m.crater,
+    moonRim: m.rim,
+    halo: alpha(m.haloColor, Math.round(m.haloA * 1000) / 1000),
+    ghostHalo: m.ghost > 0.01 ? alpha("#c8f0dc", Math.round(m.ghost * 100) / 1000) : "",
+    haze: m.haze,
+    hill: m.hill,
+    fog: m.fog,
+    fogK: n.fogK,
+    flyer: m.flyer,
+    crows: n.crows,
+    bats: n.bats,
+    swarm: n.swarm,
+    hollow: n.hollow,
+    storm: m.storm,
+    spiral: m.spiral,
+    ribbons: m.ribbons,
+    ring: n.ring,
+    bolt: m.bolt,
   };
 }
 
-/** The tone at a story level (see storyLevel). */
+function loopTone(f: number): Tone {
+  return toneFrom(at(LOOP_MOODS, f, blend), {
+    moonR: at(LOOP_MOON_R, f, num),
+    moonUp: 1,
+    extra: at(LOOP_EXTRA, f, num),
+    fogK: 1,
+    crows: 0,
+    bats: at(LOOP_BATS, f, num),
+    swarm: at(LOOP_SWARM, f, num),
+    ring: at(LOOP_RING, f, num),
+    hollow: 0,
+  });
+}
+
+// ---------------------------------------------------------------- the first pass
+
+const E = STRETCH.E;
+/** Where the loop is at E (the first pass hands over to it there). */
+const E_F = (E - LOOP_START) / LOOP_PERIOD + 1;
+const E_MOOD = at(LOOP_MOODS, E_F, blend);
+const FIRST_MOODS: Keys<Mood> = [
+  [0, DUSK],
+  [STRETCH.B, DUSK],
+  [STRETCH.C, NIGHT],
+  [50, NIGHT],
+  [62, STORM],
+  [88, STORM],
+  [E, E_MOOD],
+];
+const FIRST_MOON_R: Keys<number> = [
+  [0, 0.145],
+  [STRETCH.B, 0.145],
+  [40, 0.155],
+  [60, 0.165],
+];
+/** The moon eases up out of the start view over this stretch (slowly: never more than a pixel per half level). */
+const MOON_UP = [STRETCH.B, 52] as const;
+const FIRST_RING: Keys<number> = [
+  [0, 0],
+  [STRETCH.D, 0],
+  [STRETCH.D + 4, 1],
+  [90, 1],
+  [E - 1, 0],
+];
+const FIRST_CROWS: Keys<number> = [
+  [0, 3],
+  [STRETCH.B, 3],
+  [STRETCH.C, 5],
+  [50, 5],
+  [60, 0],
+];
+const FIRST_BATS: Keys<number> = [
+  [0, 0.7],
+  [STRETCH.C, 1],
+];
+
+function firstPass(lvl: number): Tone {
+  return toneFrom(at(FIRST_MOODS, lvl, blend), {
+    moonR: at(FIRST_MOON_R, lvl, num),
+    moonUp: smooth(MOON_UP[0], MOON_UP[1], lvl),
+    extra: 0,
+    fogK: 0.55 + 0.45 * smooth(20, 80, lvl),
+    crows: at(FIRST_CROWS, lvl, num),
+    bats: at(FIRST_BATS, lvl, num),
+    swarm: 0,
+    ring: at(FIRST_RING, lvl, num),
+    hollow: 1 - smooth(HOLLOW_FADE[0], HOLLOW_FADE[1], lvl),
+  });
+}
+
+/** The tone at a story level (see storyLevel). From E on it is the loop's (E is the loop's last stretch). */
 export function toneAt(lvl: number): Tone {
-  return lvl < LOOP_START ? firstPass(lvl) : loopTone((lvl - LOOP_START) / LOOP_PERIOD);
+  if (lvl < E) return firstPass(lvl);
+  const f = ((((lvl - LOOP_START) % LOOP_PERIOD) + LOOP_PERIOD) % LOOP_PERIOD) / LOOP_PERIOD;
+  const t = loopTone(f);
+  // The hollow fades out over E's first levels as it does on the first pass.
+  if (lvl < LOOP_START) t.hollow = 1 - smooth(HOLLOW_FADE[0], HOLLOW_FADE[1], lvl);
+  return t;
 }
 
 /** Tones in half-level steps, from the ground to the end of the loop (which is its start again). */
@@ -295,4 +499,3 @@ export function clockHours(lvl: number): number {
 export function loopFraction(lvl: number): number {
   return lvl < LOOP_START ? 0 : (((lvl - LOOP_START) % LOOP_PERIOD) + LOOP_PERIOD) % LOOP_PERIOD / LOOP_PERIOD;
 }
-
