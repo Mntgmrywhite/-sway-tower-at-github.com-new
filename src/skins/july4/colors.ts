@@ -155,8 +155,10 @@ export const EAGLE_BEAK = GOLD;
 /** The barnstormer: a yellow biplane with red wings. */
 export const PLANE = shades("#f4c430", 0.45, 0.25);
 export const PLANE_WING = shades(RED, 0.4, 0.3);
-/** The hot-air balloon's basket and ropes. */
+/** The hot-air balloon's basket and ropes, and its burner's flame (outer, core). */
 export const BASKET = shades("#b7834a", 0.35, 0.3);
+export const BURNER = "#ffab2e";
+export const BURNER_CORE = "#fff0c2";
 
 /** Firework inks: red, cream, sky blue and gold, in a fixed order so hash() can pick from them. */
 export const FIREWORK = ["#ff4e55", "#fff3d6", "#7fb6ff", "#ffc843"] as const;
@@ -183,9 +185,18 @@ export const TREE = "#4b9447";
 export const TREE_LIT = "#7cbd5a";
 export const TREE_SHADE = "#3a7a3d";
 export const TRUNK = "#6b4426";
-/** The hills: the far ridge, the nearer rolling hill, and the woods on them. */
-export const RIDGE = "#8db7c8";
-export const HILL_FAR = "#9cc48a";
+/**
+ * The country beyond the town, back to front: the far range (the palest ink), the nearer blue
+ * ridge, the far town on its shoulder, the farm hills plowed in contour stripes of green field,
+ * ochre wheat and rust furrows with dark hedgerows along them, then the near hill with its woods.
+ */
+export const FAR_RANGE = "#8f9fd8";
+export const RIDGE = "#5f86c8";
+export const FAR_TOWN = "#d3a184";
+export const FIELD = "#79b552";
+export const WHEAT = "#e8b843";
+export const FURROW = "#c97f45";
+export const HEDGEROW = "#3f8a4a";
 export const HILL = "#78ad66";
 export const WOODS = "#4e8f52";
 /** The water tower's steel and its painted tank. */
@@ -208,7 +219,7 @@ export const PALETTE: Palette = {
   cloudShadow: "#b9cde0",
   cloudBase: "#f6efdd",
   cloudLight: "#fffaf0",
-  far: HILL_FAR,
+  far: RIDGE,
   fieldFar: "#8fc46a",
   fieldNear: LAWN,
   // The base band in front is covered by the street; these match the curb and the asphalt.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Scene } from "../skin";
 import { drawDrifter, drifters, eachVisible, type Drifter } from "./drift";
-import { cloudFloor, farLayer, farProps, farShows, floorTop, landmarkLine, landShows } from "./far";
+import { cloudFloor, farBack, farFront, floorTop, landmarkLine, landShows } from "./far";
 import { church, courthouse } from "./landmarks";
 import { fireworks } from "./fireworks";
 import { front } from "./front";
@@ -103,14 +103,11 @@ function inCircle(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numb
 function afterSky(ctx: CanvasRenderingContext2D, s: Scene, clouds = true): void {
   const tone = toneOf(s);
   const floor = floorTop(s, level(s));
-  fireworks(ctx, s, tone, floor);
-  if (clouds) farLayer(ctx, s, tone, floor);
-  else {
-    // The far layer as farLayer() draws it (only while its landmarks stand out of the floor), less the cumulus.
-    const line = landmarkLine(s);
-    if (farShows(s, floor, line)) farProps(ctx, s, tone, floor, line, landShows(s));
-  }
+  // The far layer as the backdrop draws it, the show and the lane between its back and its front; without the clouds, less the cumulus.
+  farBack(ctx, s, tone, floor, clouds);
   drifters(ctx, s, tone);
+  fireworks(ctx, s, tone, floor);
+  farFront(ctx, s, tone, floor);
   if (landShows(s) && s.horizonY < s.cssH) {
     lawn(ctx, s, tone);
     hedge(ctx, s, tone);
@@ -216,8 +213,10 @@ describe("independence day's sun and moon", () => {
 describe("independence day's drifters over the land", () => {
   // While the land still shows (until the cloud floor covers it), what comes down the lane may
   // pass in front of the plain hills, the park and the clouds but never over the church, the
-  // courthouse, the water tower, the big trees or the lamp posts.
-  const PROPS_LEVELS = Array.from({ length: 32 }, (_, i) => i);
+  // courthouse, the water tower, the big trees or the lamp posts. Up to the last moment: then the
+  // lane comes in front of the landmarks standing out of the cloud sea (july4.ts), so anything
+  // overlapping them then would jump from behind them to in front.
+  const PROPS_LEVELS = [...Array.from({ length: 32 }, (_, i) => i), 28.5, 28.8, 28.95, 28.99];
   // The moments include the swifts wheeling out to the left edge of their flock (about 20 s).
   it.each(SIZES.flatMap(([W, H]) => [0, 5.3, 11, 19.6, 20.3].map((t) => [W, H, t] as const)))("%ix%i at t=%s: nothing drifts over the far props", (W, H, t) => {
     let checked = 0;

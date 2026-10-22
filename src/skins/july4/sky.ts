@@ -2,25 +2,24 @@ import { circle, hash, type Ctx } from "../../base/draw";
 import type { Scene } from "../skin";
 import { MOON, MOON_SHADE, STAR_CREAM, STAR_RED } from "./colors";
 import { crescent, dot, starPath } from "./shapes";
-import type { Tone } from "./tone";
+import { STRIPE_LANES, type Tone } from "./tone";
 
 // The sky, printed like a WPA poster: flat bands of the hour's inks from the top of the screen
-// down to the glow on the horizon (no soft gradients), and a sunburst of broad rays fanning up
-// from behind the town (later from behind the cloud sea) into both side lanes, each ray printed
-// a step toward the next band's ink and the hour's burst ink (the paper by day, gold in the
-// evening), over the angles a phone's lane shows, so it reads as a poster's sunburst on every
-// screen; at dusk the rays and the slices between them are printed as the flag's red and cream
-// stripes. The fan keeps out of the tower's column (it rises from below the skyline, and its
-// steepest ray clears the column at the skyline's height), so the sky behind the tower stays
-// plain. In the show's night the lanes are printed Pop Art: a texture of Ben-Day halftone dots,
-// a step off the sky's ink, that swell toward the screen's edges and the horizon and shrink to
-// nothing beside the column (a texture only, never the picture). A summer
-// sun hangs up on the left by day (white-gold in the afternoon, amber in the golden evening),
-// a flat disc with spoked rays, and sinks into the cloud floor at sunset; then a flat crescent
-// moon in the same place, lit on the side the sun set, and bold five-point stars; at the loop's
-// dawn the moon and stars fade and the sun comes back up where it set. Celestial things are far
-// away: flat inks, no outline, a solid flat halo instead of a glow (a see-through one let the
-// band and ray edges show across the sun).
+// down to the glow on the horizon (no soft gradients), and a great sunburst of broad rays
+// radiating from behind the town (later from behind the cloud sea) up both side lanes to the
+// top corners, each ray printed a step toward the next band's ink and the hour's burst ink (the
+// paper by day, gold in the evening); at dusk the rays are the flag's red stripes over lanes
+// printed cream between them. The burst is cut by a plain panel behind the tower, as a poster's
+// burst is by its central panel: the sky behind the tower stays flat bands, and the eye carries
+// the rays on to their center behind it. By night the burst is gone: in the show's night the
+// lanes are printed Pop Art instead, big Ben-Day halftone dots, a step off the sky's ink, that
+// swell toward the screen's edges and the horizon and shrink to nothing beside the column, and
+// bold five-point stars printed over off-register red ones. A summer sun hangs up on the left
+// by day (white-gold in the afternoon, amber in the golden evening), a flat disc with spoked
+// rays, and sinks into the cloud floor at sunset; then a flat crescent moon in the same place,
+// lit on the side the sun set; at the loop's dawn the moon and stars fade and the sun comes back
+// up where it set. Celestial things are far away: flat inks, no outline, a solid flat halo
+// instead of a glow (a see-through one let the band and ray edges show across the sun).
 //
 // The left of the sky belongs to the sun and the moon: nothing drifts there (drift.ts), and
 // the fireworks in that lane burst below the moon (fireworks.ts), so nothing ever passes over
@@ -29,42 +28,62 @@ import type { Tone } from "./tone";
 /** Where each band starts, as a fraction of the way from the top of the screen down to the horizon. */
 const BANDS = [0, 0.3, 0.52, 0.7, 0.85] as const;
 
-/** The sunburst's apex lies RAY_DEPTH u below the line; at the line's height its steepest ray is RAY_CLEAR u out from the center. */
-const RAY_DEPTH = 0.8;
-const RAY_CLEAR = 0.27;
 /**
- * The fan's shallowest edge (radians above the horizontal), and how many rays a side: the fan
- * spans the angles a phone's lane shows above the town (shallower rays would only run behind
- * the town and out of the screen's sides), so a lane shows the whole poster burst.
+ * The sunburst: a poster's burst of broad rays radiating from a center BURST_DEPTH u below the
+ * line (behind the town, later behind the cloud sea), every other slice of the fan printed in
+ * the band's ray ink. It is cut by a plain panel PANEL u either side of the center, the sky
+ * behind the tower, so the rays fill both lanes from the horizon to the top corners while the
+ * column stays flat bands: the eye carries the rays on to their center behind the tower.
  */
-const RAY_FROM = 0.72;
-const RAYS_A_SIDE = 7;
-/** Its steepest edge: the ray through (RAY_CLEAR, the line). */
-const RAY_TO = Math.atan2(RAY_DEPTH, RAY_CLEAR);
-const RAY_SLICE = (RAY_TO - RAY_FROM) / (RAYS_A_SIDE * 2 - 1);
-/** Each ray's edges, as 1 / tan of their angles: how far out from the center an edge runs per pixel of rise. */
-const RAY_RUN = Array.from({ length: RAYS_A_SIDE }, (_, i) => {
-  const a0 = RAY_FROM + RAY_SLICE * i * 2;
-  return [1 / Math.tan(a0), 1 / Math.tan(a0 + RAY_SLICE)] as const;
-});
-/** The slices between the rays (printed only at dusk, when the burst becomes the flag's stripes). */
-const GAP_RUN = Array.from({ length: RAYS_A_SIDE - 1 }, (_, i) => {
-  const a0 = RAY_FROM + RAY_SLICE * (i * 2 + 1);
-  return [1 / Math.tan(a0), 1 / Math.tan(a0 + RAY_SLICE)] as const;
+const BURST_DEPTH = 0.12;
+const PANEL = 0.27;
+/**
+ * The fan, a side: FAN_RAYS rays from FAN_FROM to FAN_TO radians off the vertical, each RAY_W of its
+ * share of the fan wide (the gaps between them a little broader, as a poster's burst prints),
+ * so a phone's lane shows two or three broad rays at every height of the sky and more toward
+ * the horizon.
+ */
+const FAN_FROM = 0.02;
+const FAN_TO = 1.5;
+const FAN_RAYS = 6;
+const RAY_W = 0.46;
+const RAY_STEP = (FAN_TO - FAN_FROM) / (FAN_RAYS - 1 + RAY_W);
+/** Each ray's edges as tan of their angles: how far out from the center an edge runs per pixel of rise. */
+const EDGES = Array.from({ length: FAN_RAYS }, (_, i) => {
+  const a = FAN_FROM + i * RAY_STEP;
+  return [Math.tan(a), Math.tan(a + RAY_STEP * RAY_W)] as const;
 });
 
-/** One set of slices across a band, from its top (r0 out per unit of `run`) to its foot, both sides of the center (those wholly off the screen's sides left out). */
-function slices(ctx: Ctx, run: readonly (readonly [number, number])[], cx: number, y0: number, y1: number, r0: number, r1: number): void {
+/**
+ * The part of slice `i` (between edges i and i + 1) inside a band from rise h0 (its top) down to
+ * h1 above the center at (cx, ay), out past the panel `c` on `side`, as its own subpath: the
+ * slice's wedge cut by the panel's edge (where its inner edge meets the panel, it runs up the
+ * panel's edge instead).
+ */
+function slice(ctx: Ctx, cx: number, ay: number, side: number, c: number, k0: number, k1: number, h0: number, h1: number): void {
+  // Below `he` the whole slice is inside the panel.
+  const he = c / k1;
+  if (h0 <= he) return;
+  const hb = Math.max(h1, he);
+  const inner = (h: number) => Math.max(c, h * k0);
+  ctx.moveTo(cx + side * inner(h0), ay - h0);
+  ctx.lineTo(cx + side * h0 * k1, ay - h0);
+  ctx.lineTo(cx + side * hb * k1, ay - hb);
+  ctx.lineTo(cx + side * inner(hb), ay - hb);
+  const hk = k0 > 0 ? c / k0 : Infinity;
+  if (hk > hb && hk < h0) ctx.lineTo(cx + side * c, ay - hk);
+  ctx.closePath();
+}
+
+/** The rays across a band from rise h0 down to h1, both sides of the panel; those wholly off the screen left out. */
+function slices(ctx: Ctx, s: Scene, ay: number, h0: number, h1: number): void {
+  const cx = s.cssW / 2;
+  const c = s.u * PANEL;
   ctx.beginPath();
-  for (const side of [-1, 1]) {
-    for (const [k0, k1] of run) {
-      if (r1 * k1 > cx + 1) continue;
-      ctx.moveTo(cx + side * r0 * k0, y0);
-      ctx.lineTo(cx + side * r0 * k1, y0);
-      ctx.lineTo(cx + side * r1 * k1, y1);
-      ctx.lineTo(cx + side * r1 * k0, y1);
-      ctx.closePath();
-    }
+  for (const [k0, k1] of EDGES) {
+    // Its innermost point in the band is at the band's foot: past the screen's side, so is the rest.
+    if (Math.max(c, Math.max(h1, 0) * k0) > cx + 1) break;
+    for (const side of [-1, 1]) slice(ctx, cx, ay, side, c, k0, k1, h0, Math.max(h1, 0));
   }
   ctx.fill();
 }
@@ -72,16 +91,16 @@ function slices(ctx: Ctx, run: readonly (readonly [number, number])[], cx: numbe
 /**
  * Paint the sky down to `bottom` (everything below it is covered by the hills and the lawn, or
  * the cloud floor): flat bands hung from the line the town (later the cloud sea) stands on, the
- * last running on down, and over them the sunburst fanning up from below the line into both
- * lanes, every other slice printed in the band's own ray ink (a step toward the next band down).
- * The fan's steepest edge clears the column at the line's height, so the sky behind the tower
- * stays plain.
+ * last running on down, and over them the sunburst's rays in each band's ray ink, down to
+ * `rayFoot` (below it the lanes are covered: rays there would never be seen); at dusk the lanes
+ * under the rays are printed as the flag's cream stripes. The panel behind the tower is left as
+ * plain bands.
  */
-export function skyFill(ctx: Ctx, s: Scene, tone: Tone, line: number, bottom: number): void {
+export function skyFill(ctx: Ctx, s: Scene, tone: Tone, line: number, bottom: number, rayFoot: number): void {
   const h = Math.max(1, Math.min(line, s.cssH));
   const end = Math.min(s.cssH, Math.ceil(bottom));
-  const cx = s.cssW / 2;
-  const ay = line + s.u * RAY_DEPTH;
+  const foot = Math.min(end, rayFoot);
+  const ay = line + s.u * BURST_DEPTH;
   let y0 = 0;
   for (let i = 0; i < BANDS.length && y0 < end; i++) {
     const y1 = i + 1 < BANDS.length ? Math.min(end, Math.round(BANDS[i + 1]! * h)) : end;
@@ -90,24 +109,24 @@ export function skyFill(ctx: Ctx, s: Scene, tone: Tone, line: number, bottom: nu
     // A pixel's overlap into the next band, so no seam shows between them at any zoom.
     const y1o = y1 < end ? y1 + 1 : y1;
     ctx.fillRect(0, y0, s.cssW, y1o - y0);
-    // The rays across this band: each a quad between its two edges, from the band's top to its foot
-    // (none in the top band, which the HUD's rows cover).
-    if (i > 0) {
-      const r0 = ay - y0;
-      const r1 = Math.max(0, ay - y1o);
-      ctx.fillStyle = tone.rays[i]!;
-      slices(ctx, RAY_RUN, cx, y0, y1o, r0, r1);
-      if (tone.stripe > 0.01) {
+    if (tone.burst > 0.01 && y0 < foot) {
+      const yb = Math.min(y1o, foot);
+      // At dusk the slices between the rays are the flag's cream stripes: the lanes either side of the panel, under the rays.
+      if (tone.stripe > STRIPE_LANES) {
+        const c = s.cssW / 2 - s.u * PANEL;
         ctx.fillStyle = tone.gaps[i]!;
-        slices(ctx, GAP_RUN, cx, y0, y1o, r0, r1);
+        ctx.fillRect(0, y0, c, yb - y0);
+        ctx.fillRect(s.cssW - c, y0, c, yb - y0);
       }
+      ctx.fillStyle = tone.rays[i]!;
+      slices(ctx, s, ay, ay - y0, ay - yb);
     }
     y0 = y1;
   }
 }
 
 /** The halftone: grid pitch (u), how far out from the center the dots begin, and over how far they swell to full size. */
-const DOT_PITCH = 0.046;
+const DOT_PITCH = 0.072;
 const DOT_FROM = 0.27;
 const DOT_SWELL = 0.24;
 /** The dotted field starts this far down the screen (below the HUD and the moon). */
@@ -129,7 +148,7 @@ export function halftone(ctx: Ctx, s: Scene, tone: Tone, line: number): void {
   const top = s.cssH * DOT_TOP;
   const bottom = Math.min(line, s.cssH);
   if (bottom <= top) return;
-  const rMax = g * 0.34 * tone.dots;
+  const rMax = g * 0.38 * tone.dots;
   const cols = Math.ceil((s.cssW / 2 - DOT_FROM * u) / g) + 1;
   ctx.strokeStyle = tone.dot;
   ctx.lineCap = "round";
@@ -279,6 +298,8 @@ const STAR_MARGIN = 0.022;
 
 /** How far the big stars' red plate is printed off register, below and to the right of the cream (in star radii): Pop Art. */
 const OFF_REGISTER = 0.22;
+/** A big star's points reach this many times its dot's radius: bold enough to read on a phone. */
+const BIG = 3.2;
 
 /** Stars over the night sky in three twinkle groups: bold five-point stars (each on its off-register red) and dots. */
 export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
@@ -296,11 +317,13 @@ export function stars(ctx: Ctx, s: Scene, tone: Tone): void {
       for (const st of STARS) {
         if (st.g !== g || (!pass && !st.big)) continue;
         const x = edge + st.x * span;
-        if (x > c0 && x < c1) continue;
-        const y = st.y * s.cssH;
         const r = st.r * u;
-        if (!pass) starPath(ctx, x + r * 2.4 * OFF_REGISTER, y + r * 2.4 * OFF_REGISTER, r * 2.4);
-        else if (st.big) starPath(ctx, x, y, r * 2.4);
+        // The whole star, its red plate and all, keeps out of the column.
+        const reach = st.big ? r * BIG * (1 + OFF_REGISTER) : r;
+        if (x > c0 - reach && x < c1 + reach) continue;
+        const y = st.y * s.cssH;
+        if (!pass) starPath(ctx, x + r * BIG * OFF_REGISTER, y + r * BIG * OFF_REGISTER, r * BIG);
+        else if (st.big) starPath(ctx, x, y, r * BIG);
         else dot(ctx, x, y, r);
       }
       ctx.fill();

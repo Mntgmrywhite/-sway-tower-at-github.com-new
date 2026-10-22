@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { kitFor } from "../../base/style";
 import { july4 } from "../july4";
 import type { Scene } from "../skin";
-import { floorTop, FLOOR_SETTLED, landmarkLine } from "./far";
+import { country } from "./country";
+import { cloudFloor, floorTop, FLOOR_SETTLED, landmarkLine, landShows } from "./far";
 import { DOME_TOP, poleTop, STEEPLE_TOP } from "./landmarks";
-import { townLine, TOWN_TOP } from "./town";
-import { context, sceneAt, SIZES, zoomedScene } from "./test-scene";
+import { rooftops, townLine, townRow, TOWN_TOP, trees } from "./town";
+import { context, mask, sceneAt, SIZES, zoomedScene } from "./test-scene";
 import { DAY_HIGH, level, LOOP, LOOP_START, storyLevel, toneAtLevel, type Tone } from "./tone";
 
 // The height story loops forever (tone.ts): from LOOP_START on, everything keyed by height comes
@@ -171,6 +172,57 @@ describe("independence day's loop on screen", () => {
       const s = sceneAt(W, H, DAY_HIGH, 0);
       expect(floorTop(s, level(s))).toBeLessThan(townLine(s) - s.u * TOWN_TOP);
     }
+  });
+});
+
+describe("independence day's land under the cloud sea", () => {
+  // The land (the country beyond the town, its rooftops, Main Street and the big trees) stops
+  // being drawn the moment the camera reaches DAY_HIGH: by then the cloud floor, piled up on the
+  // right where the country rises highest, must have covered every pixel of it, or it would
+  // vanish with a pop. Checked pixel by pixel just before that moment, on phones, iPads, a wide
+  // window and zoomed out.
+  const SCREENS = [
+    [390, 844, 1],
+    [375, 667, 1],
+    [834, 1194, 1],
+    [1024, 1366, 1],
+    [1440, 900, 1],
+    [390, 844, 0.6],
+    [375, 667, 0.8],
+  ] as const;
+  it.each(SCREENS)("%ix%i at zoom %s: the floor covers the whole land when the land stops being drawn", (W, H, z) => {
+    const view = (tower: number) => (z === 1 ? sceneAt(W, H, tower, 0) : zoomedScene(W, H, z, tower, 0));
+    // The tower height whose camera stands a hair below DAY_HIGH (the camera's level runs a little ahead of the tower's).
+    let last = DAY_HIGH;
+    while (!landShows(view(last))) last -= 0.01;
+    let checked = 0;
+    for (const tower of [last, last - 0.5, last - 2]) {
+      const s = view(tower);
+      const lvl = level(s);
+      expect(landShows(s), `level ${lvl}: the land still shows`).toBe(true);
+      const tone = toneAtLevel(level(s));
+      const top = floorTop(s, level(s));
+      const land = mask(s.cssW, s.cssH, (ctx) => {
+        country(ctx, s, tone, Math.min(s.cssH, top + s.u * 0.12));
+        rooftops(ctx, s, tone, landmarkLine(s));
+        townRow(ctx, s, tone);
+        trees(ctx, s, tone);
+      }, 0.5);
+      const floor = mask(s.cssW, s.cssH, (ctx) => cloudFloor(ctx, s, tone, top), 0.5);
+      let drawn = 0;
+      let bare = 0;
+      for (let i = 0; i < land.length; i++) {
+        drawn += land[i]!;
+        if (land[i] && !floor[i]) bare++;
+      }
+      if (tower === last) {
+        expect(lvl, "the moment the land stops being drawn").toBeGreaterThan(DAY_HIGH - 0.02);
+        expect(drawn, "the land is drawn").toBeGreaterThan(100);
+        expect(bare, `level ${lvl}: pixels of the land the floor leaves bare`).toBe(0);
+        checked++;
+      }
+    }
+    expect(checked).toBe(1);
   });
 });
 
